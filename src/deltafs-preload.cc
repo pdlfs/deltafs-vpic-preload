@@ -75,9 +75,10 @@ static preload_context ctx = { 0 };
  * msg_abort: abort with a message
  */
 void msg_abort(const char *msg) {
-    (void)write(fileno(stderr), "ABORT:", sizeof("ABORT:")-1);
-    (void)write(fileno(stderr), msg, strlen(msg));
-    (void)write(fileno(stderr), "\n", 1);
+    int d;   /* XXX to avoid compiler warning about write ret val */
+    d = write(fileno(stderr), "ABORT:", sizeof("ABORT:")-1);
+    d = write(fileno(stderr), msg, strlen(msg));
+    d = write(fileno(stderr), "\n", 1);
     abort();
 }
 
