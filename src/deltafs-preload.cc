@@ -126,10 +126,7 @@ static void preload_init() {
                               ctx.root[ctx.len_root-1] == '/')
         msg_abort("bad PDLFS_root");
 
-    /* 
-     * XXXCDC: what else do we need to init?   shuffle?
-     * XXXCDC: what about MPI?   rank to IP mappings?
-     */
+    /* XXXCDC: additional init can go here or MPI_Init() */
 }
 
 /*
@@ -174,7 +171,9 @@ int MPI_Init(int *argc, char ***argv) {
     int rv;
 
     rv = nxt.MPI_Init(argc, argv);
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);   /* XXXCDC: just for testing */
+
+    /* XXXCDC: additional init can go here or preload_inipreload_init() */
 
     return(rv);
 }
@@ -216,7 +215,7 @@ DIR *opendir(const char *filename) {
         return(nxt.opendir(filename));
     }
 
-    /* XXXCDC: CALL EPOCH */
+    /* XXXCDC: CALL EPOCH HERE */
 
     /* we return a fake DIR* pointer for deltafs, since we don't actually open */
     return(reinterpret_cast<DIR *>(&fake_dirptr));
