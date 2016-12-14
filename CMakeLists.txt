@@ -15,7 +15,8 @@
 #
 
 cmake_minimum_required (VERSION 3.0)
-project (deltafs-preload CXX)
+project (deltafs-preload C CXX)
+enable_testing ()
 
 # link shared lib with full rpath
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
@@ -53,7 +54,10 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 endif ()
 
 # deltafs is required!
-find_package(deltafs CONFIG REQUIRED)
+find_package (deltafs CONFIG REQUIRED)
+
+# MPI too...
+find_package (MPI MODULE REQUIRED)
 
 # user hook to build tools
 set (BUILD_TOOLS "OFF" CACHE BOOL "Build tools")
