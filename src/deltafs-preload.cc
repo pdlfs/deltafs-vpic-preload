@@ -9,6 +9,8 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <string.h>
@@ -195,7 +197,11 @@ int mkdir(const char *path, mode_t mode) {
 
     newpath = (need_slash) ? "/" : (path + ctx.len_root);
 
+#ifdef PLFS_DIRMODE_BYPASS   /* XXX for initial testing... */
+    rv = deltafs_mkdir(path, mode);
+#else
     rv = deltafs_mkdir(path, mode | DELTAFS_DIR_PLFS_STYLE);
+#endif
 
     return(rv);
 }
@@ -216,6 +222,7 @@ DIR *opendir(const char *filename) {
     }
 
     /* XXXCDC: CALL EPOCH HERE */
+    //int deltafs_epoch_flush(int __fd, void* __arg);
 
     /* we return a fake DIR* pointer for deltafs, since we don't actually open */
     return(reinterpret_cast<DIR *>(&fake_dirptr));
@@ -290,8 +297,38 @@ size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream) {
     return(cnt / size);    /* truncates on error */
 }
 
+#ifdef SHUFFLE_BYPASS   /* XXX for debug */
 /*
- * fclose
+ * shuffle_bypass_write(): write directly to deltafs without shuffle.
+ * for debugging so print msg on any err.   returns 0 or EOF on error.
+ */
+static int shuffle_bypass_write(const char *fn, char *data, int len) {
+    int fd, rv;
+    ssize_t wrote;
+
+    fd = deltafs_open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
+    if (fd < 0) {
+        fprintf(stderr, "shuffle_bypass: %s: open failed (%s)\n", fn,
+                strerror(errno));
+        return(EOF);
+    }
+
+    wrote = deltafs_write(fd, data, len);
+    if (wrote != len)
+        fprintf(stderr, "shuffle_bypass: %s: write failed: %d (want %d)\n",
+                fn, (int)wrote, (int)len);
+
+    rv = deltafs_close(fd);
+    if (rv < 0)
+        fprintf(stderr, "shuffle_bypass: %s: close failed (%s)\n", fn,
+                strerror(errno));
+
+    return((wrote != len || rv < 0) ? EOF : 0);
+}
+#endif
+
+/*
+ * fclose.   returns EOF on error.
  */
 int fclose(FILE *stream) {
     int rv;
@@ -303,6 +340,7 @@ int fclose(FILE *stream) {
         return(nxt.fclose(stream));
     }
 
+    rv = 0;
     deltafspreload::FakeFile *ff = 
         reinterpret_cast<deltafspreload::FakeFile *>(stream);
 
@@ -310,7 +348,11 @@ int fclose(FILE *stream) {
         printf("FCLOSE: %s %.*s %d\n", ff->FileName(), ff->DataLen(),
                ff->Data(), ff->DataLen());
     } else {
+#ifdef SHUFFLE_BYPASS
+        rv = shuffle_bypass_write(ff->FileName(), ff->Data(), ff->DataLen());
+#else
         // XXXCDC: shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
+#endif
     }
 
     ctx.setlock.Lock();
@@ -318,7 +360,7 @@ int fclose(FILE *stream) {
     ctx.setlock.Unlock();
 
     delete ff;
-    return(0);
+    return(rv);
 }
 
 /*
