@@ -123,9 +123,10 @@ static void preload_init() {
     if (getenv("PDLFS_Testin"))
         ctx.testin = 1;
 
-    /* root: absolute path, not "/" and not ending in "/" */
-    if (ctx.root[0] != '/' || ctx.len_root <= 1 ||
-                              ctx.root[ctx.len_root-1] == '/')
+    /* root: any non-null path, not "/" and not ending in "/" */
+    if ( ctx.len_root == 0 ||
+        (ctx.len_root == 1 && ctx.root[0] == '/') ||
+        ctx.root[ctx.len_root-1] == '/' )
         msg_abort("bad PDLFS_root");
 
     /* XXXCDC: additional init can go here or MPI_Init() */
@@ -134,15 +135,15 @@ static void preload_init() {
 /*
  * claim_path: look at path to see if we can claim it
  */
-static bool claim_path(const char *path, bool *need_slash) {
+static bool claim_path(const char *path, bool *exact) {
 
     if (strncmp(ctx.root, path, ctx.len_root) != 0 ||
          (path[ctx.len_root] != '/' && path[ctx.len_root] != '\0') ) {
         return(false);
     }
 
-    /* if we've just got ctx.root, we need convert it to a "/" */
-    *need_slash = (path[ctx.len_root] == '\0');
+    /* if we've just got ctx.root, caller may convert it to a "/" */
+    *exact = (path[ctx.len_root] == '\0');
     return(true);
 }
 
@@ -184,18 +185,28 @@ int MPI_Init(int *argc, char ***argv) {
  * mkdir
  */
 int mkdir(const char *path, mode_t mode) {
-    bool need_slash;
+    bool exact;
     const char *newpath;
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("mkdir:pthread_once");
 
-    if (!claim_path(path, &need_slash)) {
+    if (!claim_path(path, &exact)) {
         return(nxt.mkdir(path, mode));
     }
 
-    newpath = (need_slash) ? "/" : (path + ctx.len_root);
+    /* relatives paths we pass through, absolute we strip off prefix */
+    if (*path != '/') {
+        newpath = path;
+    } else {
+        newpath = (exact) ? "/" : (path + ctx.len_root);
+    }
+
+    if (ctx.testin) {
+        printf("MKDIR %s %s\n", newpath, path);
+        return(0);
+    }
 
 #ifdef PLFS_DIRMODE_BYPASS   /* XXX for initial testing... */
     rv = deltafs_mkdir(path, mode);
@@ -211,13 +222,13 @@ int mkdir(const char *path, mode_t mode) {
  */
 DIR *opendir(const char *filename) {
     int rv;
-    bool need_slash;
+    bool exact;
     const char *newpath;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("opendir:pthread_once");
 
-    if (!claim_path(filename, &need_slash)) {
+    if (!claim_path(filename, &exact)) {
         return(nxt.opendir(filename));
     }
 
@@ -248,17 +259,22 @@ int closedir(DIR *dirp) {
  */
 FILE *fopen(const char *filename, const char *mode) {
     int rv;
-    bool need_slash;
+    bool exact;
     const char *newpath;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("fopen:pthread_once");
 
-    if (!claim_path(filename, &need_slash)) {
+    if (!claim_path(filename, &exact)) {
         return(nxt.fopen(filename, mode));
     }
 
-    newpath = (need_slash) ? "/" : (filename + ctx.len_root);
+    /* relatives paths we pass through, absolute we strip off prefix */
+    if (*filename != '/') {
+        newpath = filename;
+    } else {
+        newpath = (exact) ? "/" : (filename + ctx.len_root);
+    }
 
     /* allocate our fake FILE* and put it in the set */
     deltafspreload::FakeFile *ff = new deltafspreload::FakeFile(newpath);
