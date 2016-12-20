@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -x
 
 msg="1234567890abcdefghijklmnopqrstuv"
 
