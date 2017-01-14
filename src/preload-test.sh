@@ -31,7 +31,7 @@ fi
 # XXX: this assumes a SunOS/linux-style ld.so (won't work on macosx)
 #
 got=`env LD_PRELOAD=$1/libdeltafs-preload.so PDLFS_Testin=1 \
-	mpirun -np $MPI_PROCS -mca btl ^openib \
+    mpirun -np $MPI_PROCS -mca btl ^openib \
     $1/deltafs-preload-test /tmp/pdlfs/pt.$$`
 got=`echo ${got} | sed -e 's/.*FCLOSE/FCLOSE/'`   # dump openmpi msg
 want="FCLOSE: /pt.$$ $msg 32"

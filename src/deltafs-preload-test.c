@@ -36,5 +36,5 @@ int main(int argc, char **argv) {
 
     assert(fclose(fp) == 0);
 
-	MPI_Finalize();
+    MPI_Finalize();
 }
