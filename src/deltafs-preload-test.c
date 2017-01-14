@@ -35,4 +35,6 @@ int main(int argc, char **argv) {
     assert(fwrite("abcdefghijklmnopqrstuv", 1, 22, fp) == 22);
 
     assert(fclose(fp) == 0);
+
+	MPI_Finalize();
 }
