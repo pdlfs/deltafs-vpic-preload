@@ -17,6 +17,10 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <ifaddrs.h>
+
 #include <set>
 
 #include <deltafs/deltafs_api.h>
@@ -36,6 +40,7 @@ static int fake_dirptr = 0;
  * the PDLFS_Root env varible.   If not provided, we default to /tmp/pdlfs.
  */
 #define DEFAULT_ROOT "/tmp/pdlfs"
+#define HG_PROTO "bmi+tcp"
 
 /*
  * next_functions: libc replacement functions we are providing to the preloader.
@@ -70,6 +75,8 @@ struct preload_context {
 
     pdlfs::port::Mutex setlock;
     std::set<FILE *> isdeltafs;
+
+    char hgaddr[NI_MAXHOST+10];         /* IP:port of host */
 };
 static preload_context ctx = { 0 };
 
@@ -175,10 +182,49 @@ extern "C" {
  * MPI_Init
  */
 int MPI_Init(int *argc, char ***argv) {
-    int rv;
+    int rv, family, found = 0, port;
+    struct ifaddrs *ifaddr, *cur;
+    char host[NI_MAXHOST];
 
     rv = nxt.MPI_Init(argc, argv);
-    MPI_Barrier(MPI_COMM_WORLD);   /* XXXCDC: just for testing */
+
+    /*
+     * We have to assign a Mercury address to ourselves.
+     * Get the first available IP (any interface that's not localhost)
+     * and use the process ID to construct the port (but limit to [5000,60000])
+     */
+
+    if (getifaddrs(&ifaddr) == -1)
+        msg_abort("getifaddrs");
+
+    for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
+        if (cur->ifa_addr == NULL)
+            continue;
+
+        family = cur->ifa_addr->sa_family;
+
+        /* For an AF_INET interface address, display the address */
+        if (family == AF_INET) {
+            if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in),
+                            host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST))
+                msg_abort("getnameinfo");
+
+            if (strcmp("127.0.0.1", host)) {
+                found = 1;
+                break;
+            }
+        }
+    }
+
+    if (!found)
+        msg_abort("No valid IP found");
+
+    port = ((long) getpid() % 55000) + 5000;
+
+    sprintf(ctx.hgaddr, "%s:%d", host, port);
+    fprintf(stderr, "Address: %s://%s\n", HG_PROTO, ctx.hgaddr);
+
+    freeifaddrs(ifaddr);
 
     /* XXXCDC: additional init can go here or preload_inipreload_init() */
 
