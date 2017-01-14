@@ -33,8 +33,18 @@ fi
 got=`env LD_PRELOAD=$1/libdeltafs-preload.so PDLFS_Testin=1 \
     mpirun -np $MPI_PROCS -mca btl ^openib \
     $1/deltafs-preload-test /tmp/pdlfs/pt.$$`
-got=`echo ${got} | sed -e 's/.*FCLOSE/FCLOSE/'`   # dump openmpi msg
-want="FCLOSE: /pt.$$ $msg 32"
+#got=`echo ${got} | sed -e 's/.*FCLOSE/FCLOSE/'`   # dump openmpi msg
+got=`echo ${got} | sed -e 's/\n/ /g'`
+
+want_one="FCLOSE: /pt.$$ $msg 32"
+want=""
+while [ $MPI_PROCS -gt 0 ]; do
+    want="$want$want_one"
+    MPI_PROCS=$((MPI_PROCS-1))
+    if [ $MPI_PROCS != 0 ]; then
+        want="$want "
+    fi
+done
 
 if [ "$got" != "$want" ]; then
     echo "Preload test failed (output: $got)"
