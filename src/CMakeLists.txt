@@ -42,7 +42,7 @@ endif ()
 # test program
 #
 add_executable (deltafs-preload-test deltafs-preload-test.c)
-add_test (preload-test ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh)
+add_test (preload-test ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh ${CMAKE_CURRENT_BINARY_DIR})
 
 #
 # make sure we link with MPI
