@@ -21,7 +21,7 @@ find_package (Threads REQUIRED)
 #
 # create the library target 
 #
-add_library (deltafs-preload deltafs-preload.cc)
+add_library (deltafs-preload deltafs-preload.cc shuffle_config.cc)
 target_link_libraries (deltafs-preload deltafs)
 
 if (CMAKE_THREAD_LIBS_INIT)
