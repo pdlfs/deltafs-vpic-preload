@@ -32,10 +32,10 @@ struct shuffle_ctx {
     pdlfs::port::Mutex setlock;
     std::set<FILE *> isdeltafs;
 
-    char hgaddr[NI_MAXHOST+10];         /* IP:port of host */
+    char hgaddr[NI_MAXHOST+20];         /* proto://ip:port of host */
 };
 
-static shuffle_ctx ctx = { 0 };
+static shuffle_ctx sctx = { 0 };
 
 /* shuffle_config.c */
 void msg_abort(const char *msg);

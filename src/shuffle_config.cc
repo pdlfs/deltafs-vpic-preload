@@ -14,11 +14,13 @@
 #include <ifaddrs.h>
 
 #include "shuffle.h"
+#include "shuffle_rpc.h"
 
 /*
  * msg_abort: abort with a message
  */
-void msg_abort(const char *msg) {
+void msg_abort(const char *msg)
+{
     int err = errno;
 
     fprintf(stderr, "ABORT: %s", msg);
@@ -30,8 +32,6 @@ void msg_abort(const char *msg) {
     abort();
 }
 
-//extern "C" {
-
 /*
  * Generate a mercury address
  *
@@ -39,7 +39,8 @@ void msg_abort(const char *msg) {
  * Get the first available IP (any interface that's not localhost)
  * and use the process ID to construct the port (but limit to [5000,60000])
  */
-void genHgAddr(void) {
+void genHgAddr(void)
+{
     int family, found = 0, port;
     struct ifaddrs *ifaddr, *cur;
     char host[NI_MAXHOST];
@@ -71,8 +72,8 @@ void genHgAddr(void) {
 
     port = ((long) getpid() % 55000) + 5000;
 
-    sprintf(ctx.hgaddr, "%s:%d", host, port);
-    fprintf(stderr, "Address: %s://%s\n", HG_PROTO, ctx.hgaddr);
+    sprintf(sctx.hgaddr, "%s://%s:%d", HG_PROTO, host, port);
+    fprintf(stderr, "Address: %s\n", sctx.hgaddr);
 
     freeifaddrs(ifaddr);
 }

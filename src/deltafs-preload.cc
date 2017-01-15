@@ -60,7 +60,8 @@ static struct next_functions nxt = { 0 };
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 
 /* helper: must_getnextdlsym: get next symbol or fail */
-static void must_getnextdlsym(void **result, const char *symbol) {
+static void must_getnextdlsym(void **result, const char *symbol)
+{
     *result = dlsym(RTLD_NEXT, symbol);
     if (*result == NULL) msg_abort(symbol);
 }
@@ -69,7 +70,8 @@ static void must_getnextdlsym(void **result, const char *symbol) {
  * preload_init: called via init_once.   if this fails we are sunk, so
  * we'll abort the process....
  */
-static void preload_init() {
+static void preload_init()
+{
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Init), "MPI_Init");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.mkdir), "mkdir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.opendir), "opendir");
@@ -85,17 +87,17 @@ static void preload_init() {
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.fseek), "fseek");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.ftell), "ftell");
 
-    ctx.root = getenv("PDLFS_Root");
-    if (!ctx.root) ctx.root = DEFAULT_ROOT;
-    ctx.len_root = strlen(ctx.root);
-    /* ctx.setlock and ctx.isdeltafs init'd by ctor */
+    sctx.root = getenv("PDLFS_Root");
+    if (!sctx.root) sctx.root = DEFAULT_ROOT;
+    sctx.len_root = strlen(sctx.root);
+    /* sctx.setlock and sctx.isdeltafs init'd by ctor */
     if (getenv("PDLFS_Testin"))
-        ctx.testin = 1;
+        sctx.testin = 1;
 
     /* root: any non-null path, not "/" and not ending in "/" */
-    if ( ctx.len_root == 0 ||
-        (ctx.len_root == 1 && ctx.root[0] == '/') ||
-        ctx.root[ctx.len_root-1] == '/' )
+    if ( sctx.len_root == 0 ||
+        (sctx.len_root == 1 && sctx.root[0] == '/') ||
+        sctx.root[sctx.len_root-1] == '/' )
         msg_abort("bad PDLFS_root");
 
     /* XXXCDC: additional init can go here or MPI_Init() */
@@ -104,29 +106,30 @@ static void preload_init() {
 /*
  * claim_path: look at path to see if we can claim it
  */
-static bool claim_path(const char *path, bool *exact) {
-
-    if (strncmp(ctx.root, path, ctx.len_root) != 0 ||
-         (path[ctx.len_root] != '/' && path[ctx.len_root] != '\0') ) {
+static bool claim_path(const char *path, bool *exact)
+{
+    if (strncmp(sctx.root, path, sctx.len_root) != 0 ||
+         (path[sctx.len_root] != '/' && path[sctx.len_root] != '\0') ) {
         return(false);
     }
 
-    /* if we've just got ctx.root, caller may convert it to a "/" */
-    *exact = (path[ctx.len_root] == '\0');
+    /* if we've just got sctx.root, caller may convert it to a "/" */
+    *exact = (path[sctx.len_root] == '\0');
     return(true);
 }
 
 /*
  * claim_FILE: look at FILE* and see if we claim it
  */
-static bool claim_FILE(FILE *stream) {
+static bool claim_FILE(FILE *stream)
+{
     std::set<FILE *>::iterator it;
     bool rv;
 
-    ctx.setlock.Lock();
-    it = ctx.isdeltafs.find(stream);
-    rv = (it != ctx.isdeltafs.end());
-    ctx.setlock.Unlock();
+    sctx.setlock.Lock();
+    it = sctx.isdeltafs.find(stream);
+    rv = (it != sctx.isdeltafs.end());
+    sctx.setlock.Unlock();
 
     return(rv);
 }
@@ -139,10 +142,9 @@ extern "C" {
 /*
  * MPI_Init
  */
-int MPI_Init(int *argc, char ***argv) {
-    int rv, family, found = 0, port;
-    struct ifaddrs *ifaddr, *cur;
-    char host[NI_MAXHOST];
+int MPI_Init(int *argc, char ***argv)
+{
+    int rv;
 
     rv = nxt.MPI_Init(argc, argv);
 
@@ -156,7 +158,8 @@ int MPI_Init(int *argc, char ***argv) {
 /*
  * mkdir
  */
-int mkdir(const char *path, mode_t mode) {
+int mkdir(const char *path, mode_t mode)
+{
     bool exact;
     const char *newpath;
     int rv;
@@ -172,10 +175,10 @@ int mkdir(const char *path, mode_t mode) {
     if (*path != '/') {
         newpath = path;
     } else {
-        newpath = (exact) ? "/" : (path + ctx.len_root);
+        newpath = (exact) ? "/" : (path + sctx.len_root);
     }
 
-    if (ctx.testin) {
+    if (sctx.testin) {
         printf("MKDIR %s %s\n", newpath, path);
         return(0);
     }
@@ -192,7 +195,8 @@ int mkdir(const char *path, mode_t mode) {
 /*
  * opendir
  */
-DIR *opendir(const char *filename) {
+DIR *opendir(const char *filename)
+{
     int rv;
     bool exact;
     const char *newpath;
@@ -214,7 +218,8 @@ DIR *opendir(const char *filename) {
 /*
  * closedir
  */
-int closedir(DIR *dirp) {
+int closedir(DIR *dirp)
+{
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
@@ -229,7 +234,8 @@ int closedir(DIR *dirp) {
 /*
  * fopen
  */
-FILE *fopen(const char *filename, const char *mode) {
+FILE *fopen(const char *filename, const char *mode)
+{
     int rv;
     bool exact;
     const char *newpath;
@@ -245,16 +251,16 @@ FILE *fopen(const char *filename, const char *mode) {
     if (*filename != '/') {
         newpath = filename;
     } else {
-        newpath = (exact) ? "/" : (filename + ctx.len_root);
+        newpath = (exact) ? "/" : (filename + sctx.len_root);
     }
 
     /* allocate our fake FILE* and put it in the set */
     deltafspreload::FakeFile *ff = new deltafspreload::FakeFile(newpath);
     FILE *fp = reinterpret_cast<FILE *>(ff);
 
-    ctx.setlock.Lock();
-    ctx.isdeltafs.insert(fp);
-    ctx.setlock.Unlock();
+    sctx.setlock.Lock();
+    sctx.isdeltafs.insert(fp);
+    sctx.setlock.Unlock();
 
     return(fp);
 }
@@ -262,7 +268,8 @@ FILE *fopen(const char *filename, const char *mode) {
 /*
  * fwrite
  */
-size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream) {
+size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream)
+{
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
@@ -290,7 +297,8 @@ size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream) {
  * shuffle_bypass_write(): write directly to deltafs without shuffle.
  * for debugging so print msg on any err.   returns 0 or EOF on error.
  */
-static int shuffle_bypass_write(const char *fn, char *data, int len) {
+static int shuffle_bypass_write(const char *fn, char *data, int len)
+{
     int fd, rv;
     ssize_t wrote;
 
@@ -318,7 +326,8 @@ static int shuffle_bypass_write(const char *fn, char *data, int len) {
 /*
  * fclose.   returns EOF on error.
  */
-int fclose(FILE *stream) {
+int fclose(FILE *stream)
+{
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
@@ -332,7 +341,7 @@ int fclose(FILE *stream) {
     deltafspreload::FakeFile *ff = 
         reinterpret_cast<deltafspreload::FakeFile *>(stream);
 
-    if (ctx.testin) {
+    if (sctx.testin) {
         printf("FCLOSE: %s %.*s %d\n", ff->FileName(), ff->DataLen(),
                ff->Data(), ff->DataLen());
     } else {
@@ -343,9 +352,9 @@ int fclose(FILE *stream) {
 #endif
     }
 
-    ctx.setlock.Lock();
-    ctx.isdeltafs.erase(stream);
-    ctx.setlock.Unlock();
+    sctx.setlock.Lock();
+    sctx.isdeltafs.erase(stream);
+    sctx.setlock.Unlock();
 
     delete ff;
     return(rv);
@@ -359,7 +368,8 @@ int fclose(FILE *stream) {
 /*
  * feof
  */
-int feof(FILE *stream) {
+int feof(FILE *stream)
+{
     int rv;
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("feof:pthread_once");
@@ -375,7 +385,8 @@ int feof(FILE *stream) {
 /*
  * ferror
  */
-int ferror(FILE *stream) {
+int ferror(FILE *stream)
+{
     int rv;
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("ferror:pthread_once");
@@ -391,7 +402,8 @@ int ferror(FILE *stream) {
 /*
  * clearerr
  */
-void clearerr(FILE *stream) {
+void clearerr(FILE *stream)
+{
     int rv;
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("clearerr:pthread_once");
@@ -407,7 +419,8 @@ void clearerr(FILE *stream) {
 /*
  * fread
  */
-size_t fread(void *ptr, size_t size, size_t nitems, FILE *stream) {
+size_t fread(void *ptr, size_t size, size_t nitems, FILE *stream)
+{
     int rv;
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("fread:pthread_once");
@@ -423,7 +436,8 @@ size_t fread(void *ptr, size_t size, size_t nitems, FILE *stream) {
 /*
  * fseek
  */
-int fseek(FILE *stream, long offset, int whence) {
+int fseek(FILE *stream, long offset, int whence)
+{
     int rv;
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("fseek:pthread_once");
@@ -439,7 +453,8 @@ int fseek(FILE *stream, long offset, int whence) {
 /*
  * ftell
  */
-long ftell(FILE *stream) {
+long ftell(FILE *stream)
+{
     int rv;
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("ftell:pthread_once");
