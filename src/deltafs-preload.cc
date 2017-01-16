@@ -36,6 +36,7 @@ static int fake_dirptr = 0;
 struct next_functions {
     /* functions we need */
     int (*MPI_Init)(int *argc, char ***argv);
+    int (*MPI_Finalize)(void);
     int (*mkdir)(const char *path, mode_t mode);
     DIR *(*opendir)(const char *filename);
     int (*closedir)(DIR *dirp);
@@ -73,6 +74,7 @@ static void must_getnextdlsym(void **result, const char *symbol)
 static void preload_init()
 {
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Init), "MPI_Init");
+    must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Finalize), "MPI_Finalize");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.mkdir), "mkdir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.opendir), "opendir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.closedir), "closedir");
@@ -151,6 +153,20 @@ int MPI_Init(int *argc, char ***argv)
     genHgAddr();
 
     /* XXXCDC: additional init can go here or preload_inipreload_init() */
+
+    return(rv);
+}
+
+/*
+ * MPI_Finalize
+ */
+int MPI_Finalize(void)
+{
+    int rv;
+
+    rv = nxt.MPI_Finalize();
+
+    /* XXXCDC: additional teardown can go here */
 
     return(rv);
 }
