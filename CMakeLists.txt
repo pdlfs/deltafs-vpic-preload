@@ -68,6 +68,9 @@ find_package (deltafs CONFIG REQUIRED)
 # MPI too...
 find_package (MPI MODULE REQUIRED)
 
+# Mercury as well
+find_package (mercury CONFIG REQUIRED)
+
 # user hook to build tools
 set (BUILD_TOOLS "OFF" CACHE BOOL "Build tools")
 
