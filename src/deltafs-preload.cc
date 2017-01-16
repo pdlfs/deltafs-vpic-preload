@@ -19,6 +19,8 @@
 #include "fake-file.h"
 #include "shuffle.h"
 
+shuffle_ctx_t sctx = { 0 };
+
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
  */

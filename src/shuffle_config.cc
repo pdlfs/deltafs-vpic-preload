@@ -9,12 +9,10 @@
  */
 
 #include <unistd.h>
-
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
 #include "shuffle.h"
-#include "shuffle_rpc.h"
 
 /*
  * msg_abort: abort with a message

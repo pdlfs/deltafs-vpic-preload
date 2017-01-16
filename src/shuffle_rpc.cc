@@ -11,14 +11,14 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "shuffle_rpc.h"
+#include "shuffle.h"
 
 hg_return_t ping_rpc_handler(hg_handle_t h)
 {
     hg_return_t hret;
     ping_t in, out;
     struct hg_info *info;
-    shuffle_rpc_ctx_t *ctx;
+    shuffle_ctx_t *ctx;
 
     hret = HG_Get_input(h, &in);
     assert(hret == HG_SUCCESS);
@@ -27,7 +27,7 @@ hg_return_t ping_rpc_handler(hg_handle_t h)
     assert(info != NULL);
 
     /* Get ssg data */
-    ctx = (shuffle_rpc_ctx_t *) HG_Registered_data(info->hg_class, info->id);
+    ctx = (shuffle_ctx_t *) HG_Registered_data(info->hg_class, info->id);
     assert(ctx != NULL && ctx->s != SSG_NULL);
     out.rank = ssg_get_rank(ctx->s);
     assert(out.rank != SSG_RANK_UNKNOWN && out.rank != SSG_EXTERNAL_RANK);
@@ -47,13 +47,13 @@ static hg_return_t shutdown_post_respond(const struct hg_cb_info *cb_info)
 {
     hg_handle_t h;
     struct hg_info *info;
-    shuffle_rpc_ctx_t *ctx;
+    shuffle_ctx_t *ctx;
 
     h = cb_info->info.respond.handle;
     info = HG_Get_info(h);
     assert(info != NULL);
 
-    ctx = (shuffle_rpc_ctx_t *) HG_Registered_data(info->hg_class, info->id);
+    ctx = (shuffle_ctx_t *) HG_Registered_data(info->hg_class, info->id);
     fprintf(stdout, "%d: post-respond, setting shutdown flag\n",
             ssg_get_rank(ctx->s));
 
@@ -65,16 +65,16 @@ static hg_return_t shutdown_post_respond(const struct hg_cb_info *cb_info)
 static hg_return_t shutdown_post_forward(const struct hg_cb_info *cb_info)
 {
     hg_handle_t fwd_handle, resp_handle;
-    shuffle_rpc_ctx_t *ctx;
     int rank;
     hg_return_t hret;
     struct hg_info *info;
+    shuffle_ctx_t *ctx;
 
     /* RPC has completed, respond to previous rank */
     fwd_handle = cb_info->info.forward.handle;
     resp_handle = (hg_handle_t) cb_info->arg;
     info = HG_Get_info(fwd_handle);
-    ctx = (shuffle_rpc_ctx_t *) HG_Registered_data(info->hg_class, info->id);
+    ctx = (shuffle_ctx_t *) HG_Registered_data(info->hg_class, info->id);
     assert(ctx != NULL && ctx->s != SSG_NULL);
 
     rank = ssg_get_rank(ctx->s);
@@ -102,13 +102,13 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
     hg_return_t hret;
     struct hg_info *info;
     int rank;
-    shuffle_rpc_ctx_t *ctx;
+    shuffle_ctx_t *ctx;
 
     info = HG_Get_info(h);
     assert(info != NULL);
 
     /* Get ssg data */
-    ctx = (shuffle_rpc_ctx_t *) HG_Registered_data(info->hg_class, info->id);
+    ctx = (shuffle_ctx_t *) HG_Registered_data(info->hg_class, info->id);
     assert(ctx != NULL && ctx->s != SSG_NULL);
     rank = ssg_get_rank(ctx->s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
