@@ -30,6 +30,7 @@
  * Shuffle context: run-time state of the preload and shuffle lib
  */
 typedef struct shuffle_ctx {
+    /* Preload context */
     const char *root;
     int len_root;                       /* strlen root */
     int testin;                         /* just testing */
@@ -37,9 +38,14 @@ typedef struct shuffle_ctx {
     pdlfs::port::Mutex setlock;
     std::set<FILE *> isdeltafs;
 
+    /* Mercury context */
     char hgaddr[NI_MAXHOST+20];         /* proto://ip:port of host */
 
-    ssg_t s;                            /* ssg context */
+    hg_class_t *hgcl;
+    hg_context_t *hgctx;
+
+    /* SSG context */
+    ssg_t s;
     int shutdown_flag;                  /* XXX: Used for testing */
 } shuffle_ctx_t;
 
@@ -50,6 +56,8 @@ extern shuffle_ctx_t sctx;
 /* shuffle_config.cc */
 void msg_abort(const char *msg);
 void genHgAddr(void);
+void shuffle_init(void);
+void shuffle_destroy(void);
 
 /* shuffle_rpc.cc */
 hg_return_t ping_rpc_handler(hg_handle_t h);

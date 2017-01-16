@@ -153,6 +153,7 @@ int MPI_Init(int *argc, char ***argv)
     rv = nxt.MPI_Init(argc, argv);
 
     genHgAddr();
+    shuffle_init();
 
     /* XXXCDC: additional init can go here or preload_inipreload_init() */
 
@@ -167,6 +168,8 @@ int MPI_Finalize(void)
     int rv;
 
     rv = nxt.MPI_Finalize();
+
+    shuffle_destroy();
 
     /* XXXCDC: additional teardown can go here */
 
