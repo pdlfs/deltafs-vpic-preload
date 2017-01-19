@@ -41,12 +41,6 @@ if (SHUFFLE_BYPASS)
 endif ()
 
 #
-# test program
-#
-add_executable (deltafs-preload-test deltafs-preload-test.c)
-add_test (preload-test ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh ${CMAKE_CURRENT_BINARY_DIR})
-
-#
 # make sure we link with MPI
 #
 foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
@@ -55,8 +49,6 @@ foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
     foreach (lcv ${lcvl})
         if (NOT ${lcv} STREQUAL "")
             target_compile_options (deltafs-preload
-                                    PUBLIC $<BUILD_INTERFACE:${lcv}>)
-            target_compile_options (deltafs-preload-test
                                     PUBLIC $<BUILD_INTERFACE:${lcv}>)
         endif ()
     endforeach ()
@@ -68,20 +60,15 @@ endforeach ()
 foreach (lcv ${MPI_CXX_INCLUDE_PATH})
     target_include_directories (deltafs-preload
                                 PUBLIC $<BUILD_INTERFACE:${lcv}>)
-    target_include_directories (deltafs-preload-test
-                                PUBLIC $<BUILD_INTERFACE:${lcv}>)
 endforeach ()
 
 foreach (lcv ${MPI_CXX_LIBRARIES})
     target_link_libraries(deltafs-preload $<BUILD_INTERFACE:${lcv}>)
-    target_link_libraries(deltafs-preload-test $<BUILD_INTERFACE:${lcv}>)
 endforeach ()
 
 # XXX: this doesn't propagate to lib users, is that a problem?
 # XXX: prob ok.
 set_property (TARGET deltafs-preload APPEND PROPERTY LINK_FLAGS
-              ${MPI_CXX_LINK_FLAGS})
-set_property (TARGET deltafs-preload-test APPEND PROPERTY LINK_FLAGS
               ${MPI_CXX_LINK_FLAGS})
 
 #

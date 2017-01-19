@@ -70,6 +70,7 @@ find_package (MPI MODULE REQUIRED)
 set (BUILD_TOOLS "OFF" CACHE BOOL "Build tools")
 
 add_subdirectory (src)
+add_subdirectory (tests)
 if (BUILD_TOOLS)
     add_subdirectory (tools)
 endif ()
