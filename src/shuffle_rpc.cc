@@ -32,7 +32,7 @@ hg_return_t ping_rpc_handler(hg_handle_t h)
     out.rank = ssg_get_rank(ctx->s);
     assert(out.rank != SSG_RANK_UNKNOWN && out.rank != SSG_EXTERNAL_RANK);
 
-    fprintf(stdout, "%d: got ping from rank %d\n", out.rank, in.rank);
+    fprintf(stderr, "%d: got ping from rank %d\n", out.rank, in.rank);
 
     HG_Respond(h, NULL, NULL, &out);
 
@@ -54,7 +54,7 @@ static hg_return_t shutdown_post_respond(const struct hg_cb_info *cb_info)
     assert(info != NULL);
 
     ctx = (shuffle_ctx_t *) HG_Registered_data(info->hg_class, info->id);
-    fprintf(stdout, "%d: post-respond, setting shutdown flag\n",
+    fprintf(stderr, "%d: post-respond, setting shutdown flag\n",
             ssg_get_rank(ctx->s));
 
     ctx->shutdown_flag = 1;
@@ -80,13 +80,13 @@ static hg_return_t shutdown_post_forward(const struct hg_cb_info *cb_info)
     rank = ssg_get_rank(ctx->s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
     if (rank > 0) {
-        fprintf(stdout, "%d: sending shutdown response\n", rank);
+        fprintf(stderr, "%d: sending shutdown response\n", rank);
         hret = HG_Respond(resp_handle, &shutdown_post_respond, NULL, NULL);
         assert(hret == HG_SUCCESS);
         //return HG_SUCCESS;
     } else {
         ctx->shutdown_flag = 1;
-        fprintf(stdout, "%d: no recipient, setting shutdown flag\n", rank);
+        fprintf(stderr, "%d: no recipient, setting shutdown flag\n", rank);
     }
 
     HG_Destroy(fwd_handle);
@@ -113,12 +113,12 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
     rank = ssg_get_rank(ctx->s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-    fprintf(stdout, "%d: received shutdown reqyest\n", rank);
+    fprintf(stderr, "%d: received shutdown reqyest\n", rank);
 
     rank++;
     if (rank == ssg_get_count(ctx->s)) {
         /* End of the line, respond and shut down */
-        fprintf(stdout, "%d: responding and setting shutdown flag\n", rank-1);
+        fprintf(stderr, "%d: responding and setting shutdown flag\n", rank-1);
         hret = HG_Respond(h, &shutdown_post_respond, NULL, NULL);
         assert(hret == HG_SUCCESS);
         ctx->shutdown_flag = 1;
@@ -135,7 +135,7 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
                          &next_handle);
         assert(hret == HG_SUCCESS);
 
-        fprintf(stdout, "%d: forwarding shutdown to neighbor\n", rank-1);
+        fprintf(stderr, "%d: forwarding shutdown to neighbor\n", rank-1);
         hret = HG_Forward(next_handle, &shutdown_post_forward, h, NULL);
         assert(hret == HG_SUCCESS);
 

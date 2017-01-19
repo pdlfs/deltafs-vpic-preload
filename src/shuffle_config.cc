@@ -172,7 +172,7 @@ void shuffle_init(void)
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("ssg_get_addr");
 
-    fprintf(stdout, "%d: pinging %d\n", rank, peer_rank);
+    fprintf(stderr, "%d: pinging %d\n", rank, peer_rank);
     hret = HG_Create(sctx.hgctx, peer_addr, ping_id, &ping_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
@@ -207,7 +207,7 @@ void shuffle_init(void)
 
         if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
             msg_abort("HG_Progress");
-        fprintf(stdout, "%d: shutting down\n", rank);
+        fprintf(stderr, "%d: shutting down\n", rank);
 
         /* Trigger/progress remaining */
         do {
@@ -219,7 +219,7 @@ void shuffle_init(void)
             hret = HG_Trigger(sctx.hgctx, 0, 1, &num_trigger);
         } while (hret == HG_SUCCESS && num_trigger == 1);
     } else {
-        fprintf(stdout, "%d: initiating shutdown\n", rank);
+        fprintf(stderr, "%d: initiating shutdown\n", rank);
         hg_handle_t shutdown_handle = HG_HANDLE_NULL;
 
         hret = HG_Create(sctx.hgctx, peer_addr, shutdown_id, &shutdown_handle);
@@ -240,9 +240,9 @@ void shuffle_init(void)
         HG_Destroy(shutdown_handle);
     }
 
-cleanup:
-    fprintf(stdout, "%d: Cleaning up\n", rank);
     HG_Destroy(ping_handle);
+cleanup:
+    fprintf(stderr, "%d: Cleaning up\n", rank);
     hg_request_destroy(hgreq);
     hg_request_finalize(hgreqcl, NULL);
 }
