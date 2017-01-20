@@ -16,10 +16,15 @@
 #
 
 #
-# test program
+# test programs
 #
 add_executable (preload-test preload-test.c)
-add_test (test-preload ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh ${CMAKE_CURRENT_BINARY_DIR})
+add_test (test-preload ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh
+                       ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable (shuffle-test shuffle-test.c)
+add_test (test-shuffle ${CMAKE_CURRENT_SOURCE_DIR}/shuffle-test.sh
+                       ${CMAKE_CURRENT_BINARY_DIR})
 
 #
 # make sure we link with MPI
@@ -30,6 +35,7 @@ foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
     foreach (lcv ${lcvl})
         if (NOT ${lcv} STREQUAL "")
             target_compile_options (preload-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
+            target_compile_options (shuffle-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
         endif ()
     endforeach ()
 endforeach ()
@@ -39,12 +45,15 @@ endforeach ()
 #         prefixed in the source directory
 foreach (lcv ${MPI_CXX_INCLUDE_PATH})
     target_include_directories (preload-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
+    target_include_directories (shuffle-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
 endforeach ()
 
 foreach (lcv ${MPI_CXX_LIBRARIES})
     target_link_libraries(preload-test $<BUILD_INTERFACE:${lcv}>)
+    target_link_libraries(shuffle-test $<BUILD_INTERFACE:${lcv}>)
 endforeach ()
 
 # XXX: this doesn't propagate to lib users, is that a problem?
 # XXX: prob ok.
 set_property (TARGET preload-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
+set_property (TARGET shuffle-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})

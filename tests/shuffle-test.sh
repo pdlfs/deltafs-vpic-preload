@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Basic function preloading test for shuffle library.
+# Basic data shuffling test for shuffle library.
 # Arguments are optional. If not provided, we run in cwd with 1 MPI process.
 #
 # Argument 1: directory containing library and test executable
@@ -16,7 +16,7 @@ if [ ! -z "$2" ]; then
     MPI_PROCS=$2
 fi
 
-mpirun -np $MPI_PROCS -mca btl ^openib $BUILD_PREFIX/tests/preload-test
+mpirun -np $MPI_PROCS -mca btl ^openib $BUILD_PREFIX/tests/shuffle-test
 
 if [ $? != 0 ]; then
     echo "Baseline test failed ($?)"
@@ -27,12 +27,12 @@ fi
 # XXX: this assumes a SunOS/linux-style ld.so (won't work on macosx)
 #
 env LD_PRELOAD=$BUILD_PREFIX/src/libdeltafs-preload.so PDLFS_Testin=1 \
-    mpirun -np $MPI_PROCS -mca btl ^openib $BUILD_PREFIX/tests/preload-test
+    mpirun -np $MPI_PROCS -mca btl ^openib $BUILD_PREFIX/tests/shuffle-test
 
 if [ $? != 0 ]; then
-    echo "Preload test failed ($?)"
+    echo "Shuffle test failed ($?)"
     exit 1
 fi
 
-echo "Preload test successful"
+echo "Shuffle test successful"
 exit 0
