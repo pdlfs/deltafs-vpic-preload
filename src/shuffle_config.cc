@@ -12,7 +12,6 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 
-#include <mercury_request.h> /* XXX: Just for initial dev. Will replace */
 #include "shuffle.h"
 
 /*
@@ -40,6 +39,7 @@ void msg_abort(const char *msg)
  *
  * TODO: let user specify a CIDR network to match (e.g. "192.168.2.0/24")
  *       rather than pick the first interface.
+ * TODO: define port as a function of the node's rank
  */
 void genHgAddr(void)
 {
@@ -82,7 +82,6 @@ void genHgAddr(void)
 
 /*
  * Mercury hg_request_class_t progress and trigger callbacks.
- * XXX: This is just for initial dev. Will replace soon.
  */
 static int progress(unsigned int timeout, void *arg)
 {
@@ -102,71 +101,32 @@ static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
     }
 }
 
-/*
- * Initialize and configure the shuffle layer
- */
-void shuffle_init(void)
+#ifdef DELTAFS_SHUFFLE_DEBUG
+/* For testing: ping RPCs go around all ranks in a ring to test Mercury/SSG */
+static void ping_test(int rank)
 {
-    hg_return_t hret;
-    int rank, peer_rank, ret;
-    hg_addr_t peer_addr;
-    hg_id_t ping_id, shutdown_id;
-    hg_request_class_t *hgreqcl;
-    hg_request_t *hgreq;
-    ping_t ping_in;
+    hg_id_t ping_id;
     hg_handle_t ping_handle = HG_HANDLE_NULL;
+    ping_t ping_in;
+    hg_addr_t peer_addr;
+    int peer_rank, ret;
+    hg_return_t hret;
+    hg_request_t *hgreq;
     unsigned int req_complete_flag = 0;
 
-    /* Initialize Mercury */
-    sctx.hgcl = HG_Init(sctx.hgaddr, HG_TRUE);
-    if (!sctx.hgcl)
-        msg_abort("HG_Init");
-
-    sctx.hgctx = HG_Context_create(sctx.hgcl);
-    if (!sctx.hgctx)
-        msg_abort("HG_Context_create");
-
-    /* Register RPCs */
-    ping_id = MERCURY_REGISTER(sctx.hgcl, "ping", ping_t, ping_t, &ping_rpc_handler);
-    shutdown_id = MERCURY_REGISTER(sctx.hgcl, "shutdown", void, void, &shutdown_rpc_handler);
+    /* Register ping RPC */
+    ping_id = MERCURY_REGISTER(sctx.hgcl, "ping",
+                               ping_t, ping_t,
+                               &ping_rpc_handler);
 
     hret = HG_Register_data(sctx.hgcl, ping_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Register_data (ping)");
-    hret = HG_Register_data(sctx.hgcl, shutdown_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (shutdown)");
 
-    /* Initialize ssg with MPI */
-    sctx.s = SSG_NULL;
-    sctx.s = ssg_init_mpi(sctx.hgcl, MPI_COMM_WORLD);
-    if (sctx.s == SSG_NULL)
-        msg_abort("ssg_init");
-
-    /* Resolve group addresses */
-    hret = ssg_lookup(sctx.s, sctx.hgctx);
-    if (hret != HG_SUCCESS)
-        msg_abort("ssg_lookup");
-
-    /* Get non-mpi rank */
-    rank = ssg_get_rank(sctx.s);
-    if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
-        msg_abort("ssg_get_rank: bad rank");
-
-    /* Initialize request shim */
-    hgreqcl = hg_request_init(&progress, &trigger, sctx.hgctx);
-    if (hgreqcl == NULL)
-        msg_abort("hg_request_init");
-
-    hgreq = hg_request_create(hgreqcl);
-    if (hgreq == NULL)
-        msg_abort("hg_request_create");
-
-    /* Sanity check count; if we're on our own, don't bother with RPCs */
+    /* Sanity check count; if we're on our own, don't bother */
     if (ssg_get_count(sctx.s) == 1)
-        goto cleanup; /* XXX: May need to properly direct this later */
+        return;
 
-    /* XXX: Just a test to make sure Mercury/ssg work as they should */
     peer_rank = (rank+1) % ssg_get_count(sctx.s);
     peer_addr = ssg_get_addr(sctx.s, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
@@ -176,6 +136,10 @@ void shuffle_init(void)
     hret = HG_Create(sctx.hgctx, peer_addr, ping_id, &ping_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
+
+    hgreq = hg_request_create(sctx.hgreqcl);
+    if (hgreq == NULL)
+        msg_abort("hg_request_create");
 
     ping_in.rank = rank;
     hret = HG_Forward(ping_handle, &hg_request_complete_cb, hgreq, &ping_in);
@@ -187,6 +151,26 @@ void shuffle_init(void)
         msg_abort("ping failed");
     if (req_complete_flag == 0)
         msg_abort("ping timed out");
+
+    HG_Destroy(ping_handle);
+    hg_request_destroy(hgreq);
+}
+#endif /* DELTAFS_SHUFFLE_DEBUG */
+
+/* Shutdown process used at MPI_Finalize() time to tear down shuffle layer */
+static void shuffle_shutdown(int rank)
+{
+    hg_return_t hret;
+    hg_id_t shutdown_id;
+
+    /* Register shutdown RPC */
+    shutdown_id = MERCURY_REGISTER(sctx.hgcl, "shutdown",
+                               void, void,
+                               &shutdown_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, shutdown_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (shutdown)");
 
     /*
      * Rank 0: initialize the shutdown process
@@ -219,12 +203,26 @@ void shuffle_init(void)
             hret = HG_Trigger(sctx.hgctx, 0, 1, &num_trigger);
         } while (hret == HG_SUCCESS && num_trigger == 1);
     } else {
+        hg_request_t *hgreq;
+        unsigned int req_complete_flag = 0;
+        hg_addr_t peer_addr;
+        int peer_rank, ret;
+
         fprintf(stderr, "%d: initiating shutdown\n", rank);
         hg_handle_t shutdown_handle = HG_HANDLE_NULL;
+
+        peer_rank = (rank+1) % ssg_get_count(sctx.s);
+        peer_addr = ssg_get_addr(sctx.s, peer_rank);
+        if (peer_addr == HG_ADDR_NULL)
+            msg_abort("ssg_get_addr");
 
         hret = HG_Create(sctx.hgctx, peer_addr, shutdown_id, &shutdown_handle);
         if (hret != HG_SUCCESS)
             msg_abort("HG_Create");
+
+        hgreq = hg_request_create(sctx.hgreqcl);
+        if (hgreq == NULL)
+            msg_abort("hg_request_create");
 
         hret = HG_Forward(shutdown_handle, &hg_request_complete_cb, hgreq, NULL);
         if (hret != HG_SUCCESS)
@@ -238,17 +236,79 @@ void shuffle_init(void)
             msg_abort("hg_request_wait timed out");
 
         HG_Destroy(shutdown_handle);
+        hg_request_destroy(hgreq);
     }
+}
 
-    HG_Destroy(ping_handle);
-cleanup:
-    fprintf(stderr, "%d: Cleaning up\n", rank);
-    hg_request_destroy(hgreq);
-    hg_request_finalize(hgreqcl, NULL);
+/*
+ * Initialize and configure the shuffle layer
+ *
+ * We use two types of Mercury RPCs:
+ * - write: sends out a write request to the right rank
+ */
+void shuffle_init(void)
+{
+    hg_return_t hret;
+    int rank;
+    hg_id_t write_id;
+
+    /* Initialize Mercury */
+    sctx.hgcl = HG_Init(sctx.hgaddr, HG_TRUE);
+    if (!sctx.hgcl)
+        msg_abort("HG_Init");
+
+    sctx.hgctx = HG_Context_create(sctx.hgcl);
+    if (!sctx.hgctx)
+        msg_abort("HG_Context_create");
+
+    /* Register write RPC */
+    write_id = MERCURY_REGISTER(sctx.hgcl, "write",
+                               void, void, //XXX: change
+                               &write_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, write_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (write)");
+
+    /* Initialize ssg with MPI */
+    sctx.s = SSG_NULL;
+    sctx.s = ssg_init_mpi(sctx.hgcl, MPI_COMM_WORLD);
+    if (sctx.s == SSG_NULL)
+        msg_abort("ssg_init");
+
+    /* Resolve group addresses */
+    hret = ssg_lookup(sctx.s, sctx.hgctx);
+    if (hret != HG_SUCCESS)
+        msg_abort("ssg_lookup");
+
+    /* Get non-mpi rank */
+    rank = ssg_get_rank(sctx.s);
+    if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
+        msg_abort("ssg_get_rank: bad rank");
+
+    /* Initialize request shim */
+    sctx.hgreqcl = hg_request_init(&progress, &trigger, sctx.hgctx);
+    if (sctx.hgreqcl == NULL)
+        msg_abort("hg_request_init");
+
+#ifdef DELTAFS_SHUFFLE_DEBUG
+    ping_test(rank);
+#endif
 }
 
 void shuffle_destroy(void)
 {
+    int rank;
+
+    /* Get non-mpi rank */
+    rank = ssg_get_rank(sctx.s);
+    if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
+        msg_abort("ssg_get_rank: bad rank");
+
+    shuffle_shutdown(rank);
+
+    fprintf(stderr, "%d: Cleaning up\n", rank);
+    hg_request_finalize(sctx.hgreqcl, NULL);
     ssg_finalize(sctx.s);
     HG_Context_destroy(sctx.hgctx);
     HG_Finalize(sctx.hgcl);

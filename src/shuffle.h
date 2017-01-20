@@ -17,12 +17,15 @@
 #include <set>
 
 /* ANL libs */
+#include <mercury_request.h>
 #include <mercury_macros.h>
 #include <ssg.h>
 #include <ssg-mpi.h>
 
 /* CMU libs */
 #include <pdlfs-common/port.h>
+
+//#define DELTAFS_SHUFFLE_DEBUG
 
 #define HG_PROTO "bmi+tcp"
 
@@ -43,13 +46,18 @@ typedef struct shuffle_ctx {
 
     hg_class_t *hgcl;
     hg_context_t *hgctx;
+    hg_request_class_t *hgreqcl;
 
     /* SSG context */
     ssg_t s;
     int shutdown_flag;                  /* XXX: Used for testing */
 } shuffle_ctx_t;
 
+/* Generate RPC structs */
+#ifdef DELTAFS_SHUFFLE_DEBUG
 MERCURY_GEN_PROC(ping_t, ((int32_t)(rank)))
+#endif
+MERCURY_GEN_PROC(write_t, ((int32_t)(rank)))
 
 extern shuffle_ctx_t sctx;
 
@@ -61,4 +69,5 @@ void shuffle_destroy(void);
 
 /* shuffle_rpc.cc */
 hg_return_t ping_rpc_handler(hg_handle_t h);
+hg_return_t write_rpc_handler(hg_handle_t h);
 hg_return_t shutdown_rpc_handler(hg_handle_t h);

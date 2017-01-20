@@ -13,6 +13,7 @@
 
 #include "shuffle.h"
 
+#ifdef DELTAFS_SHUFFLE_DEBUG
 hg_return_t ping_rpc_handler(hg_handle_t h)
 {
     hg_return_t hret;
@@ -42,6 +43,7 @@ hg_return_t ping_rpc_handler(hg_handle_t h)
     assert(hret == HG_SUCCESS);
     return HG_SUCCESS;
 }
+#endif /* DELTAFS_SHUFFLE_DEBUG */
 
 static hg_return_t shutdown_post_respond(const struct hg_cb_info *cb_info)
 {
@@ -90,6 +92,16 @@ static hg_return_t shutdown_post_forward(const struct hg_cb_info *cb_info)
     }
 
     HG_Destroy(fwd_handle);
+    return HG_SUCCESS;
+}
+
+/*
+ * Write RPC: redirects write to the right node
+ */
+hg_return_t write_rpc_handler(hg_handle_t h)
+{
+    // TODO: Implement
+
     return HG_SUCCESS;
 }
 
