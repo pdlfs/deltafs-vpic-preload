@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Carnegie Mellon University.
+ * Copyright (c) 2017 Carnegie Mellon University.
  * George Amvrosiadis <gamvrosi@cs.cmu.edu>
  *
  * All rights reserved.
@@ -12,38 +12,6 @@
 #include <stdio.h>
 
 #include "shuffle.h"
-
-#ifdef DELTAFS_SHUFFLE_DEBUG
-hg_return_t ping_rpc_handler(hg_handle_t h)
-{
-    hg_return_t hret;
-    ping_t in, out;
-    struct hg_info *info;
-    shuffle_ctx_t *ctx;
-
-    hret = HG_Get_input(h, &in);
-    assert(hret == HG_SUCCESS);
-
-    info = HG_Get_info(h);
-    assert(info != NULL);
-
-    /* Get ssg data */
-    ctx = (shuffle_ctx_t *) HG_Registered_data(info->hg_class, info->id);
-    assert(ctx != NULL && ctx->s != SSG_NULL);
-    out.rank = ssg_get_rank(ctx->s);
-    assert(out.rank != SSG_RANK_UNKNOWN && out.rank != SSG_EXTERNAL_RANK);
-
-    fprintf(stderr, "%d: got ping from rank %d\n", out.rank, in.rank);
-
-    HG_Respond(h, NULL, NULL, &out);
-
-    hret = HG_Free_input(h, &in);
-    assert(hret == HG_SUCCESS);
-    hret = HG_Destroy(h);
-    assert(hret == HG_SUCCESS);
-    return HG_SUCCESS;
-}
-#endif /* DELTAFS_SHUFFLE_DEBUG */
 
 static hg_return_t shutdown_post_respond(const struct hg_cb_info *cb_info)
 {
@@ -92,16 +60,6 @@ static hg_return_t shutdown_post_forward(const struct hg_cb_info *cb_info)
     }
 
     HG_Destroy(fwd_handle);
-    return HG_SUCCESS;
-}
-
-/*
- * Write RPC: redirects write to the right node
- */
-hg_return_t write_rpc_handler(hg_handle_t h)
-{
-    // TODO: Implement
-
     return HG_SUCCESS;
 }
 
@@ -156,4 +114,87 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
     }
 
     return HG_SUCCESS;
+}
+
+/* Shutdown process used at MPI_Finalize() time to tear down shuffle layer */
+void shuffle_shutdown(int rank)
+{
+    hg_return_t hret;
+    hg_id_t shutdown_id;
+
+    /* Register shutdown RPC */
+    shutdown_id = MERCURY_REGISTER(sctx.hgcl, "shutdown",
+                               void, void,
+                               &shutdown_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, shutdown_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (shutdown)");
+
+    /*
+     * Rank 0: initialize the shutdown process
+     * Others: enter progress
+     */
+    if (rank != 0) {
+        unsigned int num_trigger;
+        do {
+            do {
+                num_trigger = 0;
+                hret = HG_Trigger(sctx.hgctx, 0, 1, &num_trigger);
+            } while (hret == HG_SUCCESS && num_trigger == 1);
+
+            hret = HG_Progress(sctx.hgctx,
+                               sctx.shutdown_flag ? 100 : HG_MAX_IDLE_TIME);
+        } while ((hret == HG_SUCCESS || hret == HG_TIMEOUT) &&
+                 !sctx.shutdown_flag);
+
+        if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
+            msg_abort("HG_Progress");
+        fprintf(stderr, "%d: shutting down\n", rank);
+
+        /* Trigger/progress remaining */
+        do {
+            hret = HG_Progress(sctx.hgctx, 0);
+        } while (hret == HG_SUCCESS);
+
+        do {
+            num_trigger = 0;
+            hret = HG_Trigger(sctx.hgctx, 0, 1, &num_trigger);
+        } while (hret == HG_SUCCESS && num_trigger == 1);
+    } else {
+        hg_request_t *hgreq;
+        unsigned int req_complete_flag = 0;
+        hg_addr_t peer_addr;
+        int peer_rank, ret;
+
+        fprintf(stderr, "%d: initiating shutdown\n", rank);
+        hg_handle_t shutdown_handle = HG_HANDLE_NULL;
+
+        peer_rank = (rank+1) % ssg_get_count(sctx.s);
+        peer_addr = ssg_get_addr(sctx.s, peer_rank);
+        if (peer_addr == HG_ADDR_NULL)
+            msg_abort("ssg_get_addr");
+
+        hret = HG_Create(sctx.hgctx, peer_addr, shutdown_id, &shutdown_handle);
+        if (hret != HG_SUCCESS)
+            msg_abort("HG_Create");
+
+        hgreq = hg_request_create(sctx.hgreqcl);
+        if (hgreq == NULL)
+            msg_abort("hg_request_create");
+
+        hret = HG_Forward(shutdown_handle, &hg_request_complete_cb, hgreq, NULL);
+        if (hret != HG_SUCCESS)
+            msg_abort("HG_Forward");
+
+        req_complete_flag = 0;
+        ret = hg_request_wait(hgreq, HG_MAX_IDLE_TIME, &req_complete_flag);
+        if (ret != HG_UTIL_SUCCESS)
+            msg_abort("hg_request_wait");
+        if (req_complete_flag == 0)
+            msg_abort("hg_request_wait timed out");
+
+        HG_Destroy(shutdown_handle);
+        hg_request_destroy(hgreq);
+    }
 }

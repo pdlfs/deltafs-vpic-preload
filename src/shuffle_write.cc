@@ -8,9 +8,17 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
-#include <unistd.h>
-
 #include "shuffle.h"
+
+/*
+ * Write RPC: redirects write to the right node
+ */
+hg_return_t write_rpc_handler(hg_handle_t h)
+{
+    // TODO: Implement
+
+    return HG_SUCCESS;
+}
 
 static int shuffle_posix_write(const char *fn, char *data, int len)
 {
