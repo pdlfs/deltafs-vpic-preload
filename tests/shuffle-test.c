@@ -30,7 +30,7 @@
  */
 int main(int argc, char **argv) {
     int world_size, world_rank;
-    char dname[PATH_MAX], fname[PATH_MAX];
+    char dname[PATH_MAX], fname[PATH_MAX], rstr[5];
     FILE *fp;
 
     memset(dname, 0, sizeof(dname));
@@ -81,7 +81,8 @@ int main(int argc, char **argv) {
     }
 
     /* Write 32b of data */
-    assert(fwrite("1234", 4, 1, fp) == 1);
+    snprintf(rstr, sizeof(rstr), "%04d", world_rank);
+    assert(fwrite(rstr, 4, 1, fp) == 1);
     assert(fwrite("5678", 1, 4, fp) == 4);
     assert(fwrite("9", 1, 1, fp) == 1);
     assert(fwrite("0", 1, 1, fp) == 1);
@@ -101,6 +102,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < world_size; i++) {
         int fd;
         char buf[33] = { 0 };
+        char tst[33] = { 0 };
 
         snprintf(fname, sizeof(fname), REDIRECT_TEST_ROOT "%s/file%d",
                  dname+strlen(DEFAULT_ROOT), world_rank);
@@ -118,10 +120,11 @@ int main(int argc, char **argv) {
 
         close(fd);
 
-        if (strcmp(buf, "1234567890abcdefghijklmnopqrstuv")) {
+        snprintf(tst, sizeof(tst), "%04d567890abcdefghijklmnopqrstuv", i);
+        if (strcmp(buf, tst)) {
             fprintf(stderr, "Error: output of %s did not match\n"
-                    "Want: 1234567890abcdefghijklmnopqrstuv\n"
-                    "Got:  %s\n", fname, buf);
+                    "Want: %04d567890abcdefghijklmnopqrstuv\n"
+                    "Got:  %s\n", fname, i, buf);
             exit(1);
         }
     }
