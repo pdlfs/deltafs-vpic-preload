@@ -18,8 +18,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
-
 #include <mpi.h>
+#include <sys/stat.h>
+#include <linux/limits.h> /* Just for PATH_MAX */
+
+#include "../src/preload.h"
 
 /*
  * Warning: Meant to be run on a shared namespace.
@@ -27,10 +30,10 @@
  */
 int main(int argc, char **argv) {
     int world_size, world_rank;
-    char dname[64], fname[32];
+    char dname[PATH_MAX], fname[PATH_MAX];
     FILE *fp;
 
-    memset(dname, 0, 64);
+    memset(dname, 0, sizeof(dname));
 
     /* No arguments. We will create a temporary dir in /tmp. */
     if (argc != 1) {
@@ -49,26 +52,27 @@ int main(int argc, char **argv) {
 
     /* Rank 0 creates the temporary dir */
     if (!world_rank) {
-        /* Generate temporary dir */
-        char tmpl[] = "/tmp/shuffle-test.XXXXXX";
-        char *dir = mkdtemp(tmpl);
+        char *dir, tmpl[PATH_MAX];
+
+        /* Generate temporary dir name */
+        snprintf(tmpl, sizeof(tmpl), DEFAULT_ROOT "/shuffle-test.XXXXXX");
+        dir = mkdtemp(tmpl);
         assert(dir);
-        strncpy(dname, dir, strlen(dir));
+        strncpy(dname, dir, PATH_MAX);
+
+        snprintf(fname, sizeof(fname), REDIRECT_TEST_ROOT "%s",
+                 dname+strlen(DEFAULT_ROOT));
+        mkdir(fname, S_IRWXU|S_IRWXG|S_IRWXO);
+
+        fprintf(stderr, "Generated dir %s\n", dname);
     }
 
     /* Broadcast the dir name */
     MPI_Bcast(dname, sizeof(dname), MPI_CHAR, 0, MPI_COMM_WORLD);
 
-    //fprintf(stderr, "%d: Switching to dir %s/\n", world_rank, dname);
-
-    if (chdir(dname) == -1) {
-        perror("Error - chdir failed");
-        goto error;
-    }
-
     /* Create a file with my rank, and write 32b of data */
-    snprintf(fname, sizeof(fname), "file%d", world_rank);
-    fprintf(stderr, "%d: Created %s/%s\n", world_rank, dname, fname);
+    snprintf(fname, sizeof(fname), "%s/file%d", dname, world_rank);
+    fprintf(stderr, "%d: Created %s\n", world_rank, fname);
 
     fp = fopen(fname, "w");
     if (!fp) {
@@ -88,7 +92,7 @@ int main(int argc, char **argv) {
     MPI_Finalize();
 
     /*
-     * Rank 0 check persisted data from all ranks.
+     * Rank 0 checks persisted data from all ranks.
      * Use unbuffered I/O (not preloaded).
      */
     if (world_rank)
@@ -96,9 +100,10 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < world_size; i++) {
         int fd;
-        char fname[32], buf[33] = { 0 };
+        char buf[33] = { 0 };
 
-        snprintf(fname, sizeof(fname), "file%d", world_rank);
+        snprintf(fname, sizeof(fname), REDIRECT_TEST_ROOT "%s/file%d",
+                 dname+strlen(DEFAULT_ROOT), world_rank);
         fd = open(fname, O_RDONLY);
         if (fd < 0) {
             perror("Error - open failed");
