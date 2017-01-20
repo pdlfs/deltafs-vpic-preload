@@ -19,16 +19,20 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <linux/limits.h>
 
 #include <mpi.h>
 
+#include "../src/preload.h"
+
 int main(int argc, char **argv) {
     FILE *fp;
-    char fname[32], buf[33];
+    char rname[PATH_MAX], fname[PATH_MAX], buf[33];
     int fd;
 
-    memset(fname, 0, 32);
-    memset(buf, 0, 33);
+    memset(fname, 0, sizeof(fname));
+    memset(buf, 0, sizeof(buf));
 
     /* No arguments. We will create a temporary file in /tmp. */
     if (argc != 1) {
@@ -37,8 +41,9 @@ int main(int argc, char **argv) {
     }
 
     /* Generate a temporary filename */
-    assert(strncpy(fname, "/tmp/preload-test.XXXXXX", 24));
+    assert(strncpy(fname, DEFAULT_ROOT "/preload-test.XXXXXX", PATH_MAX));
     fd = mkstemp(fname);
+    fprintf(stderr, "Creating file: %s\n", fname);
     assert(fd > 0);
     close(fd);
 
@@ -64,8 +69,14 @@ int main(int argc, char **argv) {
 
     MPI_Finalize();
 
-    /* Check persisted data. Use unbuffered I/O (not preloaded). */
-    fd = open(fname, O_RDONLY);
+    /*
+     * Check persisted data. Use unbuffered I/O (not preloaded).
+     * We will have to check the dir where the data is redirected.
+     */
+    assert(snprintf(rname, PATH_MAX, REDIRECT_TEST_ROOT "%s",
+           fname+strlen(DEFAULT_ROOT)));
+    fprintf(stderr, "Opening: %s\n", rname);
+    fd = open(rname, O_RDONLY);
     if (fd < 0) {
         perror("Error - open failed");
         exit(1);

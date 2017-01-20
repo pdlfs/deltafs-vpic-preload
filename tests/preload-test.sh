@@ -16,17 +16,14 @@ if [ ! -z "$2" ]; then
     MPI_PROCS=$2
 fi
 
-mpirun -np $MPI_PROCS -mca btl ^openib $BUILD_PREFIX/tests/preload-test
-
-if [ $? != 0 ]; then
-    echo "Baseline test failed ($?)"
-    exit 1
-fi
+rm -Rf /tmp/pdlfs
+rm -Rf /tmp/pdlfs-test
+mkdir /tmp/pdlfs
 
 #
 # XXX: this assumes a SunOS/linux-style ld.so (won't work on macosx)
 #
-env LD_PRELOAD=$BUILD_PREFIX/src/libdeltafs-preload.so PDLFS_Testin=1 \
+env LD_PRELOAD=$BUILD_PREFIX/src/libdeltafs-preload.so PDLFS_Preload_test=1 \
     mpirun -np $MPI_PROCS -mca btl ^openib $BUILD_PREFIX/tests/preload-test
 
 if [ $? != 0 ]; then

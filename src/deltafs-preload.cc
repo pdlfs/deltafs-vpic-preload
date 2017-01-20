@@ -9,12 +9,9 @@
 
 #include <dirent.h>
 #include <dlfcn.h>
-#include <fcntl.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/stat.h>
-
-#include <deltafs/deltafs_api.h>
 
 #include "fake-file.h"
 #include "shuffle.h"
@@ -25,12 +22,6 @@ shuffle_ctx_t sctx = { 0 };
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
  */
 static int fake_dirptr = 0;
-
-/*
- * user specifies a prefix that we use to redirect to deltafs via
- * the PDLFS_Root env varible.   If not provided, we default to /tmp/pdlfs.
- */
-#define DEFAULT_ROOT "/tmp/pdlfs"
 
 /*
  * next_functions: libc replacement functions we are providing to the preloader.
@@ -95,8 +86,19 @@ static void preload_init()
     if (!sctx.root) sctx.root = DEFAULT_ROOT;
     sctx.len_root = strlen(sctx.root);
     /* sctx.setlock and sctx.isdeltafs init'd by ctor */
-    if (getenv("PDLFS_Testin"))
-        sctx.testin = 1;
+
+    /* sctx.testmode is set to NO_TEST by default */
+    if (getenv("PDLFS_Preload_test"))
+        sctx.testmode = PRELOAD_TEST;
+    else if (getenv("PDLFS_Shuffle_test"))
+        sctx.testmode = SHUFFLE_TEST;
+    else if (getenv("PDLFS_Placement_test"))
+        sctx.testmode = PLACEMENT_TEST;
+    else if (getenv("PDLFS_Deltafs_NoPLFS_test"))
+        sctx.testmode = DELTAFS_NOPLFS_TEST;
+
+    if (getenv("PDLFS_Shuffle_bypass"))
+        sctx.testbypass = 1;
 
     /* root: any non-null path, not "/" and not ending in "/" */
     if ( sctx.len_root == 0 ||
@@ -112,6 +114,12 @@ static void preload_init()
  */
 static bool claim_path(const char *path, bool *exact)
 {
+    /*
+     * XXX - George: Chuck, this would not catch the case where cwd is sctx.root
+     *               and the path is relative.
+     *               In general, how do we handle relative paths?
+     */
+
     if (strncmp(sctx.root, path, sctx.len_root) != 0 ||
          (path[sctx.len_root] != '/' && path[sctx.len_root] != '\0') ) {
         return(false);
@@ -148,14 +156,24 @@ extern "C" {
  */
 int MPI_Init(int *argc, char ***argv)
 {
-    int rv;
-
-    rv = nxt.MPI_Init(argc, argv);
+    int rv = nxt.MPI_Init(argc, argv);
 
     genHgAddr();
     shuffle_init();
 
-    /* XXXCDC: additional init can go here or preload_inipreload_init() */
+    if (sctx.testmode) {
+        int rank, ret;
+
+        /* Get non-mpi rank */
+        rank = ssg_get_rank(sctx.s);
+        if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
+            msg_abort("ssg_get_rank: bad rank");
+
+        /* Create temporary test dir */
+        ret = mkdir(REDIRECT_TEST_ROOT, S_IRWXU | S_IRWXG | S_IRWXO);
+        if (ret && errno != EEXIST)
+            msg_abort("mkdir " REDIRECT_TEST_ROOT " failed");
+    }
 
     return(rv);
 }
@@ -165,14 +183,9 @@ int MPI_Init(int *argc, char ***argv)
  */
 int MPI_Finalize(void)
 {
-    int rv;
-
-    rv = nxt.MPI_Finalize();
+    int rv = nxt.MPI_Finalize();
 
     shuffle_destroy();
-
-    /* XXXCDC: additional teardown can go here */
-
     return(rv);
 }
 
@@ -182,7 +195,8 @@ int MPI_Finalize(void)
 int mkdir(const char *path, mode_t mode)
 {
     bool exact;
-    const char *newpath;
+    const char *stripped;
+    char testpath[PATH_MAX];
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
@@ -192,23 +206,37 @@ int mkdir(const char *path, mode_t mode)
         return(nxt.mkdir(path, mode));
     }
 
-    /* relatives paths we pass through, absolute we strip off prefix */
+    /* relative paths we pass through, absolute we strip off prefix */
+
+    /*
+     * XXX - George: But if we passed claim_path above, we know that we
+     *               can remove the prefix. Why do we need to keep it for
+     *               relative paths then?
+     */
+
     if (*path != '/') {
-        newpath = path;
+        stripped = path;
     } else {
-        newpath = (exact) ? "/" : (path + sctx.len_root);
+        stripped = (exact) ? "/" : (path + sctx.len_root);
     }
 
-    if (sctx.testin) {
-        printf("MKDIR %s %s\n", newpath, path);
-        return(0);
-    }
+    if (sctx.testmode &&
+        snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", stripped))
+        msg_abort("mkdir:snprintf");
 
-#ifdef PLFS_DIRMODE_BYPASS   /* XXX for initial testing... */
-    rv = deltafs_mkdir(path, mode);
-#else
-    rv = deltafs_mkdir(path, mode | DELTAFS_DIR_PLFS_STYLE);
-#endif
+    switch (sctx.testmode) {
+        case NO_TEST:
+            rv = deltafs_mkdir(stripped, mode | DELTAFS_DIR_PLFS_STYLE);
+            break;
+        case PRELOAD_TEST:
+        case SHUFFLE_TEST:
+        case PLACEMENT_TEST:
+            rv = mkdir(testpath, mode);
+            break;
+        case DELTAFS_NOPLFS_TEST:
+            rv = deltafs_mkdir(stripped, mode);
+            break;
+    }
 
     return(rv);
 }
@@ -216,24 +244,44 @@ int mkdir(const char *path, mode_t mode)
 /*
  * opendir
  */
-DIR *opendir(const char *filename)
+DIR *opendir(const char *path)
 {
     int rv;
     bool exact;
-    const char *newpath;
+    const char *stripped;
+    char testpath[PATH_MAX];
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("opendir:pthread_once");
 
-    if (!claim_path(filename, &exact)) {
-        return(nxt.opendir(filename));
+    if (!claim_path(path, &exact)) {
+        return(nxt.opendir(path));
     }
 
-    /* XXXCDC: CALL EPOCH HERE */
-    //int deltafs_epoch_flush(int __fd, void* __arg);
+    if (*path != '/') {
+        stripped = path;
+    } else {
+        stripped = (exact) ? "/" : (path + sctx.len_root);
+    }
 
-    /* we return a fake DIR* pointer for deltafs, since we don't actually open */
-    return(reinterpret_cast<DIR *>(&fake_dirptr));
+    if (sctx.testmode &&
+        snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", stripped))
+        msg_abort("opendir:snprintf");
+
+    switch (sctx.testmode) {
+        case NO_TEST:
+        case DELTAFS_NOPLFS_TEST:
+            /* XXX: Call epoch ending function here */
+            //int deltafs_epoch_flush(int __fd, void* __arg);
+
+            /* we return a fake DIR* pointer for deltafs, since we don't actually open */
+            return(reinterpret_cast<DIR *>(&fake_dirptr));
+        case PRELOAD_TEST:
+        case SHUFFLE_TEST:
+        case PLACEMENT_TEST:
+            /* We don't redirect opendir for our tests */
+            return(nxt.opendir(path));
+    }
 }
 
 /*
@@ -268,7 +316,7 @@ FILE *fopen(const char *filename, const char *mode)
         return(nxt.fopen(filename, mode));
     }
 
-    /* relatives paths we pass through, absolute we strip off prefix */
+    /* relative paths we pass through, absolute we strip off prefix */
     if (*filename != '/') {
         newpath = filename;
     } else {
@@ -313,37 +361,6 @@ size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream)
     return(cnt / size);    /* truncates on error */
 }
 
-#ifdef SHUFFLE_BYPASS   /* XXX for debug */
-/*
- * shuffle_bypass_write(): write directly to deltafs without shuffle.
- * for debugging so print msg on any err.   returns 0 or EOF on error.
- */
-static int shuffle_bypass_write(const char *fn, char *data, int len)
-{
-    int fd, rv;
-    ssize_t wrote;
-
-    fd = deltafs_open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
-    if (fd < 0) {
-        fprintf(stderr, "shuffle_bypass: %s: open failed (%s)\n", fn,
-                strerror(errno));
-        return(EOF);
-    }
-
-    wrote = deltafs_write(fd, data, len);
-    if (wrote != len)
-        fprintf(stderr, "shuffle_bypass: %s: write failed: %d (want %d)\n",
-                fn, (int)wrote, (int)len);
-
-    rv = deltafs_close(fd);
-    if (rv < 0)
-        fprintf(stderr, "shuffle_bypass: %s: close failed (%s)\n", fn,
-                strerror(errno));
-
-    return((wrote != len || rv < 0) ? EOF : 0);
-}
-#endif
-
 /*
  * fclose.   returns EOF on error.
  */
@@ -362,23 +379,21 @@ int fclose(FILE *stream)
     deltafspreload::FakeFile *ff = 
         reinterpret_cast<deltafspreload::FakeFile *>(stream);
 
-    if (sctx.testin) {
-        printf("FCLOSE: %s %.*s %d\n", ff->FileName(), ff->DataLen(),
-               ff->Data(), ff->DataLen());
-    } else {
-#ifdef SHUFFLE_BYPASS
-        rv = shuffle_bypass_write(ff->FileName(), ff->Data(), ff->DataLen());
-#else
-        // XXXCDC: shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
-#endif
-    }
+    if (sctx.testbypass)
+        rv = shuffle_write_local(ff->FileName(), ff->Data(), ff->DataLen());
+    else
+        rv = shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
 
     sctx.setlock.Lock();
     sctx.isdeltafs.erase(stream);
     sctx.setlock.Unlock();
 
     delete ff;
-    return(rv);
+
+    if (sctx.testmode)
+        return 0;
+    else
+        return(rv);
 }
 
 /*

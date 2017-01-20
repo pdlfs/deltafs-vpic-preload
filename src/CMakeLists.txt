@@ -23,6 +23,7 @@ find_package (Threads REQUIRED)
 #
 add_library (deltafs-preload deltafs-preload.cc
                              shuffle_config.cc
+                             shuffle_write.cc
                              shuffle_rpc.cc)
 target_link_libraries (deltafs-preload deltafs "${CMAKE_INSTALL_PREFIX}/lib/libssg.so")
 
