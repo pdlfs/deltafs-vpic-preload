@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
         char tst[33] = { 0 };
 
         snprintf(fname, sizeof(fname), REDIRECT_TEST_ROOT "%s/file%d",
-                 dname+strlen(DEFAULT_ROOT), world_rank);
+                 dname+strlen(DEFAULT_ROOT), i);
         fd = open(fname, O_RDONLY);
         if (fd < 0) {
             perror("Error - open failed");
