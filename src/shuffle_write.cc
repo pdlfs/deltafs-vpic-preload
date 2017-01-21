@@ -210,10 +210,6 @@ int shuffle_write(const char *fn, char *data, int len)
     unsigned int req_complete_flag = 0;
     int ret, write_ret;
 
-    hret = HG_Register_data(sctx.hgcl, write_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (write)");
-
     /* Decide RPC receiver. If we're alone we execute it locally. */
     if (ssg_get_count(sctx.s) == 1)
         return shuffle_write_local(fn, data, len);
