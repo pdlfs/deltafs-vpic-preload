@@ -111,7 +111,6 @@ void shuffle_init(void)
 {
     hg_return_t hret;
     int rank;
-    hg_id_t write_id;
 
     /* Initialize Mercury */
     sctx.hgcl = HG_Init(sctx.hgaddr, HG_TRUE);
@@ -121,15 +120,6 @@ void shuffle_init(void)
     sctx.hgctx = HG_Context_create(sctx.hgcl);
     if (!sctx.hgctx)
         msg_abort("HG_Context_create");
-
-    /* Register write RPC */
-    write_id = MERCURY_REGISTER(sctx.hgcl, "write",
-                                write_in_t, write_out_t,
-                                &write_rpc_handler);
-
-    hret = HG_Register_data(sctx.hgcl, write_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (write)");
 
     /* Initialize ssg with MPI */
     sctx.s = SSG_NULL;

@@ -15,7 +15,7 @@ struct write_bulk_args {
     hg_handle_t handle;
     size_t len;
     ssize_t ret;
-    const char *fname;
+    hg_const_string_t fname;
     int rank_in;
 };
 
@@ -103,9 +103,10 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     hg_bulk_t data_handle = info->info.bulk.local_handle;
     hg_return_t hret = HG_SUCCESS;
     char *data;
-    int ret, rank;
+    int rank;
     char buf[1024] = { 0 };
     write_out_t out;
+    write_in_t in;
 
     /* Grab bulk data */
     hret = HG_Bulk_access(data_handle, 0, bulk_args->len, HG_BULK_READWRITE, 1,
@@ -119,18 +120,19 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     fprintf(stderr, "Writing %d bytes to %s (shuffle: %d -> %d)\n",
             (int) bulk_args->len, bulk_args->fname, bulk_args->rank_in, rank);
 
-    /* Perform the write */
-    ret = shuffle_write_local(bulk_args->fname, data, (int) bulk_args->len);
+    /* Perform the write and fill output structure */
+    out.ret = shuffle_write_local(bulk_args->fname, data, (int) bulk_args->len);
 
     /* Write out to the log if we are running a test */
     if (sctx.testmode) {
         snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
                  bulk_args->rank_in, rank, (int) bulk_args->len);
-        assert(write(sctx.log, buf, strlen(buf)+1) > 0);
+        int fd = open(sctx.log, O_WRONLY | O_APPEND);
+        if (fd <= 0)
+            msg_abort("log open failed");
+        assert(write(fd, buf, strlen(buf)) == strlen(buf));
+        close(fd);
     }
-
-    /* Fill output structure */
-    out.ret = ret;
 
     /* Free block handle */
     hret = HG_Bulk_free(data_handle);
@@ -139,6 +141,11 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     /* Send response back */
     hret = HG_Respond(bulk_args->handle, NULL, NULL, &out);
     assert(hret == HG_SUCCESS);
+
+    /* Get input struct just to free it */
+    hret = HG_Get_input(bulk_args->handle, &in);
+    assert(hret == HG_SUCCESS);
+    HG_Free_input(bulk_args->handle, &in);
 
     /* Clean up */
     HG_Destroy(bulk_args->handle);
@@ -152,8 +159,9 @@ hg_return_t write_rpc_handler(hg_handle_t h)
 {
     hg_return_t hret;
     write_in_t in;
-    struct hg_info *info;
-    hg_bulk_t in_handle, data_handle;
+    struct hg_info *info = NULL;
+    hg_bulk_t in_handle = HG_BULK_NULL;
+    hg_bulk_t data_handle = HG_BULK_NULL;
     int rank_in;
     struct write_bulk_args *bulk_args = NULL;
 
@@ -175,13 +183,15 @@ hg_return_t write_rpc_handler(hg_handle_t h)
     in_handle = in.data_handle;
 
     /* Create a new block handle to read the data */
-    bulk_args->len = HG_Bulk_get_size(in_handle);
+    bulk_args->len = (size_t) ((unsigned)HG_Bulk_get_size(in_handle));
     bulk_args->fname = in.fname;
     bulk_args->rank_in = in.rank_in;
 
+    fprintf(stderr, "Creating new bulk handle to read data (%s, len %zu)\n",
+            bulk_args->fname, bulk_args->len);
     /* Create a new bulk handle to read the data */
     hret = HG_Bulk_create(info->hg_class, 1, NULL,
-                          (hg_size_t *) &(bulk_args->len),
+                          (hg_size_t *) &bulk_args->len,
                           HG_BULK_READWRITE, &data_handle);
     assert(hret == HG_SUCCESS);
 
@@ -191,7 +201,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
                            data_handle, 0, bulk_args->len, HG_OP_ID_IGNORE);
     assert(hret == HG_SUCCESS);
 
-    HG_Free_input(h, &in);
+    /* Can't free input here because of filename. Do it in callback. */
     return hret;
 }
 
@@ -214,6 +224,15 @@ int shuffle_write(const char *fn, char *data, int len)
     if (ssg_get_count(sctx.s) == 1)
         return shuffle_write_local(fn, data, len);
 
+    /* Register write RPC */
+    write_id = MERCURY_REGISTER(sctx.hgcl, "write",
+                                write_in_t, write_out_t,
+                                &write_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, write_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (write)");
+
     rank = ssg_get_rank(sctx.s);
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
@@ -225,7 +244,7 @@ int shuffle_write(const char *fn, char *data, int len)
         msg_abort("ssg_get_addr");
 
     /* Put together write RPC */
-    fprintf(stderr, "Redirecting write: %d -> %d\n", rank, peer_rank);
+    fprintf(stderr, "Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
     hret = HG_Create(sctx.hgctx, peer_addr, write_id, &write_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
@@ -245,6 +264,7 @@ int shuffle_write(const char *fn, char *data, int len)
     write_in.data_handle = data_handle;
     write_in.rank_in = rank;
 
+    fprintf(stderr, "Forwarding write RPC: %d -> %d\n", rank, peer_rank);
     /* Send off write RPC */
     hret = HG_Forward(write_handle, &hg_request_complete_cb, hgreq, &write_in);
     if (hret != HG_SUCCESS)

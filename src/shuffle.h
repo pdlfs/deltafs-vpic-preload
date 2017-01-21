@@ -52,7 +52,7 @@ typedef struct shuffle_ctx {
     int len_root;                       /* strlen root */
     int testmode;                       /* testing mode */
     int testbypass;                     /* bypass mode */
-    int log;                            /* debug log */
+    const char *log;                    /* debug log */
 
     pdlfs::port::Mutex setlock;
     std::set<FILE *> isdeltafs;
