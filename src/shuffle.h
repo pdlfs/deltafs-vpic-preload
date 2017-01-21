@@ -33,6 +33,13 @@
 
 //#define DELTAFS_SHUFFLE_DEBUG
 
+/*
+ * Threshold that determines whether a write is small enough to use
+ * point-to-point Mercury RPCs. Otherwise we fall back to a bulk transfer.
+ * In bytes, obvi.
+ */
+#define SMALL_WRITE 1024
+
 #define HG_PROTO "bmi+tcp"
 
 enum TEST_MODE {
@@ -75,7 +82,10 @@ MERCURY_GEN_PROC(ping_t, ((int32_t)(rank)))
 #endif
 MERCURY_GEN_PROC(write_in_t, ((hg_const_string_t)(fname))
                              ((hg_bulk_t)(data_handle))
-                             ((hg_int32_t)(rank_in)))
+                             ((hg_string_t)(data))
+                             ((hg_uint64_t)(data_len))
+                             ((hg_int32_t)(rank_in))
+                             ((hg_int32_t)(isbulk)))
 MERCURY_GEN_PROC(write_out_t, ((hg_int64_t)(ret)))
 
 extern shuffle_ctx_t sctx;
