@@ -19,12 +19,16 @@
 # test programs
 #
 add_executable (preload-test preload-test.c)
-add_test (test-preload ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh
-                       ${CMAKE_CURRENT_BINARY_DIR})
+add_test (test-preload-single ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh
+                              ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
+add_test (test-preload-multi  ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh
+                              ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
 
 add_executable (shuffle-test shuffle-test.c)
-add_test (test-shuffle ${CMAKE_CURRENT_SOURCE_DIR}/shuffle-test.sh
-                       ${CMAKE_CURRENT_BINARY_DIR})
+add_test (test-shuffle-single ${CMAKE_CURRENT_SOURCE_DIR}/shuffle-test.sh
+                              ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
+add_test (test-shuffle-multi  ${CMAKE_CURRENT_SOURCE_DIR}/shuffle-test.sh
+                              ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
 
 #
 # make sure we link with MPI
