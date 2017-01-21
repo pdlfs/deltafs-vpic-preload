@@ -22,6 +22,7 @@
 /* ANL libs */
 #include <mercury_request.h>
 #include <mercury_macros.h>
+#include <mercury_proc_string.h>
 #include <ssg.h>
 #include <ssg-mpi.h>
 
@@ -51,6 +52,7 @@ typedef struct shuffle_ctx {
     int len_root;                       /* strlen root */
     int testmode;                       /* testing mode */
     int testbypass;                     /* bypass mode */
+    int log;                            /* debug log */
 
     pdlfs::port::Mutex setlock;
     std::set<FILE *> isdeltafs;
@@ -71,7 +73,10 @@ typedef struct shuffle_ctx {
 #ifdef DELTAFS_SHUFFLE_DEBUG
 MERCURY_GEN_PROC(ping_t, ((int32_t)(rank)))
 #endif
-MERCURY_GEN_PROC(write_t, ((int32_t)(rank)))
+MERCURY_GEN_PROC(write_in_t, ((hg_const_string_t)(fname))
+                             ((hg_bulk_t)(data_handle))
+                             ((hg_int32_t)(rank_in)))
+MERCURY_GEN_PROC(write_out_t, ((hg_int64_t)(ret)))
 
 extern shuffle_ctx_t sctx;
 
@@ -92,6 +97,6 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h);
 void shuffle_shutdown(int rank);
 
 /* shuffle_write.cc */
-hg_return_t write_rpc_handler(hg_handle_t h);
 int shuffle_write_local(const char *fn, char *data, int len);
+hg_return_t write_rpc_handler(hg_handle_t h);
 int shuffle_write(const char *fn, char *data, int len);

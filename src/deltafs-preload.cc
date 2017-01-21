@@ -173,6 +173,11 @@ int MPI_Init(int *argc, char ***argv)
         ret = mkdir(REDIRECT_TEST_ROOT, S_IRWXU | S_IRWXG | S_IRWXO);
         if (ret && errno != EEXIST)
             msg_abort("mkdir " REDIRECT_TEST_ROOT " failed");
+
+        /* Open shuffle debug log */
+        sctx.log = open(REDIRECT_TEST_ROOT "/shuffle.log", O_APPEND|O_CREAT);
+        if (sctx.log <= 0)
+            msg_abort("log open failed");
     }
 
     return(rv);
@@ -185,6 +190,7 @@ int MPI_Finalize(void)
 {
     int rv = nxt.MPI_Finalize();
 
+    close(sctx.log);
     shuffle_destroy();
     return(rv);
 }

@@ -124,8 +124,8 @@ void shuffle_init(void)
 
     /* Register write RPC */
     write_id = MERCURY_REGISTER(sctx.hgcl, "write",
-                               void, void, //XXX: change
-                               &write_rpc_handler);
+                                write_in_t, write_out_t,
+                                &write_rpc_handler);
 
     hret = HG_Register_data(sctx.hgcl, write_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
