@@ -281,9 +281,21 @@ int shuffle_write(const char *fn, char *data, int len)
     }
 
     /* Are we trying to message ourselves? Write locally */
-    /* TODO: Don't forget to write to the log! */
-//    if (peer_rank == rank)
-//        return shuffle_write_local(fn, data, len);
+    if (peer_rank == rank) {
+        /* Write out to the log if we are running a test */
+        if (sctx.testmode) {
+            char buf[1024] = { 0 };
+            snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
+                     rank, rank, len);
+            int fd = open(sctx.log, O_WRONLY | O_APPEND);
+            if (fd <= 0)
+                msg_abort("log open failed");
+            assert(write(fd, buf, strlen(buf)) == strlen(buf));
+            close(fd);
+        }
+
+        return shuffle_write_local(fn, data, len);
+    }
 
     peer_addr = ssg_get_addr(sctx.s, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
