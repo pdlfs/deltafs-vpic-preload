@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+extern "C"
 uint64_t spooky_hash64(
         const void *message, 
         size_t length, 

@@ -110,7 +110,7 @@ static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
 void shuffle_init(void)
 {
     hg_return_t hret;
-    int rank;
+    int rank, worldsz;
 
     /* Initialize Mercury */
     sctx.hgcl = HG_Init(sctx.hgaddr, HG_TRUE);
@@ -142,6 +142,13 @@ void shuffle_init(void)
     if (sctx.hgreqcl == NULL)
         msg_abort("hg_request_init");
 
+    /* Initialize ch-placement instance */
+    MPI_Comm_size(MPI_COMM_WORLD, &worldsz);
+    sctx.chinst = ch_placement_initialize("ring", worldsz,
+                    10 /* virt factor */, 0 /* seed */);
+    if (!sctx.chinst)
+        msg_abort("ch_placement_initialize");
+
 #ifdef DELTAFS_SHUFFLE_DEBUG
     ping_test(rank);
 #endif
@@ -158,6 +165,7 @@ void shuffle_destroy(void)
 
     shuffle_shutdown(rank);
 
+    ch_placement_finalize(sctx.chinst);
     fprintf(stderr, "%d: Cleaning up\n", rank);
     hg_request_finalize(sctx.hgreqcl, NULL);
     ssg_finalize(sctx.s);

@@ -26,9 +26,11 @@ add_library (deltafs-preload deltafs-preload.cc
                              shuffle_write.cc
                              shuffle_shutdown.cc
                              shuffle_ping.cc
-                             spooky.cpp
-                             SpookyV2.cpp)
-target_link_libraries (deltafs-preload deltafs "${CMAKE_INSTALL_PREFIX}/lib/libssg.so")
+                             SpookyV2.cpp
+                             spooky.cpp)
+target_link_libraries (deltafs-preload deltafs
+                        "${CMAKE_INSTALL_PREFIX}/lib/libssg.so"
+                        "${CMAKE_INSTALL_PREFIX}/lib/libch-placement.so")
 
 if (CMAKE_THREAD_LIBS_INIT)
   target_link_libraries (deltafs-preload "${CMAKE_THREAD_LIBS_INIT}")

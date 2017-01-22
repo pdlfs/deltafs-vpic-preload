@@ -25,6 +25,7 @@
 #include <mercury_proc_string.h>
 #include <ssg.h>
 #include <ssg-mpi.h>
+#include <ch-placement.h>
 
 /* CMU libs */
 #include <pdlfs-common/port.h>
@@ -73,7 +74,10 @@ typedef struct shuffle_ctx {
 
     /* SSG context */
     ssg_t s;
-    int shutdown_flag;                  /* XXX: Used for testing */
+    int shutdown_flag;
+
+    /* ch-placement context */
+    struct ch_placement_instance *chinst;
 } shuffle_ctx_t;
 
 /* Generate RPC structs */
