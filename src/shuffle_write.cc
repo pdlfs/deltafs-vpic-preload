@@ -25,6 +25,8 @@ static int shuffle_posix_write(const char *fn, char *data, int len)
     int fd, rv;
     ssize_t wrote;
 
+    fprintf(stderr, "shuffle_posix_write: writing %s\n", fn);
+
     fd = open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
     if (fd < 0) {
         if (sctx.testmode)
@@ -117,7 +119,7 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     rank = ssg_get_rank(sctx.s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-    fprintf(stderr, "Writing %d bytes to %s (shuffle: %d -> %d)\n",
+    fprintf(stderr, "%d: Writing %d bytes to %s (shuffle: %d -> %d)\n", rank,
             (int) bulk_args->len, bulk_args->fname, bulk_args->rank_in, rank);
 
     /* Perform the write and fill output structure */
@@ -247,7 +249,6 @@ int shuffle_write(const char *fn, char *data, int len)
 {
     write_in_t write_in;
     write_out_t write_out;
-    hg_id_t write_id;
     hg_return_t hret;
     int rank, peer_rank;
     hg_addr_t peer_addr;
@@ -260,15 +261,6 @@ int shuffle_write(const char *fn, char *data, int len)
     /* Decide RPC receiver. If we're alone we execute it locally. */
     if (ssg_get_count(sctx.s) == 1)
         return shuffle_write_local(fn, data, len);
-
-    /* Register write RPC */
-    write_id = MERCURY_REGISTER(sctx.hgcl, "write",
-                                write_in_t, write_out_t,
-                                &write_rpc_handler);
-
-    hret = HG_Register_data(sctx.hgcl, write_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (write)");
 
     rank = ssg_get_rank(sctx.s);
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
@@ -288,13 +280,18 @@ int shuffle_write(const char *fn, char *data, int len)
         peer_rank = (int) server_idx;
     }
 
+    /* Are we trying to message ourselves? Write locally */
+    /* TODO: Don't forget to write to the log! */
+//    if (peer_rank == rank)
+//        return shuffle_write_local(fn, data, len);
+
     peer_addr = ssg_get_addr(sctx.s, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("ssg_get_addr");
 
     /* Put together write RPC */
     fprintf(stderr, "Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
-    hret = HG_Create(sctx.hgctx, peer_addr, write_id, &write_handle);
+    hret = HG_Create(sctx.hgctx, peer_addr, sctx.write_id, &write_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
 
@@ -337,7 +334,7 @@ int shuffle_write(const char *fn, char *data, int len)
         write_in.isbulk = 0;
     }
 
-    fprintf(stderr, "Forwarding write RPC: %d -> %d\n", rank, peer_rank);
+    fprintf(stderr, "%d: Forwarding write RPC: %d -> %d\n", rank, rank, peer_rank);
     /* Send off write RPC */
     hret = HG_Forward(write_handle, &hg_request_complete_cb, hgreq, &write_in);
     if (hret != HG_SUCCESS)
@@ -349,6 +346,8 @@ int shuffle_write(const char *fn, char *data, int len)
         msg_abort("write failed");
     if (req_complete_flag == 0)
         msg_abort("write timed out");
+
+    fprintf(stderr, "%d: Response received (%d -> %d)\n", rank, rank, peer_rank);
 
     hret = HG_Get_output(write_handle, &write_out);
     if (hret != HG_SUCCESS)
@@ -365,6 +364,8 @@ int shuffle_write(const char *fn, char *data, int len)
         msg_abort("HG_Destroy");
 
     hg_request_destroy(hgreq);
+
+    fprintf(stderr, "%d: Resources destroyed (%d -> %d)\n", rank, rank, peer_rank);
 
     /* Free bulk resources if used */
     if (len > SMALL_WRITE) {

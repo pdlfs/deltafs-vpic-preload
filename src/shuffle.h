@@ -71,6 +71,8 @@ typedef struct shuffle_ctx {
     hg_class_t *hgcl;
     hg_context_t *hgctx;
     hg_request_class_t *hgreqcl;
+    hg_id_t write_id;
+    hg_id_t shutdown_id;
 
     /* SSG context */
     ssg_t s;

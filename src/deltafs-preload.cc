@@ -191,9 +191,11 @@ int MPI_Init(int *argc, char ***argv)
  */
 int MPI_Finalize(void)
 {
-    int rv = nxt.MPI_Finalize();
+    int rv;
 
     shuffle_destroy();
+
+    rv = nxt.MPI_Finalize();
     return(rv);
 }
 
@@ -391,6 +393,8 @@ int fclose(FILE *stream)
         rv = shuffle_write_local(ff->FileName(), ff->Data(), ff->DataLen());
     else
         rv = shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
+
+    fprintf(stderr, "Fclose for %s completed\n", ff->FileName());
 
     sctx.setlock.Lock();
     sctx.isdeltafs.erase(stream);

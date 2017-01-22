@@ -85,27 +85,40 @@ void genHgAddr(void)
  */
 static int progress(unsigned int timeout, void *arg)
 {
-    if (HG_Progress((hg_context_t *)arg, timeout) == HG_SUCCESS)
+    shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
+    hg_context_t *h = ctx->hgctx;
+
+    //fprintf(stderr, "Calling HG_Progress from request shim\n");
+
+    if (HG_Progress(h, timeout) == HG_SUCCESS)
         return HG_UTIL_SUCCESS;
     else
         return HG_UTIL_FAIL;
+
+    //fprintf(stderr, "Done calling HG_Progress from request shim\n");
 }
 
 static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
 {
-    if (HG_Trigger((hg_context_t *)arg, timeout, 1, flag) != HG_SUCCESS) {
+    shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
+    hg_context_t *h = ctx->hgctx;
+
+    fprintf(stderr, "%d: calling HG_Trigger from request shim\n",
+            ssg_get_rank(ctx->s));
+
+    if (HG_Trigger(h, timeout, 1, flag) != HG_SUCCESS) {
         return HG_UTIL_FAIL;
     } else {
         *flag = (*flag) ? HG_UTIL_TRUE : HG_UTIL_FALSE;
         return HG_UTIL_SUCCESS;
     }
+
+    fprintf(stderr, "%d: done calling HG_Trigger from request shim\n",
+            ssg_get_rank(ctx->s));
 }
 
 /*
  * Initialize and configure the shuffle layer
- *
- * We use two types of Mercury RPCs:
- * - write: sends out a write request to the right rank
  */
 void shuffle_init(void)
 {
@@ -116,6 +129,24 @@ void shuffle_init(void)
     sctx.hgcl = HG_Init(sctx.hgaddr, HG_TRUE);
     if (!sctx.hgcl)
         msg_abort("HG_Init");
+
+    /* Register write RPC */
+    sctx.write_id = MERCURY_REGISTER(sctx.hgcl, "write",
+                                     write_in_t, write_out_t,
+                                     &write_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, sctx.write_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (write)");
+
+    /* Register shutdown RPC */
+    sctx.shutdown_id = MERCURY_REGISTER(sctx.hgcl, "shutdown",
+                                        void, void,
+                                        &shutdown_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, sctx.shutdown_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (shutdown)");
 
     sctx.hgctx = HG_Context_create(sctx.hgcl);
     if (!sctx.hgctx)
@@ -138,7 +169,7 @@ void shuffle_init(void)
         msg_abort("ssg_get_rank: bad rank");
 
     /* Initialize request shim */
-    sctx.hgreqcl = hg_request_init(&progress, &trigger, sctx.hgctx);
+    sctx.hgreqcl = hg_request_init(&progress, &trigger, &sctx); //sctx.hgctx
     if (sctx.hgreqcl == NULL)
         msg_abort("hg_request_init");
 
@@ -163,10 +194,11 @@ void shuffle_destroy(void)
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
+    fprintf(stderr, "%d: Shutting down shuffle layer\n", rank);
     shuffle_shutdown(rank);
 
+    fprintf(stderr, "%d: Cleaning up shuffle layer\n", rank);
     ch_placement_finalize(sctx.chinst);
-    fprintf(stderr, "%d: Cleaning up\n", rank);
     hg_request_finalize(sctx.hgreqcl, NULL);
     ssg_finalize(sctx.s);
     HG_Context_destroy(sctx.hgctx);

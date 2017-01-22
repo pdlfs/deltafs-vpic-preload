@@ -35,10 +35,10 @@ static hg_return_t shutdown_post_respond(const struct hg_cb_info *cb_info)
 static hg_return_t shutdown_post_forward(const struct hg_cb_info *cb_info)
 {
     hg_handle_t fwd_handle, resp_handle;
+    shuffle_ctx_t *ctx;
     int rank;
     hg_return_t hret;
     struct hg_info *info;
-    shuffle_ctx_t *ctx;
 
     /* RPC has completed, respond to previous rank */
     fwd_handle = cb_info->info.forward.handle;
@@ -53,7 +53,6 @@ static hg_return_t shutdown_post_forward(const struct hg_cb_info *cb_info)
         fprintf(stderr, "%d: sending shutdown response\n", rank);
         hret = HG_Respond(resp_handle, &shutdown_post_respond, NULL, NULL);
         assert(hret == HG_SUCCESS);
-        //return HG_SUCCESS;
     } else {
         ctx->shutdown_flag = 1;
         fprintf(stderr, "%d: no recipient, setting shutdown flag\n", rank);
@@ -83,7 +82,7 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
     rank = ssg_get_rank(ctx->s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-    fprintf(stderr, "%d: received shutdown reqyest\n", rank);
+    fprintf(stderr, "%d: received shutdown request\n", rank);
 
     rank++;
     if (rank == ssg_get_count(ctx->s)) {
@@ -95,14 +94,12 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
     } else {
         /* Forward shutdown to neighbor */
         hg_handle_t next_handle;
-        na_addr_t next_addr;
+        hg_addr_t next_addr;
 
         next_addr = ssg_get_addr(ctx->s, rank);
         assert(next_addr != NULL);
 
-        /* XXX: Not so sure about this na_addr_t ~> hg_addr_t conversion here */
-        hret = HG_Create(info->context, (hg_addr_t) next_addr, info->id,
-                         &next_handle);
+        hret = HG_Create(info->context, next_addr, info->id, &next_handle);
         assert(hret == HG_SUCCESS);
 
         fprintf(stderr, "%d: forwarding shutdown to neighbor\n", rank-1);
@@ -113,6 +110,8 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
         assert(hret == HG_SUCCESS);
     }
 
+    fprintf(stderr, "%d: forwarded shutdown request\n", rank-1);
+
     return HG_SUCCESS;
 }
 
@@ -120,16 +119,8 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h)
 void shuffle_shutdown(int rank)
 {
     hg_return_t hret;
-    hg_id_t shutdown_id;
 
-    /* Register shutdown RPC */
-    shutdown_id = MERCURY_REGISTER(sctx.hgcl, "shutdown",
-                               void, void,
-                               &shutdown_rpc_handler);
-
-    hret = HG_Register_data(sctx.hgcl, shutdown_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (shutdown)");
+    fprintf(stderr, "%d: entering shutdown process\n", rank);
 
     /*
      * Rank 0: initialize the shutdown process
@@ -137,12 +128,17 @@ void shuffle_shutdown(int rank)
      */
     if (rank != 0) {
         unsigned int num_trigger;
+
+        fprintf(stderr, "%d: waiting for shutdown message\n", rank);
+
         do {
+            fprintf(stderr, "%d: entering HG_Trigger loop\n", rank);
             do {
                 num_trigger = 0;
                 hret = HG_Trigger(sctx.hgctx, 0, 1, &num_trigger);
             } while (hret == HG_SUCCESS && num_trigger == 1);
 
+            fprintf(stderr, "%d: calling HG_Progress\n", rank);
             hret = HG_Progress(sctx.hgctx,
                                sctx.shutdown_flag ? 100 : HG_MAX_IDLE_TIME);
         } while ((hret == HG_SUCCESS || hret == HG_TIMEOUT) &&
@@ -150,6 +146,7 @@ void shuffle_shutdown(int rank)
 
         if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
             msg_abort("HG_Progress");
+
         fprintf(stderr, "%d: shutting down\n", rank);
 
         /* Trigger/progress remaining */
@@ -175,7 +172,7 @@ void shuffle_shutdown(int rank)
         if (peer_addr == HG_ADDR_NULL)
             msg_abort("ssg_get_addr");
 
-        hret = HG_Create(sctx.hgctx, peer_addr, shutdown_id, &shutdown_handle);
+        hret = HG_Create(sctx.hgctx, peer_addr, sctx.shutdown_id, &shutdown_handle);
         if (hret != HG_SUCCESS)
             msg_abort("HG_Create");
 
@@ -188,6 +185,7 @@ void shuffle_shutdown(int rank)
             msg_abort("HG_Forward");
 
         req_complete_flag = 0;
+        fprintf (stderr, "%d: Waiting for hg_request_wait\n", rank);
         ret = hg_request_wait(hgreq, HG_MAX_IDLE_TIME, &req_complete_flag);
         if (ret != HG_UTIL_SUCCESS)
             msg_abort("hg_request_wait");
@@ -195,6 +193,9 @@ void shuffle_shutdown(int rank)
             msg_abort("hg_request_wait timed out");
 
         HG_Destroy(shutdown_handle);
+        fprintf(stderr, "%d: destroying request\n", rank);
         hg_request_destroy(hgreq);
     }
+
+    fprintf(stderr, "%d: shutdown protocol completed\n", rank);
 }
