@@ -47,7 +47,6 @@ hg_return_t ping_rpc_handler(hg_handle_t h)
 /* For testing: ping RPCs go around all ranks in a ring to test Mercury/SSG */
 void ping_test(int rank)
 {
-    hg_id_t ping_id;
     hg_handle_t ping_handle = HG_HANDLE_NULL;
     ping_t ping_in;
     hg_addr_t peer_addr;
@@ -55,15 +54,6 @@ void ping_test(int rank)
     hg_return_t hret;
     hg_request_t *hgreq;
     unsigned int req_complete_flag = 0;
-
-    /* Register ping RPC */
-    ping_id = MERCURY_REGISTER(sctx.hgcl, "ping",
-                               ping_t, ping_t,
-                               &ping_rpc_handler);
-
-    hret = HG_Register_data(sctx.hgcl, ping_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (ping)");
 
     /* Sanity check count; if we're on our own, don't bother */
     if (ssg_get_count(sctx.s) == 1)
@@ -75,7 +65,7 @@ void ping_test(int rank)
         msg_abort("ssg_get_addr");
 
     fprintf(stderr, "%d: pinging %d\n", rank, peer_rank);
-    hret = HG_Create(sctx.hgctx, peer_addr, ping_id, &ping_handle);
+    hret = HG_Create(sctx.hgctx, peer_addr, sctx.ping_id, &ping_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
 

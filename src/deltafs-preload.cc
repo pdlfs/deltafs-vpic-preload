@@ -394,8 +394,6 @@ int fclose(FILE *stream)
     else
         rv = shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
 
-    fprintf(stderr, "Fclose for %s completed\n", ff->FileName());
-
     sctx.setlock.Lock();
     sctx.isdeltafs.erase(stream);
     sctx.setlock.Unlock();

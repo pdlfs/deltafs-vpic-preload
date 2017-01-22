@@ -25,24 +25,24 @@ static int shuffle_posix_write(const char *fn, char *data, int len)
     int fd, rv;
     ssize_t wrote;
 
-    fprintf(stderr, "shuffle_posix_write: writing %s\n", fn);
+    SHUFFLE_DEBUG("shuffle_posix_write: writing %s\n", fn);
 
     fd = open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
     if (fd < 0) {
         if (sctx.testmode)
-            fprintf(stderr, "shuffle_posix_write: %s: open failed (%s)\n", fn,
+            SHUFFLE_DEBUG("shuffle_posix_write: %s: open failed (%s)\n", fn,
                     strerror(errno));
         return(EOF);
     }
 
     wrote = write(fd, data, len);
     if (wrote != len && sctx.testmode)
-        fprintf(stderr, "shuffle_posix_write: %s: write failed: %d (want %d)\n",
+        SHUFFLE_DEBUG("shuffle_posix_write: %s: write failed: %d (want %d)\n",
                 fn, (int)wrote, (int)len);
 
     rv = close(fd);
     if (rv < 0 && sctx.testmode)
-        fprintf(stderr, "shuffle_posix_write: %s: close failed (%s)\n", fn,
+        SHUFFLE_DEBUG("shuffle_posix_write: %s: close failed (%s)\n", fn,
                 strerror(errno));
 
     return((wrote != len || rv < 0) ? EOF : 0);
@@ -56,19 +56,19 @@ static int shuffle_deltafs_write(const char *fn, char *data, int len)
     fd = deltafs_open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
     if (fd < 0) {
         if (sctx.testmode)
-            fprintf(stderr, "shuffle_deltafs_write: %s: open failed (%s)\n", fn,
+            SHUFFLE_DEBUG("shuffle_deltafs_write: %s: open failed (%s)\n", fn,
                     strerror(errno));
         return(EOF);
     }
 
     wrote = deltafs_write(fd, data, len);
     if (wrote != len && sctx.testmode)
-        fprintf(stderr, "shuffle_deltafs_write: %s: write failed: %d (want %d)\n",
+        SHUFFLE_DEBUG("shuffle_deltafs_write: %s: write failed: %d (want %d)\n",
                 fn, (int)wrote, (int)len);
 
     rv = deltafs_close(fd);
     if (rv < 0 && sctx.testmode)
-        fprintf(stderr, "shuffle_deltafs_write: %s: close failed (%s)\n", fn,
+        SHUFFLE_DEBUG("shuffle_deltafs_write: %s: close failed (%s)\n", fn,
                 strerror(errno));
 
     return((wrote != len || rv < 0) ? EOF : 0);
@@ -119,7 +119,7 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     rank = ssg_get_rank(sctx.s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-    fprintf(stderr, "%d: Writing %d bytes to %s (shuffle: %d -> %d)\n", rank,
+    SHUFFLE_DEBUG("%d: Writing %d bytes to %s (shuffle: %d -> %d)\n", rank,
             (int) bulk_args->len, bulk_args->fname, bulk_args->rank_in, rank);
 
     /* Perform the write and fill output structure */
@@ -191,7 +191,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         bulk_args->fname = in.fname;
         bulk_args->rank_in = in.rank_in;
 
-        fprintf(stderr, "Creating new bulk handle to read data (%s, len %zu)\n",
+        SHUFFLE_DEBUG("Creating new bulk handle to read data (%s, len %zu)\n",
                 bulk_args->fname, bulk_args->len);
         /* Create a new bulk handle to read the data */
         hret = HG_Bulk_create(info->hg_class, 1, NULL,
@@ -215,7 +215,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         rank = ssg_get_rank(sctx.s);
         assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-        fprintf(stderr, "Writing %d bytes to %s (shuffle: %d -> %d)\n",
+        SHUFFLE_DEBUG("Writing %d bytes to %s (shuffle: %d -> %d)\n",
                 (int) in.data_len, in.fname, in.rank_in, rank);
 
         /* Perform the write and fill output structure */
@@ -275,7 +275,7 @@ int shuffle_write(const char *fn, char *data, int len)
 
         /* Use ch-placement to decide receiver */
         ch_placement_find_closest(sctx.chinst, oid, 1, &server_idx);
-        fprintf(stderr, "File %s -> Spooky hash %16lx -> Server %lu\n",
+        SHUFFLE_DEBUG("File %s -> Spooky hash %16lx -> Server %lu\n",
                 fn, oid, server_idx);
         peer_rank = (int) server_idx;
     }
@@ -290,7 +290,7 @@ int shuffle_write(const char *fn, char *data, int len)
         msg_abort("ssg_get_addr");
 
     /* Put together write RPC */
-    fprintf(stderr, "Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
+    SHUFFLE_DEBUG("Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
     hret = HG_Create(sctx.hgctx, peer_addr, sctx.write_id, &write_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
@@ -334,7 +334,7 @@ int shuffle_write(const char *fn, char *data, int len)
         write_in.isbulk = 0;
     }
 
-    fprintf(stderr, "%d: Forwarding write RPC: %d -> %d\n", rank, rank, peer_rank);
+    SHUFFLE_DEBUG("%d: Forwarding write RPC: %d -> %d\n", rank, rank, peer_rank);
     /* Send off write RPC */
     hret = HG_Forward(write_handle, &hg_request_complete_cb, hgreq, &write_in);
     if (hret != HG_SUCCESS)
@@ -347,7 +347,7 @@ int shuffle_write(const char *fn, char *data, int len)
     if (req_complete_flag == 0)
         msg_abort("write timed out");
 
-    fprintf(stderr, "%d: Response received (%d -> %d)\n", rank, rank, peer_rank);
+    SHUFFLE_DEBUG("%d: Response received (%d -> %d)\n", rank, rank, peer_rank);
 
     hret = HG_Get_output(write_handle, &write_out);
     if (hret != HG_SUCCESS)
@@ -365,7 +365,7 @@ int shuffle_write(const char *fn, char *data, int len)
 
     hg_request_destroy(hgreq);
 
-    fprintf(stderr, "%d: Resources destroyed (%d -> %d)\n", rank, rank, peer_rank);
+    SHUFFLE_DEBUG("%d: Resources destroyed (%d -> %d)\n", rank, rank, peer_rank);
 
     /* Free bulk resources if used */
     if (len > SMALL_WRITE) {

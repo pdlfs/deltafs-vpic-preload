@@ -75,7 +75,7 @@ void genHgAddr(void)
     port = ((long) getpid() % 55000) + 5000;
 
     sprintf(sctx.hgaddr, "%s://%s:%d", HG_PROTO, host, port);
-    fprintf(stderr, "Address: %s\n", sctx.hgaddr);
+    SHUFFLE_DEBUG("Address: %s\n", sctx.hgaddr);
 
     freeifaddrs(ifaddr);
 }
@@ -88,14 +88,16 @@ static int progress(unsigned int timeout, void *arg)
     shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
     hg_context_t *h = ctx->hgctx;
 
-    //fprintf(stderr, "Calling HG_Progress from request shim\n");
+    SHUFFLE_DEBUG("%d: calling HG_Progress from request shim\n",
+                  ssg_get_rank(ctx->s));
 
     if (HG_Progress(h, timeout) == HG_SUCCESS)
         return HG_UTIL_SUCCESS;
     else
         return HG_UTIL_FAIL;
 
-    //fprintf(stderr, "Done calling HG_Progress from request shim\n");
+    SHUFFLE_DEBUG("%d: done calling HG_Progress from request shim\n",
+                  ssg_get_rank(ctx->s));
 }
 
 static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
@@ -103,7 +105,7 @@ static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
     shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
     hg_context_t *h = ctx->hgctx;
 
-    fprintf(stderr, "%d: calling HG_Trigger from request shim\n",
+    SHUFFLE_DEBUG("%d: calling HG_Trigger from request shim\n",
             ssg_get_rank(ctx->s));
 
     if (HG_Trigger(h, timeout, 1, flag) != HG_SUCCESS) {
@@ -113,7 +115,7 @@ static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
         return HG_UTIL_SUCCESS;
     }
 
-    fprintf(stderr, "%d: done calling HG_Trigger from request shim\n",
+    SHUFFLE_DEBUG("%d: done calling HG_Trigger from request shim\n",
             ssg_get_rank(ctx->s));
 }
 
@@ -147,6 +149,17 @@ void shuffle_init(void)
     hret = HG_Register_data(sctx.hgcl, sctx.shutdown_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Register_data (shutdown)");
+
+#ifdef DELTAFS_SHUFFLE_DEBUG
+    /* Register ping RPC */
+    sctx.ping_id = MERCURY_REGISTER(sctx.hgcl, "ping",
+                                    ping_t, ping_t,
+                                    &ping_rpc_handler);
+
+    hret = HG_Register_data(sctx.hgcl, sctx.ping_id, &sctx, NULL);
+    if (hret != HG_SUCCESS)
+        msg_abort("HG_Register_data (ping)");
+#endif /* DELTAFS_SHUFFLE_DEBUG */
 
     sctx.hgctx = HG_Context_create(sctx.hgcl);
     if (!sctx.hgctx)
@@ -194,10 +207,10 @@ void shuffle_destroy(void)
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
-    fprintf(stderr, "%d: Shutting down shuffle layer\n", rank);
+    SHUFFLE_DEBUG("%d: Shutting down shuffle layer\n", rank);
     shuffle_shutdown(rank);
 
-    fprintf(stderr, "%d: Cleaning up shuffle layer\n", rank);
+    SHUFFLE_DEBUG("%d: Cleaning up shuffle layer\n", rank);
     ch_placement_finalize(sctx.chinst);
     hg_request_finalize(sctx.hgreqcl, NULL);
     ssg_finalize(sctx.s);

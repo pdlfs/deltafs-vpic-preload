@@ -34,6 +34,15 @@
 
 //#define DELTAFS_SHUFFLE_DEBUG
 
+#define SHUFFLE_DEBUG_OUTPUT 0
+#define SHUFFLE_DEBUG(fmt, ...) \
+    do { \
+        if (SHUFFLE_DEBUG_OUTPUT) { \
+            fprintf(stderr, fmt, ##__VA_ARGS__); \
+            fflush(stderr); \
+         } \
+     } while(0)
+
 /*
  * Threshold that determines whether a write is small enough to use
  * point-to-point Mercury RPCs. Otherwise we fall back to a bulk transfer.
@@ -73,6 +82,9 @@ typedef struct shuffle_ctx {
     hg_request_class_t *hgreqcl;
     hg_id_t write_id;
     hg_id_t shutdown_id;
+#ifdef DELTAFS_SHUFFLE_DEBUG
+    hg_id_t ping_id;
+#endif
 
     /* SSG context */
     ssg_t s;
