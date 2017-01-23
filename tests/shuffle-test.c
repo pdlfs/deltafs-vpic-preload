@@ -20,7 +20,7 @@
 #include <string.h>
 #include <mpi.h>
 #include <sys/stat.h>
-#include <linux/limits.h> /* Just for PATH_MAX */
+#include <limits.h> /* Just for PATH_MAX */
 
 #include "../src/preload.h"
 

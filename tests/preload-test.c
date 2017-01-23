@@ -20,7 +20,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <linux/limits.h>
+#include <limits.h>
 
 #include <mpi.h>
 

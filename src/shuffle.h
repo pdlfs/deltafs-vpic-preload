@@ -16,7 +16,7 @@
 #include <fcntl.h>
 #include <mpi.h>
 #include <set>
-#include <linux/limits.h> /* Just for PATH_MAX */
+#include <limits.h> /* Just for PATH_MAX */
 #include <unistd.h>
 
 /* ANL libs */
