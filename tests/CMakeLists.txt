@@ -11,83 +11,44 @@
 #
 # CMakeLists.txt  cmake file for deltafs-shuffle tests/ directory
 #
-# this file is either included from ../CMakeLists.txt or some other
-# file if we are being embedded within another project.
-#
 
 #
 # test programs
 #
-add_executable (preload-test preload-test.c)
-add_test (test-preload-single ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh
-                              ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
-add_test (test-preload-multi  ${CMAKE_CURRENT_SOURCE_DIR}/preload-test.sh
-                              ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
+set (tests preload shuffle placement)  # XXX: add later: noplfs, deltafs
 
-add_executable (shuffle-test shuffle-test.c)
-add_test (test-shuffle-single ${CMAKE_CURRENT_SOURCE_DIR}/shuffle-test.sh
-                              ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
-add_test (test-shuffle-multi  ${CMAKE_CURRENT_SOURCE_DIR}/shuffle-test.sh
-                              ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
+foreach (tst ${tests})
 
-add_executable (placement-test placement-test.c)
-add_test (test-placement-single ${CMAKE_CURRENT_SOURCE_DIR}/placement-test.sh
-                                ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
-add_test (test-placement-multi  ${CMAKE_CURRENT_SOURCE_DIR}/placement-test.sh
-                                ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
+    add_executable (${tst}-test ${tst}-test.c)
+    add_test (${tst}-single ${CMAKE_CURRENT_SOURCE_DIR}/${tst}-test.sh
+                            ${CMAKE_BINARY_DIR} 1)
+    add_test (${tst}-multi  ${CMAKE_CURRENT_SOURCE_DIR}/${tst}-test.sh
+                            ${CMAKE_BINARY_DIR} 2)
 
-#add_executable (noplfs-test noplfs-test.c)
-#add_test (test-noplfs-single ${CMAKE_CURRENT_SOURCE_DIR}/noplfs-test.sh
-#                             ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
-#add_test (test-noplfs-multi  ${CMAKE_CURRENT_SOURCE_DIR}/noplfs-test.sh
-#                             ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
+    # and because they all use MPI...
 
-#add_executable (deltafs-test deltafs-test.c)
-#add_test (test-deltafs-single ${CMAKE_CURRENT_SOURCE_DIR}/deltafs-test.sh
-#                              ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
-#add_test (test-deltafs-multi  ${CMAKE_CURRENT_SOURCE_DIR}/deltafs-test.sh
-#                              ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
-
-#
-# make sure we link with MPI
-#
-foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
-    # mpich on ub14 gives a leading space that we need to trim off
-    string (REPLACE " " ";" lcvl ${lcvs})
-    foreach (lcv ${lcvl})
-        if (NOT ${lcv} STREQUAL "")
-            target_compile_options (preload-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-            target_compile_options (shuffle-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-            target_compile_options (placement-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-            #target_compile_options (noplfs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-            #target_compile_options (deltafs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-        endif ()
+    foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
+        # mpich on ub14 gives a leading space that we need to trim off
+        string (REPLACE " " ";" lcvl ${lcvs})
+        foreach (lcv ${lcvl})
+            if (NOT ${lcv} STREQUAL "")
+                target_compile_options (${tst}-test ${lcv})
+            endif ()
+        endforeach ()
     endforeach ()
-endforeach ()
 
-# XXX: have to do this one dir at a time otherwise, otherwise I get
-# error: target 'deltafs' INTERFACE_INCLUDE_DIRECTORIES contains path
-#         prefixed in the source directory
-foreach (lcv ${MPI_CXX_INCLUDE_PATH})
-    target_include_directories (preload-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-    target_include_directories (shuffle-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-    target_include_directories (placement-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-    #target_include_directories (noplfs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-    #target_include_directories (deltafs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
-endforeach ()
+    # XXX: have to do this one dir at a time otherwise, otherwise I get
+    # error: target 'deltafs' INTERFACE_INCLUDE_DIRECTORIES contains path
+    #               prefixed in the source directory
+    foreach (lcv ${MPI_CXX_INCLUDE_PATH})
+        target_include_directories (${tst}-test PUBLIC ${lcv})
+    endforeach ()
 
-foreach (lcv ${MPI_CXX_LIBRARIES})
-    target_link_libraries(preload-test $<BUILD_INTERFACE:${lcv}>)
-    target_link_libraries(shuffle-test $<BUILD_INTERFACE:${lcv}>)
-    target_link_libraries(placement-test $<BUILD_INTERFACE:${lcv}>)
-    #target_link_libraries(noplfs-test $<BUILD_INTERFACE:${lcv}>)
-    #target_link_libraries(deltafs-test $<BUILD_INTERFACE:${lcv}>)
-endforeach ()
+    foreach (lcv ${MPI_CXX_LIBRARIES})
+        target_link_libraries (${tst}-test ${lcv})
+    endforeach ()
 
-# XXX: this doesn't propagate to lib users, is that a problem?
-# XXX: prob ok.
-set_property (TARGET preload-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
-set_property (TARGET shuffle-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
-set_property (TARGET placement-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
-#set_property (TARGET noplfs-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
-#set_property (TARGET deltafs-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
+    set_property (TARGET ${tst}-test APPEND PROPERTY LINK_FLAGS
+                  ${MPI_CXX_LINK_FLAGS})
+    
+endforeach ()
