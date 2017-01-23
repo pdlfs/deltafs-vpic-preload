@@ -65,6 +65,7 @@ endif ()
 
 # Find required packages
 find_package (MPI MODULE REQUIRED)
+find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
 include (xpkg-import)     # just to document, comes with deltafs
 xpkg_import_module (ch-placement REQUIRED ch-placement)

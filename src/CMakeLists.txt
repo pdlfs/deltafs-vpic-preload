@@ -28,7 +28,7 @@ add_library (deltafs-preload deltafs-preload.cc
                              shuffle_ping.cc
                              SpookyV2.cpp
                              spooky.cpp)
-target_link_libraries (deltafs-preload deltafs ssg ch-placement)
+target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
 
 if (CMAKE_THREAD_LIBS_INIT)
   target_link_libraries (deltafs-preload "${CMAKE_THREAD_LIBS_INIT}")
