@@ -36,6 +36,18 @@ add_test (test-placement-single ${CMAKE_CURRENT_SOURCE_DIR}/placement-test.sh
 add_test (test-placement-multi  ${CMAKE_CURRENT_SOURCE_DIR}/placement-test.sh
                                 ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
 
+#add_executable (noplfs-test noplfs-test.c)
+#add_test (test-noplfs-single ${CMAKE_CURRENT_SOURCE_DIR}/noplfs-test.sh
+#                             ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
+#add_test (test-noplfs-multi  ${CMAKE_CURRENT_SOURCE_DIR}/noplfs-test.sh
+#                             ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
+
+#add_executable (deltafs-test deltafs-test.c)
+#add_test (test-deltafs-single ${CMAKE_CURRENT_SOURCE_DIR}/deltafs-test.sh
+#                              ${CMAKE_CURRENT_BINARY_DIR}/.. 1)
+#add_test (test-deltafs-multi  ${CMAKE_CURRENT_SOURCE_DIR}/deltafs-test.sh
+#                              ${CMAKE_CURRENT_BINARY_DIR}/.. 2)
+
 #
 # make sure we link with MPI
 #
@@ -47,6 +59,8 @@ foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
             target_compile_options (preload-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
             target_compile_options (shuffle-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
             target_compile_options (placement-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
+            #target_compile_options (noplfs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
+            #target_compile_options (deltafs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
         endif ()
     endforeach ()
 endforeach ()
@@ -58,12 +72,16 @@ foreach (lcv ${MPI_CXX_INCLUDE_PATH})
     target_include_directories (preload-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
     target_include_directories (shuffle-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
     target_include_directories (placement-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
+    #target_include_directories (noplfs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
+    #target_include_directories (deltafs-test PUBLIC $<BUILD_INTERFACE:${lcv}>)
 endforeach ()
 
 foreach (lcv ${MPI_CXX_LIBRARIES})
     target_link_libraries(preload-test $<BUILD_INTERFACE:${lcv}>)
     target_link_libraries(shuffle-test $<BUILD_INTERFACE:${lcv}>)
     target_link_libraries(placement-test $<BUILD_INTERFACE:${lcv}>)
+    #target_link_libraries(noplfs-test $<BUILD_INTERFACE:${lcv}>)
+    #target_link_libraries(deltafs-test $<BUILD_INTERFACE:${lcv}>)
 endforeach ()
 
 # XXX: this doesn't propagate to lib users, is that a problem?
@@ -71,3 +89,5 @@ endforeach ()
 set_property (TARGET preload-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
 set_property (TARGET shuffle-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
 set_property (TARGET placement-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
+#set_property (TARGET noplfs-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
+#set_property (TARGET deltafs-test APPEND PROPERTY LINK_FLAGS ${MPI_CXX_LINK_FLAGS})
