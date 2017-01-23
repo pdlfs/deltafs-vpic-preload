@@ -64,8 +64,11 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 endif ()
 
 # Find required packages
-find_package (deltafs CONFIG REQUIRED)
 find_package (MPI MODULE REQUIRED)
+find_package (deltafs CONFIG REQUIRED)
+include (xpkg-import)     # just to document, comes with deltafs
+xpkg_import_module (ch-placement REQUIRED ch-placement)
+xpkg_import_module (ssg REQUIRED ssg)
 
 # user hook to build tools
 set (BUILD_TOOLS "OFF" CACHE BOOL "Build tools")
