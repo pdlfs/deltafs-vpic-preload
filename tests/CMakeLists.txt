@@ -26,15 +26,10 @@ foreach (tst ${tests})
                             ${CMAKE_BINARY_DIR} 2)
 
     # and because they all use MPI...
-
-    foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
-        # mpich on ub14 gives a leading space that we need to trim off
-        string (REPLACE " " ";" lcvl ${lcvs})
-        foreach (lcv ${lcvl})
-            if (NOT ${lcv} STREQUAL "")
-                target_compile_options (${tst}-test ${lcv})
-            endif ()
-        endforeach ()
+    foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
+        if (NOT ${lcv} STREQUAL "")
+            target_compile_options (${tst}-test PUBLIC ${lcv})
+        endif ()
     endforeach ()
 
     # XXX: have to do this one dir at a time otherwise, otherwise I get
@@ -50,5 +45,5 @@ foreach (tst ${tests})
 
     set_property (TARGET ${tst}-test APPEND PROPERTY LINK_FLAGS
                   ${MPI_CXX_LINK_FLAGS})
-    
+
 endforeach ()

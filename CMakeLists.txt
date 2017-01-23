@@ -37,7 +37,7 @@ mark_as_advanced (BUILD_SHARED_LIBS)
 if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE Release
          CACHE STRING "Choose the type of build." FORCE)
-    set_property (CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS 
+    set_property (CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
                   "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif ()
 set (DEBUG_SANITIZER Off CACHE STRING "Sanitizer for debug builds")
@@ -66,6 +66,11 @@ endif ()
 
 # Find required packages
 find_package (MPI MODULE REQUIRED)
+string (REPLACE " " ";" MPI_CXX_COMPILE_FLAGS_LIST "${MPI_CXX_COMPILE_FLAGS}")
+# Avoid some of our dependencies (e.g. deltafs) to handle MPI CXX flags
+# unnecessarily since we will handle them anyway
+set (MPI_CXX_COMPILE_FLAGS "")
+
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
 include (xpkg-import)     # just to document, comes with deltafs

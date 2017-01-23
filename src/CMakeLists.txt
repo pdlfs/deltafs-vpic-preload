@@ -19,7 +19,7 @@ set (THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package (Threads REQUIRED)
 
 #
-# create the library target 
+# create the library target
 #
 add_library (deltafs-preload deltafs-preload.cc
                              shuffle_config.cc
@@ -47,15 +47,13 @@ endif ()
 #
 # make sure we link with MPI
 #
-foreach (lcvs ${MPI_CXX_COMPILE_FLAGS})
-    # mpich on ub14 gives a leading space that we need to trim off
-    string (REPLACE " " ";" lcvl ${lcvs})
-    foreach (lcv ${lcvl})
-        if (NOT ${lcv} STREQUAL "")
-            target_compile_options (deltafs-preload
-                                    PUBLIC $<BUILD_INTERFACE:${lcv}>)
-        endif ()
-    endforeach ()
+
+# mpich on ub14 gives a leading space that we need to trim off
+foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
+    if (NOT ${lcv} STREQUAL "")
+        target_compile_options (deltafs-preload
+                                PUBLIC $<BUILD_INTERFACE:${lcv}>)
+    endif ()
 endforeach ()
 
 # XXX: have to do this one dir at a time otherwise, otherwise I get
@@ -76,7 +74,7 @@ set_property (TARGET deltafs-preload APPEND PROPERTY LINK_FLAGS
               ${MPI_CXX_LINK_FLAGS})
 
 #
-# installation stuff 
+# installation stuff
 #
 
 # "make install" rules...
