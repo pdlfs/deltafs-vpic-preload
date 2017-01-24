@@ -26,8 +26,7 @@ add_library (deltafs-preload preload.cc
                              shuffle_write.cc
                              shuffle_shutdown.cc
                              shuffle_ping.cc
-                             SpookyV2.cpp
-                             spooky.cpp)
+                             city.cc)
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
 
 if (CMAKE_THREAD_LIBS_INIT)
