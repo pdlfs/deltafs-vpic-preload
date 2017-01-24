@@ -22,7 +22,7 @@ find_package (Threads REQUIRED)
 # create the library target
 #
 add_library (deltafs-preload preload.cc
-                             shuffle_config.cc
+                             shuffle.cc
                              shuffle_write.cc
                              shuffle_shutdown.cc
                              shuffle_ping.cc
