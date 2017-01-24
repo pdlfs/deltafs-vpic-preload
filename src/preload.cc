@@ -7,6 +7,7 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
+#include <errno.h>
 #include <assert.h>
 #include <dirent.h>
 #include <dlfcn.h>
@@ -477,6 +478,7 @@ int feof(FILE *stream)
         return(nxt.feof(stream));
     }
 
+    errno = ENOTSUP;
     msg_abort("feof!");
     return(0);
 }
@@ -494,6 +496,7 @@ int ferror(FILE *stream)
         return(nxt.ferror(stream));
     }
 
+    errno = ENOTSUP;
     msg_abort("ferror!");
     return(0);
 }
@@ -512,6 +515,7 @@ void clearerr(FILE *stream)
         return;
     }
 
+    errno = ENOTSUP;
     msg_abort("clearerr!");
 }
 
@@ -528,6 +532,7 @@ size_t fread(void *ptr, size_t size, size_t nitems, FILE *stream)
         return(nxt.fread(ptr, size, nitems, stream));
     }
 
+    errno = ENOTSUP;
     msg_abort("fread!");
     return(0);
 }
@@ -545,6 +550,7 @@ int fseek(FILE *stream, long offset, int whence)
         return(nxt.fseek(stream, offset, whence));
     }
 
+    errno = ENOTSUP;
     msg_abort("fseek!");
     return(0);
 }
@@ -562,6 +568,7 @@ long ftell(FILE *stream)
         return(nxt.ftell(stream));
     }
 
+    errno = ENOTSUP;
     msg_abort("ftell!");
     return(0);
 }
