@@ -14,7 +14,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 
-#include "fake-file.h"
+#include "preload_internal.h"
 #include "shuffle.h"
 
 #include <string>
@@ -142,11 +142,11 @@ static bool claim_FILE(FILE *stream)
     std::set<FILE *>::iterator it;
     bool rv;
 
-    pdlfs_must_mutex_lock(&sctx.setlock);
+    must_lockmutex(&sctx.setlock);
     assert(sctx.isdeltafs != NULL);
     it = sctx.isdeltafs->find(stream);
     rv = (it != sctx.isdeltafs->end());
-    pdlfs_must_mutex_unlock(&sctx.setlock);
+    must_unlock(&sctx.setlock);
 
     return(rv);
 }
@@ -391,10 +391,10 @@ FILE *fopen(const char *filename, const char *mode)
     fake_file *ff = new fake_file(newpath);
     FILE *fp = reinterpret_cast<FILE *>(ff);
 
-    pdlfs_must_mutex_lock(&sctx.setlock);
+    must_lockmutex(&sctx.setlock);
     assert(sctx.isdeltafs != NULL);
     sctx.isdeltafs->insert(fp);
-    pdlfs_must_mutex_unlock(&sctx.setlock);
+    must_unlock(&sctx.setlock);
 
     return(fp);
 }
@@ -446,10 +446,10 @@ int fclose(FILE *stream)
     else
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
 
-    pdlfs_must_mutex_lock(&sctx.setlock);
+    must_lockmutex(&sctx.setlock);
     assert(sctx.isdeltafs != NULL);
     sctx.isdeltafs->erase(stream);
-    pdlfs_must_mutex_unlock(&sctx.setlock);
+    must_unlock(&sctx.setlock);
 
     delete ff;
 

@@ -29,7 +29,7 @@
 
 /* CMU libs */
 #include <deltafs/deltafs_api.h>
-#include "maybe-mutex.h"
+#include "preload_internal.h"
 #include "preload.h"
 
 //#define DELTAFS_SHUFFLE_DEBUG
@@ -65,7 +65,7 @@ enum TEST_MODE {
  */
 typedef struct shuffle_ctx {
     /* Preload context */
-    pdlfs_maybe_mutex_t setlock;
+    maybe_mutex_t setlock;
     std::set<FILE *>* isdeltafs;
 
     const char *root;
@@ -94,7 +94,7 @@ typedef struct shuffle_ctx {
     struct ch_placement_instance *chinst;
 } shuffle_ctx_t;
 
-#define SHUFFLE_CTX_INITIALIZER { PDLFS_MAYBE_MUTEX_INITIALIZER }
+#define SHUFFLE_CTX_INITIALIZER { MAYBE_MUTEX_INITIALIZER }
 
 /* Generate RPC structs */
 #ifdef DELTAFS_SHUFFLE_DEBUG

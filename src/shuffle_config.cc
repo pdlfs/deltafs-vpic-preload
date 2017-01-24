@@ -15,22 +15,6 @@
 #include "shuffle.h"
 
 /*
- * msg_abort: abort with a message
- */
-void msg_abort(const char *msg)
-{
-    int err = errno;
-
-    fprintf(stderr, "ABORT: %s", msg);
-    if (errno)
-        fprintf(stderr, " (%s)\n", strerror(errno));
-    else
-        fprintf(stderr, "\n");
-
-    abort();
-}
-
-/*
  * Generate a mercury address
  *
  * We have to assign a Mercury address to ourselves.
