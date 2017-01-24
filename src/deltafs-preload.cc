@@ -138,10 +138,10 @@ static bool claim_FILE(FILE *stream)
     std::set<FILE *>::iterator it;
     bool rv;
 
-    sctx.setlock.Lock();
+    pdlfs_must_mutex_lock(&sctx.setlock);
     it = sctx.isdeltafs.find(stream);
     rv = (it != sctx.isdeltafs.end());
-    sctx.setlock.Unlock();
+    pdlfs_must_mutex_unlock(&sctx.setlock);
 
     return(rv);
 }
@@ -337,9 +337,9 @@ FILE *fopen(const char *filename, const char *mode)
     deltafspreload::FakeFile *ff = new deltafspreload::FakeFile(newpath);
     FILE *fp = reinterpret_cast<FILE *>(ff);
 
-    sctx.setlock.Lock();
+    pdlfs_must_mutex_lock(&sctx.setlock);
     sctx.isdeltafs.insert(fp);
-    sctx.setlock.Unlock();
+    pdlfs_must_mutex_unlock(&sctx.setlock);
 
     return(fp);
 }
@@ -358,12 +358,12 @@ size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream)
         return(nxt.fwrite(ptr, size, nitems, stream));
     }
 
-    deltafspreload::FakeFile *ff = 
+    deltafspreload::FakeFile *ff =
         reinterpret_cast<deltafspreload::FakeFile *>(stream);
 
     int cnt = ff->AddData(ptr, size*nitems);
 
-    /* 
+    /*
      * fwrite returns number of items written.  it can return a short
      * object count on error.
      */
@@ -386,7 +386,7 @@ int fclose(FILE *stream)
     }
 
     rv = 0;
-    deltafspreload::FakeFile *ff = 
+    deltafspreload::FakeFile *ff =
         reinterpret_cast<deltafspreload::FakeFile *>(stream);
 
     if (sctx.testbypass)
@@ -394,9 +394,9 @@ int fclose(FILE *stream)
     else
         rv = shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
 
-    sctx.setlock.Lock();
+    pdlfs_must_mutex_lock(&sctx.setlock);
     sctx.isdeltafs.erase(stream);
-    sctx.setlock.Unlock();
+    pdlfs_must_mutex_unlock(&sctx.setlock);
 
     delete ff;
 
@@ -407,7 +407,7 @@ int fclose(FILE *stream)
 }
 
 /*
- * the rest of these we do not override for deltafs.   if we get a 
+ * the rest of these we do not override for deltafs.   if we get a
  * deltafs FILE*, we've got a serious problem and we abort...
  */
 

@@ -28,8 +28,8 @@
 #include <ch-placement.h>
 
 /* CMU libs */
-#include <pdlfs-common/port.h>
 #include <deltafs/deltafs_api.h>
+#include "maybe-mutex.h"
 #include "preload.h"
 
 //#define DELTAFS_SHUFFLE_DEBUG
@@ -71,7 +71,7 @@ typedef struct shuffle_ctx {
     int testbypass;                     /* bypass mode */
     const char *log;                    /* debug log */
 
-    pdlfs::port::Mutex setlock;
+    pdlfs_maybe_mutex_t setlock;
     std::set<FILE *> isdeltafs;
 
     /* Mercury context */
