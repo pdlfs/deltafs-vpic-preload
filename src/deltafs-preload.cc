@@ -17,6 +17,8 @@
 #include "fake-file.h"
 #include "shuffle.h"
 
+#include <string>
+
 shuffle_ctx_t sctx = SHUFFLE_CTX_INITIALIZER;
 
 /*
@@ -148,6 +150,55 @@ static bool claim_FILE(FILE *stream)
 
     return(rv);
 }
+
+namespace {
+/*
+ * fake_file is a replacement for FILE* that we use to accumulate all the
+ * VPIC particle data before sending it to the shuffle layer (on fclose).
+ *
+ * we assume only one thread is writing to the file at a time, so we
+ * do not put a mutex on it.
+ *
+ * we ignore out of memory errors.
+ */
+class fake_file {
+  private:
+    std::string path_;       /* path of particle file (malloc'd c++) */
+    char data_[64];          /* enough for one VPIC particle */
+    char *dptr_;             /* ptr to next free space in data_ */
+    size_t resid_;           /* residual */
+
+  public:
+    explicit fake_file(const char *path) :
+        path_(path), dptr_(data_), resid_(sizeof(data_)) {};
+
+    /* returns the actual number of bytes added. */
+    size_t add_data(const void *toadd, size_t len) {
+        int n = (len > resid_) ? resid_ : len;
+        if (n) {
+            memcpy(dptr_, toadd, n);
+            dptr_ += n;
+            resid_ -= n;
+        }
+        return(n);
+    }
+
+    /* get data length */
+    size_t size() {
+        return sizeof(data_) - resid_;
+    }
+
+    /* recover filename. */
+    const char *file_name()  {
+        return path_.c_str();
+    }
+
+    /* get data */
+    char *data() {
+        return data_;
+    }
+};
+} // namespace
 
 /*
  * here are the actual override functions from libc...
@@ -337,7 +388,7 @@ FILE *fopen(const char *filename, const char *mode)
     }
 
     /* allocate our fake FILE* and put it in the set */
-    deltafspreload::FakeFile *ff = new deltafspreload::FakeFile(newpath);
+    fake_file *ff = new fake_file(newpath);
     FILE *fp = reinterpret_cast<FILE *>(ff);
 
     pdlfs_must_mutex_lock(&sctx.setlock);
@@ -362,10 +413,8 @@ size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream)
         return(nxt.fwrite(ptr, size, nitems, stream));
     }
 
-    deltafspreload::FakeFile *ff =
-        reinterpret_cast<deltafspreload::FakeFile *>(stream);
-
-    int cnt = ff->AddData(ptr, size*nitems);
+    fake_file *ff = reinterpret_cast<fake_file *>(stream);
+    int cnt = ff->add_data(ptr, size*nitems);
 
     /*
      * fwrite returns number of items written.  it can return a short
@@ -390,13 +439,12 @@ int fclose(FILE *stream)
     }
 
     rv = 0;
-    deltafspreload::FakeFile *ff =
-        reinterpret_cast<deltafspreload::FakeFile *>(stream);
+    fake_file *ff = reinterpret_cast<fake_file *>(stream);
 
     if (sctx.testbypass)
-        rv = shuffle_write_local(ff->FileName(), ff->Data(), ff->DataLen());
+        rv = shuffle_write_local(ff->file_name(), ff->data(), ff->size());
     else
-        rv = shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
+        rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
 
     pdlfs_must_mutex_lock(&sctx.setlock);
     assert(sctx.isdeltafs != NULL);
