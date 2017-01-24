@@ -67,9 +67,6 @@ endif ()
 # Find required packages
 find_package (MPI MODULE REQUIRED)
 string (REPLACE " " ";" MPI_CXX_COMPILE_FLAGS_LIST "${MPI_CXX_COMPILE_FLAGS}")
-# Avoid some of our dependencies (e.g. deltafs) to handle MPI CXX flags
-# unnecessarily since we will handle them anyway
-set (MPI_CXX_COMPILE_FLAGS "")
 
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
