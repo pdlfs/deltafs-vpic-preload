@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2017 Carnegie Mellon University.
- * George Amvrosiadis <gamvrosi@cs.cmu.edu>
+ * Copyright (c) 2016-2017 Carnegie Mellon University.
  *
  * All rights reserved.
  *
