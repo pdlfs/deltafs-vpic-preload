@@ -65,14 +65,14 @@ enum TEST_MODE {
  */
 typedef struct shuffle_ctx {
     /* Preload context */
+    pdlfs_maybe_mutex_t setlock;
+    std::set<FILE *>* isdeltafs;
+
     const char *root;
     int len_root;                       /* strlen root */
     int testmode;                       /* testing mode */
     int testbypass;                     /* bypass mode */
     const char *log;                    /* debug log */
-
-    pdlfs_maybe_mutex_t setlock;
-    std::set<FILE *> isdeltafs;
 
     /* Mercury context */
     char hgaddr[NI_MAXHOST+20];         /* proto://ip:port of host */
@@ -93,6 +93,8 @@ typedef struct shuffle_ctx {
     /* ch-placement context */
     struct ch_placement_instance *chinst;
 } shuffle_ctx_t;
+
+#define SHUFFLE_CTX_INITIALIZER { PDLFS_MAYBE_MUTEX_INITIALIZER }
 
 /* Generate RPC structs */
 #ifdef DELTAFS_SHUFFLE_DEBUG

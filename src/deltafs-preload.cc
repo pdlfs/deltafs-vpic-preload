@@ -7,6 +7,7 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
+#include <assert.h>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <string.h>
@@ -16,7 +17,7 @@
 #include "fake-file.h"
 #include "shuffle.h"
 
-shuffle_ctx_t sctx = { 0 };
+shuffle_ctx_t sctx = SHUFFLE_CTX_INITIALIZER;
 
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
@@ -82,6 +83,7 @@ static void preload_init()
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.fseek), "fseek");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.ftell), "ftell");
 
+    sctx.isdeltafs = new std::set<FILE*>;
     sctx.root = getenv("PDLFS_Root");
     if (!sctx.root) sctx.root = DEFAULT_ROOT;
     sctx.len_root = strlen(sctx.root);
@@ -139,8 +141,9 @@ static bool claim_FILE(FILE *stream)
     bool rv;
 
     pdlfs_must_mutex_lock(&sctx.setlock);
-    it = sctx.isdeltafs.find(stream);
-    rv = (it != sctx.isdeltafs.end());
+    assert(sctx.isdeltafs != NULL);
+    it = sctx.isdeltafs->find(stream);
+    rv = (it != sctx.isdeltafs->end());
     pdlfs_must_mutex_unlock(&sctx.setlock);
 
     return(rv);
@@ -338,7 +341,8 @@ FILE *fopen(const char *filename, const char *mode)
     FILE *fp = reinterpret_cast<FILE *>(ff);
 
     pdlfs_must_mutex_lock(&sctx.setlock);
-    sctx.isdeltafs.insert(fp);
+    assert(sctx.isdeltafs != NULL);
+    sctx.isdeltafs->insert(fp);
     pdlfs_must_mutex_unlock(&sctx.setlock);
 
     return(fp);
@@ -395,7 +399,8 @@ int fclose(FILE *stream)
         rv = shuffle_write(ff->FileName(), ff->Data(), ff->DataLen());
 
     pdlfs_must_mutex_lock(&sctx.setlock);
-    sctx.isdeltafs.erase(stream);
+    assert(sctx.isdeltafs != NULL);
+    sctx.isdeltafs->erase(stream);
     pdlfs_must_mutex_unlock(&sctx.setlock);
 
     delete ff;
