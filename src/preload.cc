@@ -134,6 +134,9 @@ static void preload_init()
     if (is_envset("PRELOAD_Bypass_deltafs"))
         pctx.mode |= BYPASS_DELTAFS;
 
+    if (is_envset("PRELOAD_Testing"))
+        pctx.testin = 1;
+
     /* XXXCDC: additional init can go here or MPI_Init() */
 }
 
@@ -249,7 +252,7 @@ int MPI_Init(int *argc, char ***argv)
     genHgAddr();
     shuffle_init();
 
-    if (rank == 0 && pctx.testmode) {
+    if (rank == 0 && pctx.testin) {
         pctx.log = "/tmp/vpic-preload-debug.log";
 
         FILE* f = nxt.fopen(pctx.log, "w+");
@@ -307,11 +310,11 @@ int mkdir(const char *path, mode_t mode)
         stripped = (exact) ? "/" : (path + pctx.len_deltafs_root);
     }
 
-    if (pctx.testmode &&
+    if (pctx.testin &&
         snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", stripped))
         msg_abort("mkdir:snprintf");
 
-    switch (pctx.testmode) {
+    switch (pctx.testin) {
         case NO_TEST:
             rv = deltafs_mkdir(stripped, mode | DELTAFS_DIR_PLFS_STYLE);
             break;
@@ -351,11 +354,11 @@ DIR *opendir(const char *path)
         stripped = (exact) ? "/" : (path + pctx.len_deltafs_root);
     }
 
-    if (pctx.testmode &&
+    if (pctx.testin &&
         snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", stripped))
         msg_abort("opendir:snprintf");
 
-    switch (pctx.testmode) {
+    switch (pctx.testin) {
         case NO_TEST:
         case DELTAFS_NOPLFS_TEST:
             /* XXX: Call epoch ending function here */
@@ -464,7 +467,7 @@ int fclose(FILE *stream)
     rv = 0;
     fake_file *ff = reinterpret_cast<fake_file *>(stream);
 
-    if (pctx.testbypass)
+    if (pctx.testin)
         rv = shuffle_write_local(ff->file_name(), ff->data(), ff->size());
     else
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
@@ -476,7 +479,7 @@ int fclose(FILE *stream)
 
     delete ff;
 
-    if (pctx.testmode)
+    if (pctx.testin)
         return 0;
     else
         return(rv);

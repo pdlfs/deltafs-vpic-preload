@@ -127,7 +127,7 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     out.ret = shuffle_write_local(bulk_args->fname, data, (int) bulk_args->len);
 
     /* Write out to the log if we are running a test */
-    if (pctx.testmode) {
+    if (pctx.testin) {
         char buf[1024] = { 0 };
         snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
                  bulk_args->rank_in, rank, (int) bulk_args->len);
@@ -223,7 +223,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         out.ret = shuffle_write_local(in.fname, in.data, in.data_len);
 
         /* Write out to the log if we are running a test */
-        if (pctx.testmode) {
+        if (pctx.testin) {
             char buf[1024] = { 0 };
             snprintf(buf, sizeof(buf), "source %5d target %5d size %lu\n",
                      (int) in.rank_in, rank, in.data_len);
@@ -267,7 +267,7 @@ int shuffle_write(const char *fn, char *data, int len)
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
-    if (pctx.testmode == SHUFFLE_TEST) {
+    if (pctx.testin == SHUFFLE_TEST) {
         /* Send to next-door neighbor instead of using ch-placement */
         peer_rank = (rank + 1) % ssg_get_count(sctx.s);
     } else {
@@ -284,7 +284,7 @@ int shuffle_write(const char *fn, char *data, int len)
     /* Are we trying to message ourselves? Write locally */
     if (peer_rank == rank) {
         /* Write out to the log if we are running a test */
-        if (pctx.testmode) {
+        if (pctx.testin) {
             char buf[1024] = { 0 };
             snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
                      rank, rank, len);

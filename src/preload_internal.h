@@ -96,11 +96,12 @@ typedef struct preload_ctx {
     const char *local_root;       /* local fs root */
     size_t len_local_root;        /* strlen buf */
 
-    int mode;                  /* test mode */
-    int testmode;              /* testing mode */
-    int testbypass;            /* bypass mode */
-    std::set<FILE *>* isdeltafs;    /* open files owned by deltafs */
-    const char *log;           /* debug log */
+    int mode;                     /* operating mode */
+
+    std::set<FILE*> *isdeltafs;         /* open files owned by deltafs */
+
+    const char *log;   /* debug log */
+    int testin;        /* testing */
 
 } preload_ctx_t;
 
