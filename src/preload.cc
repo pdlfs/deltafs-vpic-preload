@@ -250,8 +250,10 @@ int MPI_Init(int *argc, char ***argv)
         return(rv);
     }
 
-    genHgAddr();
-    shuffle_init();
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+        genHgAddr();
+        shuffle_init();
+    }
 
     if (pctx.testin) {
         snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
@@ -275,7 +277,9 @@ int MPI_Finalize(void)
 {
     int rv;
 
-    shuffle_destroy();
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+        shuffle_destroy();
+    }
 
     rv = nxt.MPI_Finalize();
     return(rv);
