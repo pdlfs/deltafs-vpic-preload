@@ -96,7 +96,7 @@ static void preload_init()
     pctx.isdeltafs = new std::set<FILE*>;
 
     pctx.root = getenv("PDLFS_Root");
-    if (!pctx.root) pctx.root = DEFAULT_ROOT;
+    if (!pctx.root) pctx.root = DEFAULT_DELTAFS_ROOT;
     pctx.len_root = strlen(pctx.root);
 
     /* root: any non-null path, not "/" and not ending in "/" */
@@ -234,9 +234,7 @@ int MPI_Init(int *argc, char ***argv)
     shuffle_init();
 
     if (rank == 0 && pctx.testmode) {
-        nxt.mkdir(REDIRECT_TEST_ROOT, 0777);
-
-        pctx.log = DEBUG_LOG;
+        pctx.log = "/tmp/vpic-preload-debug.log";
 
         FILE* f = nxt.fopen(pctx.log, "w+");
         if (!f) {
@@ -294,7 +292,7 @@ int mkdir(const char *path, mode_t mode)
     }
 
     if (pctx.testmode &&
-        snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", stripped))
+        snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", stripped))
         msg_abort("mkdir:snprintf");
 
     switch (pctx.testmode) {
@@ -338,7 +336,7 @@ DIR *opendir(const char *path)
     }
 
     if (pctx.testmode &&
-        snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", stripped))
+        snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", stripped))
         msg_abort("opendir:snprintf");
 
     switch (pctx.testmode) {

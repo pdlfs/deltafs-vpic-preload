@@ -9,22 +9,58 @@
 
 #pragma once
 
-/*
- * user specifies a prefix that we use to redirect to deltafs via
- * the PDLFS_Root env varible.   If not provided, we default to /tmp/pdlfs.
- */
-#define DEFAULT_ROOT "/tmp/pdlfs"
+/* !!! A list of all environmental variables used by us !!! */
+
+//
+//  Env                                Description
+// ----------------------------------|----------------------------------
+//  PRELOAD_Deltafs_root               Deltafs root
+//  PRELOAD_Bypass_shuffle             Do not shuffle writes at all
+//  PRELOAD_Bypass_placement           Shuffle without ch-placement
+//  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
+//  PRELOAD_Bypass_deltafs             Write to local file system
+//  PRELOAD_Local_root                 Local file system root
+// ----------------------------------|----------------------------------
+//
 
 /*
- * for simple testing, we redirect ops from watched prefix to this dir.
- * We create it ourselves.
+ * Preload mode bits
  */
-#define REDIRECT_TEST_ROOT "/tmp/pdlfs-test"
+#define BYPASS_SHUFFLE (1 << 0)
+#define BYPASS_PLACEMENT (1 << 1)
+#define BYPASS_DELTAFS_PLFSDIR (1 << 2)
+#define BYPASS_DELTAFS (1 << 3)
+#define BYPASS_MASK 0xFF;
 
 /*
- * Debug log
+ * Preload mode query interface
  */
-#define DEBUG_LOG "/tmp/pdlfs-test/debug.log"
+#define IS_BYPASS_SHUFFLE(m) (((m) & BYPASS_MASK) == BYPASS_SHUFFLE)
+#define IS_BYPASS_PLACEMENT(m) (((m) & BYPASS_MASK) == IS_BYPASS_PLACEMENT)
+#define IS_BYPASS_DELTAFS_PLFSDIR(m) (((m) & BYPASS_MASK) == IS_BYPASS_DELTAFS_PLFSDIR)
+#define IS_BYPASS_DELTAFS(m) (((m) & BYPASS_MASK) == IS_BYPASS_DELTAFS)
+
+/*
+ * If "deltafs_root" is not specified, we set it to the following path.
+ *
+ * App writes with a path that starts with "deltafs_root" will
+ * be redirected to deltafs.
+ *
+ * "deltafs_root" maybe a relative path.
+ */
+#define DEFAULT_DELTAFS_ROOT "/tmp/pdlfs"
+
+/*
+ * If "local_root" is not specified, we set it to the following path.
+ *
+ * When "bypass_deltafs" is set, we will have to redirect
+ * deltafs writes to the local file system.
+ *
+ * In such cases, all local file system writes will
+ * be rooted under the following path.
+ */
+#define DEFAULT_LOCAL_ROOT "/tmp/pdlfs-test"
+
 
 enum TEST_MODE {
     NO_TEST = 0,
@@ -33,5 +69,3 @@ enum TEST_MODE {
     PLACEMENT_TEST,
     DELTAFS_NOPLFS_TEST
 };
-
-

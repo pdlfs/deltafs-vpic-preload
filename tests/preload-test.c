@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
     }
 
     /* Generate a temporary filename */
-    assert(strncpy(fname, DEFAULT_ROOT "/preload-test.XXXXXX", PATH_MAX));
+    assert(strncpy(fname, DEFAULT_DELTAFS_ROOT "/preload-test.XXXXXX", PATH_MAX));
     fd = mkstemp(fname);
     fprintf(stderr, "Creating file: %s\n", fname);
     assert(fd > 0);
@@ -73,8 +73,8 @@ int main(int argc, char **argv) {
      * Check persisted data. Use unbuffered I/O (not preloaded).
      * We will have to check the dir where the data is redirected.
      */
-    assert(snprintf(rname, PATH_MAX, REDIRECT_TEST_ROOT "%s",
-           fname+strlen(DEFAULT_ROOT)));
+    assert(snprintf(rname, PATH_MAX, DEFAULT_LOCAL_ROOT "%s",
+           fname+strlen(DEFAULT_DELTAFS_ROOT)));
     fprintf(stderr, "Opening: %s\n", rname);
     fd = open(rname, O_RDONLY);
     if (fd < 0) {

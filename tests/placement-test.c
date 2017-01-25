@@ -55,13 +55,13 @@ int main(int argc, char **argv) {
         char *dir, tmpl[PATH_MAX];
 
         /* Generate temporary dir name */
-        snprintf(tmpl, sizeof(tmpl), DEFAULT_ROOT "/shuffle-test.XXXXXX");
+        snprintf(tmpl, sizeof(tmpl), DEFAULT_DELTAFS_ROOT "/shuffle-test.XXXXXX");
         dir = mkdtemp(tmpl);
         assert(dir);
         strncpy(dname, dir, PATH_MAX);
 
-        snprintf(fname, sizeof(fname), REDIRECT_TEST_ROOT "%s",
-                 dname+strlen(DEFAULT_ROOT));
+        snprintf(fname, sizeof(fname), DEFAULT_LOCAL_ROOT "%s",
+                 dname+strlen(DEFAULT_DELTAFS_ROOT));
         mkdir(fname, S_IRWXU|S_IRWXG|S_IRWXO);
 
         fprintf(stderr, "Generated dir %s\n", dname);
@@ -104,8 +104,8 @@ int main(int argc, char **argv) {
         char buf[33] = { 0 };
         char tst[33] = { 0 };
 
-        snprintf(fname, sizeof(fname), REDIRECT_TEST_ROOT "%s/file%d",
-                 dname+strlen(DEFAULT_ROOT), i);
+        snprintf(fname, sizeof(fname), DEFAULT_LOCAL_ROOT "%s/file%d",
+                 dname+strlen(DEFAULT_DELTAFS_ROOT), i);
         fd = open(fname, O_RDONLY);
         if (fd < 0) {
             perror("Error - open failed");

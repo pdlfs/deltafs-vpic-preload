@@ -14,7 +14,6 @@
 #include <netdb.h>
 #include <fcntl.h>
 #include <mpi.h>
-#include <set>
 #include <limits.h> /* Just for PATH_MAX */
 #include <unistd.h>
 

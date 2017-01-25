@@ -84,7 +84,7 @@ int shuffle_write_local(const char *fn, char *data, int len)
     char testpath[PATH_MAX];
 
     if (pctx.testmode &&
-        snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", fn) < 0)
+        snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", fn) < 0)
         msg_abort("fclose:snprintf");
 
     switch (pctx.testmode) {
