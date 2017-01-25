@@ -74,17 +74,31 @@ static inline void must_unlock(maybe_mutex_t* __mut) {
     }
 }
 
+static inline bool is_envset(const char* key) {
+    const char* env = getenv(key);
+    if (env == NULL) {
+        return false;
+    } else if (strlen(env) == 0) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
 /*
  * preload context:
  *   - run-time state of the preload layer
  */
 typedef struct preload_ctx {
-    const char *root;          /* deltafs root */
-    size_t len_root;           /* strlen of root */
+    const char *deltafs_root;     /* deltafs root */
+    size_t len_deltafs_root;      /* strlen buf */
 
+    const char *local_root;       /* local fs root */
+    size_t len_local_root;        /* strlen buf */
+
+    int mode;                  /* test mode */
     int testmode;              /* testing mode */
     int testbypass;            /* bypass mode */
-
     std::set<FILE *>* isdeltafs;    /* open files owned by deltafs */
     const char *log;           /* debug log */
 

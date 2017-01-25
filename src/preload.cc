@@ -95,28 +95,44 @@ static void preload_init()
 
     pctx.isdeltafs = new std::set<FILE*>;
 
-    pctx.root = getenv("PDLFS_Root");
-    if (!pctx.root) pctx.root = DEFAULT_DELTAFS_ROOT;
-    pctx.len_root = strlen(pctx.root);
+    pctx.deltafs_root = getenv("PRELOAD_Deltafs_root");
+    if (!pctx.deltafs_root) pctx.deltafs_root = DEFAULT_DELTAFS_ROOT;
+    pctx.len_deltafs_root = strlen(pctx.deltafs_root);
 
-    /* root: any non-null path, not "/" and not ending in "/" */
-    if ( pctx.len_root == 0 ||
-        (pctx.len_root == 1 && pctx.root[0] == '/') ||
-        pctx.root[pctx.len_root-1] == '/' )
-        msg_abort("bad PDLFS_root");
+    /* deltafs root:
+     *   - any non-null path,
+     *   - not "/", and
+     *   - not ending in "/"
+     */
+    if ( pctx.len_deltafs_root == 0
+            || (pctx.len_deltafs_root == 1 && pctx.deltafs_root[0] == '/')
+            || pctx.deltafs_root[pctx.len_deltafs_root - 1] == '/' )
+        msg_abort("bad deltafs_root");
 
-    /* pctx.testmode is set to NO_TEST by default */
-    if (getenv("PDLFS_Preload_test"))
-        pctx.testmode = PRELOAD_TEST;
-    else if (getenv("PDLFS_Shuffle_test"))
-        pctx.testmode = SHUFFLE_TEST;
-    else if (getenv("PDLFS_Placement_test"))
-        pctx.testmode = PLACEMENT_TEST;
-    else if (getenv("PDLFS_Deltafs_NoPLFS_test"))
-        pctx.testmode = DELTAFS_NOPLFS_TEST;
+    pctx.local_root = getenv("PRELOAD_Local_root");
+    if (!pctx.local_root) pctx.local_root = DEFAULT_LOCAL_ROOT;
+    pctx.len_local_root = strlen(pctx.local_root);
 
-    if (getenv("PDLFS_Shuffle_bypass"))
-        pctx.testbypass = 1;
+    /* local root:
+     *   - any non-null path,
+     *   - not "/",
+     *   - starting with "/", and
+     *   - not ending in "/"
+     */
+    if ( pctx.len_local_root == 0 || pctx.len_local_root == 1
+            || pctx.local_root[0] != '/'
+            || pctx.local_root[pctx.len_local_root - 1] == '/' )
+        msg_abort("bad local_root");
+
+    if (is_envset("PRELOAD_Bypass_shuffle"))
+        pctx.mode |= BYPASS_SHUFFLE;
+    if (is_envset("PRELOAD_Bypass_placement"))
+        pctx.mode |= BYPASS_PLACEMENT;
+
+    if (is_envset("PRELOAD_Bypass_deltafs_plfsdir"))
+        pctx.mode |= BYPASS_DELTAFS_PLFSDIR;
+    if (is_envset("PRELOAD_Bypass_deltafs"))
+        pctx.mode |= BYPASS_DELTAFS;
 
     /* XXXCDC: additional init can go here or MPI_Init() */
 }
@@ -132,13 +148,13 @@ static bool claim_path(const char *path, bool *exact)
      *               In general, how do we handle relative paths?
      */
 
-    if (strncmp(pctx.root, path, pctx.len_root) != 0 ||
-         (path[pctx.len_root] != '/' && path[pctx.len_root] != '\0') ) {
+    if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0 ||
+         (path[pctx.len_deltafs_root] != '/' && path[pctx.len_deltafs_root] != '\0') ) {
         return(false);
     }
 
     /* if we've just got pctx.root, caller may convert it to a "/" */
-    *exact = (path[pctx.len_root] == '\0');
+    *exact = (path[pctx.len_deltafs_root] == '\0');
     return(true);
 }
 
@@ -288,7 +304,7 @@ int mkdir(const char *path, mode_t mode)
     if (*path != '/') {
         stripped = path;
     } else {
-        stripped = (exact) ? "/" : (path + pctx.len_root);
+        stripped = (exact) ? "/" : (path + pctx.len_deltafs_root);
     }
 
     if (pctx.testmode &&
@@ -332,7 +348,7 @@ DIR *opendir(const char *path)
     if (*path != '/') {
         stripped = path;
     } else {
-        stripped = (exact) ? "/" : (path + pctx.len_root);
+        stripped = (exact) ? "/" : (path + pctx.len_deltafs_root);
     }
 
     if (pctx.testmode &&
@@ -391,7 +407,7 @@ FILE *fopen(const char *filename, const char *mode)
     if (*filename != '/') {
         newpath = filename;
     } else {
-        newpath = (exact) ? "/" : (filename + pctx.len_root);
+        newpath = (exact) ? "/" : (filename + pctx.len_deltafs_root);
     }
 
     /* allocate our fake FILE* and put it in the set */

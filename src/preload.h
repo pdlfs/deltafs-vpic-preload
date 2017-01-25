@@ -36,9 +36,9 @@
  * Preload mode query interface
  */
 #define IS_BYPASS_SHUFFLE(m) (((m) & BYPASS_MASK) == BYPASS_SHUFFLE)
-#define IS_BYPASS_PLACEMENT(m) (((m) & BYPASS_MASK) == IS_BYPASS_PLACEMENT)
-#define IS_BYPASS_DELTAFS_PLFSDIR(m) (((m) & BYPASS_MASK) == IS_BYPASS_DELTAFS_PLFSDIR)
-#define IS_BYPASS_DELTAFS(m) (((m) & BYPASS_MASK) == IS_BYPASS_DELTAFS)
+#define IS_BYPASS_PLACEMENT(m) (((m) & BYPASS_MASK) == BYPASS_PLACEMENT)
+#define IS_BYPASS_DELTAFS_PLFSDIR(m) (((m) & BYPASS_MASK) == BYPASS_DELTAFS_PLFSDIR)
+#define IS_BYPASS_DELTAFS(m) (((m) & BYPASS_MASK) == BYPASS_DELTAFS)
 
 /*
  * If "deltafs_root" is not specified, we set it to the following path.
