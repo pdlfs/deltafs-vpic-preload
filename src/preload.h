@@ -61,12 +61,3 @@
  * be rooted under the following path.
  */
 #define DEFAULT_LOCAL_ROOT "/tmp/pdlfs-test"
-
-
-enum TEST_MODE {
-    NO_TEST = 0,
-    PRELOAD_TEST,
-    SHUFFLE_TEST,
-    PLACEMENT_TEST,
-    DELTAFS_NOPLFS_TEST
-};
