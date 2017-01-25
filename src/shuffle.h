@@ -30,10 +30,9 @@
 #include "preload_internal.h"
 #include "preload.h"
 
-//#define DELTAFS_SHUFFLE_DEBUG
-
+#define SHUFFLE_DEBUG
 #define SHUFFLE_DEBUG_OUTPUT 0
-#define SHUFFLE_DEBUG(fmt, ...) \
+#define SHUFFLE_LOG(fmt, ...) \
     do { \
         if (SHUFFLE_DEBUG_OUTPUT) { \
             fprintf(stderr, fmt, ##__VA_ARGS__); \
@@ -46,7 +45,7 @@
  * point-to-point Mercury RPCs. Otherwise we fall back to a bulk transfer.
  * In bytes, obvi.
  */
-#define SMALL_WRITE 1024
+#define SHUFFLE_SMALL_WRITE 1024
 
 #define HG_PROTO "bmi+tcp"
 
@@ -63,7 +62,7 @@ typedef struct shuffle_ctx {
     hg_request_class_t *hgreqcl;
     hg_id_t write_id;
     hg_id_t shutdown_id;
-#ifdef DELTAFS_SHUFFLE_DEBUG
+#ifdef SHUFFLE_DEBUG
     hg_id_t ping_id;
 #endif
 
@@ -78,7 +77,7 @@ typedef struct shuffle_ctx {
 #define SHUFFLE_CTX_INITIALIZER { MAYBE_MUTEX_INITIALIZER }
 
 /* Generate RPC structs */
-#ifdef DELTAFS_SHUFFLE_DEBUG
+#ifdef SHUFFLE_DEBUG
 MERCURY_GEN_PROC(ping_t, ((int32_t)(rank)))
 #endif
 MERCURY_GEN_PROC(write_in_t, ((hg_const_string_t)(fname))
@@ -97,7 +96,7 @@ void genHgAddr(void);
 void shuffle_init(void);
 void shuffle_destroy(void);
 
-#ifdef DELTAFS_SHUFFLE_DEBUG
+#ifdef SHUFFLE_DEBUG
 /* shuffle_ping.cc */
 hg_return_t ping_rpc_handler(hg_handle_t h);
 void ping_test(int rank);

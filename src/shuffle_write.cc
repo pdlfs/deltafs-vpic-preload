@@ -29,7 +29,7 @@ static int shuffle_posix_write(const char *fn, char *data, int len)
     fd = open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
     if (fd < 0) {
 #if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_DEBUG("posix_open:%s:%s\n", fn, strerror(errno));
+        SHUFFLE_LOG("posix_open:%s:%s\n", fn, strerror(errno));
 #endif
         return(EOF);
     }
@@ -37,7 +37,7 @@ static int shuffle_posix_write(const char *fn, char *data, int len)
     n = write(fd, data, len);
     if (n != len) {
 #if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_DEBUG("posix_write:%s:%s\n", fn, strerror(errno));
+        SHUFFLE_LOG("posix_write:%s:%s\n", fn, strerror(errno));
 #endif
         rv = EOF;
     } else {
@@ -60,7 +60,7 @@ static int shuffle_deltafs_write(const char *fn, char *data, int len)
     fd = deltafs_open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
     if (fd < 0) {
 #if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_DEBUG("deltafs_open:%s:%s\n", fn, strerror(errno));
+        SHUFFLE_LOG("deltafs_open:%s:%s\n", fn, strerror(errno));
 #endif
         return(EOF);
     }
@@ -68,7 +68,7 @@ static int shuffle_deltafs_write(const char *fn, char *data, int len)
     n = deltafs_write(fd, data, len);
     if (n != len) {
 #if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_DEBUG("deltafs_write:%s:%s\n", fn, strerror(errno));
+        SHUFFLE_LOG("deltafs_write:%s:%s\n", fn, strerror(errno));
 #endif
         rv = EOF;
     } else {
@@ -120,7 +120,7 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     rank = ssg_get_rank(sctx.s);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-    SHUFFLE_DEBUG("%d: Writing %d bytes to %s (shuffle: %d -> %d)\n", rank,
+    SHUFFLE_LOG("%d: Writing %d bytes to %s (shuffle: %d -> %d)\n", rank,
             (int) bulk_args->len, bulk_args->fname, bulk_args->rank_in, rank);
 
     /* Perform the write and fill output structure */
@@ -192,7 +192,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         bulk_args->fname = in.fname;
         bulk_args->rank_in = in.rank_in;
 
-        SHUFFLE_DEBUG("Creating new bulk handle to read data (%s, len %zu)\n",
+        SHUFFLE_LOG("Creating new bulk handle to read data (%s, len %zu)\n",
                 bulk_args->fname, bulk_args->len);
         /* Create a new bulk handle to read the data */
         hret = HG_Bulk_create(info->hg_class, 1, NULL,
@@ -216,7 +216,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         rank = ssg_get_rank(sctx.s);
         assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
-        SHUFFLE_DEBUG("Writing %d bytes to %s (shuffle: %d -> %d)\n",
+        SHUFFLE_LOG("Writing %d bytes to %s (shuffle: %d -> %d)\n",
                 (int) in.data_len, in.fname, in.rank_in, rank);
 
         /* Perform the write and fill output structure */
@@ -276,7 +276,7 @@ int shuffle_write(const char *fn, char *data, int len)
 
         /* Use ch-placement to decide receiver */
         ch_placement_find_closest(sctx.chinst, oid, 1, &server_idx);
-        SHUFFLE_DEBUG("File %s -> xxhash %16lx -> Server %lu\n",
+        SHUFFLE_LOG("File %s -> xxhash %16lx -> Server %lu\n",
                 fn, oid, server_idx);
         peer_rank = (int) server_idx;
     }
@@ -303,7 +303,7 @@ int shuffle_write(const char *fn, char *data, int len)
         msg_abort("ssg_get_addr");
 
     /* Put together write RPC */
-    SHUFFLE_DEBUG("Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
+    SHUFFLE_LOG("Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
     hret = HG_Create(sctx.hgctx, peer_addr, sctx.write_id, &write_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
@@ -316,7 +316,7 @@ int shuffle_write(const char *fn, char *data, int len)
      * Depending on the amount of data sent, we may use bulk transfer, or
      * point-to-point messaging.
      */
-    if (len > SMALL_WRITE) {
+    if (len > SHUFFLE_SMALL_WRITE) {
         /* Use bulk transfer */
         hret = HG_Bulk_create(sctx.hgcl, 1,
                               (void **) &data, (hg_size_t *) &len,
@@ -347,7 +347,7 @@ int shuffle_write(const char *fn, char *data, int len)
         write_in.isbulk = 0;
     }
 
-    SHUFFLE_DEBUG("%d: Forwarding write RPC: %d -> %d\n", rank, rank, peer_rank);
+    SHUFFLE_LOG("%d: Forwarding write RPC: %d -> %d\n", rank, rank, peer_rank);
     /* Send off write RPC */
     hret = HG_Forward(write_handle, &hg_request_complete_cb, hgreq, &write_in);
     if (hret != HG_SUCCESS)
@@ -360,7 +360,7 @@ int shuffle_write(const char *fn, char *data, int len)
     if (req_complete_flag == 0)
         msg_abort("write timed out");
 
-    SHUFFLE_DEBUG("%d: Response received (%d -> %d)\n", rank, rank, peer_rank);
+    SHUFFLE_LOG("%d: Response received (%d -> %d)\n", rank, rank, peer_rank);
 
     hret = HG_Get_output(write_handle, &write_out);
     if (hret != HG_SUCCESS)
@@ -378,10 +378,10 @@ int shuffle_write(const char *fn, char *data, int len)
 
     hg_request_destroy(hgreq);
 
-    SHUFFLE_DEBUG("%d: Resources destroyed (%d -> %d)\n", rank, rank, peer_rank);
+    SHUFFLE_LOG("%d: Resources destroyed (%d -> %d)\n", rank, rank, peer_rank);
 
     /* Free bulk resources if used */
-    if (len > SMALL_WRITE) {
+    if (len > SHUFFLE_SMALL_WRITE) {
         hret = HG_Bulk_free(data_handle);
         if (hret != HG_SUCCESS)
             msg_abort("HG_Bulk_free");

@@ -12,7 +12,7 @@
 
 #include "shuffle.h"
 
-#ifdef DELTAFS_SHUFFLE_DEBUG
+#ifdef SHUFFLE_DEBUG
 hg_return_t ping_rpc_handler(hg_handle_t h)
 {
     hg_return_t hret;

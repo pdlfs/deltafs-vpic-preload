@@ -21,7 +21,7 @@
 
 extern "C" {
 
-#ifndef PDLFS_MUTEX_LOCKING
+#ifndef PRELOAD_MUTEX_LOCKING
 
 typedef int maybe_mutex_t;
 typedef int maybe_mutexattr_t;
