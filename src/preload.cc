@@ -238,6 +238,7 @@ extern "C" {
 int MPI_Init(int *argc, char ***argv)
 {
     int rv;
+    char path[PATH_MAX];
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Init:pthread_once");
 
@@ -252,8 +253,9 @@ int MPI_Init(int *argc, char ***argv)
     genHgAddr();
     shuffle_init();
 
-    if (rank == 0 && pctx.testin) {
-        pctx.log = "/tmp/vpic-preload-debug.log";
+    if (pctx.testin) {
+        snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
+        pctx.log = strdup(path);
 
         FILE* f = nxt.fopen(pctx.log, "w+");
         if (!f) {
@@ -282,50 +284,35 @@ int MPI_Finalize(void)
 /*
  * mkdir
  */
-int mkdir(const char *path, mode_t mode)
+int mkdir(const char *dir, mode_t mode)
 {
     bool exact;
     const char *stripped;
-    char testpath[PATH_MAX];
+    char path[PATH_MAX];
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("mkdir:pthread_once");
 
-    if (!claim_path(path, &exact)) {
-        return(nxt.mkdir(path, mode));
+    if (!claim_path(dir, &exact)) {
+        return(nxt.mkdir(dir, mode));
     }
 
-    /* relative paths we pass through, absolute we strip off prefix */
+    /* relative paths we pass through; absolute we strip off prefix */
 
-    /*
-     * XXX - George: But if we passed claim_path above, we know that we
-     *               can remove the prefix. Why do we need to keep it for
-     *               relative paths then?
-     */
-
-    if (*path != '/') {
-        stripped = path;
+    if (*dir != '/') {
+        stripped = dir;
     } else {
-        stripped = (exact) ? "/" : (path + pctx.len_deltafs_root);
+        stripped = (exact) ? "/" : (dir + pctx.len_deltafs_root);
     }
 
-    if (pctx.testin &&
-        snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", stripped))
-        msg_abort("mkdir:snprintf");
-
-    switch (pctx.testin) {
-        case NO_TEST:
-            rv = deltafs_mkdir(stripped, mode | DELTAFS_DIR_PLFS_STYLE);
-            break;
-        case PRELOAD_TEST:
-        case SHUFFLE_TEST:
-        case PLACEMENT_TEST:
-            rv = mkdir(testpath, mode);
-            break;
-        case DELTAFS_NOPLFS_TEST:
-            rv = deltafs_mkdir(stripped, mode);
-            break;
+    if (IS_BYPASS_DELTAFS(pctx.mode)) {
+        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
+        rv = nxt.mkdir(path, mode);
+    } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
+        rv = deltafs_mkdir(stripped, mode | DELTAFS_DIR_PLFS_STYLE);
+    } else {
+        rv = deltafs_mkdir(stripped, mode);
     }
 
     return(rv);
