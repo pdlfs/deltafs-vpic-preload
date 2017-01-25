@@ -457,15 +457,13 @@ int fclose(FILE *stream)
 
     if (IS_BYPASS_SHUFFLE(pctx.mode)) {
         /*
-         * shuffle_write_local() will handle
-         *   - BYPASS_DELTAFS_PLFSDIR, and
+         * shuffle_write_local() will check if
          *   - BYPASS_DELTAFS
-         *
          */
         rv = shuffle_write_local(ff->file_name(), ff->data(), ff->size());
     } else {
         /*
-         * shuffle_write() will handle
+         * shuffle_write() will check if
          *   - BYPASS_PLACEMENT
          */
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size());

@@ -267,7 +267,7 @@ int shuffle_write(const char *fn, char *data, int len)
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
-    if (pctx.testin == SHUFFLE_TEST) {
+    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
         /* Send to next-door neighbor instead of using ch-placement */
         peer_rank = (rank + 1) % ssg_get_count(sctx.s);
     } else {
