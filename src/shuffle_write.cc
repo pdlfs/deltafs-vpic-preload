@@ -8,9 +8,9 @@
  */
 
 #include <assert.h>
+#include <pdlfs-common/xxhash.h>
 
 #include "shuffle.h"
-#include "city.h"
 
 struct write_bulk_args {
     hg_handle_t handle;
@@ -270,12 +270,12 @@ int shuffle_write(const char *fn, char *data, int len)
         /* Send to next-door neighbor instead of using ch-placement */
         peer_rank = (rank + 1) % ssg_get_count(sctx.s);
     } else {
-        uint64_t oid = CityHash64(fn, strlen(fn));
+        uint64_t oid = pdlfs::xxhash64(fn, strlen(fn), 0);
         unsigned long server_idx;
 
         /* Use ch-placement to decide receiver */
         ch_placement_find_closest(sctx.chinst, oid, 1, &server_idx);
-        SHUFFLE_DEBUG("File %s -> Spooky hash %16lx -> Server %lu\n",
+        SHUFFLE_DEBUG("File %s -> xxhash %16lx -> Server %lu\n",
                 fn, oid, server_idx);
         peer_rank = (int) server_idx;
     }

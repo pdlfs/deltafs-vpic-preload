@@ -25,8 +25,8 @@ add_library (deltafs-preload preload.cc
                              shuffle.cc
                              shuffle_write.cc
                              shuffle_shutdown.cc
-                             shuffle_ping.cc
-                             city.cc)
+                             shuffle_ping.cc)
+
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
 
 if (CMAKE_THREAD_LIBS_INIT)
