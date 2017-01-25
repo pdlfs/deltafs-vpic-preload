@@ -321,44 +321,38 @@ int mkdir(const char *dir, mode_t mode)
 /*
  * opendir
  */
-DIR *opendir(const char *path)
+DIR *opendir(const char *dir)
 {
-    int rv;
     bool exact;
     const char *stripped;
-    char testpath[PATH_MAX];
+    DIR* rv;
 
-    rv = pthread_once(&init_once, preload_init);
-    if (rv) msg_abort("opendir:pthread_once");
+    int ret = pthread_once(&init_once, preload_init);
+    if (ret) msg_abort("opendir:pthread_once");
 
-    if (!claim_path(path, &exact)) {
-        return(nxt.opendir(path));
+    if (!claim_path(dir, &exact)) {
+        return(nxt.opendir(dir));
     }
 
-    if (*path != '/') {
-        stripped = path;
+    /* relative paths we pass through; absolute we strip off prefix */
+
+    if (*dir != '/') {
+        stripped = dir;
     } else {
-        stripped = (exact) ? "/" : (path + pctx.len_deltafs_root);
+        stripped = (exact) ? "/" : (dir + pctx.len_deltafs_root);
     }
 
-    if (pctx.testin &&
-        snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", stripped))
-        msg_abort("opendir:snprintf");
+    /* return a fake DIR* since we don't actually open */
+    rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
-    switch (pctx.testin) {
-        case NO_TEST:
-        case DELTAFS_NOPLFS_TEST:
-            /* XXX: Call epoch ending function here */
-            //int deltafs_epoch_flush(int __fd, void* __arg);
-
-            /* we return a fake DIR* pointer for deltafs, since we don't actually open */
-            return(reinterpret_cast<DIR *>(&fake_dirptr));
-        case PRELOAD_TEST:
-        case SHUFFLE_TEST:
-        case PLACEMENT_TEST:
-            /* We don't redirect opendir for our tests */
-            return(nxt.opendir(path));
+    if (!IS_BYPASS_DELTAFS(pctx.mode)
+            && !IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
+        rv = NULL;  // FIXME: do epoch flush
+    } else {
+        /* no op */
     }
+
+    return(rv);
 }
 
 /*
@@ -371,7 +365,7 @@ int closedir(DIR *dirp)
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("closedir:pthread_once");
 
-    if (dirp == reinterpret_cast<DIR *>(&fake_dirptr))
+    if (dirp == reinterpret_cast<DIR*>(&fake_dirptr))
         return(0);   /* deltafs - it is a noop */
 
     return(nxt.closedir(dirp));
