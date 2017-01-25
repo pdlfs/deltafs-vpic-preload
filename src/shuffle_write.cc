@@ -22,56 +22,62 @@ struct write_bulk_args {
 
 static int shuffle_posix_write(const char *fn, char *data, int len)
 {
-    int fd, rv;
-    ssize_t wrote;
+    int rv;
+    ssize_t n;
+    int fd;
 
-    SHUFFLE_DEBUG("shuffle_posix_write: writing %s\n", fn);
-
-    fd = open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
+    fd = open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
     if (fd < 0) {
-        if (pctx.testmode)
-            SHUFFLE_DEBUG("shuffle_posix_write: %s: open failed (%s)\n", fn,
-                    strerror(errno));
+#if SHUFFLE_DEBUG_OUTPUT > 0
+        SHUFFLE_DEBUG("posix_open:%s:%s\n", fn, strerror(errno));
+#endif
         return(EOF);
     }
 
-    wrote = write(fd, data, len);
-    if (wrote != len && pctx.testmode)
-        SHUFFLE_DEBUG("shuffle_posix_write: %s: write failed: %d (want %d)\n",
-                fn, (int)wrote, (int)len);
+    n = write(fd, data, len);
+    if (n != len) {
+#if SHUFFLE_DEBUG_OUTPUT > 0
+        SHUFFLE_DEBUG("posix_write:%s:%s\n", fn, strerror(errno));
+#endif
+        rv = EOF;
+    } else {
+        rv = 0;
+    }
 
-    rv = close(fd);
-    if (rv < 0 && pctx.testmode)
-        SHUFFLE_DEBUG("shuffle_posix_write: %s: close failed (%s)\n", fn,
-                strerror(errno));
+    close(fd);
 
-    return((wrote != len || rv < 0) ? EOF : 0);
+    return (rv);
 }
 
 static int shuffle_deltafs_write(const char *fn, char *data, int len)
 {
-    int fd, rv;
-    ssize_t wrote;
+    int rv;
+    ssize_t n;
+    int fd;
 
-    fd = deltafs_open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
+    // FIXME: must use deltafs_openat
+
+    fd = deltafs_open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
     if (fd < 0) {
-        if (pctx.testmode)
-            SHUFFLE_DEBUG("shuffle_deltafs_write: %s: open failed (%s)\n", fn,
-                    strerror(errno));
+#if SHUFFLE_DEBUG_OUTPUT > 0
+        SHUFFLE_DEBUG("deltafs_open:%s:%s\n", fn, strerror(errno));
+#endif
         return(EOF);
     }
 
-    wrote = deltafs_write(fd, data, len);
-    if (wrote != len && pctx.testmode)
-        SHUFFLE_DEBUG("shuffle_deltafs_write: %s: write failed: %d (want %d)\n",
-                fn, (int)wrote, (int)len);
+    n = deltafs_write(fd, data, len);
+    if (n != len) {
+#if SHUFFLE_DEBUG_OUTPUT > 0
+        SHUFFLE_DEBUG("deltafs_write:%s:%s\n", fn, strerror(errno));
+#endif
+        rv = EOF;
+    } else {
+        rv = 0;
+    }
 
-    rv = deltafs_close(fd);
-    if (rv < 0 && pctx.testmode)
-        SHUFFLE_DEBUG("shuffle_deltafs_write: %s: close failed (%s)\n", fn,
-                strerror(errno));
+    deltafs_close(fd);
 
-    return((wrote != len || rv < 0) ? EOF : 0);
+    return(rv);
 }
 
 /*
@@ -81,22 +87,17 @@ static int shuffle_deltafs_write(const char *fn, char *data, int len)
  */
 int shuffle_write_local(const char *fn, char *data, int len)
 {
-    char testpath[PATH_MAX];
+    int rv;
+    char path[PATH_MAX];
 
-    if (pctx.testmode &&
-        snprintf(testpath, PATH_MAX, DEFAULT_LOCAL_ROOT "%s", fn) < 0)
-        msg_abort("fclose:snprintf");
-
-    switch (pctx.testmode) {
-        case NO_TEST:
-            return shuffle_deltafs_write(fn, data, len);
-        case DELTAFS_NOPLFS_TEST:
-            return shuffle_deltafs_write(testpath, data, len);
-        case PRELOAD_TEST:
-        case SHUFFLE_TEST:
-        case PLACEMENT_TEST:
-            return shuffle_posix_write(testpath, data, len);
+    if (IS_BYPASS_DELTAFS(pctx.mode)) {
+        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
+        rv = shuffle_posix_write(path, data, len);
+    } else {
+        rv = shuffle_deltafs_write(fn, data, len);
     }
+
+    return(rv);
 }
 
 /* Mercury callback for bulk transfer requests */

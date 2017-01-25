@@ -30,7 +30,7 @@
 #define BYPASS_PLACEMENT (1 << 1)
 #define BYPASS_DELTAFS_PLFSDIR (1 << 2)
 #define BYPASS_DELTAFS (1 << 3)
-#define BYPASS_MASK 0xFF;
+#define BYPASS_MASK 0xFF
 
 /*
  * Preload mode query interface
