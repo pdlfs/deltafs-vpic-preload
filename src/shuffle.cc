@@ -13,6 +13,8 @@
 
 #include "shuffle.h"
 
+shuffle_ctx_t sctx = { 0 }; /* Shuffle context. */
+
 /*
  * Generate a mercury address
  *

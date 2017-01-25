@@ -20,3 +20,18 @@
  * We create it ourselves.
  */
 #define REDIRECT_TEST_ROOT "/tmp/pdlfs-test"
+
+/*
+ * Debug log
+ */
+#define DEBUG_LOG "/tmp/pdlfs-test/debug.log"
+
+enum TEST_MODE {
+    NO_TEST = 0,
+    PRELOAD_TEST,
+    SHUFFLE_TEST,
+    PLACEMENT_TEST,
+    DELTAFS_NOPLFS_TEST
+};
+
+

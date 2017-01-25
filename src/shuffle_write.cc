@@ -29,19 +29,19 @@ static int shuffle_posix_write(const char *fn, char *data, int len)
 
     fd = open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
     if (fd < 0) {
-        if (sctx.testmode)
+        if (pctx.testmode)
             SHUFFLE_DEBUG("shuffle_posix_write: %s: open failed (%s)\n", fn,
                     strerror(errno));
         return(EOF);
     }
 
     wrote = write(fd, data, len);
-    if (wrote != len && sctx.testmode)
+    if (wrote != len && pctx.testmode)
         SHUFFLE_DEBUG("shuffle_posix_write: %s: write failed: %d (want %d)\n",
                 fn, (int)wrote, (int)len);
 
     rv = close(fd);
-    if (rv < 0 && sctx.testmode)
+    if (rv < 0 && pctx.testmode)
         SHUFFLE_DEBUG("shuffle_posix_write: %s: close failed (%s)\n", fn,
                 strerror(errno));
 
@@ -55,19 +55,19 @@ static int shuffle_deltafs_write(const char *fn, char *data, int len)
 
     fd = deltafs_open(fn, O_WRONLY|O_CREAT|O_APPEND, 0666);
     if (fd < 0) {
-        if (sctx.testmode)
+        if (pctx.testmode)
             SHUFFLE_DEBUG("shuffle_deltafs_write: %s: open failed (%s)\n", fn,
                     strerror(errno));
         return(EOF);
     }
 
     wrote = deltafs_write(fd, data, len);
-    if (wrote != len && sctx.testmode)
+    if (wrote != len && pctx.testmode)
         SHUFFLE_DEBUG("shuffle_deltafs_write: %s: write failed: %d (want %d)\n",
                 fn, (int)wrote, (int)len);
 
     rv = deltafs_close(fd);
-    if (rv < 0 && sctx.testmode)
+    if (rv < 0 && pctx.testmode)
         SHUFFLE_DEBUG("shuffle_deltafs_write: %s: close failed (%s)\n", fn,
                 strerror(errno));
 
@@ -83,11 +83,11 @@ int shuffle_write_local(const char *fn, char *data, int len)
 {
     char testpath[PATH_MAX];
 
-    if (sctx.testmode &&
+    if (pctx.testmode &&
         snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", fn) < 0)
         msg_abort("fclose:snprintf");
 
-    switch (sctx.testmode) {
+    switch (pctx.testmode) {
         case NO_TEST:
             return shuffle_deltafs_write(fn, data, len);
         case DELTAFS_NOPLFS_TEST:
@@ -126,11 +126,11 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     out.ret = shuffle_write_local(bulk_args->fname, data, (int) bulk_args->len);
 
     /* Write out to the log if we are running a test */
-    if (sctx.testmode) {
+    if (pctx.testmode) {
         char buf[1024] = { 0 };
         snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
                  bulk_args->rank_in, rank, (int) bulk_args->len);
-        int fd = open(sctx.log, O_WRONLY | O_APPEND);
+        int fd = open(pctx.log, O_WRONLY | O_APPEND);
         if (fd <= 0)
             msg_abort("log open failed");
         assert(write(fd, buf, strlen(buf)) == strlen(buf));
@@ -222,11 +222,11 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         out.ret = shuffle_write_local(in.fname, in.data, in.data_len);
 
         /* Write out to the log if we are running a test */
-        if (sctx.testmode) {
+        if (pctx.testmode) {
             char buf[1024] = { 0 };
             snprintf(buf, sizeof(buf), "source %5d target %5d size %lu\n",
                      (int) in.rank_in, rank, in.data_len);
-            int fd = open(sctx.log, O_WRONLY | O_APPEND);
+            int fd = open(pctx.log, O_WRONLY | O_APPEND);
             if (fd <= 0)
                 msg_abort("log open failed");
             assert(write(fd, buf, strlen(buf)) == strlen(buf));
@@ -266,7 +266,7 @@ int shuffle_write(const char *fn, char *data, int len)
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
-    if (sctx.testmode == SHUFFLE_TEST) {
+    if (pctx.testmode == SHUFFLE_TEST) {
         /* Send to next-door neighbor instead of using ch-placement */
         peer_rank = (rank + 1) % ssg_get_count(sctx.s);
     } else {
@@ -283,11 +283,11 @@ int shuffle_write(const char *fn, char *data, int len)
     /* Are we trying to message ourselves? Write locally */
     if (peer_rank == rank) {
         /* Write out to the log if we are running a test */
-        if (sctx.testmode) {
+        if (pctx.testmode) {
             char buf[1024] = { 0 };
             snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
                      rank, rank, len);
-            int fd = open(sctx.log, O_WRONLY | O_APPEND);
+            int fd = open(pctx.log, O_WRONLY | O_APPEND);
             if (fd <= 0)
                 msg_abort("log open failed");
             assert(write(fd, buf, strlen(buf)) == strlen(buf));

@@ -51,30 +51,13 @@
 
 #define HG_PROTO "bmi+tcp"
 
-enum TEST_MODE {
-    NO_TEST = 0,
-    PRELOAD_TEST,
-    SHUFFLE_TEST,
-    PLACEMENT_TEST,
-    DELTAFS_NOPLFS_TEST
-};
-
 /*
- * Shuffle context: run-time state of the preload and shuffle lib
+ * shuffle context:
+ *   - run-time state of the preload and shuffle lib
  */
 typedef struct shuffle_ctx {
-    /* Preload context */
-    maybe_mutex_t setlock;
-    std::set<FILE *>* isdeltafs;
-
-    const char *root;
-    int len_root;                       /* strlen root */
-    int testmode;                       /* testing mode */
-    int testbypass;                     /* bypass mode */
-    const char *log;                    /* debug log */
-
     /* Mercury context */
-    char hgaddr[NI_MAXHOST+20];         /* proto://ip:port of host */
+    char hgaddr[NI_MAXHOST+20];        /* proto://ip:port of host */
 
     hg_class_t *hgcl;
     hg_context_t *hgctx;

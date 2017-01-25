@@ -15,12 +15,19 @@
 #include <pthread.h>
 #include <sys/stat.h>
 
-#include "preload_internal.h"
-#include "shuffle.h"
-
 #include <string>
 
-shuffle_ctx_t sctx = SHUFFLE_CTX_INITIALIZER;
+#include "preload_internal.h"
+
+#include "preload.h"
+#include "shuffle.h"
+
+/* XXX: VPIC is usually a single-threaded process but mutex may be
+ * needed if VPIC is running with openmp.
+ */
+static maybe_mutex_t mtx = MAYBE_MUTEX_INITIALIZER;
+
+preload_ctx_t pctx = { 0 };
 
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
@@ -49,12 +56,12 @@ struct next_functions {
     int (*fseek)(FILE *stream, long offset, int whence);
     long (*ftell)(FILE *stream);
 };
+
 static struct next_functions nxt = { 0 };
 
 /*
  * this once is used to trigger the init of the preload library...
  */
-
 static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 
 /* helper: must_getnextdlsym: get next symbol or fail */
@@ -86,30 +93,30 @@ static void preload_init()
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.fseek), "fseek");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.ftell), "ftell");
 
-    sctx.isdeltafs = new std::set<FILE*>;
-    sctx.root = getenv("PDLFS_Root");
-    if (!sctx.root) sctx.root = DEFAULT_ROOT;
-    sctx.len_root = strlen(sctx.root);
-    /* sctx.setlock and sctx.isdeltafs init'd by ctor */
+    pctx.isdeltafs = new std::set<FILE*>;
 
-    /* sctx.testmode is set to NO_TEST by default */
-    if (getenv("PDLFS_Preload_test"))
-        sctx.testmode = PRELOAD_TEST;
-    else if (getenv("PDLFS_Shuffle_test"))
-        sctx.testmode = SHUFFLE_TEST;
-    else if (getenv("PDLFS_Placement_test"))
-        sctx.testmode = PLACEMENT_TEST;
-    else if (getenv("PDLFS_Deltafs_NoPLFS_test"))
-        sctx.testmode = DELTAFS_NOPLFS_TEST;
-
-    if (getenv("PDLFS_Shuffle_bypass"))
-        sctx.testbypass = 1;
+    pctx.root = getenv("PDLFS_Root");
+    if (!pctx.root) pctx.root = DEFAULT_ROOT;
+    pctx.len_root = strlen(pctx.root);
 
     /* root: any non-null path, not "/" and not ending in "/" */
-    if ( sctx.len_root == 0 ||
-        (sctx.len_root == 1 && sctx.root[0] == '/') ||
-        sctx.root[sctx.len_root-1] == '/' )
+    if ( pctx.len_root == 0 ||
+        (pctx.len_root == 1 && pctx.root[0] == '/') ||
+        pctx.root[pctx.len_root-1] == '/' )
         msg_abort("bad PDLFS_root");
+
+    /* pctx.testmode is set to NO_TEST by default */
+    if (getenv("PDLFS_Preload_test"))
+        pctx.testmode = PRELOAD_TEST;
+    else if (getenv("PDLFS_Shuffle_test"))
+        pctx.testmode = SHUFFLE_TEST;
+    else if (getenv("PDLFS_Placement_test"))
+        pctx.testmode = PLACEMENT_TEST;
+    else if (getenv("PDLFS_Deltafs_NoPLFS_test"))
+        pctx.testmode = DELTAFS_NOPLFS_TEST;
+
+    if (getenv("PDLFS_Shuffle_bypass"))
+        pctx.testbypass = 1;
 
     /* XXXCDC: additional init can go here or MPI_Init() */
 }
@@ -120,18 +127,18 @@ static void preload_init()
 static bool claim_path(const char *path, bool *exact)
 {
     /*
-     * XXX - George: Chuck, this would not catch the case where cwd is sctx.root
+     * XXX - George: Chuck, this would not catch the case where cwd is pctx.root
      *               and the path is relative.
      *               In general, how do we handle relative paths?
      */
 
-    if (strncmp(sctx.root, path, sctx.len_root) != 0 ||
-         (path[sctx.len_root] != '/' && path[sctx.len_root] != '\0') ) {
+    if (strncmp(pctx.root, path, pctx.len_root) != 0 ||
+         (path[pctx.len_root] != '/' && path[pctx.len_root] != '\0') ) {
         return(false);
     }
 
-    /* if we've just got sctx.root, caller may convert it to a "/" */
-    *exact = (path[sctx.len_root] == '\0');
+    /* if we've just got pctx.root, caller may convert it to a "/" */
+    *exact = (path[pctx.len_root] == '\0');
     return(true);
 }
 
@@ -143,11 +150,11 @@ static bool claim_FILE(FILE *stream)
     std::set<FILE *>::iterator it;
     bool rv;
 
-    must_lockmutex(&sctx.setlock);
-    assert(sctx.isdeltafs != NULL);
-    it = sctx.isdeltafs->find(stream);
-    rv = (it != sctx.isdeltafs->end());
-    must_unlock(&sctx.setlock);
+    must_lockmutex(&mtx);
+    assert(pctx.isdeltafs != NULL);
+    it = pctx.isdeltafs->find(stream);
+    rv = (it != pctx.isdeltafs->end());
+    must_unlock(&mtx);
 
     return(rv);
 }
@@ -211,31 +218,32 @@ extern "C" {
  */
 int MPI_Init(int *argc, char ***argv)
 {
-    int rv = nxt.MPI_Init(argc, argv);
+    int rv;
+    rv = pthread_once(&init_once, preload_init);
+    if (rv) msg_abort("MPI_Init:pthread_once");
+
+    int rank;
+    rv = nxt.MPI_Init(argc, argv);
+    if (rv == MPI_SUCCESS) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    } else {
+        return(rv);
+    }
 
     genHgAddr();
     shuffle_init();
 
-    if (sctx.testmode) {
-        int rank, ret;
+    if (rank == 0 && pctx.testmode) {
+        nxt.mkdir(REDIRECT_TEST_ROOT, 0777);
 
-        /* Get non-mpi rank */
-        rank = ssg_get_rank(sctx.s);
-        if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
-            msg_abort("ssg_get_rank: bad rank");
+        pctx.log = DEBUG_LOG;
 
-        /* Create temporary test dir */
-        ret = mkdir(REDIRECT_TEST_ROOT, S_IRWXU | S_IRWXG | S_IRWXO);
-        if (ret && errno != EEXIST)
-            msg_abort("mkdir " REDIRECT_TEST_ROOT " failed");
-
-        /* Name shuffle debug log */
-        sctx.log = REDIRECT_TEST_ROOT "/shuffle.log";
-
-        /* Rank 0 creates the log with lax perms */
-        if ((creat(sctx.log, S_IRWXU|S_IRWXG|S_IRWXO) < 0) ||
-            (chmod(sctx.log, S_IRWXU|S_IRWXG|S_IRWXO) < 0))
-            msg_abort("shuffle log creation failed");
+        FILE* f = nxt.fopen(pctx.log, "w+");
+        if (!f) {
+            msg_abort("MPI_Init:fopen");
+        } else {
+            delete f;
+        }
     }
 
     return(rv);
@@ -282,14 +290,14 @@ int mkdir(const char *path, mode_t mode)
     if (*path != '/') {
         stripped = path;
     } else {
-        stripped = (exact) ? "/" : (path + sctx.len_root);
+        stripped = (exact) ? "/" : (path + pctx.len_root);
     }
 
-    if (sctx.testmode &&
+    if (pctx.testmode &&
         snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", stripped))
         msg_abort("mkdir:snprintf");
 
-    switch (sctx.testmode) {
+    switch (pctx.testmode) {
         case NO_TEST:
             rv = deltafs_mkdir(stripped, mode | DELTAFS_DIR_PLFS_STYLE);
             break;
@@ -326,14 +334,14 @@ DIR *opendir(const char *path)
     if (*path != '/') {
         stripped = path;
     } else {
-        stripped = (exact) ? "/" : (path + sctx.len_root);
+        stripped = (exact) ? "/" : (path + pctx.len_root);
     }
 
-    if (sctx.testmode &&
+    if (pctx.testmode &&
         snprintf(testpath, PATH_MAX, REDIRECT_TEST_ROOT "%s", stripped))
         msg_abort("opendir:snprintf");
 
-    switch (sctx.testmode) {
+    switch (pctx.testmode) {
         case NO_TEST:
         case DELTAFS_NOPLFS_TEST:
             /* XXX: Call epoch ending function here */
@@ -385,17 +393,17 @@ FILE *fopen(const char *filename, const char *mode)
     if (*filename != '/') {
         newpath = filename;
     } else {
-        newpath = (exact) ? "/" : (filename + sctx.len_root);
+        newpath = (exact) ? "/" : (filename + pctx.len_root);
     }
 
     /* allocate our fake FILE* and put it in the set */
     fake_file *ff = new fake_file(newpath);
     FILE *fp = reinterpret_cast<FILE *>(ff);
 
-    must_lockmutex(&sctx.setlock);
-    assert(sctx.isdeltafs != NULL);
-    sctx.isdeltafs->insert(fp);
-    must_unlock(&sctx.setlock);
+    must_lockmutex(&mtx);
+    assert(pctx.isdeltafs != NULL);
+    pctx.isdeltafs->insert(fp);
+    must_unlock(&mtx);
 
     return(fp);
 }
@@ -442,19 +450,19 @@ int fclose(FILE *stream)
     rv = 0;
     fake_file *ff = reinterpret_cast<fake_file *>(stream);
 
-    if (sctx.testbypass)
+    if (pctx.testbypass)
         rv = shuffle_write_local(ff->file_name(), ff->data(), ff->size());
     else
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
 
-    must_lockmutex(&sctx.setlock);
-    assert(sctx.isdeltafs != NULL);
-    sctx.isdeltafs->erase(stream);
-    must_unlock(&sctx.setlock);
+    must_lockmutex(&mtx);
+    assert(pctx.isdeltafs != NULL);
+    pctx.isdeltafs->erase(stream);
+    must_unlock(&mtx);
 
     delete ff;
 
-    if (sctx.testmode)
+    if (pctx.testmode)
         return 0;
     else
         return(rv);

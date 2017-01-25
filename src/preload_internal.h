@@ -1,5 +1,3 @@
-#pragma once
-
 /*
  * Copyright (c) 2016-2017 Carnegie Mellon University.
  *
@@ -9,12 +7,17 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
+#pragma once
+
 #include <errno.h>
-#include <pthread.h>
 #include <string.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 #include <unistd.h>
+
+#include <set>
 
 extern "C" {
 
@@ -70,5 +73,24 @@ static inline void must_unlock(maybe_mutex_t* __mut) {
         msg_abort("mtx_unlock");
     }
 }
+
+/*
+ * preload context:
+ *   - run-time state of the preload layer
+ */
+typedef struct preload_ctx {
+    const char *root;          /* deltafs root */
+    size_t len_root;           /* strlen of root */
+
+    int testmode;              /* testing mode */
+    int testbypass;            /* bypass mode */
+
+    std::set<FILE *>* isdeltafs;    /* open files owned by deltafs */
+    const char *log;           /* debug log */
+
+} preload_ctx_t;
+
+
+extern preload_ctx_t pctx;
 
 } // extern C
