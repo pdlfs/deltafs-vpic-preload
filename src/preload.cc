@@ -25,7 +25,7 @@
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
  */
-static maybe_mutex_t mtx = MAYBE_MUTEX_INITIALIZER;
+static maybe_mutex_t maybe_mtx = MAYBE_MUTEX_INITIALIZER;
 
 preload_ctx_t pctx = { 0 };
 
@@ -161,11 +161,6 @@ static void preload_init()
  */
 static bool claim_path(const char *path, bool *exact)
 {
-    /*
-     * XXX - George: Chuck, this would not catch the case where cwd is pctx.root
-     *               and the path is relative.
-     *               In general, how do we handle relative paths?
-     */
 
     if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0 ||
          (path[pctx.len_deltafs_root] != '/' && path[pctx.len_deltafs_root] != '\0') ) {
@@ -185,11 +180,11 @@ static bool claim_FILE(FILE *stream)
     std::set<FILE *>::iterator it;
     bool rv;
 
-    must_lockmutex(&mtx);
+    must_lockmutex(&maybe_mtx);
     assert(pctx.isdeltafs != NULL);
     it = pctx.isdeltafs->find(stream);
     rv = (it != pctx.isdeltafs->end());
-    must_unlock(&mtx);
+    must_unlock(&maybe_mtx);
 
     return(rv);
 }
@@ -300,7 +295,7 @@ int MPI_Init(int *argc, char ***argv)
         }
 
         if (rv != 0) {
-            msg_abort("MPI_Init:mkdir");
+            msg_abort("MPI_Init:mkdir:plfsdir");
         }
 
         /* so everyone sees the dir created */
@@ -311,7 +306,7 @@ int MPI_Init(int *argc, char ***argv)
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
             pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
             if (pctx.plfsfd == -1) {
-                msg_abort("MPI_Init:open");
+                msg_abort("MPI_Init:open:plfsdir");
             }
         }
     }
@@ -473,10 +468,10 @@ FILE *fopen(const char *fname, const char *mode)
         fake_file *ff = new fake_file(stripped);
         rv = reinterpret_cast<FILE*>(ff);
 
-        must_lockmutex(&mtx);
+        must_lockmutex(&maybe_mtx);
         assert(pctx.isdeltafs != NULL);
         pctx.isdeltafs->insert(rv);
-        must_unlock(&mtx);
+        must_unlock(&maybe_mtx);
 
     } else {
         rv = NULL; // FIXME: handle open plfsdir
@@ -542,10 +537,10 @@ int fclose(FILE *stream)
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
     }
 
-    must_lockmutex(&mtx);
+    must_lockmutex(&maybe_mtx);
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->erase(stream);
-    must_unlock(&mtx);
+    must_unlock(&maybe_mtx);
 
     delete ff;
 
