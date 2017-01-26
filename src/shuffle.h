@@ -107,6 +107,5 @@ hg_return_t shutdown_rpc_handler(hg_handle_t h);
 void shuffle_shutdown(int rank);
 
 /* shuffle_write.cc */
-int shuffle_write_local(const char *fn, char *data, int len);
 hg_return_t write_rpc_handler(hg_handle_t h);
 int shuffle_write(const char *fn, char *data, int len);

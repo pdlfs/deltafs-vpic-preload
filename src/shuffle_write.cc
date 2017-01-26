@@ -20,86 +20,6 @@ struct write_bulk_args {
     int rank_in;
 };
 
-static int shuffle_posix_write(const char *fn, char *data, int len)
-{
-    int rv;
-    ssize_t n;
-    int fd;
-
-    fd = open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    if (fd < 0) {
-#if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_LOG("posix_open:%s:%s\n", fn, strerror(errno));
-#endif
-        return(EOF);
-    }
-
-    n = write(fd, data, len);
-    if (n != len) {
-#if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_LOG("posix_write:%s:%s\n", fn, strerror(errno));
-#endif
-        rv = EOF;
-    } else {
-        rv = 0;
-    }
-
-    close(fd);
-
-    return (rv);
-}
-
-static int shuffle_deltafs_write(const char *fn, char *data, int len)
-{
-    int rv;
-    ssize_t n;
-    int fd;
-
-    // FIXME: must use deltafs_openat
-
-    fd = deltafs_open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
-    if (fd < 0) {
-#if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_LOG("deltafs_open:%s:%s\n", fn, strerror(errno));
-#endif
-        return(EOF);
-    }
-
-    n = deltafs_write(fd, data, len);
-    if (n != len) {
-#if SHUFFLE_DEBUG_OUTPUT > 0
-        SHUFFLE_LOG("deltafs_write:%s:%s\n", fn, strerror(errno));
-#endif
-        rv = EOF;
-    } else {
-        rv = 0;
-    }
-
-    deltafs_close(fd);
-
-    return(rv);
-}
-
-/*
- * shuffle_write_local(): write directly to deltafs or posix after shuffle.
- * If used for debugging we will print msg on any err.
- * Returns 0 or EOF on error.
- */
-int shuffle_write_local(const char *fn, char *data, int len)
-{
-    int rv;
-    char path[PATH_MAX];
-
-    if (IS_BYPASS_DELTAFS(pctx.mode)) {
-        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
-        rv = shuffle_posix_write(path, data, len);
-    } else {
-        rv = shuffle_deltafs_write(fn, data, len);
-    }
-
-    return(rv);
-}
-
 /* Mercury callback for bulk transfer requests */
 static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
 {
@@ -124,7 +44,7 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
             (int) bulk_args->len, bulk_args->fname, bulk_args->rank_in, rank);
 
     /* Perform the write and fill output structure */
-    out.ret = shuffle_write_local(bulk_args->fname, data, (int) bulk_args->len);
+    out.ret = preload_write(bulk_args->fname, data, (int) bulk_args->len);
 
     /* Write out to the log if we are running a test */
     if (pctx.testin) {
@@ -220,7 +140,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
                 (int) in.data_len, in.fname, in.rank_in, rank);
 
         /* Perform the write and fill output structure */
-        out.ret = shuffle_write_local(in.fname, in.data, in.data_len);
+        out.ret = preload_write(in.fname, in.data, in.data_len);
 
         /* Write out to the log if we are running a test */
         if (pctx.testin) {
@@ -261,7 +181,7 @@ int shuffle_write(const char *fn, char *data, int len)
 
     /* Decide RPC receiver. If we're alone we execute it locally. */
     if (ssg_get_count(sctx.s) == 1)
-        return shuffle_write_local(fn, data, len);
+        return preload_write(fn, data, len);
 
     rank = ssg_get_rank(sctx.s);
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
@@ -295,7 +215,7 @@ int shuffle_write(const char *fn, char *data, int len)
             close(fd);
         }
 
-        return shuffle_write_local(fn, data, len);
+        return preload_write(fn, data, len);
     }
 
     peer_addr = ssg_get_addr(sctx.s, peer_rank);

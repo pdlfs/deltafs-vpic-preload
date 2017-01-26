@@ -122,6 +122,9 @@ static void preload_init()
             pctx.plfsdir = pctx.deltafs_root;
         }
     }
+    if (pctx.plfsdir != NULL) {
+        pctx.len_plfsdir = strlen(pctx.plfsdir);
+    }
 
     pctx.plfsfd = -1;
 
@@ -162,14 +165,33 @@ static void preload_init()
 static bool claim_path(const char *path, bool *exact)
 {
 
-    if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0 ||
-         (path[pctx.len_deltafs_root] != '/' && path[pctx.len_deltafs_root] != '\0') ) {
+    if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0) {
+        return(false);
+    } else if (path[pctx.len_deltafs_root] != '/' &&
+            path[pctx.len_deltafs_root] != '\0') {
         return(false);
     }
 
     /* if we've just got pctx.root, caller may convert it to a "/" */
     *exact = (path[pctx.len_deltafs_root] == '\0');
     return(true);
+}
+
+/*
+ * under_plfsdir: if a given path is a plfsdir or plfsdir files
+ */
+static bool under_plfsdir(const char* path)
+{
+    if (pctx.plfsdir == NULL) {
+        return(false);
+    } else if (strncmp(pctx.plfsdir, path, pctx.len_plfsdir) != 0) {
+        return(false);
+    } else if (path[pctx.len_plfsdir] != '/' &&
+            path[pctx.len_plfsdir] != '\0') {
+        return(false);
+    } else {
+        return(true);
+    }
 }
 
 /*
@@ -367,7 +389,7 @@ int mkdir(const char *dir, mode_t mode)
 
     if (!claim_path(dir, &exact)) {
         return(nxt.mkdir(dir, mode));
-    } else if (strcmp(pctx.plfsdir, dir) == 0) {
+    } else if (under_plfsdir(dir)) {
         return(0);  /* plfsdirs are pre-created at MPI_Init */
     }
 
@@ -405,7 +427,7 @@ DIR *opendir(const char *dir)
 
     if (!claim_path(dir, &exact)) {
         return(nxt.opendir(dir));
-    } else if (strcmp(pctx.plfsdir, dir) != 0) {
+    } else if (!under_plfsdir(dir)) {
         return(NULL);  /* not supported */
     }
 
@@ -526,10 +548,11 @@ int fclose(FILE *stream)
 
     if (IS_BYPASS_SHUFFLE(pctx.mode)) {
         /*
-         * shuffle_write_local() will check if
+         * preload_write() will check if
+         *   - BYPASS_DELTAFS_PLFSDIR
          *   - BYPASS_DELTAFS
          */
-        rv = shuffle_write_local(ff->file_name(), ff->data(), ff->size());
+        rv = preload_write(ff->file_name(), ff->data(), ff->size());
     } else {
         /*
          * shuffle_write() will check if
@@ -544,6 +567,51 @@ int fclose(FILE *stream)
     must_unlock(&maybe_mtx);
 
     delete ff;
+
+    return(rv);
+}
+
+/*
+ * preload_write
+ */
+int preload_write(const char *fn, char *data, size_t len)
+{
+    int rv;
+    char path[PATH_MAX];
+    ssize_t n;
+    int fd;
+
+    /* Return 0 on success, or EOF on errors */
+
+    rv = EOF;
+
+    if (IS_BYPASS_DELTAFS(pctx.mode)) {
+        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
+        fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (fd != -1) {
+            n = write(fd, data, len);
+            if (n == len) {
+                rv = 0;
+            }
+            close(fd);
+        }
+    } else {
+
+        if (under_plfsdir(fn)) {
+            fd = deltafs_openat(pctx.plfsfd, fn + pctx.len_plfsdir,  O_WRONLY |
+                    O_CREAT | O_APPEND, 0666);
+        } else {
+            fd = deltafs_open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        }
+
+        if (fd != -1) {
+            n = deltafs_write(fd, data, len);
+            if (n == len) {
+                rv = 0;
+            }
+            deltafs_close(fd);
+        }
+    }
 
     return(rv);
 }

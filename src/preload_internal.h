@@ -87,19 +87,26 @@ static inline bool is_envset(const char* key) {
 }
 
 /*
+ * preload_write(fn, data, n):
+ *   - ship data to deltafs
+ */
+extern int preload_write(const char* fn, char* data, size_t n);
+
+/*
  * preload context:
  *   - run-time state of the preload layer
  */
 typedef struct preload_ctx {
     const char* deltafs_root;     /* deltafs root */
-    size_t len_deltafs_root;      /* strlen buf */
+    size_t len_deltafs_root;      /* strlen */
 
     const char* local_root;       /* localfs root */
-    size_t len_local_root;        /* strlen buf */
+    size_t len_local_root;        /* strlen */
 
     int mode;    /* operating mode */
 
     const char* plfsdir;    /* path to the plfsdir */
+    size_t len_plfsdir;     /* strlen */
     int plfsfd;             /* fd for the plfsdir */
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
