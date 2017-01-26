@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Carnegie Mellon University.
+ * Copyright (c) 2016-2017 Carnegie Mellon University.
  *
  * All rights reserved.
  *
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
     if (lo == NULL) {
         msg_abort("no local root");
     }
-    fprintf(stderr, "local_root is %s\n", rt);
+    fprintf(stderr, "local_root is %s\n", lo);
     snprintf(rname, sizeof(rname), "%s/%s", lo, fname);
     fprintf(stderr, "reading from localfs %s\n", rname);
     int fd = open(rname, O_RDONLY);
