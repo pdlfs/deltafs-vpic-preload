@@ -368,7 +368,7 @@ int mkdir(const char *dir, mode_t mode)
     if (!claim_path(dir, &exact)) {
         return(nxt.mkdir(dir, mode));
     } else if (strcmp(pctx.plfsdir, dir) == 0) {
-        return 0;  /* plfsdirs are pre-created at MPI_Init */
+        return(0);  /* plfsdirs are pre-created at MPI_Init */
     }
 
     /* relative paths we pass through; absolute we strip off prefix */
@@ -405,6 +405,8 @@ DIR *opendir(const char *dir)
 
     if (!claim_path(dir, &exact)) {
         return(nxt.opendir(dir));
+    } else if (strcmp(pctx.plfsdir, dir) != 0) {
+        return(NULL);  /* not supported */
     }
 
     /* relative paths we pass through; absolute we strip off prefix */
