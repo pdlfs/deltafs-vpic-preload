@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
 
     char fname[PATH_MAX];
-    snprintf(fname, sizeof(fname), "%s/xyzxyz", dname);
+    snprintf(fname, sizeof(fname), "%s/%06d", dname, rank);
     fprintf(stderr, "writing into deltafs %s\n", fname);
     FILE* fp = fopen(fname, "a");
     if (fp == NULL) {
