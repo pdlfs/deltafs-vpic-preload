@@ -91,17 +91,20 @@ static inline bool is_envset(const char* key) {
  *   - run-time state of the preload layer
  */
 typedef struct preload_ctx {
-    const char *deltafs_root;     /* deltafs root */
+    const char* deltafs_root;     /* deltafs root */
     size_t len_deltafs_root;      /* strlen buf */
 
-    const char *local_root;       /* local fs root */
+    const char* local_root;       /* localfs root */
     size_t len_local_root;        /* strlen buf */
 
-    int mode;                     /* operating mode */
+    int mode;    /* operating mode */
 
-    std::set<FILE*> *isdeltafs;         /* open files owned by deltafs */
+    const char* plfsdir;    /* path to the plfsdir */
+    int plfsfd;             /* fd for the plfsdir */
 
-    const char *log;   /* debug log */
+    std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
+
+    const char* log;   /* debug log */
     int testin;        /* testing */
 
 } preload_ctx_t;

@@ -109,6 +109,22 @@ static void preload_init()
             || pctx.deltafs_root[pctx.len_deltafs_root - 1] == '/' )
         msg_abort("bad deltafs_root");
 
+    /* obtain the path to plfsdir */
+    pctx.plfsdir = getenv("PRELOAD_Plfsdir");
+
+    /* plfsdir:
+     *   - if null, no plfsdir will ever be created
+     *   - otherwise, it will be created and opened at MPI_Init
+     */
+    if (pctx.plfsdir == NULL) {
+        if (pctx.deltafs_root[0] != '/') {
+            /* default to deltafs_root if deltafs_root is relative */
+            pctx.plfsdir = pctx.deltafs_root;
+        }
+    }
+
+    pctx.plfsfd = -1;
+
     pctx.local_root = getenv("PRELOAD_Local_root");
     if (!pctx.local_root) pctx.local_root = DEFAULT_LOCAL_ROOT;
     pctx.len_local_root = strlen(pctx.local_root);
@@ -237,8 +253,11 @@ extern "C" {
  */
 int MPI_Init(int *argc, char ***argv)
 {
-    int rv;
+    bool exact;
+    const char* stripped;
     char path[PATH_MAX];
+    int rv;
+
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Init:pthread_once");
 
@@ -253,6 +272,48 @@ int MPI_Init(int *argc, char ***argv)
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         genHgAddr();
         shuffle_init();
+    }
+
+    /* pre-create plfsdirs if there is any */
+    if (pctx.plfsdir != NULL) {
+        if (!claim_path(pctx.plfsdir, &exact)) {
+            msg_abort("plfsdir out of deltafs");  /* Oops!! */
+        }
+
+        /* relative paths we pass through; absolute we strip off prefix */
+
+        if (pctx.plfsdir[0] != '/') {
+            stripped = pctx.plfsdir;
+        } else if (!exact) {
+            stripped = pctx.plfsdir + pctx.len_deltafs_root;
+        } else {
+            msg_abort("plfsdir is root");
+        }
+
+        if (IS_BYPASS_DELTAFS(pctx.mode)) {
+            snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
+            rv = nxt.mkdir(path, 0777);
+        } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
+            rv = deltafs_mkdir(stripped, 0777 | DELTAFS_DIR_PLFS_STYLE);
+        } else {
+            rv = deltafs_mkdir(stripped, 0777);
+        }
+
+        if (rv != 0) {
+            msg_abort("MPI_Init:mkdir");
+        }
+
+        /* so everyone sees the dir created */
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        /* everyone opens it */
+        if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
+                !IS_BYPASS_DELTAFS(pctx.mode)) {
+            pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
+            if (pctx.plfsfd == -1) {
+                msg_abort("MPI_Init:open");
+            }
+        }
     }
 
     if (pctx.testin) {
@@ -276,6 +337,14 @@ int MPI_Init(int *argc, char ***argv)
 int MPI_Finalize(void)
 {
     int rv;
+
+    rv = pthread_once(&init_once, preload_init);
+    if (rv) msg_abort("MPI_Finalize:pthread_once");
+
+    if (pctx.plfsfd != -1) {
+        deltafs_close(pctx.plfsfd);
+        pctx.plfsfd = -1;
+    }
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_destroy();

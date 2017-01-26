@@ -15,6 +15,7 @@
 //  Env                                Description
 // ----------------------------------|----------------------------------
 //  PRELOAD_Deltafs_root               Deltafs root
+//  PRELOAD_Plfsdir                    Path to the plfsdir (XXX: allows multi)
 //  PRELOAD_Bypass_shuffle             Do not shuffle writes at all
 //  PRELOAD_Bypass_placement           Shuffle without ch-placement
 //  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
