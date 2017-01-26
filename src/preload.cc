@@ -285,17 +285,20 @@ int MPI_Init(int *argc, char ***argv)
             msg_abort("plfsdir is root");
         }
 
-        if (IS_BYPASS_DELTAFS(pctx.mode)) {
-            snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-            rv = nxt.mkdir(path, 0777);
-        } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
-            rv = deltafs_mkdir(stripped, 0777 | DELTAFS_DIR_PLFS_STYLE);
-        } else {
-            rv = deltafs_mkdir(stripped, 0777);
-        }
+        if (rank == 0) {
+            if (IS_BYPASS_DELTAFS(pctx.mode)) {
+                snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
+                        stripped);
+                rv = nxt.mkdir(path, 0777);
+            } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
+                rv = deltafs_mkdir(stripped, 0777 | DELTAFS_DIR_PLFS_STYLE);
+            } else {
+                rv = deltafs_mkdir(stripped, 0777);
+            }
 
-        if (rv != 0) {
-            msg_abort("MPI_Init:mkdir:plfsdir");
+            if (rv != 0) {
+                msg_abort("MPI_Init:mkdir:plfsdir");
+            }
         }
 
         /* so everyone sees the dir created */
@@ -364,6 +367,8 @@ int mkdir(const char *dir, mode_t mode)
 
     if (!claim_path(dir, &exact)) {
         return(nxt.mkdir(dir, mode));
+    } else if (strcmp(pctx.plfsdir, dir) == 0) {
+        return 0;  /* plfsdirs are pre-created at MPI_Init */
     }
 
     /* relative paths we pass through; absolute we strip off prefix */
