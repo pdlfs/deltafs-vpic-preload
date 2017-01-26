@@ -418,9 +418,10 @@ DIR *opendir(const char *dir)
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
-    if (!IS_BYPASS_DELTAFS(pctx.mode)
-            && !IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
-        rv = NULL;  // FIXME: do epoch flush
+    if (pctx.plfsfd != -1 && !IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
+            !IS_BYPASS_DELTAFS(pctx.mode)) {
+
+        deltafs_epoch_flush(pctx.plfsfd, NULL);
     } else {
         /* no op */
     }
