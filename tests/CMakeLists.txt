@@ -15,11 +15,11 @@
 #
 # test programs
 #
-set (tests preload shuffle placement)  # XXX: add later: noplfs, deltafs
+set (tests preload)  # XXX: add later: shuffle, placement, noplfs, deltafs
 
 foreach (tst ${tests})
 
-    add_executable (${tst}-test ${tst}-test.c)
+    add_executable (${tst}-test ${tst}-test.cc)
     add_test (${tst}-single ${CMAKE_CURRENT_SOURCE_DIR}/${tst}-test.sh
                             ${CMAKE_BINARY_DIR} 1)
     add_test (${tst}-multi  ${CMAKE_CURRENT_SOURCE_DIR}/${tst}-test.sh

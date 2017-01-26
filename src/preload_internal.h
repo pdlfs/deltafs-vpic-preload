@@ -50,12 +50,13 @@ typedef pthread_mutexattr_t maybe_mutexattr_t;
  * msg_abort: abort with a message
  */
 static inline void msg_abort(const char *msg) {
-    const char* err = strerror(errno);
+    int err_num = errno;
+    const char* err = strerror(err_num);
     int d;   /* XXX to avoid compiler warning about write ret val */
     d = write(fileno(stderr), "!!!ABORT!!! ", sizeof("!!!ABORT!!! ") - 1);
     d = write(fileno(stderr), msg, strlen(msg));
-    d = write(fileno(stderr), ": ", 2);
-    d = write(fileno(stderr), err, strlen(err));
+    if (err_num) d = write(fileno(stderr), ": ", 2);
+    if (err_num) d = write(fileno(stderr), err, strlen(err));
     d = write(fileno(stderr), "\n", 1);
     abort();
 }
