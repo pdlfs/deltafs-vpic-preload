@@ -18,7 +18,6 @@
 #include <unistd.h>
 
 /* ANL libs */
-#include <mercury_request.h>
 #include <mercury_macros.h>
 #include <mercury_proc_string.h>
 #include <ssg.h>
@@ -47,34 +46,27 @@
  */
 #define SHUFFLE_SMALL_WRITE 1024
 
-#define HG_PROTO "bmi+tcp"
+#define DEFAULT_PROTO "bmi+tcp"
 
 /*
  * shuffle context:
  *   - run-time state of the preload and shuffle lib
  */
 typedef struct shuffle_ctx {
-    /* Mercury context */
-    char hgaddr[NI_MAXHOST+20];        /* proto://ip:port of host */
-
-    hg_class_t *hgcl;
-    hg_context_t *hgctx;
-    hg_request_class_t *hgreqcl;
-    hg_id_t write_id;
-    hg_id_t shutdown_id;
-#ifdef SHUFFLE_DEBUG
-    hg_id_t ping_id;
-#endif
+    char my_addr[NI_MAXHOST + 20];   /* proto://ip:port of host */
+    const char* hg_proto;
+    hg_class_t *hg_clz;
+    hg_context_t *hg_ctx;
+    hg_id_t hg_id;
 
     /* SSG context */
-    ssg_t s;
+    ssg_t ssg;
     int shutdown_flag;
 
     /* ch-placement context */
-    struct ch_placement_instance *chinst;
-} shuffle_ctx_t;
+    struct ch_placement_instance *chp;
 
-#define SHUFFLE_CTX_INITIALIZER { MAYBE_MUTEX_INITIALIZER }
+} shuffle_ctx_t;
 
 /* Generate RPC structs */
 #ifdef SHUFFLE_DEBUG
@@ -90,22 +82,7 @@ MERCURY_GEN_PROC(write_out_t, ((hg_int64_t)(ret)))
 
 extern shuffle_ctx_t sctx;
 
-/* shuffle_config.cc */
-void msg_abort(const char *msg);
-void genHgAddr(void);
 void shuffle_init(void);
-void shuffle_destroy(void);
-
-#ifdef SHUFFLE_DEBUG
-/* shuffle_ping.cc */
-hg_return_t ping_rpc_handler(hg_handle_t h);
-void ping_test(int rank);
-#endif
-
-/* shuffle_shutdown.cc */
-hg_return_t shutdown_rpc_handler(hg_handle_t h);
-void shuffle_shutdown(int rank);
-
-/* shuffle_write.cc */
 hg_return_t write_rpc_handler(hg_handle_t h);
 int shuffle_write(const char *fn, char *data, int len);
+void shuffle_destroy(void);

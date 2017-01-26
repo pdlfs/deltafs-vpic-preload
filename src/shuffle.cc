@@ -10,14 +10,18 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <pthread.h>
 
 #include "shuffle.h"
 
-shuffle_ctx_t sctx = { 0 }; /* Shuffle context. */
+/* Synchronization between the main thread and the background RPC thread. */
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
+shuffle_ctx_t sctx = { 0 };
 
 /*
  * Generate a mercury address
- *
+*
  * We have to assign a Mercury address to ourselves.
  * Get the first available IP (any interface that's not localhost)
  * and use the process ID to construct the port (but limit to [5000,60000])
@@ -26,7 +30,7 @@ shuffle_ctx_t sctx = { 0 }; /* Shuffle context. */
  *       rather than pick the first interface.
  * TODO: define port as a function of the node's rank
  */
-void genHgAddr(void)
+static void prepare_addr(void)
 {
     int family, found = 0, port;
     struct ifaddrs *ifaddr, *cur;
@@ -59,8 +63,9 @@ void genHgAddr(void)
 
     port = ((long) getpid() % 55000) + 5000;
 
-    sprintf(sctx.hgaddr, "%s://%s:%d", HG_PROTO, host, port);
-    SHUFFLE_LOG("Address: %s\n", sctx.hgaddr);
+    snprintf(sctx.my_addr, sizeof(sctx.my_addr), "%s://%s:%d", DEFAULT_PROTO,
+            host, port);
+    SHUFFLE_LOG("my_addr is %s\n", sctx.my_addr);
 
     freeifaddrs(ifaddr);
 }
@@ -71,10 +76,10 @@ void genHgAddr(void)
 static int progress(unsigned int timeout, void *arg)
 {
     shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
-    hg_context_t *h = ctx->hgctx;
+    hg_context_t *h = ctx->hg_ctx;
 
     SHUFFLE_LOG("%d: calling HG_Progress from request shim\n",
-                  ssg_get_rank(ctx->s));
+                  ssg_get_rank(ctx->ssg));
 
     if (HG_Progress(h, timeout) == HG_SUCCESS)
         return HG_UTIL_SUCCESS;
@@ -82,16 +87,16 @@ static int progress(unsigned int timeout, void *arg)
         return HG_UTIL_FAIL;
 
     SHUFFLE_LOG("%d: done calling HG_Progress from request shim\n",
-                  ssg_get_rank(ctx->s));
+                  ssg_get_rank(ctx->ssg));
 }
 
 static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
 {
     shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
-    hg_context_t *h = ctx->hgctx;
+    hg_context_t *h = ctx->hg_ctx;
 
     SHUFFLE_LOG("%d: calling HG_Trigger from request shim\n",
-            ssg_get_rank(ctx->s));
+            ssg_get_rank(ctx->ssg));
 
     if (HG_Trigger(h, timeout, 1, flag) != HG_SUCCESS) {
         return HG_UTIL_FAIL;
@@ -101,7 +106,7 @@ static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
     }
 
     SHUFFLE_LOG("%d: done calling HG_Trigger from request shim\n",
-            ssg_get_rank(ctx->s));
+            ssg_get_rank(ctx->ssg));
 }
 
 /*
@@ -112,75 +117,42 @@ void shuffle_init(void)
     hg_return_t hret;
     int rank, worldsz;
 
+    prepare_addr();
+
     /* Initialize Mercury */
-    sctx.hgcl = HG_Init(sctx.hgaddr, HG_TRUE);
-    if (!sctx.hgcl)
+    sctx.hg_clz = HG_Init(sctx.my_addr, HG_TRUE);
+    if (!sctx.hg_clz)
         msg_abort("HG_Init");
 
     /* Register write RPC */
-    sctx.write_id = MERCURY_REGISTER(sctx.hgcl, "write",
-                                     write_in_t, write_out_t,
-                                     &write_rpc_handler);
+    sctx.hg_id = MERCURY_REGISTER(sctx.hg_clz, "rpc_write",
+            write_in_t, write_out_t, &write_rpc_handler);
 
-    hret = HG_Register_data(sctx.hgcl, sctx.write_id, &sctx, NULL);
+    hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (write)");
+        msg_abort("HG_Register_data");
 
-    /* Register shutdown RPC */
-    sctx.shutdown_id = MERCURY_REGISTER(sctx.hgcl, "shutdown",
-                                        void, void,
-                                        &shutdown_rpc_handler);
-
-    hret = HG_Register_data(sctx.hgcl, sctx.shutdown_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (shutdown)");
-
-#ifdef SHUFFLE_DEBUG
-    /* Register ping RPC */
-    sctx.ping_id = MERCURY_REGISTER(sctx.hgcl, "ping",
-                                    ping_t, ping_t,
-                                    &ping_rpc_handler);
-
-    hret = HG_Register_data(sctx.hgcl, sctx.ping_id, &sctx, NULL);
-    if (hret != HG_SUCCESS)
-        msg_abort("HG_Register_data (ping)");
-#endif /* DELTAFS_SHUFFLE_DEBUG */
-
-    sctx.hgctx = HG_Context_create(sctx.hgcl);
-    if (!sctx.hgctx)
+    sctx.hg_ctx = HG_Context_create(sctx.hg_clz);
+    if (!sctx.hg_ctx)
         msg_abort("HG_Context_create");
 
     /* Initialize ssg with MPI */
-    sctx.s = SSG_NULL;
-    sctx.s = ssg_init_mpi(sctx.hgcl, MPI_COMM_WORLD);
-    if (sctx.s == SSG_NULL)
-        msg_abort("ssg_init");
+    sctx.ssg = ssg_init_mpi(sctx.hg_clz, MPI_COMM_WORLD);
+    if (sctx.ssg == SSG_NULL)
+        msg_abort("ssg_init_mpi");
 
     /* Resolve group addresses */
-    hret = ssg_lookup(sctx.s, sctx.hgctx);
+    hret = ssg_lookup(sctx.ssg, sctx.hg_ctx);
     if (hret != HG_SUCCESS)
         msg_abort("ssg_lookup");
 
-    /* Get non-mpi rank */
-    rank = ssg_get_rank(sctx.s);
-    if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
-        msg_abort("ssg_get_rank: bad rank");
+    rank = ssg_get_rank(sctx.ssg);
+    worldsz = ssg_get_count(sctx.ssg);
 
-    /* Initialize request shim */
-    sctx.hgreqcl = hg_request_init(&progress, &trigger, &sctx); //sctx.hgctx
-    if (sctx.hgreqcl == NULL)
-        msg_abort("hg_request_init");
-
-    /* Initialize ch-placement instance */
-    MPI_Comm_size(MPI_COMM_WORLD, &worldsz);
-    sctx.chinst = ch_placement_initialize("ring", worldsz,
+    sctx.chp = ch_placement_initialize("ring", worldsz,
                     10 /* virt factor */, 0 /* seed */);
-    if (!sctx.chinst)
+    if (!sctx.chp)
         msg_abort("ch_placement_initialize");
-
-#ifdef SHUFFLE_DEBUG
-    ping_test(rank);
-#endif
 }
 
 void shuffle_destroy(void)
@@ -188,17 +160,14 @@ void shuffle_destroy(void)
     int rank;
 
     /* Get non-mpi rank */
-    rank = ssg_get_rank(sctx.s);
+    rank = ssg_get_rank(sctx.ssg);
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
-    SHUFFLE_LOG("%d: Shutting down shuffle layer\n", rank);
-    shuffle_shutdown(rank);
+    ch_placement_finalize(sctx.chp);
 
-    SHUFFLE_LOG("%d: Cleaning up shuffle layer\n", rank);
-    ch_placement_finalize(sctx.chinst);
-    hg_request_finalize(sctx.hgreqcl, NULL);
-    ssg_finalize(sctx.s);
-    HG_Context_destroy(sctx.hgctx);
-    HG_Finalize(sctx.hgcl);
+    ssg_finalize(sctx.ssg);
+
+    HG_Context_destroy(sctx.hg_ctx);
+    HG_Finalize(sctx.hg_clz);
 }

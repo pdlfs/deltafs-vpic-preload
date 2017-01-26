@@ -287,7 +287,6 @@ int MPI_Init(int *argc, char ***argv)
     }
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-        genHgAddr();
         shuffle_init();
     }
 

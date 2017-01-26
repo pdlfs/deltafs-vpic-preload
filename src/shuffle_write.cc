@@ -37,7 +37,7 @@ static hg_return_t write_bulk_transfer_cb(const struct hg_cb_info *info)
     assert(hret == HG_SUCCESS);
 
     /* Get my rank */
-    rank = ssg_get_rank(sctx.s);
+    rank = ssg_get_rank(sctx.ssg);
     assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
     SHUFFLE_LOG("%d: Writing %d bytes to %s (shuffle: %d -> %d)\n", rank,
@@ -133,7 +133,7 @@ hg_return_t write_rpc_handler(hg_handle_t h)
         write_out_t out;
 
         /* Get my rank */
-        rank = ssg_get_rank(sctx.s);
+        rank = ssg_get_rank(sctx.ssg);
         assert(rank != SSG_RANK_UNKNOWN && rank != SSG_EXTERNAL_RANK);
 
         SHUFFLE_LOG("Writing %d bytes to %s (shuffle: %d -> %d)\n",
@@ -174,28 +174,26 @@ int shuffle_write(const char *fn, char *data, int len)
     int rank, peer_rank;
     hg_addr_t peer_addr;
     hg_handle_t write_handle = HG_HANDLE_NULL;
-    hg_request_t *hgreq;
     hg_bulk_t data_handle;
-    unsigned int req_complete_flag = 0;
-    int ret, write_ret;
+    int write_ret;
 
     /* Decide RPC receiver. If we're alone we execute it locally. */
-    if (ssg_get_count(sctx.s) == 1)
+    if (ssg_get_count(sctx.ssg) == 1)
         return preload_write(fn, data, len);
 
-    rank = ssg_get_rank(sctx.s);
+    rank = ssg_get_rank(sctx.ssg);
     if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
         msg_abort("ssg_get_rank: bad rank");
 
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
         /* Send to next-door neighbor instead of using ch-placement */
-        peer_rank = (rank + 1) % ssg_get_count(sctx.s);
+        peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
     } else {
         uint64_t oid = pdlfs::xxhash64(fn, strlen(fn), 0);
         unsigned long server_idx;
 
         /* Use ch-placement to decide receiver */
-        ch_placement_find_closest(sctx.chinst, oid, 1, &server_idx);
+        ch_placement_find_closest(sctx.chp, oid, 1, &server_idx);
         SHUFFLE_LOG("File %s -> xxhash %16lx -> Server %lu\n",
                 fn, oid, server_idx);
         peer_rank = (int) server_idx;
@@ -218,19 +216,15 @@ int shuffle_write(const char *fn, char *data, int len)
         return preload_write(fn, data, len);
     }
 
-    peer_addr = ssg_get_addr(sctx.s, peer_rank);
+    peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("ssg_get_addr");
 
     /* Put together write RPC */
     SHUFFLE_LOG("Redirecting write of %s: %d -> %d\n", fn, rank, peer_rank);
-    hret = HG_Create(sctx.hgctx, peer_addr, sctx.write_id, &write_handle);
+    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &write_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Create");
-
-    hgreq = hg_request_create(sctx.hgreqcl);
-    if (hgreq == NULL)
-        msg_abort("hg_request_create (write)");
 
     /*
      * Depending on the amount of data sent, we may use bulk transfer, or
@@ -238,7 +232,7 @@ int shuffle_write(const char *fn, char *data, int len)
      */
     if (len > SHUFFLE_SMALL_WRITE) {
         /* Use bulk transfer */
-        hret = HG_Bulk_create(sctx.hgcl, 1,
+        hret = HG_Bulk_create(sctx.hg_clz, 1,
                               (void **) &data, (hg_size_t *) &len,
                               HG_BULK_READ_ONLY, &data_handle);
         if (hret != HG_SUCCESS)
@@ -269,16 +263,9 @@ int shuffle_write(const char *fn, char *data, int len)
 
     SHUFFLE_LOG("%d: Forwarding write RPC: %d -> %d\n", rank, rank, peer_rank);
     /* Send off write RPC */
-    hret = HG_Forward(write_handle, &hg_request_complete_cb, hgreq, &write_in);
+    hret = HG_Forward(write_handle, NULL, NULL, &write_in);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Forward");
-
-    /* Receive reply and return it */
-    ret = hg_request_wait(hgreq, HG_MAX_IDLE_TIME, &req_complete_flag);
-    if (ret == HG_UTIL_FAIL)
-        msg_abort("write failed");
-    if (req_complete_flag == 0)
-        msg_abort("write timed out");
 
     SHUFFLE_LOG("%d: Response received (%d -> %d)\n", rank, rank, peer_rank);
 
@@ -295,8 +282,6 @@ int shuffle_write(const char *fn, char *data, int len)
     hret = HG_Destroy(write_handle);
     if (hret != HG_SUCCESS)
         msg_abort("HG_Destroy");
-
-    hg_request_destroy(hgreq);
 
     SHUFFLE_LOG("%d: Resources destroyed (%d -> %d)\n", rank, rank, peer_rank);
 

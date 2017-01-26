@@ -21,11 +21,8 @@ find_package (Threads REQUIRED)
 #
 # create the library target
 #
-add_library (deltafs-preload preload.cc
-                             shuffle.cc
-                             shuffle_write.cc
-                             shuffle_shutdown.cc
-                             shuffle_ping.cc)
+add_library (deltafs-preload preload.cc shuffle.cc
+                             shuffle_write.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
 
