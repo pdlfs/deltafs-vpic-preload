@@ -469,19 +469,14 @@ FILE *fopen(const char *fname, const char *mode)
         stripped = (exact) ? "/" : (fname + pctx.len_deltafs_root);
     }
 
-    if (strcmp(mode, "d") != 0) {
-        /* allocate a fake FILE* and put it in the set */
-        fake_file *ff = new fake_file(stripped);
-        rv = reinterpret_cast<FILE*>(ff);
+    /* allocate a fake FILE* and put it in the set */
+    fake_file *ff = new fake_file(stripped);
+    rv = reinterpret_cast<FILE*>(ff);
 
-        must_lockmutex(&maybe_mtx);
-        assert(pctx.isdeltafs != NULL);
-        pctx.isdeltafs->insert(rv);
-        must_unlock(&maybe_mtx);
-
-    } else {
-        rv = NULL; // FIXME: handle open plfsdir
-    }
+    must_lockmutex(&maybe_mtx);
+    assert(pctx.isdeltafs != NULL);
+    pctx.isdeltafs->insert(rv);
+    must_unlock(&maybe_mtx);
 
     return(rv);
 }
@@ -501,7 +496,7 @@ size_t fwrite(const void *ptr, size_t size, size_t nitems, FILE *stream)
     }
 
     fake_file *ff = reinterpret_cast<fake_file*>(stream);
-    int cnt = ff->add_data(ptr, size * nitems);
+    size_t cnt = ff->add_data(ptr, size * nitems);
 
     /*
      * fwrite returns number of items written.  it can return a short
@@ -524,8 +519,6 @@ int fclose(FILE *stream)
     if (!claim_FILE(stream)) {
         return(nxt.fclose(stream));
     }
-
-    // FIXME: handle close plfsdir
 
     fake_file *ff = reinterpret_cast<fake_file*>(stream);
 
