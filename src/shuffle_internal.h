@@ -60,8 +60,6 @@ typedef struct shuffle_ctx {
     /* SSG context */
     ssg_t ssg;
 
-    int shutdown_flag;
-
     /* ch-placement context */
     struct ch_placement_instance *chp;
 
@@ -82,6 +80,7 @@ MERCURY_GEN_PROC(write_out_t, ((hg_int64_t)(ret)))
 extern shuffle_ctx_t sctx;
 
 void shuffle_init(void);
+void shuffle_init_ssg(void);
 hg_return_t write_rpc_handler(hg_handle_t h);
 int shuffle_write(const char *fn, char *data, int len);
 void shuffle_destroy(void);

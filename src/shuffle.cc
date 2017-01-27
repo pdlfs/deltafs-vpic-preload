@@ -7,10 +7,15 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
+#include <assert.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
-#include <pthread.h>
+
+#include <mercury_atomic.h>
+#include <mercury_thread.h>
+#include <mercury_thread_mutex.h>
+#include <mercury_thread_condition.h>
 
 #include "preload_internal.h"
 #include "shuffle_internal.h"
@@ -21,15 +26,21 @@
 /* XXX: switch to margo to manage threads for us, */
 
 /*
- * A global mutex shared among the main thread and the bg threads.
+ * main mutex shared among the main thread and the bg threads.
  */
-static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+static hg_thread_mutex_t mtx;;
 
-/* Used when waiting all bg threads to terminate. */
-static pthread_cond_t bg_cv = PTHREAD_COND_INITIALIZER;
+/* used when waiting an on-going rpc to finish. */
+static hg_thread_cond_t rpc_cv;
 
-/* Used when waiting an on-going rpc to finish. */
-static pthread_cond_t rpc_cv = PTHREAD_COND_INITIALIZER;
+/* used when waiting all bg threads to terminate. */
+static hg_thread_cond_t bg_cv;
+
+/* True iff in shutdown seq */
+static hg_atomic_int32_t shutting_down;
+
+/* number of bg threads running */
+static int num_bg = 0;
 
 /*
  * prepare_addr(): obtain the mercury addr to bootstrap the rpc
@@ -127,59 +138,85 @@ static const char* prepare_addr(char* buf)
 
     SHUFFLE_LOG("using %s\n", buf);
 
-    return buf;
+    return(buf);
+}
+
+static inline int is_shuttingdown() {
+    if (hg_atomic_get32(&shutting_down) == 0) {
+        return(false);
+    } else {
+        return(true);
+    }
 }
 
 /* main shuffle code */
 
 shuffle_ctx_t sctx = { 0 };
 
-/*
- * Mercury hg_request_class_t progress and trigger callbacks.
- */
-static int progress(unsigned int timeout, void *arg)
+/* dedicated thread function to drive mercury progress */
+static void* bg_work(void* foo)
 {
-    shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
-    hg_context_t *h = ctx->hg_ctx;
+    hg_return_t ret;
+    unsigned int actual_count;
 
-    SHUFFLE_LOG("%d: calling HG_Progress from request shim\n",
-                  ssg_get_rank(ctx->ssg));
+    while(!is_shuttingdown) {
+        do {
+            ret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
+        } while((ret == HG_SUCCESS) && actual_count && !is_shuttingdown);
 
-    if (HG_Progress(h, timeout) == HG_SUCCESS)
-        return HG_UTIL_SUCCESS;
-    else
-        return HG_UTIL_FAIL;
-
-    SHUFFLE_LOG("%d: done calling HG_Progress from request shim\n",
-                  ssg_get_rank(ctx->ssg));
-}
-
-static int trigger(unsigned int timeout, unsigned int *flag, void *arg)
-{
-    shuffle_ctx_t *ctx = (shuffle_ctx_t *)arg;
-    hg_context_t *h = ctx->hg_ctx;
-
-    SHUFFLE_LOG("%d: calling HG_Trigger from request shim\n",
-            ssg_get_rank(ctx->ssg));
-
-    if (HG_Trigger(h, timeout, 1, flag) != HG_SUCCESS) {
-        return HG_UTIL_FAIL;
-    } else {
-        *flag = (*flag) ? HG_UTIL_TRUE : HG_UTIL_FALSE;
-        return HG_UTIL_SUCCESS;
+        if(!is_shuttingdown) {
+            ret = HG_Progress(sctx.hg_ctx, 100);
+            if (ret != HG_SUCCESS && ret != HG_TIMEOUT)
+                msg_abort("HG_Progress");
+        }
     }
 
-    SHUFFLE_LOG("%d: done calling HG_Trigger from request shim\n",
-            ssg_get_rank(ctx->ssg));
+    hg_thread_mutex_lock(&mtx);
+    assert(num_bg > 0);
+    num_bg--;
+    hg_thread_cond_broadcast(&bg_cv);
+    hg_thread_mutex_unlock(&mtx);
+
+    return(NULL);
 }
 
-/*
- * Initialize and configure the shuffle layer
- */
+/* shuffle_init_ssg: init the ssg sublayer */
+void shuffle_init_ssg(void)
+{
+    hg_return_t hret;
+    int rank;
+    int size;
+
+    sctx.ssg = ssg_init_mpi(sctx.hg_clz, MPI_COMM_WORLD);
+    if (sctx.ssg == SSG_NULL)
+        msg_abort("ssg_init_mpi");
+
+    hret = ssg_lookup(sctx.ssg, sctx.hg_ctx);
+    if (hret != HG_SUCCESS)
+        msg_abort("ssg_lookup");
+
+    rank = ssg_get_rank(sctx.ssg);
+    size = ssg_get_count(sctx.ssg);
+
+    SHUFFLE_LOG("ssg_rank is %d\n", rank);
+    SHUFFLE_LOG("ssg_size is %d\n", size);
+
+    sctx.chp = ch_placement_initialize("ring", size,
+                    10 /* virt factor */, 0 /* seed */);
+    if (!sctx.chp)
+        msg_abort("ch_placement_initialize");
+
+    SHUFFLE_LOG("ssg ok\n");
+
+    return;
+}
+
+/* shuffle_init: init the shuffle layer */
 void shuffle_init(void)
 {
     hg_return_t hret;
-    int rank, worldsz;
+    hg_thread_t pid;
+    int rv;
 
     prepare_addr(sctx.my_addr);
 
@@ -187,7 +224,6 @@ void shuffle_init(void)
     if (!sctx.hg_clz)
         msg_abort("HG_Init");
 
-    /* Register write RPC */
     sctx.hg_id = MERCURY_REGISTER(sctx.hg_clz, "rpc_write",
             write_in_t, write_out_t, &write_rpc_handler);
 
@@ -199,38 +235,47 @@ void shuffle_init(void)
     if (!sctx.hg_ctx)
         msg_abort("HG_Context_create");
 
-    /* Initialize ssg with MPI */
-    sctx.ssg = ssg_init_mpi(sctx.hg_clz, MPI_COMM_WORLD);
-    if (sctx.ssg == SSG_NULL)
-        msg_abort("ssg_init_mpi");
+    shuffle_init_ssg();
 
-    /* Resolve group addresses */
-    hret = ssg_lookup(sctx.ssg, sctx.hg_ctx);
-    if (hret != HG_SUCCESS)
-        msg_abort("ssg_lookup");
+    rv = hg_thread_mutex_init(&mtx);
+    if (rv) msg_abort("hg_thread_mutex_init");
 
-    rank = ssg_get_rank(sctx.ssg);
-    worldsz = ssg_get_count(sctx.ssg);
+    rv = hg_thread_cond_init(&rpc_cv);
+    if (rv) msg_abort("hg_thread_cond_init");
+    rv = hg_thread_cond_init(&bg_cv);
+    if (rv) msg_abort("hg_thread_cond_init");
 
-    sctx.chp = ch_placement_initialize("ring", worldsz,
-                    10 /* virt factor */, 0 /* seed */);
-    if (!sctx.chp)
-        msg_abort("ch_placement_initialize");
+    hg_atomic_set32(&shutting_down, 0);
+
+    num_bg++;
+
+    rv = hg_thread_create(&pid, bg_work, NULL);
+    if (rv) msg_abort("hg_thread_create");
+
+    SHUFFLE_LOG("hg ok\n");
+
+    return;
 }
 
 void shuffle_destroy(void)
 {
-    int rank;
+    hg_atomic_set32(&shutting_down, 1); // start shutdown seq
 
-    /* Get non-mpi rank */
-    rank = ssg_get_rank(sctx.ssg);
-    if (rank == SSG_RANK_UNKNOWN || rank == SSG_EXTERNAL_RANK)
-        msg_abort("ssg_get_rank: bad rank");
+    hg_thread_mutex_lock(&mtx);
+    while (num_bg != 0) {
+        hg_thread_cond_wait(&bg_cv, &mtx);
+    }
+    hg_thread_mutex_unlock(&mtx);
 
     ch_placement_finalize(sctx.chp);
-
     ssg_finalize(sctx.ssg);
+
+    SHUFFLE_LOG("ssg closed\n");
 
     HG_Context_destroy(sctx.hg_ctx);
     HG_Finalize(sctx.hg_clz);
+
+    SHUFFLE_LOG("hg closed\n");
+
+    return;
 }
