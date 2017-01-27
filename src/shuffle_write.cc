@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <pdlfs-common/xxhash.h>
 
+#include "shuffle_internal.h"
 #include "shuffle.h"
 
 struct write_bulk_args {

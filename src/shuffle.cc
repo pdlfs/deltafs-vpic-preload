@@ -12,32 +12,55 @@
 #include <ifaddrs.h>
 #include <pthread.h>
 
+#include "preload_internal.h"
+#include "shuffle_internal.h"
 #include "shuffle.h"
 
-/* Synchronization between the main thread and the background RPC thread. */
-static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+#include <string>
 
-shuffle_ctx_t sctx = { 0 };
+/* XXX: switch to margo to manage threads for us, */
 
 /*
- * Generate a mercury address
-*
- * We have to assign a Mercury address to ourselves.
- * Get the first available IP (any interface that's not localhost)
- * and use the process ID to construct the port (but limit to [5000,60000])
- *
- * TODO: let user specify a CIDR network to match (e.g. "192.168.2.0/24")
- *       rather than pick the first interface.
- * TODO: define port as a function of the node's rank
+ * A global mutex shared among the main thread and the bg threads.
  */
-static void prepare_addr(void)
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+
+/* Used when waiting all bg threads to terminate. */
+static pthread_cond_t bg_cv = PTHREAD_COND_INITIALIZER;
+
+/* Used when waiting an on-going rpc to finish. */
+static pthread_cond_t rpc_cv = PTHREAD_COND_INITIALIZER;
+
+/*
+ * prepare_addr(): obtain the mercury addr to bootstrap the rpc
+ *
+ * Write the server uri into *buf on success.
+ *
+ * Abort on errors.
+ */
+static const char* prepare_addr(char* buf)
 {
-    int family, found = 0, port;
+    int family;
+    int port;
+    const char* tmp;
+    int min_port;
+    int max_port;
     struct ifaddrs *ifaddr, *cur;
-    char host[NI_MAXHOST];
+    MPI_Comm comm;
+    int rank;
+    const char* subnet;
+    char ip[50]; // ip
+    int rv;
+
+    /* figure out our ip addr by query the local socket layer */
 
     if (getifaddrs(&ifaddr) == -1)
         msg_abort("getifaddrs");
+
+    subnet = getenv("SHUFFLE_Subnet");
+    if (subnet == NULL) {
+        subnet = DEFAULT_SUBNET;
+    }
 
     for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
         if (cur->ifa_addr == NULL)
@@ -45,30 +68,71 @@ static void prepare_addr(void)
 
         family = cur->ifa_addr->sa_family;
 
-        /* For an AF_INET interface address, display the address */
         if (family == AF_INET) {
             if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in),
-                            host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST))
+                            ip, sizeof(ip), NULL, 0, NI_NUMERICHOST))
                 msg_abort("getnameinfo");
 
-            if (strcmp("127.0.0.1", host)) {
-                found = 1;
+            if (strcmp(subnet, ip) == 0) {
                 break;
             }
         }
     }
 
-    if (!found)
-        msg_abort("No valid IP found");
-
-    port = ((long) getpid() % 55000) + 5000;
-
-    snprintf(sctx.my_addr, sizeof(sctx.my_addr), "%s://%s:%d", DEFAULT_PROTO,
-            host, port);
-    SHUFFLE_LOG("my_addr is %s\n", sctx.my_addr);
-
     freeifaddrs(ifaddr);
+
+    if (cur == NULL)
+        msg_abort("no ip addr");
+
+    /* get port through MPI rank */
+
+    tmp = getenv("SHUFFLE_Min_port");
+    if (tmp == NULL) {
+        min_port = DEFAULT_MIN_PORT;
+    } else {
+        min_port = atoi(tmp);
+    }
+
+    tmp = getenv("SHUFFLE_Max_port");
+    if (tmp == NULL) {
+        max_port = DEFAULT_MAX_PORT;
+    } else {
+        max_port = atoi(tmp);
+    }
+
+    if (max_port - min_port < 0)
+        msg_abort("bad min-max port");
+    if (min_port < 1000)
+        msg_abort("bad min port");
+    if (max_port > 65535)
+        msg_abort("bad max port");
+
+#if MPI_VERSION >= 3
+    rv = MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0,
+            MPI_INFO_NULL, &comm);
+    if (rv != MPI_SUCCESS)
+        msg_abort("MPI_Comm_split_type");
+#else
+    comm = MPI_COMM_WORLD;
+#endif
+
+    MPI_Comm_rank(comm, &rank);
+    port = min_port + (rank % (max_port - min_port));
+
+    /* add proto */
+
+    tmp = getenv("SHUFFLE_Mercury_proto");
+    if (tmp == NULL) tmp = DEFAULT_PROTO;
+    snprintf(buf, sizeof(buf), "%s://%s:%d", tmp, ip, port);
+
+    SHUFFLE_LOG("using %s\n", buf);
+
+    return buf;
 }
+
+/* main shuffle code */
+
+shuffle_ctx_t sctx = { 0 };
 
 /*
  * Mercury hg_request_class_t progress and trigger callbacks.
@@ -117,9 +181,8 @@ void shuffle_init(void)
     hg_return_t hret;
     int rank, worldsz;
 
-    prepare_addr();
+    prepare_addr(sctx.my_addr);
 
-    /* Initialize Mercury */
     sctx.hg_clz = HG_Init(sctx.my_addr, HG_TRUE);
     if (!sctx.hg_clz)
         msg_abort("HG_Init");

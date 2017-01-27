@@ -17,10 +17,10 @@
 
 #include <string>
 
+#include "shuffle_internal.h"
 #include "preload_internal.h"
 
 #include "preload.h"
-#include "shuffle.h"
 
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
