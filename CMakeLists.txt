@@ -22,8 +22,6 @@
 
 cmake_minimum_required (VERSION 3.0)
 project (deltafs-preload C CXX)
-set (CMAKE_C_STANDARD 99)
-set (C_STANDARD_REQUIRED True)
 enable_testing ()
 
 # link shared lib with full rpath
@@ -57,10 +55,10 @@ set (ts_flags "-fsanitize=thread  -O1 -fno-omit-frame-pointer")
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     if (${DEBUG_SANITIZER} STREQUAL "Address")
         set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${as_flags}")
-        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${as_flags}")
+        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${as_flags}")
     elseif (${DEBUG_SANITIZER} STREQUAL "Thread")
         set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${ts_flags}")
-        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${ts_flags}")
+        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${ts_flags}")
     endif ()
 endif ()
 
