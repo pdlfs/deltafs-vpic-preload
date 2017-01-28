@@ -61,14 +61,14 @@ static inline void msg_abort(const char *msg) {
     abort();
 }
 
-static inline void must_lockmutex(maybe_mutex_t* __mut) {
+static inline void must_maybelockmutex(maybe_mutex_t* __mut) {
     int r = maybe_mutex_lock(__mut);
     if (r != 0) {
         msg_abort("mtx_lock");
     }
 }
 
-static inline void must_unlock(maybe_mutex_t* __mut) {
+static inline void must_maybeunlock(maybe_mutex_t* __mut) {
     int r = maybe_mutex_unlock(__mut);
     if (r != 0) {
         msg_abort("mtx_unlock");
@@ -78,11 +78,13 @@ static inline void must_unlock(maybe_mutex_t* __mut) {
 static inline bool is_envset(const char* key) {
     const char* env = getenv(key);
     if (env == NULL) {
-        return false;
+        return(false);
     } else if (strlen(env) == 0) {
-        return false;
+        return(false);
+    } else if (strlen(env) == 1 && strcmp(env, "0") == 0) {
+        return(false);
     } else {
-        return true;
+        return(true);
     }
 }
 

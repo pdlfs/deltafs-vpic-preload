@@ -202,11 +202,11 @@ static bool claim_FILE(FILE *stream)
     std::set<FILE *>::iterator it;
     bool rv;
 
-    must_lockmutex(&maybe_mtx);
+    must_maybelockmutex(&maybe_mtx);
     assert(pctx.isdeltafs != NULL);
     it = pctx.isdeltafs->find(stream);
     rv = (it != pctx.isdeltafs->end());
-    must_unlock(&maybe_mtx);
+    must_maybeunlock(&maybe_mtx);
 
     return(rv);
 }
@@ -496,10 +496,10 @@ FILE *fopen(const char *fname, const char *mode)
     fake_file *ff = new fake_file(stripped);
     rv = reinterpret_cast<FILE*>(ff);
 
-    must_lockmutex(&maybe_mtx);
+    must_maybelockmutex(&maybe_mtx);
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->insert(rv);
-    must_unlock(&maybe_mtx);
+    must_maybeunlock(&maybe_mtx);
 
     return(rv);
 }
@@ -560,10 +560,10 @@ int fclose(FILE *stream)
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
     }
 
-    must_lockmutex(&maybe_mtx);
+    must_maybelockmutex(&maybe_mtx);
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->erase(stream);
-    must_unlock(&maybe_mtx);
+    must_maybeunlock(&maybe_mtx);
 
     delete ff;
 

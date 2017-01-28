@@ -70,31 +70,31 @@ static const char* prepare_addr(char* buf)
         msg_abort("getifaddrs");
 
     subnet = getenv("SHUFFLE_Subnet");
-    if (subnet == NULL) {
+    if (subnet == NULL)
         subnet = DEFAULT_SUBNET;
-    }
 
     for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
-        if (cur->ifa_addr == NULL)
-            continue;
+        if (cur->ifa_addr != NULL) {
+            family = cur->ifa_addr->sa_family;
 
-        family = cur->ifa_addr->sa_family;
+            if (family == AF_INET) {
+                if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in),
+                        ip, sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
+                    msg_abort("getnameinfo");
 
-        if (family == AF_INET) {
-            if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in),
-                            ip, sizeof(ip), NULL, 0, NI_NUMERICHOST))
-                msg_abort("getnameinfo");
+                fprintf(stderr, "%s\n", ip);
 
-            if (strcmp(subnet, ip) == 0) {
-                break;
+                if (strcmp(subnet, ip) == 0) {
+                    break;
+                }
             }
         }
     }
 
-    freeifaddrs(ifaddr);
-
-    if (cur == NULL)
+    if (cur == NULL)  /* maybe a wrong subnet has been specified */
         msg_abort("no ip addr");
+
+    freeifaddrs(ifaddr);
 
     /* get port through MPI rank */
 
@@ -112,6 +112,7 @@ static const char* prepare_addr(char* buf)
         max_port = atoi(tmp);
     }
 
+    /* sanity check on port range */
     if (max_port - min_port < 0)
         msg_abort("bad min-max port");
     if (min_port < 1000)
@@ -135,7 +136,7 @@ static const char* prepare_addr(char* buf)
 
     tmp = getenv("SHUFFLE_Mercury_proto");
     if (tmp == NULL) tmp = DEFAULT_PROTO;
-    snprintf(buf, sizeof(buf), "%s://%s:%d", tmp, ip, port);
+    sprintf(buf, "%s://%s:%d", tmp, ip, port);
 
     SHUFFLE_LOG("using %s\n", buf);
 
@@ -152,6 +153,8 @@ static inline int is_shuttingdown() {
 
 /* main shuffle code */
 
+extern "C" {
+
 shuffle_ctx_t sctx = { 0 };
 
 /* rpc server-side handler for shuffled writes */
@@ -164,30 +167,28 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     int rank;
 
     hret = HG_Get_input(h, &in);
-    if (hret != HG_SUCCESS)
-        return(hret);
 
-    rank = ssg_get_rank(sctx.ssg);
-    rank_in = in.rank_in;
+    if (hret == HG_SUCCESS) {
 
-    SHUFFLE_LOG("%d bytes >> %s [r%d -> r%d]\n", int(in.data_len), in.fname,
-            rank_in, rank);
+        rank = ssg_get_rank(sctx.ssg);
+        rank_in = in.rank_in;
 
-    out.ret = preload_write(in.fname, in.data, in.data_len);
+        out.ret = preload_write(in.fname, in.data, in.data_len);
 
-    /* write trace if we are in testing mode */
-    if (pctx.testin) {
-        char buf[1024] = { 0 };
-        snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
-                 rank_in, rank, int(in.data_len));
-        int fd = open(pctx.log, O_WRONLY | O_APPEND);
-        if (fd <= 0)
-            msg_abort("log open failed");
-        assert(write(fd, buf, strlen(buf)) == strlen(buf));
-        close(fd);
+        /* write trace if we are in testing mode */
+        if (pctx.testin) {
+            char buf[1024] = { 0 };
+            snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
+                     rank_in, rank, int(in.data_len));
+            int fd = open(pctx.log, O_WRONLY | O_APPEND);
+            if (fd <= 0)
+                msg_abort("log open failed");
+            assert(write(fd, buf, strlen(buf)) == strlen(buf));
+            close(fd);
+        }
+
+        hret = HG_Respond(h, NULL, NULL, &out);
     }
-
-    hret = HG_Respond(h, NULL, NULL, &out);
 
     HG_Free_input(h, &in);
 
@@ -211,38 +212,37 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 /* redirect writes to an appropriate rank for buffering and writing */
 int shuffle_write(const char *fn, char *data, int len)
 {
-    int ok;
     hg_return_t hret;
     hg_handle_t handle;
     write_in_t write_in;
     write_out_t write_out;
     write_cb_t write_cb;
     hg_addr_t peer_addr;
+    unsigned long target;
     int peer_rank;
     int rank;
 
-    /* if we're alone we execute it locally */
-    if (ssg_get_count(sctx.ssg) == 1)
-        return(preload_write(fn, data, len));
+    assert(ssg_get_count(sctx.ssg) != 0);
+    assert(fn != NULL);
 
-    rank = ssg_get_rank(sctx.ssg);
+    rank = ssg_get_rank(sctx.ssg);  /* my rank */
 
-    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-        /* send to next-door neighbor instead of using ch-placement */
-        peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
+    if (ssg_get_count(sctx.ssg) != 1) {
+        if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+            /* send to next-door neighbor instead of using ch-placement */
+            peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
+        } else {
+            ch_placement_find_closest(sctx.chp,
+                    pdlfs::xxhash64(fn, strlen(fn), 0), 1, &target);
+            peer_rank = target;
+        }
     } else {
-        uint64_t oid = pdlfs::xxhash64(fn, strlen(fn), 0);
-        unsigned long target;
-        /* use ch-placement to decide receiver */
-        ch_placement_find_closest(sctx.chp, oid, 1, &target);
-        peer_rank = target;
+        peer_rank = rank;
     }
 
-    SHUFFLE_LOG("%s [r%d -> r%d]\n", fn, rank, peer_rank);
-
-    /* Are we trying to message ourselves? Write locally */
     if (peer_rank == rank) {
-        /* Write out to the log if we are running a test */
+
+        /* write trace if we are in testing mode */
         if (pctx.testin) {
             char buf[1024] = { 0 };
             snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
@@ -285,7 +285,10 @@ int shuffle_write(const char *fn, char *data, int len)
             hg_thread_cond_wait(&rpc_cv, &mtx);
         hg_thread_mutex_unlock(&mtx);
 
-        if (write_cb.hret == HG_SUCCESS) {
+        hret = write_cb.hret;
+
+        if (hret == HG_SUCCESS) {
+
             hret = HG_Get_output(handle, &write_out);
             if (hret == HG_SUCCESS)
                 hret = static_cast<hg_return_t>(write_out.ret);
@@ -413,9 +416,8 @@ void shuffle_destroy(void)
     hg_atomic_set32(&shutting_down, 1); // start shutdown seq
 
     hg_thread_mutex_lock(&mtx);
-    while (num_bg != 0) {
+    while (num_bg != 0)
         hg_thread_cond_wait(&bg_cv, &mtx);
-    }
     hg_thread_mutex_unlock(&mtx);
 
     ch_placement_finalize(sctx.chp);
@@ -430,3 +432,5 @@ void shuffle_destroy(void)
 
     return;
 }
+
+} // extern C

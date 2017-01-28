@@ -27,6 +27,8 @@
 #include "preload_internal.h"
 #include "preload.h"
 
+extern "C" {
+
 #ifndef SHUFFLE_DEBUG_OUTPUT
 #define SHUFFLE_DEBUG_OUTPUT 0
 #endif
@@ -90,3 +92,5 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
 int shuffle_write(const char *fn, char *data, int len);
 void shuffle_destroy(void);
+
+} // extern C
