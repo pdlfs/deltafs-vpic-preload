@@ -442,6 +442,8 @@ static void* bg_work(void* foo)
     hg_thread_cond_broadcast(&bg_cv);
     hg_thread_mutex_unlock(&mtx);
 
+    SHUFFLE_LOG("bg exit\n");
+
     return(NULL);
 }
 

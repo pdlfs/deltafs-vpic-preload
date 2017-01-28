@@ -30,7 +30,7 @@
 extern "C" {
 
 #ifndef SHUFFLE_LOG_OUTPUT
-#define SHUFFLE_LOG_OUTPUT 0
+#define SHUFFLE_LOG_OUTPUT 1
 #endif
 
 #define SHUFFLE_LOG(fmt, ...) \
