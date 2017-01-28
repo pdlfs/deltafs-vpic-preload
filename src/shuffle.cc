@@ -11,11 +11,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
+#include <pthread.h>
 
-#include <mercury_atomic.h>
-#include <mercury_thread.h>
-#include <mercury_thread_mutex.h>
-#include <mercury_thread_condition.h>
 #include <pdlfs-common/xxhash.h>
 
 #include "preload_internal.h"
@@ -29,16 +26,16 @@
 /*
  * main mutex shared among the main thread and the bg threads.
  */
-static hg_thread_mutex_t mtx;;
+static pthread_mutex_t mtx;;
 
 /* used when waiting an on-going rpc to finish. */
-static hg_thread_cond_t rpc_cv;
+static pthread_cond_t rpc_cv;
 
 /* used when waiting all bg threads to terminate. */
-static hg_thread_cond_t bg_cv;
+static pthread_cond_t bg_cv;
 
 /* True iff in shutdown seq */
-static hg_atomic_int32_t shutting_down;
+static int shutting_down;  /* XXX: better if this is atomic */
 
 /* number of bg threads running */
 static int num_bg = 0;
@@ -147,7 +144,7 @@ static const char* prepare_addr(char* buf)
 }
 
 static inline bool is_shuttingdown() {
-    if (hg_atomic_get32(&shutting_down) == 0) {
+    if (shutting_down == 0) {
         return(false);
     } else {
         return(true);
@@ -309,14 +306,14 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 /* rpc client-side callback for shuffled writes */
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 {
-    hg_thread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx);
 
     write_cb_t* cb = reinterpret_cast<write_cb_t*>(info->arg);
     cb->hret = info->ret;
     cb->ok = 1;
 
-    hg_thread_cond_broadcast(&rpc_cv);
-    hg_thread_mutex_unlock(&mtx);
+    pthread_cond_broadcast(&rpc_cv);
+    pthread_mutex_unlock(&mtx);
     return HG_SUCCESS;
 }
 
@@ -389,10 +386,10 @@ int shuffle_write(const char *fn, char *data, int len)
 
     if (hret == HG_SUCCESS) {
         /* here we wait rpc to complete */
-        hg_thread_mutex_lock(&mtx);
+        pthread_mutex_lock(&mtx);
         while(write_cb.ok == 0)
-            hg_thread_cond_wait(&rpc_cv, &mtx);
-        hg_thread_mutex_unlock(&mtx);
+            pthread_cond_wait(&rpc_cv, &mtx);
+        pthread_mutex_unlock(&mtx);
 
         hret = write_cb.hret;
 
@@ -436,11 +433,11 @@ static void* bg_work(void* foo)
         }
     }
 
-    hg_thread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx);
     assert(num_bg > 0);
     num_bg--;
-    hg_thread_cond_broadcast(&bg_cv);
-    hg_thread_mutex_unlock(&mtx);
+    pthread_cond_broadcast(&bg_cv);
+    pthread_mutex_unlock(&mtx);
 
     SHUFFLE_LOG("bg exit\n");
 
@@ -479,7 +476,7 @@ void shuffle_init_ssg(void)
 void shuffle_init(void)
 {
     hg_return_t hret;
-    hg_thread_t pid;
+    pthread_t pid;
     int rv;
 
     prepare_addr(sctx.my_addr);
@@ -502,20 +499,20 @@ void shuffle_init(void)
 
     shuffle_init_ssg();
 
-    rv = hg_thread_mutex_init(&mtx);
-    if (rv) msg_abort("hg_thread_mutex_init");
+    rv = pthread_mutex_init(&mtx, NULL);
+    if (rv) msg_abort("pthread_mutex_init");
 
-    rv = hg_thread_cond_init(&rpc_cv);
-    if (rv) msg_abort("hg_thread_cond_init");
-    rv = hg_thread_cond_init(&bg_cv);
-    if (rv) msg_abort("hg_thread_cond_init");
+    rv = pthread_cond_init(&rpc_cv, NULL);
+    if (rv) msg_abort("pthread_cond_init");
+    rv = pthread_cond_init(&bg_cv, NULL);
+    if (rv) msg_abort("pthread_cond_init");
 
-    hg_atomic_set32(&shutting_down, 0);
+    shutting_down = 0;
 
     num_bg++;
 
-    rv = hg_thread_create(&pid, bg_work, NULL);
-    if (rv) msg_abort("hg_thread_create");
+    rv = pthread_create(&pid, NULL, bg_work, NULL);
+    if (rv) msg_abort("pthread_create");
 
     SHUFFLE_LOG("shuffle is up\n");
 
@@ -525,12 +522,12 @@ void shuffle_init(void)
 /* shuffle_destroy(): finalize the shuffle layer */
 void shuffle_destroy(void)
 {
-    hg_atomic_set32(&shutting_down, 1); // start shutdown seq
+    shutting_down = 1; // start shutdown seq
 
-    hg_thread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx);
     while (num_bg != 0)
-        hg_thread_cond_wait(&bg_cv, &mtx);
-    hg_thread_mutex_unlock(&mtx);
+        pthread_cond_wait(&bg_cv, &mtx);
+    pthread_mutex_unlock(&mtx);
 
     ch_placement_finalize(sctx.chp);
     ssg_finalize(sctx.ssg);
