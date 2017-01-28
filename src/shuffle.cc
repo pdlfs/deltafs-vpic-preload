@@ -524,11 +524,9 @@ void shuffle_init(void)
 /* shuffle_destroy(): finalize the shuffle layer */
 void shuffle_destroy(void)
 {
-    shutting_down = 1; // start shutdown seq
-
     pthread_mutex_lock(&mtx);
-    while (num_bg != 0)
-        pthread_cond_wait(&bg_cv, &mtx);
+    shutting_down = 1; // start shutdown seq
+    while (num_bg != 0) pthread_cond_wait(&bg_cv, &mtx);
     pthread_mutex_unlock(&mtx);
 
     ch_placement_finalize(sctx.chp);
