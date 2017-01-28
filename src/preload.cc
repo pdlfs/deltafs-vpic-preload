@@ -482,6 +482,8 @@ FILE *fopen(const char *fname, const char *mode)
 
     if (!claim_path(fname, &exact)) {
         return(nxt.fopen(fname, mode));
+    } else if (!under_plfsdir(fname)) {
+        return(NULL);  /* XXX: support this */
     }
 
     /* relative paths we pass through; absolute we strip off prefix */

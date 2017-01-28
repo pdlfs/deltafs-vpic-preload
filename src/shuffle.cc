@@ -268,19 +268,23 @@ static hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
 hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 {
     hg_return_t hret;
-    write_in_t in;
     write_out_t out;
+    write_in_t in;
+    char path[PATH_MAX];
     int rank_in;
     int rank;
 
     hret = HG_Get_input(h, &in);
 
     if (hret == HG_SUCCESS) {
-
         rank = ssg_get_rank(sctx.ssg);
         rank_in = in.rank_in;
 
-        out.ret = preload_write(in.fname, in.data, in.data_len);
+        assert(pctx.plfsdir != NULL);
+
+        snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
+
+        out.ret = preload_write(path, in.data, in.data_len);
 
         /* write trace if we are in testing mode */
         if (pctx.testin) {
@@ -372,7 +376,9 @@ int shuffle_write(const char *fn, char *data, int len)
     if (hret != HG_SUCCESS)
         return(EOF);
 
-    write_in.fname = fn;
+    assert(pctx.plfsdir != NULL);
+
+    write_in.fname = fn + pctx.len_plfsdir;
     write_in.data = data;
     write_in.data_len = len;
     write_in.rank_in = rank;
