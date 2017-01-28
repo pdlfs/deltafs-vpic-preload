@@ -464,7 +464,7 @@ void shuffle_init_ssg(void)
 
     SHUFFLE_LOG("ssg_rank=%d, ssg_size=%d\n", rank, size);
 
-    sctx.chp = ch_placement_initialize("ring", size, 10 /* vir factor */,
+    sctx.chp = ch_placement_initialize("ring", size, 1 /* vir factor */,
             0 /* hash seed */);
     if (!sctx.chp)
         msg_abort("ch_placement_initialize");
