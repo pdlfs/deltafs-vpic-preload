@@ -259,7 +259,7 @@ static hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
     hg_return_t ret;
 
     write_out_t* out = reinterpret_cast<write_out_t*>(data);
-    ret = hg_proc_hg_int32_t(proc, &out->ret);
+    ret = hg_proc_hg_int32_t(proc, &out->rv);
 
     return ret;
 }
@@ -271,8 +271,10 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     write_out_t out;
     write_in_t in;
     char path[PATH_MAX];
+    char buf[1024];
     int rank_in;
     int rank;
+    int n;
 
     hret = HG_Get_input(h, &in);
 
@@ -284,18 +286,14 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
 
-        out.ret = preload_write(path, in.data, in.data_len);
+        out.rv = preload_write(path, in.data, in.data_len);
 
         /* write trace if we are in testing mode */
-        if (pctx.testin) {
-            char buf[1024] = { 0 };
-            snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
-                     rank_in, rank, int(in.data_len));
-            int fd = open(pctx.log, O_WRONLY | O_APPEND);
-            if (fd <= 0)
-                msg_abort("log open failed");
-            assert(write(fd, buf, strlen(buf)) == strlen(buf));
-            close(fd);
+        if (pctx.testin && pctx.logfd != -1) {
+            n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", path,
+                    int(in.data_len), rank_in, rank);
+
+            write(pctx.logfd, buf, n);
         }
 
         hret = HG_Respond(h, NULL, NULL, &out);
@@ -329,9 +327,11 @@ int shuffle_write(const char *fn, char *data, int len)
     write_out_t write_out;
     write_cb_t write_cb;
     hg_addr_t peer_addr;
+    char buf[1024];
     unsigned long target;
     int peer_rank;
     int rank;
+    int n;
 
     assert(ssg_get_count(sctx.ssg) != 0);
     assert(fn != NULL);
@@ -355,14 +355,10 @@ int shuffle_write(const char *fn, char *data, int len)
 
         /* write trace if we are in testing mode */
         if (pctx.testin) {
-            char buf[1024] = { 0 };
-            snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
-                     rank, rank, len);
-            int fd = open(pctx.log, O_WRONLY | O_APPEND);
-            if (fd <= 0)
-                msg_abort("log open failed");
-            assert(write(fd, buf, strlen(buf)) == strlen(buf));
-            close(fd);
+            n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
+                    len, rank, peer_rank);
+
+            write(pctx.logfd, buf, n);
         }
 
         return(preload_write(fn, data, len));
@@ -399,8 +395,11 @@ int shuffle_write(const char *fn, char *data, int len)
         if (hret == HG_SUCCESS) {
 
             hret = HG_Get_output(handle, &write_out);
-            if (hret == HG_SUCCESS)
-                hret = static_cast<hg_return_t>(write_out.ret);
+            if (hret == HG_SUCCESS) {
+                if (write_out.rv == EOF) {
+                    hret = HG_OTHER_ERROR;
+                }
+            }
 
             HG_Free_output(handle, &write_out);
         }

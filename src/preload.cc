@@ -93,6 +93,7 @@ static void preload_init()
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.fseek), "fseek");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.ftell), "ftell");
 
+    pctx.logfd = -1;
     pctx.isdeltafs = new std::set<FILE*>;
 
     pctx.deltafs_root = getenv("PRELOAD_Deltafs_root");
@@ -337,13 +338,12 @@ int MPI_Init(int *argc, char ***argv)
 
     if (pctx.testin) {
         snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
-        pctx.log = strdup(path);
 
-        FILE* f = nxt.fopen(pctx.log, "w+");
-        if (!f) {
-            msg_abort("MPI_Init:fopen");
-        } else {
-            delete f;
+        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_APPEND,
+                0777);
+
+        if (pctx.logfd == -1) {
+            msg_abort("MPI_Init:open:log");
         }
     }
 
@@ -367,6 +367,10 @@ int MPI_Finalize(void)
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_destroy();
+    }
+
+    if (pctx.logfd != -1) {
+        close(pctx.logfd);
     }
 
     rv = nxt.MPI_Finalize();

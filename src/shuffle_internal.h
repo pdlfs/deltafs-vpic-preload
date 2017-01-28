@@ -79,7 +79,7 @@ typedef struct write_in {
 } write_in_t;
 
 typedef struct write_out {
-    hg_int32_t ret;  /* ret value of the write operation */
+    hg_int32_t rv;  /* ret value of the write operation */
 } write_out_t;
 
 typedef struct write_cb {

@@ -113,8 +113,8 @@ typedef struct preload_ctx {
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
-    const char* log;   /* debug log */
-    int testin;        /* testing */
+    int logfd;       /* fd for the trace file */
+    int testin;      /* testing */
 
 } preload_ctx_t;
 
