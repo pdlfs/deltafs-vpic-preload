@@ -34,10 +34,11 @@ int main(int argc, char **argv) {
     } else if (rt[0] == '/') {
         msg_abort("deltafs root must be relative");
     }
-    fprintf(stderr, "deltafs_root is %s\n", rt);
+    if (rank == 0) {
+        fprintf(stderr, "deltafs_root is %s\n", rt);
+    }
     char dname[PATH_MAX];
     snprintf(dname, sizeof(dname), "%s", rt);
-    fprintf(stderr, "make deltafs dir %s\n", dname);
     r = (rank == 0) ? mkdir(dname, 0777) : 0;
     if (r != 0) {
         msg_abort("mkdir");
@@ -46,21 +47,22 @@ int main(int argc, char **argv) {
     MPI_Barrier(MPI_COMM_WORLD);
 
     char fname[PATH_MAX];
-    snprintf(fname, sizeof(fname), "%s/%06d", dname, rank);
-    fprintf(stderr, "writing into deltafs %s\n", fname);
-    FILE* fp = fopen(fname, "a");
-    if (fp == NULL) {
-        msg_abort("fopen");
-    }
-    fwrite("1234", 4, 1, fp);
-    fwrite("5678", 1, 4, fp);
-    fwrite("9", 1, 1, fp);
-    fwrite("0", 1, 1, fp);
-    fwrite("abcdefghijk", 1, 11, fp);
-    fwrite("lmnopqrstuv", 1, 11, fp);
-    r = fclose(fp);
-    if (r != 0) {
-        msg_abort("fclose");
+    for (int i = 0; i < 10; i++) {
+        snprintf(fname, sizeof(fname), "%s/%03d%03d", dname, rank, i);
+        FILE* fp = fopen(fname, "a");
+        if (fp == NULL) {
+            msg_abort("fopen");
+        }
+        fwrite("1234", 4, 1, fp);
+        fwrite("5678", 1, 4, fp);
+        fwrite("9", 1, 1, fp);
+        fwrite("0", 1, 1, fp);
+        fwrite("abcdefghijk", 1, 11, fp);
+        fwrite("lmnopqrstuv", 1, 11, fp);
+        r = fclose(fp);
+        if (r != 0) {
+            msg_abort("fclose");
+        }
     }
 
     MPI_Finalize();
@@ -70,23 +72,26 @@ int main(int argc, char **argv) {
     if (lo == NULL) {
         msg_abort("no local root");
     }
-    fprintf(stderr, "local_root is %s\n", lo);
-    snprintf(rname, sizeof(rname), "%s/%s", lo, fname);
-    fprintf(stderr, "reading from localfs %s\n", rname);
-    int fd = open(rname, O_RDONLY);
-    if (fd == -1) {
-        msg_abort("open");
+    if (rank == 0) {
+        fprintf(stderr, "local_root is %s\n", lo);
     }
-    char buf[32];
-    ssize_t nr = read(fd, buf, 32);
-    if (nr != 32) {
-        msg_abort("read");
+    for (int i = 0; i < 10; i++) {
+        snprintf(rname, sizeof(rname), "%s/%s", lo, fname);
+        int fd = open(rname, O_RDONLY);
+        if (fd == -1) {
+            msg_abort("open");
+        }
+        char buf[32];
+        ssize_t nr = read(fd, buf, 32);
+        if (nr != 32) {
+            msg_abort("read");
+        }
+        int cmp = memcmp(buf, "1234567890abcdefghijklmnopqrstuv", 32);
+        if (cmp != 0) {
+            msg_abort("data lost");
+        }
+        close(fd);
     }
-    int cmp = memcmp(buf, "1234567890abcdefghijklmnopqrstuv", 32);
-    if (cmp != 0) {
-        msg_abort("data lost");
-    }
-    close(fd);
 
     exit(0);
 }

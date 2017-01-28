@@ -20,7 +20,7 @@ if [ ! -z "$2" ]; then
     MPI_PROCS="$2"
 fi
 
-rm -rf $LOCAL_ROOT
+rm -rf $LOCAL_ROOT /tmp/vpic-preload-*
 
 mkdir $LOCAL_ROOT || exit 1
 
@@ -36,23 +36,25 @@ done
 set -x
 
 if [ x"$MPI" = xmpich ]; then
-    mpirun.mpich -np $MPI_PROCS \
+    mpirun.mpich -np $MPI_PROCS -prepend-rank \
         -env LD_PRELOAD "$BUILD_PREFIX/src/libdeltafs-preload.so" \
         -env PRELOAD_Bypass_deltafs "1" \
-        -env PRELOAD_Bypass_shuffle "1" \
+        -env PRELOAD_Bypass_shuffle "0" \
         -env PRELOAD_Deltafs_root "$DELTAFS_ROOT" \
         -env PRELOAD_Local_root "$LOCAL_ROOT" \
+        -env PRELOAD_Testing "1" \
         $BUILD_PREFIX/tests/preload-test
 
     RC=$?
 
 elif [ x"$MPI" = xopenmpi ]; then
-    mpirun.openmpi -np $MPI_PROCS \
+    mpirun.openmpi -np $MPI_PROCS -tag-output \
         -x "LD_PRELOAD=$BUILD_PREFIX/src/libdeltafs-preload.so" \
         -x "PRELOAD_Bypass_deltafs=1" \
-        -x "PRELOAD_Bypass_shuffle=1" \
+        -x "PRELOAD_Bypass_shuffle=0" \
         -x "PRELOAD_Deltafs_root=$DELTAFS_ROOT" \
         -x "PRELOAD_Local_root=$LOCAL_ROOT" \
+        -x "PRELOAD_Testing=1" \
         $BUILD_PREFIX/tests/preload-test
 
     RC=$?
@@ -69,5 +71,6 @@ if [ $RC -ne 0 ]; then
     exit 1
 else
     echo "Preload test OK"
+    head -n 1000 /tmp/vpic-preload-*
     exit 0
 fi
