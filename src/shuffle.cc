@@ -16,6 +16,7 @@
 #include <mercury_thread.h>
 #include <mercury_thread_mutex.h>
 #include <mercury_thread_condition.h>
+#include <pdlfs-common/xxhash.h>
 
 #include "preload_internal.h"
 #include "shuffle_internal.h"
@@ -153,7 +154,156 @@ static inline int is_shuttingdown() {
 
 shuffle_ctx_t sctx = { 0 };
 
-/* dedicated thread function to drive mercury progress */
+/* rpc server-side handler for shuffled writes */
+hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
+{
+    hg_return_t hret;
+    write_in_t in;
+    write_out_t out;
+    int rank_in;
+    int rank;
+
+    hret = HG_Get_input(h, &in);
+    if (hret != HG_SUCCESS)
+        return(hret);
+
+    rank = ssg_get_rank(sctx.ssg);
+    rank_in = in.rank_in;
+
+    SHUFFLE_LOG("%d bytes >> %s [r%d -> r%d]\n", int(in.data_len), in.fname,
+            rank_in, rank);
+
+    out.ret = preload_write(in.fname, in.data, in.data_len);
+
+    /* write trace if we are in testing mode */
+    if (pctx.testin) {
+        char buf[1024] = { 0 };
+        snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
+                 rank_in, rank, int(in.data_len));
+        int fd = open(pctx.log, O_WRONLY | O_APPEND);
+        if (fd <= 0)
+            msg_abort("log open failed");
+        assert(write(fd, buf, strlen(buf)) == strlen(buf));
+        close(fd);
+    }
+
+    hret = HG_Respond(h, NULL, NULL, &out);
+
+    HG_Free_input(h, &in);
+
+    return hret;
+}
+
+/* rpc client-side callback for shuffled writes */
+hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
+{
+    hg_thread_mutex_lock(&mtx);
+
+    write_cb_t* cb = reinterpret_cast<write_cb_t*>(info->arg);
+    cb->hret = info->ret;
+    cb->ok = 1;
+
+    hg_thread_cond_broadcast(&rpc_cv);
+    hg_thread_mutex_unlock(&mtx);
+    return HG_SUCCESS;
+}
+
+/* redirect writes to an appropriate rank for buffering and writing */
+int shuffle_write(const char *fn, char *data, int len)
+{
+    int ok;
+    hg_return_t hret;
+    hg_handle_t handle;
+    write_in_t write_in;
+    write_out_t write_out;
+    write_cb_t write_cb;
+    hg_addr_t peer_addr;
+    int peer_rank;
+    int rank;
+
+    /* if we're alone we execute it locally */
+    if (ssg_get_count(sctx.ssg) == 1)
+        return(preload_write(fn, data, len));
+
+    rank = ssg_get_rank(sctx.ssg);
+
+    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+        /* send to next-door neighbor instead of using ch-placement */
+        peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
+    } else {
+        uint64_t oid = pdlfs::xxhash64(fn, strlen(fn), 0);
+        unsigned long target;
+        /* use ch-placement to decide receiver */
+        ch_placement_find_closest(sctx.chp, oid, 1, &target);
+        peer_rank = target;
+    }
+
+    SHUFFLE_LOG("%s [r%d -> r%d]\n", fn, rank, peer_rank);
+
+    /* Are we trying to message ourselves? Write locally */
+    if (peer_rank == rank) {
+        /* Write out to the log if we are running a test */
+        if (pctx.testin) {
+            char buf[1024] = { 0 };
+            snprintf(buf, sizeof(buf), "source %5d target %5d size %d\n",
+                     rank, rank, len);
+            int fd = open(pctx.log, O_WRONLY | O_APPEND);
+            if (fd <= 0)
+                msg_abort("log open failed");
+            assert(write(fd, buf, strlen(buf)) == strlen(buf));
+            close(fd);
+        }
+
+        return(preload_write(fn, data, len));
+    }
+
+    peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
+    if (peer_addr == HG_ADDR_NULL)
+        return(EOF);
+
+    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &handle);
+    if (hret != HG_SUCCESS)
+        return(EOF);
+
+    write_in.fname = fn;
+    write_in.data_handle = HG_BULK_NULL;
+    write_in.data = (hg_string_t) malloc(len + 1);
+    memcpy(write_in.data, data, len);
+    write_in.data[len] = '\0';
+    write_in.data_len = len;
+    write_in.rank_in = rank;
+    write_in.isbulk = 0;
+
+    write_cb.ok = 0;
+
+    hret = HG_Forward(handle, shuffle_write_handler, &write_cb, &write_in);
+
+    if (hret == HG_SUCCESS) {
+        /* here we wait rpc to complete */
+        hg_thread_mutex_lock(&mtx);
+        while(write_cb.ok == 0)
+            hg_thread_cond_wait(&rpc_cv, &mtx);
+        hg_thread_mutex_unlock(&mtx);
+
+        if (write_cb.hret == HG_SUCCESS) {
+            hret = HG_Get_output(handle, &write_out);
+            if (hret == HG_SUCCESS)
+                hret = static_cast<hg_return_t>(write_out.ret);
+
+            HG_Free_output(handle, &write_out);
+        }
+    }
+
+    HG_Destroy(handle);
+
+    if (hret != HG_SUCCESS) {
+        return(EOF);
+    } else {
+        return(0);
+    }
+}
+
+/* bg_work(): dedicated thread function to drive mercury progress */
 static void* bg_work(void* foo)
 {
     hg_return_t ret;
@@ -180,7 +330,7 @@ static void* bg_work(void* foo)
     return(NULL);
 }
 
-/* shuffle_init_ssg: init the ssg sublayer */
+/* shuffle_init_ssg(): init the ssg sublayer */
 void shuffle_init_ssg(void)
 {
     hg_return_t hret;
@@ -211,7 +361,7 @@ void shuffle_init_ssg(void)
     return;
 }
 
-/* shuffle_init: init the shuffle layer */
+/* shuffle_init(): init the shuffle layer */
 void shuffle_init(void)
 {
     hg_return_t hret;
@@ -225,7 +375,7 @@ void shuffle_init(void)
         msg_abort("HG_Init");
 
     sctx.hg_id = MERCURY_REGISTER(sctx.hg_clz, "rpc_write",
-            write_in_t, write_out_t, &write_rpc_handler);
+            write_in_t, write_out_t, shuffle_write_rpc_handler);
 
     hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
@@ -257,6 +407,7 @@ void shuffle_init(void)
     return;
 }
 
+/* shuffle_destroy(): finalize the shuffle layer */
 void shuffle_destroy(void)
 {
     hg_atomic_set32(&shutting_down, 1); // start shutdown seq

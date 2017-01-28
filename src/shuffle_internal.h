@@ -13,10 +13,10 @@
 #include <errno.h>
 #include <netdb.h>
 #include <fcntl.h>
-#include <mpi.h>
 #include <limits.h>
 #include <unistd.h>
 
+#include <mpi.h>
 #include <mercury_macros.h>
 #include <mercury_proc_string.h>
 #include <ssg.h>
@@ -27,6 +27,10 @@
 #include "preload_internal.h"
 #include "preload.h"
 
+#ifndef SHUFFLE_DEBUG_OUTPUT
+#define SHUFFLE_DEBUG_OUTPUT 0
+#endif
+
 #define SHUFFLE_LOG(fmt, ...) \
     do { \
         if (SHUFFLE_DEBUG_OUTPUT) { \
@@ -36,9 +40,10 @@
      } while(0)
 
 /*
- * Threshold that determines whether a write is small enough to use
- * point-to-point Mercury RPCs. Otherwise we fall back to a bulk transfer.
- * In bytes, obvi.
+ * XXX: threshold that determines whether a write is small enough to use
+ * point-to-point rpc; otherwise we fall back to a bulk transfer.
+ *
+ * Not used so far.
  */
 #define SHUFFLE_SMALL_WRITE 1024
 
@@ -49,34 +54,39 @@
 typedef struct shuffle_ctx {
     char my_addr[100];   /* mercury server uri */
 
-    hg_class_t *hg_clz;
-    hg_context_t *hg_ctx;
+    hg_class_t* hg_clz;
+    hg_context_t* hg_ctx;
     hg_id_t hg_id;
 
     /* SSG context */
     ssg_t ssg;
 
     /* ch-placement context */
-    struct ch_placement_instance *chp;
+    struct ch_placement_instance* chp;
 
 } shuffle_ctx_t;
 
-/* Generate RPC structs */
-#ifdef SHUFFLE_DEBUG
-MERCURY_GEN_PROC(ping_t, ((int32_t)(rank)))
-#endif
-MERCURY_GEN_PROC(write_in_t, ((hg_const_string_t)(fname))
-                             ((hg_bulk_t)(data_handle))
-                             ((hg_string_t)(data))
-                             ((hg_uint64_t)(data_len))
-                             ((hg_int32_t)(rank_in))
-                             ((hg_int32_t)(isbulk)))
-MERCURY_GEN_PROC(write_out_t, ((hg_int64_t)(ret)))
-
 extern shuffle_ctx_t sctx;
+
+MERCURY_GEN_PROC(write_in_t,
+    ((hg_const_string_t)(fname))
+    ((hg_bulk_t)(data_handle))
+    ((hg_string_t)(data))
+    ((hg_uint64_t)(data_len))
+    ((hg_int32_t)(rank_in))
+    ((hg_int32_t)(isbulk))
+)
+
+MERCURY_GEN_PROC(write_out_t, ((hg_int32_t)(ret)))
+
+typedef struct write_cb {
+    int ok;   /* non-zero if rpc has completed */
+    hg_return_t hret;
+} write_cb_t;
 
 void shuffle_init(void);
 void shuffle_init_ssg(void);
-hg_return_t write_rpc_handler(hg_handle_t h);
+hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
+hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
 int shuffle_write(const char *fn, char *data, int len);
 void shuffle_destroy(void);
