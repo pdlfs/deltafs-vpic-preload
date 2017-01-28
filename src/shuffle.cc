@@ -43,6 +43,9 @@ static hg_atomic_int32_t shutting_down;
 /* number of bg threads running */
 static int num_bg = 0;
 
+/* shuffle context */
+shuffle_ctx_t sctx = { 0 };
+
 /*
  * prepare_addr(): obtain the mercury addr to bootstrap the rpc
  *
@@ -143,7 +146,7 @@ static const char* prepare_addr(char* buf)
     return(buf);
 }
 
-static inline int is_shuttingdown() {
+static inline bool is_shuttingdown() {
     if (hg_atomic_get32(&shutting_down) == 0) {
         return(false);
     } else {
@@ -154,8 +157,6 @@ static inline int is_shuttingdown() {
 /* main shuffle code */
 
 extern "C" {
-
-shuffle_ctx_t sctx = { 0 };
 
 /* rpc server-side handler for shuffled writes */
 hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
@@ -266,13 +267,11 @@ int shuffle_write(const char *fn, char *data, int len)
         return(EOF);
 
     write_in.fname = fn;
-    write_in.data_handle = HG_BULK_NULL;
     write_in.data = (hg_string_t) malloc(len + 1);
     memcpy(write_in.data, data, len);
     write_in.data[len] = '\0';
     write_in.data_len = len;
     write_in.rank_in = rank;
-    write_in.isbulk = 0;
 
     write_cb.ok = 0;
 
@@ -351,15 +350,12 @@ void shuffle_init_ssg(void)
     rank = ssg_get_rank(sctx.ssg);
     size = ssg_get_count(sctx.ssg);
 
-    SHUFFLE_LOG("ssg_rank is %d\n", rank);
-    SHUFFLE_LOG("ssg_size is %d\n", size);
+    SHUFFLE_LOG("ssg_rank=%d, ssg_size=%d\n", rank, size);
 
-    sctx.chp = ch_placement_initialize("ring", size,
-                    10 /* virt factor */, 0 /* seed */);
+    sctx.chp = ch_placement_initialize("ring", size, 10 /* vir factor */,
+            0 /* hash seed */);
     if (!sctx.chp)
         msg_abort("ch_placement_initialize");
-
-    SHUFFLE_LOG("ssg ok\n");
 
     return;
 }
@@ -405,7 +401,7 @@ void shuffle_init(void)
     rv = hg_thread_create(&pid, bg_work, NULL);
     if (rv) msg_abort("hg_thread_create");
 
-    SHUFFLE_LOG("hg ok\n");
+    SHUFFLE_LOG("shuffle up\n");
 
     return;
 }
@@ -422,13 +418,11 @@ void shuffle_destroy(void)
 
     ch_placement_finalize(sctx.chp);
     ssg_finalize(sctx.ssg);
-
-    SHUFFLE_LOG("ssg closed\n");
-
+\
     HG_Context_destroy(sctx.hg_ctx);
     HG_Finalize(sctx.hg_clz);
 
-    SHUFFLE_LOG("hg closed\n");
+    SHUFFLE_LOG("shuffle down\n");
 
     return;
 }

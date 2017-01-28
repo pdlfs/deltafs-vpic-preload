@@ -72,11 +72,9 @@ extern shuffle_ctx_t sctx;
 
 MERCURY_GEN_PROC(write_in_t,
     ((hg_const_string_t)(fname))
-    ((hg_bulk_t)(data_handle))
     ((hg_string_t)(data))
-    ((hg_uint64_t)(data_len))
+    ((hg_uint32_t)(data_len))
     ((hg_int32_t)(rank_in))
-    ((hg_int32_t)(isbulk))
 )
 
 MERCURY_GEN_PROC(write_out_t, ((hg_int32_t)(ret)))
