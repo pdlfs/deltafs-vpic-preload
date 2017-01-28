@@ -37,8 +37,8 @@ extern "C" {
     do { \
         if (SHUFFLE_LOG_OUTPUT) { \
             fprintf(stderr, fmt, ##__VA_ARGS__); \
-         } \
-     } while(0)
+        } \
+    } while(0)
 
 /*
  * XXX: threshold that determines whether a write is small enough to use

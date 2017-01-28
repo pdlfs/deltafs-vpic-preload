@@ -248,7 +248,7 @@ static hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
         }
 
     } else {
-        /* noop */
+        hret = HG_SUCCESS;  /* noop */
     }
 
     return hret;
@@ -292,6 +292,8 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
         if (pctx.testin && pctx.logfd != -1) {
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", path,
                     int(in.data_len), rank_in, rank);
+
+            buf[n - 1] = '\n';
 
             write(pctx.logfd, buf, n);
         }
@@ -357,6 +359,8 @@ int shuffle_write(const char *fn, char *data, int len)
         if (pctx.testin) {
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
                     len, rank, peer_rank);
+
+            buf[n - 1] = '\n';
 
             write(pctx.logfd, buf, n);
         }
