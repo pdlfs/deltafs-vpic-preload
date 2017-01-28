@@ -29,15 +29,14 @@
 
 extern "C" {
 
-#ifndef SHUFFLE_DEBUG_OUTPUT
-#define SHUFFLE_DEBUG_OUTPUT 0
+#ifndef SHUFFLE_LOG_OUTPUT
+#define SHUFFLE_LOG_OUTPUT 0
 #endif
 
 #define SHUFFLE_LOG(fmt, ...) \
     do { \
-        if (SHUFFLE_DEBUG_OUTPUT) { \
+        if (SHUFFLE_LOG_OUTPUT) { \
             fprintf(stderr, fmt, ##__VA_ARGS__); \
-            fflush(stderr); \
          } \
      } while(0)
 
@@ -71,10 +70,10 @@ typedef struct shuffle_ctx {
 extern shuffle_ctx_t sctx;
 
 typedef struct write_in {
+    hg_const_string_t fname;
     hg_int32_t rank_in;
     hg_uint8_t data_len;
     hg_string_t data;
-    hg_const_string_t fname;
 
     char buf[500];
 } write_in_t;

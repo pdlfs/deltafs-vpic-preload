@@ -85,7 +85,7 @@ static const char* prepare_addr(char* buf)
                         ip, sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
                     msg_abort("getnameinfo");
 
-                fprintf(stderr, "%s\n", ip);
+                SHUFFLE_LOG("maybe using ip %s", ip);
 
                 if (strcmp(subnet, ip) == 0) {
                     break;
@@ -158,8 +158,7 @@ static inline bool is_shuttingdown() {
 
 extern "C" {
 
-static hg_return_t
-shuffle_proc_write_in_t(hg_proc_t proc, void* data)
+static hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
 {
     hg_return_t hret;
     hg_uint8_t fname_len;
@@ -174,16 +173,16 @@ shuffle_proc_write_in_t(hg_proc_t proc, void* data)
         enc_len = 2;  /* reserves 2 bytes for the encoding length */
 
         memcpy(in->buf + enc_len, &in->rank_in, 4);
-        enc_len = enc_len + 4;
+        enc_len += 4;
         in->buf[enc_len] = in->data_len;
         memcpy(in->buf + enc_len + 1, in->data, in->data_len);
 
-        enc_len = enc_len + 1 + in->data_len;
+        enc_len += 1 + in->data_len;
         fname_len = strlen(in->fname);
         in->buf[enc_len] = fname_len;
         memcpy(in->buf + enc_len + 1, in->fname, fname_len);
 
-        enc_len = enc_len + 1 + fname_len;
+        enc_len += 1 + fname_len;
         assert(enc_len < sizeof(in->buf));
 
         hret = hg_proc_hg_uint16_t(proc, &enc_len);
@@ -192,51 +191,52 @@ shuffle_proc_write_in_t(hg_proc_t proc, void* data)
 
     } else if (op == HG_DECODE) {
         hret = hg_proc_hg_uint16_t(proc, &enc_len);
+        dec_len = 0;
 
         assert(enc_len < sizeof(in->buf));
 
         if (hret == HG_SUCCESS) {
             hret = hg_proc_memcpy(proc, in->buf + 2, enc_len - 2);
-            enc_len = enc_len - 2;
-            dec_len = 2;
+            enc_len -= 2;
+            dec_len += 2;
         }
 
         if (hret == HG_SUCCESS && enc_len >= 4) {
             memcpy(&in->rank_in, in->buf + dec_len, 4);
-            enc_len = enc_len - 4;
-            dec_len = dec_len + 4;
+            enc_len -= 4;
+            dec_len += 4;
         } else {
             hret = HG_OTHER_ERROR;
         }
 
         if (hret == HG_SUCCESS && enc_len >= 1) {
             in->data_len = in->buf[dec_len];
-            enc_len = enc_len - 1;
-            dec_len = dec_len + 1;
+            enc_len -= 1;
+            dec_len += 1;
         } else {
             hret = HG_OTHER_ERROR;
         }
 
         if (hret == HG_SUCCESS && enc_len >= in->data_len) {
             in->data = in->buf + dec_len;
-            enc_len = enc_len - in->data_len;
-            dec_len = dec_len + in->data_len;
+            enc_len -= in->data_len;
+            dec_len += in->data_len;
         } else {
             hret = HG_OTHER_ERROR;
         }
 
         if (hret == HG_SUCCESS && enc_len >= 1) {
             fname_len = in->buf[dec_len];
-            enc_len = enc_len - 1;
-            dec_len = dec_len + 1;
+            enc_len -= 1;
+            dec_len += 1;
         } else {
             hret = HG_OTHER_ERROR;
         }
 
         if (hret == HG_SUCCESS && enc_len >= fname_len) {
             in->fname = in->buf + dec_len;
-            enc_len = enc_len - fname_len;
-            dec_len = dec_len + fname_len;
+            enc_len -= fname_len;
+            dec_len += fname_len;
         } else {
             hret = HG_OTHER_ERROR;
         }
@@ -254,8 +254,7 @@ shuffle_proc_write_in_t(hg_proc_t proc, void* data)
     return hret;
 }
 
-static hg_return_t
-shuffle_proc_write_out_t(hg_proc_t proc, void* data)
+static hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
 {
     hg_return_t ret;
 
@@ -374,9 +373,7 @@ int shuffle_write(const char *fn, char *data, int len)
         return(EOF);
 
     write_in.fname = fn;
-    write_in.data = (hg_string_t) malloc(len + 1);
-    memcpy(write_in.data, data, len);
-    write_in.data[len] = '\0';
+    write_in.data = data;
     write_in.data_len = len;
     write_in.rank_in = rank;
 
@@ -481,7 +478,7 @@ void shuffle_init(void)
         msg_abort("HG_Init");
 
     sctx.hg_id = HG_Register_name(sctx.hg_clz, "shuffle_rpc_write",
-            shuffle_proc_write_in_t, shuffle_proc_write_out_t,
+            shuffle_write_in_proc, shuffle_write_out_proc,
             shuffle_write_rpc_handler);
 
     hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
@@ -509,7 +506,7 @@ void shuffle_init(void)
     rv = hg_thread_create(&pid, bg_work, NULL);
     if (rv) msg_abort("hg_thread_create");
 
-    SHUFFLE_LOG("shuffle up\n");
+    SHUFFLE_LOG("shuffle is up\n");
 
     return;
 }
