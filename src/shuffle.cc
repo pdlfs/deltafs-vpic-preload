@@ -35,7 +35,7 @@ static pthread_cond_t rpc_cv;
 static pthread_cond_t bg_cv;
 
 /* True iff in shutdown seq */
-static int shutting_down;  /* XXX: better if this is atomic */
+static int shutting_down = 0;  /* XXX: better if this is atomic */
 
 /* number of bg threads running */
 static int num_bg = 0;
@@ -82,7 +82,7 @@ static const char* prepare_addr(char* buf)
                         ip, sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
                     msg_abort("getnameinfo");
 
-                SHUFFLE_LOG("maybe using ip %s", ip);
+                SHUFFLE_LOG("maybe using ip %s\n", ip);
 
                 if (strcmp(subnet, ip) == 0) {
                     break;
@@ -353,7 +353,7 @@ int shuffle_write(const char *fn, char *data, int len)
     if (peer_rank == rank) {
 
         /* write trace if we are in testing mode */
-        if (pctx.testin) {
+        if (pctx.testin && pctx.logfd != -1) {
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
                     len, rank, peer_rank);
 
@@ -439,7 +439,7 @@ static void* bg_work(void* foo)
     pthread_cond_broadcast(&bg_cv);
     pthread_mutex_unlock(&mtx);
 
-    SHUFFLE_LOG("bg exit\n");
+    SHUFFLE_LOG("bg off\n");
 
     return(NULL);
 }
@@ -514,6 +514,8 @@ void shuffle_init(void)
     rv = pthread_create(&pid, NULL, bg_work, NULL);
     if (rv) msg_abort("pthread_create");
 
+    pthread_detach(pid);
+
     SHUFFLE_LOG("shuffle is up\n");
 
     return;
@@ -535,7 +537,7 @@ void shuffle_destroy(void)
     HG_Context_destroy(sctx.hg_ctx);
     HG_Finalize(sctx.hg_clz);
 
-    SHUFFLE_LOG("shuffle down\n");
+    SHUFFLE_LOG("shuffle off\n");
 
     return;
 }
