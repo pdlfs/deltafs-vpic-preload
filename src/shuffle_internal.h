@@ -14,23 +14,19 @@
 #include <netdb.h>
 #include <fcntl.h>
 #include <mpi.h>
-#include <limits.h> /* Just for PATH_MAX */
+#include <limits.h>
 #include <unistd.h>
 
-/* ANL libs */
 #include <mercury_macros.h>
 #include <mercury_proc_string.h>
 #include <ssg.h>
 #include <ssg-mpi.h>
 #include <ch-placement.h>
 
-/* CMU libs */
 #include <deltafs/deltafs_api.h>
 #include "preload_internal.h"
 #include "preload.h"
 
-#define SHUFFLE_DEBUG
-#define SHUFFLE_DEBUG_OUTPUT 0
 #define SHUFFLE_LOG(fmt, ...) \
     do { \
         if (SHUFFLE_DEBUG_OUTPUT) { \
