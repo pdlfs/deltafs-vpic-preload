@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 #include <mpi.h>
-#include <mercury_macros.h>
+#include <mercury.h>
 #include <mercury_proc_string.h>
 #include <ssg.h>
 #include <ssg-mpi.h>
@@ -70,14 +70,18 @@ typedef struct shuffle_ctx {
 
 extern shuffle_ctx_t sctx;
 
-MERCURY_GEN_PROC(write_in_t,
-    ((hg_const_string_t)(fname))
-    ((hg_string_t)(data))
-    ((hg_uint32_t)(data_len))
-    ((hg_int32_t)(rank_in))
-)
+typedef struct write_in {
+    hg_int32_t rank_in;
+    hg_uint8_t data_len;
+    hg_string_t data;
+    hg_const_string_t fname;
 
-MERCURY_GEN_PROC(write_out_t, ((hg_int32_t)(ret)))
+    char buf[500];
+} write_in_t;
+
+typedef struct write_out {
+    hg_int32_t ret;  /* ret value of the write operation */
+} write_out_t;
 
 typedef struct write_cb {
     int ok;   /* non-zero if rpc has completed */

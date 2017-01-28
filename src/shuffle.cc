@@ -158,6 +158,113 @@ static inline bool is_shuttingdown() {
 
 extern "C" {
 
+static hg_return_t
+shuffle_proc_write_in_t(hg_proc_t proc, void* data)
+{
+    hg_return_t hret;
+    hg_uint8_t fname_len;
+    hg_uint16_t enc_len;
+    hg_uint16_t dec_len;
+
+    write_in_t* in = reinterpret_cast<write_in_t*>(data);
+
+    hg_proc_op_t op = hg_proc_get_op(proc);
+
+    if (op == HG_ENCODE) {
+        enc_len = 2;  /* reserves 2 bytes for the encoding length */
+
+        memcpy(in->buf + enc_len, &in->rank_in, 4);
+        enc_len = enc_len + 4;
+        in->buf[enc_len] = in->data_len;
+        memcpy(in->buf + enc_len + 1, in->data, in->data_len);
+
+        enc_len = enc_len + 1 + in->data_len;
+        fname_len = strlen(in->fname);
+        in->buf[enc_len] = fname_len;
+        memcpy(in->buf + enc_len + 1, in->fname, fname_len);
+
+        enc_len = enc_len + 1 + fname_len;
+        assert(enc_len < sizeof(in->buf));
+
+        hret = hg_proc_hg_uint16_t(proc, &enc_len);
+        if (hret == HG_SUCCESS)
+            hret = hg_proc_memcpy(proc, in->buf + 2, enc_len - 2);
+
+    } else if (op == HG_DECODE) {
+        hret = hg_proc_hg_uint16_t(proc, &enc_len);
+
+        assert(enc_len < sizeof(in->buf));
+
+        if (hret == HG_SUCCESS) {
+            hret = hg_proc_memcpy(proc, in->buf + 2, enc_len - 2);
+            enc_len = enc_len - 2;
+            dec_len = 2;
+        }
+
+        if (hret == HG_SUCCESS && enc_len >= 4) {
+            memcpy(&in->rank_in, in->buf + dec_len, 4);
+            enc_len = enc_len - 4;
+            dec_len = dec_len + 4;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+        if (hret == HG_SUCCESS && enc_len >= 1) {
+            in->data_len = in->buf[dec_len];
+            enc_len = enc_len - 1;
+            dec_len = dec_len + 1;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+        if (hret == HG_SUCCESS && enc_len >= in->data_len) {
+            in->data = in->buf + dec_len;
+            enc_len = enc_len - in->data_len;
+            dec_len = dec_len + in->data_len;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+        if (hret == HG_SUCCESS && enc_len >= 1) {
+            fname_len = in->buf[dec_len];
+            enc_len = enc_len - 1;
+            dec_len = dec_len + 1;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+        if (hret == HG_SUCCESS && enc_len >= fname_len) {
+            in->fname = in->buf + dec_len;
+            enc_len = enc_len - fname_len;
+            dec_len = dec_len + fname_len;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+        if (hret == HG_SUCCESS && enc_len == 0) {
+            in->buf[dec_len] = 0;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+    } else {
+        /* noop */
+    }
+
+    return hret;
+}
+
+static hg_return_t
+shuffle_proc_write_out_t(hg_proc_t proc, void* data)
+{
+    hg_return_t ret;
+
+    write_out_t* out = reinterpret_cast<write_out_t*>(data);
+    ret = hg_proc_hg_int32_t(proc, &out->ret);
+
+    return ret;
+}
+
 /* rpc server-side handler for shuffled writes */
 hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 {
@@ -373,8 +480,9 @@ void shuffle_init(void)
     if (!sctx.hg_clz)
         msg_abort("HG_Init");
 
-    sctx.hg_id = MERCURY_REGISTER(sctx.hg_clz, "rpc_write",
-            write_in_t, write_out_t, shuffle_write_rpc_handler);
+    sctx.hg_id = HG_Register_name(sctx.hg_clz, "shuffle_rpc_write",
+            shuffle_proc_write_in_t, shuffle_proc_write_out_t,
+            shuffle_write_rpc_handler);
 
     hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
