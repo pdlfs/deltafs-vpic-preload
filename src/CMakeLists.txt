@@ -21,7 +21,7 @@ find_package (Threads REQUIRED)
 #
 # create the library target
 #
-add_library (deltafs-preload preload.cc shuffle.cc)
+add_library (deltafs-preload preload.cc shuffle.cc clair_voir.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
 

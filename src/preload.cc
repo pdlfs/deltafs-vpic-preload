@@ -274,18 +274,20 @@ int MPI_Init(int *argc, char ***argv)
     bool exact;
     const char* stripped;
     char path[PATH_MAX];
+    int rank;
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Init:pthread_once");
 
-    int rank;
     rv = nxt.MPI_Init(argc, argv);
     if (rv == MPI_SUCCESS) {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     } else {
         return(rv);
     }
+
+    mon_reinit(&mctx);
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_init();
@@ -370,6 +372,7 @@ int MPI_Finalize(void)
     }
 
     if (pctx.logfd != -1) {
+        if (!mctx.no_mon) mon_dumpstate(pctx.logfd, &mctx);
         close(pctx.logfd);
     }
 
@@ -449,6 +452,10 @@ DIR *opendir(const char *dir)
             !IS_BYPASS_DELTAFS(pctx.mode)) {
 
         deltafs_epoch_flush(pctx.plfsfd, NULL);
+
+        if (!mctx.no_mon) {
+            mctx.ne++;
+        }
     } else {
         /* no op */
     }
@@ -616,6 +623,14 @@ int preload_write(const char *fn, char *data, size_t len)
             }
             deltafs_close(fd);
         }
+    }
+
+    if (!mctx.no_mon) {
+        if (len > mctx.max_wsz) mctx.max_wsz = len;
+        if (len < mctx.min_wsz) mctx.min_wsz = len;
+        if (rv == 0) mctx.nwok++;
+
+        mctx.nw++;
     }
 
     return(rv);

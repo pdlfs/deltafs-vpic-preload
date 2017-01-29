@@ -24,6 +24,8 @@
 #include <ch-placement.h>
 
 #include <deltafs/deltafs_api.h>
+#include "clair_voir.h"
+
 #include "preload_internal.h"
 #include "preload.h"
 

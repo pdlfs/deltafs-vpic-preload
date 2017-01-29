@@ -17,6 +17,8 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include "clair_voir.h"
+
 #include <set>
 
 extern "C" {
@@ -113,8 +115,8 @@ typedef struct preload_ctx {
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
-    int logfd;       /* fd for the trace file */
-    int testin;      /* testing */
+    int logfd;       /* opened descriptor of the log file */
+    int testin;      /* developer mode */
 
 } preload_ctx_t;
 

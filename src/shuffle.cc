@@ -26,7 +26,7 @@
 /*
  * main mutex shared among the main thread and the bg threads.
  */
-static pthread_mutex_t mtx;;
+static pthread_mutex_t mtx;
 
 /* used when waiting an on-going rpc to finish. */
 static pthread_cond_t rpc_cv;
@@ -290,8 +290,6 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", path,
                     int(in.data_len), rank_in, rank);
 
-            buf[n - 1] = '\n';
-
             write(pctx.logfd, buf, n);
         }
 
@@ -357,8 +355,6 @@ int shuffle_write(const char *fn, char *data, int len)
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
                     len, rank, peer_rank);
 
-            buf[n - 1] = '\n';
-
             write(pctx.logfd, buf, n);
         }
 
@@ -407,6 +403,11 @@ int shuffle_write(const char *fn, char *data, int len)
     }
 
     HG_Destroy(handle);
+
+    if (!mctx.no_mon) {
+        if (hret == HG_SUCCESS) mctx.nswok++;
+        mctx.nsw++;
+    }
 
     if (hret != HG_SUCCESS) {
         return(EOF);
@@ -531,7 +532,7 @@ void shuffle_destroy(void)
 
     ch_placement_finalize(sctx.chp);
     ssg_finalize(sctx.ssg);
-\
+
     HG_Context_destroy(sctx.hg_ctx);
     HG_Finalize(sctx.hg_clz);
 
