@@ -34,7 +34,7 @@ static pthread_cond_t rpc_cv;
 /* used when waiting all bg threads to terminate. */
 static pthread_cond_t bg_cv;
 
-/* True iff in shutdown seq */
+/* true iff in shutdown seq */
 static int shutting_down = 0;  /* XXX: better if this is atomic */
 
 /* number of bg threads running */
@@ -143,13 +143,23 @@ static const char* prepare_addr(char* buf)
     return(buf);
 }
 
+#if defined(__x86_64__) && defined(__GNUC__)
 static inline bool is_shuttingdown() {
-    if (shutting_down == 0) {
-        return(false);
-    } else {
-        return(true);
-    }
+    bool r = shutting_down;
+    // See http://en.wikipedia.org/wiki/Memory_ordering.
+    __asm__ __volatile__("" : : : "memory");
+    return r;
 }
+#else
+static inline bool is_shuttingdown() {
+    /* XXX: enforce memory order via mutex */
+    pthread_mutex_lock(&mtx);
+    bool r = shutting_down;
+    pthread_mutex_unlock(&mtx);
+
+    return(r);
+}
+#endif
 
 /* main shuffle code */
 
@@ -422,15 +432,17 @@ static void* bg_work(void* foo)
     hg_return_t ret;
     unsigned int actual_count;
 
-    while(!is_shuttingdown()) {
+    while(true) {
         do {
             ret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
-        } while((ret == HG_SUCCESS) && actual_count && !is_shuttingdown());
+        } while(ret == HG_SUCCESS && actual_count != 0);
 
         if(!is_shuttingdown()) {
             ret = HG_Progress(sctx.hg_ctx, 100);
             if (ret != HG_SUCCESS && ret != HG_TIMEOUT)
                 msg_abort("HG_Progress");
+        } else {
+            break;
         }
     }
 
