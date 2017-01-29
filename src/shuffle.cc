@@ -148,7 +148,8 @@ static inline bool is_shuttingdown() {
     bool r = shutting_down;
     // See http://en.wikipedia.org/wiki/Memory_ordering.
     __asm__ __volatile__("" : : : "memory");
-    return r;
+
+    return(r);
 }
 #else
 static inline bool is_shuttingdown() {
@@ -300,13 +301,18 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", path,
                     int(in.data_len), rank_in, rank);
 
-            write(pctx.logfd, buf, n);
+            n = write(pctx.logfd, buf, n);
         }
 
         hret = HG_Respond(h, NULL, NULL, &out);
     }
 
     HG_Free_input(h, &in);
+
+    if (!mctx.no_mon) {
+        if (hret == HG_SUCCESS) mctx.nwrok++;
+        mctx.nwr++;
+    }
 
     return hret;
 }
@@ -365,7 +371,7 @@ int shuffle_write(const char *fn, char *data, int len)
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
                     len, rank, peer_rank);
 
-            write(pctx.logfd, buf, n);
+            n = write(pctx.logfd, buf, n);
         }
 
         return(preload_write(fn, data, len));
@@ -415,8 +421,8 @@ int shuffle_write(const char *fn, char *data, int len)
     HG_Destroy(handle);
 
     if (!mctx.no_mon) {
-        if (hret == HG_SUCCESS) mctx.nswok++;
-        mctx.nsw++;
+        if (hret == HG_SUCCESS) mctx.nwsok++;
+        mctx.nws++;
     }
 
     if (hret != HG_SUCCESS) {

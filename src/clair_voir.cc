@@ -25,8 +25,9 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "\n--- mon ---")
     DUMP(fd, buf, "max write: %u bytes", ctx->max_wsz);
     DUMP(fd, buf, "min write: %u bytes", ctx->min_wsz);
-    DUMP(fd, buf, "num shuffled writes: %llu/%llu", ctx->nswok, ctx->nsw);
-    DUMP(fd, buf, "num writes: %llu/%llu", ctx->nwok, ctx->nw);
+    DUMP(fd, buf, "writes sent: %llu/%llu", ctx->nwsok, ctx->nws);
+    DUMP(fd, buf, "writes received: %llu/%llu", ctx->nwrok, ctx->nwr);
+    DUMP(fd, buf, "writes: %llu/%llu", ctx->nwok, ctx->nw);
     DUMP(fd, buf, "num deltafs epoches: %u", ctx->ne);
     DUMP(fd, buf, "num mpi barriers: %u", ctx->nb);
 

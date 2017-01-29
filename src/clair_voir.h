@@ -14,8 +14,8 @@
 
 extern "C" {
 
-/* XXX: assuming VPIC has only a single main thread such that
- * no synchronization is needed to update our mon state.
+/* XXX: assuming VPIC has only a single main thread such that no
+ * synchronization is needed to protect mon state.
  *
  * XXX: we could use atomic counters in future
  * when VPIC goes openmp.
@@ -34,10 +34,12 @@ typedef struct mon_ctx {
     unsigned min_wsz;   /* min app write size */
     unsigned max_wsz;   /* max app write size */
 
-    long long unsigned nswok; /* num of writes being shuffled with rv!=EOF */
-    long long unsigned nsw;   /* total num of writes being shuffled */
-    long long unsigned nwok;  /* num of writes to deltafs with rv!=EOF */
-    long long unsigned nw;    /* total num of writes to deltafs */
+    unsigned long long nwsok; /* num of writes being shuffled out with rv!=EOF */
+    unsigned long long nws;   /* total num of writes being shuffled out */
+    unsigned long long nwrok; /* num of writes being shuffled in with rv!=EOF */
+    unsigned long long nwr;   /* total num of writes being shuffled in */
+    unsigned long long nwok;  /* num of writes to deltafs with rv!=EOF */
+    unsigned long long nw;    /* total num of writes to deltafs */
 
     unsigned nb;  /* num of MPI barrier invoked by app */
     unsigned ne;  /* num of epoch flushed */
