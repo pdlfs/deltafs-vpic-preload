@@ -41,6 +41,7 @@ struct next_functions {
     /* functions we need */
     int (*MPI_Init)(int *argc, char ***argv);
     int (*MPI_Finalize)(void);
+    int (*MPI_Barrier)(MPI_Comm comm);
     int (*mkdir)(const char *path, mode_t mode);
     DIR *(*opendir)(const char *filename);
     int (*closedir)(DIR *dirp);
@@ -79,6 +80,7 @@ static void preload_init()
 {
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Init), "MPI_Init");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Finalize), "MPI_Finalize");
+    must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Barrier), "MPI_Barrier");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.mkdir), "mkdir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.opendir), "opendir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.closedir), "closedir");
@@ -326,7 +328,7 @@ int MPI_Init(int *argc, char ***argv)
         }
 
         /* so everyone sees the dir created */
-        MPI_Barrier(MPI_COMM_WORLD);
+        nxt.MPI_Barrier(MPI_COMM_WORLD);
 
         /* everyone opens it */
         if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
@@ -347,6 +349,20 @@ int MPI_Init(int *argc, char ***argv)
         if (pctx.logfd == -1) {
             msg_abort("MPI_Init:open:log");
         }
+    }
+
+    return(rv);
+}
+
+/*
+ * MPI_Barrier
+ */
+int MPI_Barrier(MPI_Comm comm)
+{
+    int rv = nxt.MPI_Barrier(comm);
+
+    if (!mctx.no_mon) {
+        mctx.nb++;
     }
 
     return(rv);
