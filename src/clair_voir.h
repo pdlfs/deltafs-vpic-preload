@@ -20,7 +20,7 @@ extern "C" {
  * XXX: we could use atomic counters in future
  * when VPIC goes openmp.
  *
- * Do NOT update mon state in background rpc threads.
+ * Do NOT update a same counter from different threads.
  *
  * Okay to read in any thread.
  */

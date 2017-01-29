@@ -9,7 +9,6 @@
 
 #include "clair_voir.h"
 
-#include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -18,7 +17,7 @@ mon_ctx_t mctx = { 0 };
 #define DUMP(fd, buf, fmt, ...) { \
     int n = snprintf(buf, sizeof(buf), fmt, ##__VA_ARGS__); \
     buf[n] = '\n'; \
-    write(fd, buf, n + 1); \
+    n = write(fd, buf, n + 1); \
 }
 
 void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
@@ -36,7 +35,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
 
 void mon_reinit(mon_ctx_t* ctx) {
     mon_ctx_t tmp = { 0 };
-    tmp.min_wsz = UINT32_MAX;
+    tmp.min_wsz = 0xffffffff;
     *ctx = tmp;
 
     return;
