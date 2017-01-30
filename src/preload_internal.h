@@ -115,6 +115,7 @@ typedef struct preload_ctx {
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
+    int nomon;       /* skip monitoring */
     int logfd;       /* opened descriptor of the log file */
     int testin;      /* developer mode */
 

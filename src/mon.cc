@@ -107,12 +107,22 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
     uint64_t end;
     int rv;
 
-    start = now_micros();
-    rv = preload_write(fn, data, n);
-    end = now_micros();
+    if (!pctx.nomon) start = now_micros();
 
-    if (rv == 0) {
-        hstg_add(ctx->hstgw, end - start);
+    rv = preload_write(fn, data, n);
+
+    if (!pctx.nomon) {
+        if (rv == 0) {
+            end = now_micros();
+            hstg_add(ctx->hstgw, end - start);
+
+            if (n > ctx->max_wsz) ctx->max_wsz = n;
+            if (n < ctx->min_wsz) ctx->min_wsz = n;
+
+            ctx->nwok++;
+        }
+
+        ctx->nw++;
     }
 
     return(rv);
@@ -123,12 +133,19 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
     uint64_t end;
     int rv;
 
-    start = now_micros();
-    rv = shuffle_write(fn, data, n);
-    end = now_micros();
+    if (!pctx.nomon) start = now_micros();
 
-    if (rv == 0) {
-        hstg_add(ctx->hstgrpcw, end - start);
+    rv = shuffle_write(fn, data, n);
+
+    if (!pctx.nomon) {
+        if (rv == 0) {
+            end = now_micros();
+            hstg_add(ctx->hstgrpcw, end - start);
+
+            ctx->nwsok++;
+        }
+
+        ctx->nws++;
     }
 
     return(rv);

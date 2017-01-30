@@ -20,6 +20,7 @@
 //  PRELOAD_Bypass_placement           Shuffle without ch-placement
 //  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
 //  PRELOAD_Bypass_deltafs             Write to local file system
+//  PRELOAD_Skip_monitoring            Skip perf monitoring
 //  PRELOAD_Local_root                 Local file system root
 //  PRELOAD_Testing                    Used by developers to debug code
 // ----------------------------------|----------------------------------

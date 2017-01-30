@@ -22,10 +22,6 @@ extern "C" {
 #define MON_NUM_BUCKETS 154
 typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
 
-#ifndef MON_DISABLED
-#define MON_DISABLED 0
-#endif
-
 /* XXX: assuming VPIC has only a single main thread such that no
  * synchronization is needed to protect mon state.
  *
@@ -44,11 +40,11 @@ typedef struct mon_ctx {
     unsigned min_wsz;   /* min app write size */
     unsigned max_wsz;   /* max app write size */
 
-    /* writes being shuffled out with response successfully received */
+    /* writes being shuffled out with remote write successful */
     unsigned long long nwsok;
     /* total num of writes being shuffled out */
     unsigned long long nws;
-    /* writes being shuffled in with reply successfully sent */
+    /* writes being shuffled in with local write successful */
     unsigned long long nwrok;
     /* total num of writes being shuffled in */
     unsigned long long nwr;

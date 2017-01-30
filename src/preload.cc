@@ -156,6 +156,8 @@ static void preload_init()
     if (is_envset("PRELOAD_Bypass_deltafs"))
         pctx.mode |= BYPASS_DELTAFS;
 
+    if (is_envset("PRELOAD_Skip_monitoring"))
+        pctx.nomon = 1;
     if (is_envset("PRELOAD_Testing"))
         pctx.testin = 1;
 
@@ -361,7 +363,7 @@ int MPI_Barrier(MPI_Comm comm)
 {
     int rv = nxt.MPI_Barrier(comm);
 
-    if (!MON_DISABLED) {
+    if (!pctx.nomon) {
         mctx.nb++;
     }
 
@@ -388,7 +390,8 @@ int MPI_Finalize(void)
     }
 
     if (pctx.logfd != -1) {
-        if (!MON_DISABLED) mon_dumpstate(pctx.logfd, &mctx);
+        if (!pctx.nomon)
+            mon_dumpstate(pctx.logfd, &mctx);
         close(pctx.logfd);
     }
 
@@ -469,7 +472,7 @@ DIR *opendir(const char *dir)
 
         deltafs_epoch_flush(pctx.plfsfd, NULL);
 
-        if (!MON_DISABLED) {
+        if (!pctx.nomon) {
             mctx.ne++;
         }
     } else {
@@ -580,23 +583,15 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS_PLFSDIR
          *   - BYPASS_DELTAFS
          */
-        if (!MON_DISABLED) {
-            rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                    &mctx);
-        } else {
-            rv = preload_write(ff->file_name(), ff->data(), ff->size());
-        }
+        rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
+                &mctx);
     } else {
         /*
          * shuffle_write() will check if
          *   - BYPASS_PLACEMENT
          */
-        if (!MON_DISABLED) {
-            rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
-                    &mctx);
-        } else {
-            rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
-        }
+        rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
+                &mctx);
     }
 
     must_maybelockmutex(&maybe_mtx);
@@ -649,14 +644,6 @@ int preload_write(const char *fn, char *data, size_t len)
             }
             deltafs_close(fd);
         }
-    }
-
-    if (!MON_DISABLED) {
-        if (len > mctx.max_wsz) mctx.max_wsz = len;
-        if (len < mctx.min_wsz) mctx.min_wsz = len;
-        if (rv == 0) mctx.nwok++;
-
-        mctx.nw++;
     }
 
     return(rv);
