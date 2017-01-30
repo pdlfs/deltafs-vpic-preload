@@ -294,7 +294,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
 
-        if (!mctx.no_mon) {
+        if (!MON_DISABLED) {
             out.rv = mon_preload_write(path, in.data, in.data_len, &mctx);
         } else {
             out.rv = preload_write(path, in.data, in.data_len);
@@ -313,7 +313,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
     HG_Free_input(h, &in);
 
-    if (!mctx.no_mon) {
+    if (!MON_DISABLED) {
         if (hret == HG_SUCCESS) mctx.nwrok++;
         mctx.nwr++;
     }
@@ -379,7 +379,7 @@ int shuffle_write(const char *fn, char *data, size_t len)
             n = write(pctx.logfd, buf, n);
         }
 
-        if (!mctx.no_mon) {
+        if (!MON_DISABLED) {
             return(mon_preload_write(fn, data, len, &mctx));
         } else {
             return(preload_write(fn, data, len));
@@ -425,7 +425,7 @@ int shuffle_write(const char *fn, char *data, size_t len)
 
     HG_Destroy(handle);
 
-    if (!mctx.no_mon) {
+    if (!MON_DISABLED) {
         if (hret == HG_SUCCESS) mctx.nwsok++;
         mctx.nws++;
     }

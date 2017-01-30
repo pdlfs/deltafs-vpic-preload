@@ -22,6 +22,10 @@ extern "C" {
 #define MON_NUM_BUCKETS 154
 typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
 
+#ifndef MON_DISABLED
+#define MON_DISABLED 0
+#endif
+
 /* XXX: assuming VPIC has only a single main thread such that no
  * synchronization is needed to protect mon state.
  *
@@ -34,8 +38,6 @@ typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
  */
 
 typedef struct mon_ctx {
-
-    int no_mon; /* non-zero if monitoring is disabled */
 
     /* !!! monitoring state !!! */
 

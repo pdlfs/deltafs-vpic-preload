@@ -361,7 +361,7 @@ int MPI_Barrier(MPI_Comm comm)
 {
     int rv = nxt.MPI_Barrier(comm);
 
-    if (!mctx.no_mon) {
+    if (!MON_DISABLED) {
         mctx.nb++;
     }
 
@@ -388,7 +388,7 @@ int MPI_Finalize(void)
     }
 
     if (pctx.logfd != -1) {
-        if (!mctx.no_mon) mon_dumpstate(pctx.logfd, &mctx);
+        if (!MON_DISABLED) mon_dumpstate(pctx.logfd, &mctx);
         close(pctx.logfd);
     }
 
@@ -469,7 +469,7 @@ DIR *opendir(const char *dir)
 
         deltafs_epoch_flush(pctx.plfsfd, NULL);
 
-        if (!mctx.no_mon) {
+        if (!MON_DISABLED) {
             mctx.ne++;
         }
     } else {
@@ -580,7 +580,7 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS_PLFSDIR
          *   - BYPASS_DELTAFS
          */
-        if (!mctx.no_mon) {
+        if (!MON_DISABLED) {
             rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
                     &mctx);
         } else {
@@ -591,8 +591,9 @@ int fclose(FILE *stream)
          * shuffle_write() will check if
          *   - BYPASS_PLACEMENT
          */
-        if (!mctx.no_mon) {
-            rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(), &mctx);
+        if (!MON_DISABLED) {
+            rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
+                    &mctx);
         } else {
             rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
         }
@@ -650,7 +651,7 @@ int preload_write(const char *fn, char *data, size_t len)
         }
     }
 
-    if (!mctx.no_mon) {
+    if (!MON_DISABLED) {
         if (len > mctx.max_wsz) mctx.max_wsz = len;
         if (len < mctx.min_wsz) mctx.min_wsz = len;
         if (rv == 0) mctx.nwok++;
