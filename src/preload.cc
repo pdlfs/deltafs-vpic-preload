@@ -382,13 +382,15 @@ int MPI_Finalize(void)
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
 
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+        nxt.MPI_Barrier();  /* ensures all peer messages are handled */
+        shuffle_destroy();
+    }
+
+    /* all writes done, time to close all plfsdirs */
     if (pctx.plfsfd != -1) {
         deltafs_close(pctx.plfsfd);
         pctx.plfsfd = -1;
-    }
-
-    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-        shuffle_destroy();
     }
 
     if (pctx.logfd != -1) {
