@@ -37,6 +37,8 @@ typedef struct mon_ctx {
 
     /* !!! monitoring state !!! */
 
+    unsigned min_fnl;   /* min file name length */
+    unsigned max_fnl;   /* max file name length */
     unsigned min_wsz;   /* min app write size */
     unsigned max_wsz;   /* max app write size */
 

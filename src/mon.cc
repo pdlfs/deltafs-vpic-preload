@@ -119,7 +119,12 @@ extern "C" {
 int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
     uint64_t start;
     uint64_t end;
+    size_t l;
     int rv;
+
+    assert(fn != NULL && pctx.plfsdir != NULL);
+    assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
+    assert(strlen(fn) > pctx.len_plfsdir + 1);
 
     if (!pctx.nomon) start = now_micros();
 
@@ -130,6 +135,10 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
             end = now_micros();
             hstg_add(ctx->hstgw, end - start);
 
+            l = strlen(fn) - pctx.len_plfsdir - 1;
+
+            if (l > ctx->max_fnl) ctx->max_fnl = l;
+            if (l < ctx->min_fnl) ctx->min_fnl = l;
             if (n > ctx->max_wsz) ctx->max_wsz = n;
             if (n < ctx->min_wsz) ctx->min_wsz = n;
 
@@ -167,6 +176,10 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
 }
 
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
+    MPI_Reduce(const_cast<unsigned*>(&src->min_fnl), &sum->min_fnl, 1,
+            MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned*>(&src->max_fnl), &sum->max_fnl, 1,
+            MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned*>(&src->min_wsz), &sum->min_wsz, 1,
             MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned*>(&src->max_wsz), &sum->max_wsz, 1,
@@ -203,6 +216,8 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
 void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     char buf[1024];
     DUMP(fd, buf, "\n--- mon ---")
+    DUMP(fd, buf, "max fname len: %u chars", ctx->max_fnl);
+    DUMP(fd, buf, "min fname len: %u chars", ctx->min_fnl);
     DUMP(fd, buf, "max write: %u bytes", ctx->max_wsz);
     DUMP(fd, buf, "min write: %u bytes", ctx->min_wsz);
     DUMP(fd, buf, "rpc sent: %llu/%llu", ctx->nwsok, ctx->nws);
@@ -228,6 +243,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
 
 void mon_reinit(mon_ctx_t* ctx) {
     mon_ctx_t tmp = { 0 };
+    tmp.min_fnl = 0xffffffff;
     tmp.min_wsz = 0xffffffff;
     hstg_reset_min(tmp.hstgrpcw);
     hstg_reset_min(tmp.hstgw);
