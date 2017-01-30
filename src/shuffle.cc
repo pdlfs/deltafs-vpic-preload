@@ -437,7 +437,7 @@ static void* bg_work(void* foo)
     while(true) {
         do {
             ret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
-        } while(ret == HG_SUCCESS && actual_count != 0);
+        } while(ret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
 
         if(!is_shuttingdown()) {
             ret = HG_Progress(sctx.hg_ctx, 100);
