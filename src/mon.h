@@ -14,6 +14,14 @@
 
 extern "C" {
 
+/*
+ * Histogram.
+ *
+ * The first four are num. max, min, and sum.
+ */
+#define MON_NUM_BUCKETS 154
+typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
+
 /* XXX: assuming VPIC has only a single main thread such that no
  * synchronization is needed to protect mon state.
  *
@@ -34,12 +42,22 @@ typedef struct mon_ctx {
     unsigned min_wsz;   /* min app write size */
     unsigned max_wsz;   /* max app write size */
 
-    unsigned long long nwsok; /* num of writes being shuffled out with rv!=EOF */
-    unsigned long long nws;   /* total num of writes being shuffled out */
-    unsigned long long nwrok; /* num of writes being shuffled in with rv!=EOF */
-    unsigned long long nwr;   /* total num of writes being shuffled in */
-    unsigned long long nwok;  /* num of writes to deltafs with rv!=EOF */
-    unsigned long long nw;    /* total num of writes to deltafs */
+    /* writes being shuffled out with response successfully received */
+    unsigned long long nwsok;
+    /* total num of writes being shuffled out */
+    unsigned long long nws;
+    /* writes being shuffled in with reply successfully sent */
+    unsigned long long nwrok;
+    /* total num of writes being shuffled in */
+    unsigned long long nwr;
+
+    hstg_t hstgrpcw;      /* rpc write latency distribution */
+
+    /* num of writes to deltafs with rv != EOF */
+    unsigned long long nwok;
+    /* total num of writes to deltafs */
+    unsigned long long nw;
+    hstg_t hstgw;      /* deltafs write latency distribution */
 
     unsigned nb;  /* num of MPI barrier invoked by app */
     unsigned ne;  /* num of epoch flushed */
