@@ -333,7 +333,7 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 }
 
 /* redirect writes to an appropriate rank for buffering and writing */
-int shuffle_write(const char *fn, char *data, size_t len)
+int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
 {
     hg_return_t hret;
     hg_handle_t handle;
@@ -348,6 +348,7 @@ int shuffle_write(const char *fn, char *data, size_t len)
     int rank;
     int n;
 
+    *is_local = 0;
     assert(ssg_get_count(sctx.ssg) != 0);
     assert(fn != NULL);
 
@@ -375,6 +376,8 @@ int shuffle_write(const char *fn, char *data, size_t len)
 
             n = write(pctx.logfd, buf, n);
         }
+
+        *is_local = 1;
 
         return(mon_preload_write(fn, data, len, &mctx));
     }

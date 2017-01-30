@@ -376,6 +376,8 @@ int MPI_Barrier(MPI_Comm comm)
 int MPI_Finalize(void)
 {
     int rv;
+    mon_ctx_t sum;
+    int rank;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
@@ -395,7 +397,11 @@ int MPI_Finalize(void)
         close(pctx.logfd);
     }
 
+    mon_reduce(&mctx, &sum);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) mon_dumpstate(fileno(stderr), &sum);
     rv = nxt.MPI_Finalize();
+
     return(rv);
 }
 

@@ -69,6 +69,8 @@ extern int mon_preload_write(const char* fn, char* data, size_t n,
         mon_ctx_t* ctx);
 extern int mon_shuffle_write(const char* fn, char* data, size_t n,
         mon_ctx_t* ctx);
+
+extern void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum);
 extern void mon_dumpstate(int fd, const mon_ctx_t* ctx);
 extern void mon_reinit(mon_ctx_t* ctx);
 
