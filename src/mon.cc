@@ -90,13 +90,17 @@ static double hstg_avg(const hstg_t& h) {
 }
 
 static void hstg_reduce(const hstg_t&src, hstg_t& sum) {
-    MPI_Reduce(&src[0], &sum[0], 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&src[1], &sum[1], 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&src[2], &sum[2], 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&src[3], &sum[3], 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<double*>(&src[0]), &sum[0], 1, MPI_DOUBLE, MPI_SUM,
+            0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<double*>(&src[1]), &sum[1], 1, MPI_DOUBLE, MPI_MAX,
+            0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<double*>(&src[2]), &sum[2], 1, MPI_DOUBLE, MPI_MIN,
+            0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<double*>(&src[3]), &sum[3], 1, MPI_DOUBLE, MPI_SUM,
+            0, MPI_COMM_WORLD);
 
-    MPI_Reduce(&src[4], &sum[4], MON_NUM_BUCKETS, MPI_DOUBLE, MPI_SUM, 0,
-            MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<double*>(&src[4]), &sum[4], MON_NUM_BUCKETS,
+            MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 }
 
 static uint64_t now_micros() {
@@ -163,31 +167,31 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
 }
 
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
-    MPI_Reduce(&src->min_wsz, &sum->min_wsz, 1, MPI_UNSIGNED, MPI_MIN, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->max_wsz, &sum->max_wsz, 1, MPI_UNSIGNED, MPI_MAX, 0,
-            MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned*>(&src->min_wsz), &sum->min_wsz, 1,
+            MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned*>(&src->max_wsz), &sum->max_wsz, 1,
+            MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
 
-    MPI_Reduce(&src->nwsok, &sum->nwsok, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->nws, &sum->nws, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->nwrok, &sum->nwrok, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->nwr, &sum->nwr, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->nwok, &sum->nwok, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->nw, &sum->nw, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-            MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->nwsok), &sum->nwsok, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->nws), &sum->nws, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->nwrok), &sum->nwrok, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->nwr), &sum->nwr, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->nwok), &sum->nwok, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->nw), &sum->nw, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
     hstg_reduce(src->hstgrpcw, sum->hstgrpcw);
     hstg_reduce(src->hstgw, sum->hstgw);
 
-    MPI_Reduce(&src->nb, &sum->nb, 1, MPI_UNSIGNED, MPI_SUM, 0,
-            MPI_COMM_WORLD);
-    MPI_Reduce(&src->ne, &sum->ne, 1, MPI_UNSIGNED, MPI_SUM, 0,
-            MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned*>(&src->nb), &sum->nb, 1, MPI_UNSIGNED,
+            MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned*>(&src->ne), &sum->ne, 1, MPI_UNSIGNED,
+            MPI_SUM, 0, MPI_COMM_WORLD);
 }
 
 #define DUMP(fd, buf, fmt, ...) { \
