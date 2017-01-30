@@ -580,13 +580,22 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS_PLFSDIR
          *   - BYPASS_DELTAFS
          */
-        rv = preload_write(ff->file_name(), ff->data(), ff->size());
+        if (!mctx.no_mon) {
+            rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
+                    &mctx);
+        } else {
+            rv = preload_write(ff->file_name(), ff->data(), ff->size());
+        }
     } else {
         /*
          * shuffle_write() will check if
          *   - BYPASS_PLACEMENT
          */
-        rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
+        if (!mctx.no_mon) {
+            rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(), &mctx);
+        } else {
+            rv = shuffle_write(ff->file_name(), ff->data(), ff->size());
+        }
     }
 
     must_maybelockmutex(&maybe_mtx);

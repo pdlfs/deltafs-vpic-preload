@@ -93,7 +93,7 @@ void shuffle_init(void);
 void shuffle_init_ssg(void);
 hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
-int shuffle_write(const char *fn, char *data, int len);
+int shuffle_write(const char *fn, char *data, size_t len);
 void shuffle_destroy(void);
 
 } // extern C

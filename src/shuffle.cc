@@ -294,7 +294,11 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
 
-        out.rv = preload_write(path, in.data, in.data_len);
+        if (!mctx.no_mon) {
+            out.rv = mon_preload_write(path, in.data, in.data_len, &mctx);
+        } else {
+            out.rv = preload_write(path, in.data, in.data_len);
+        }
 
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
@@ -332,7 +336,7 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 }
 
 /* redirect writes to an appropriate rank for buffering and writing */
-int shuffle_write(const char *fn, char *data, int len)
+int shuffle_write(const char *fn, char *data, size_t len)
 {
     hg_return_t hret;
     hg_handle_t handle;
@@ -341,6 +345,7 @@ int shuffle_write(const char *fn, char *data, int len)
     write_cb_t write_cb;
     hg_addr_t peer_addr;
     char buf[1024];
+    int rv;
     unsigned long target;
     int peer_rank;
     int rank;
@@ -369,12 +374,16 @@ int shuffle_write(const char *fn, char *data, int len)
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
             n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
-                    len, rank, peer_rank);
+                    int(len), rank, peer_rank);
 
             n = write(pctx.logfd, buf, n);
         }
 
-        return(preload_write(fn, data, len));
+        if (!mctx.no_mon) {
+            return(mon_preload_write(fn, data, len, &mctx));
+        } else {
+            return(preload_write(fn, data, len));
+        }
     }
 
     peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
@@ -408,12 +417,8 @@ int shuffle_write(const char *fn, char *data, int len)
         if (hret == HG_SUCCESS) {
 
             hret = HG_Get_output(handle, &write_out);
-            if (hret == HG_SUCCESS) {
-                if (write_out.rv == EOF) {
-                    hret = HG_OTHER_ERROR;
-                }
-            }
-
+            if (hret == HG_SUCCESS)
+                rv = write_out.rv;
             HG_Free_output(handle, &write_out);
         }
     }
@@ -425,7 +430,7 @@ int shuffle_write(const char *fn, char *data, int len)
         mctx.nws++;
     }
 
-    if (hret != HG_SUCCESS) {
+    if (hret != HG_SUCCESS || rv != 0) {
         return(EOF);
     } else {
         return(0);

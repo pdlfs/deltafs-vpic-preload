@@ -7,11 +7,17 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
-#include "mon.h"
-
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <time.h>
+
+#include "preload_internal.h"
+#include "shuffle_internal.h"
+
+#include "mon.h"
 
 mon_ctx_t mctx = { 0 };
 
@@ -83,7 +89,50 @@ static double hstg_avg(const hstg_t& h) {
   return(h[3] / h[0]);
 }
 
+static uint64_t now_micros() {
+    struct timeval tv;
+    uint64_t t;
+
+    gettimeofday(&tv, NULL);
+    t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
+    t += tv.tv_usec;
+
+    return(t);
+}
+
 extern "C" {
+
+int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
+    uint64_t start;
+    uint64_t end;
+    int rv;
+
+    start = now_micros();
+    rv = preload_write(fn, data, n);
+    end = now_micros();
+
+    if (rv == 0) {
+        hstg_add(ctx->hstgw, end - start);
+    }
+
+    return(rv);
+}
+
+int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
+    uint64_t start;
+    uint64_t end;
+    int rv;
+
+    start = now_micros();
+    rv = shuffle_write(fn, data, n);
+    end = now_micros();
+
+    if (rv == 0) {
+        hstg_add(ctx->hstgrpcw, end - start);
+    }
+
+    return(rv);
+}
 
 #define DUMP(fd, buf, fmt, ...) { \
     int n = snprintf(buf, sizeof(buf), fmt, ##__VA_ARGS__); \
