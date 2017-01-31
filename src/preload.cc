@@ -383,7 +383,7 @@ int MPI_Finalize(void)
     if (rv) msg_abort("MPI_Finalize:pthread_once");
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-        nxt.MPI_Barrier();  /* ensures all peer messages are handled */
+        nxt.MPI_Barrier(MPI_COMM_WORLD);  /* ensures all peer messages are handled */
         shuffle_destroy();
     }
 
