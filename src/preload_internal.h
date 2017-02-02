@@ -49,17 +49,28 @@ typedef pthread_mutexattr_t maybe_mutexattr_t;
 #endif
 
 /*
+ * verbose_error: print error with a message
+ */
+static inline void verbose_error(const char* msg) {
+    char tmp[500];
+    int n = snprintf(tmp, sizeof(tmp), "!!!ERROR!!! %s: %s\n", msg,
+            strerror(errno));
+    n = write(fileno(stderr), tmp, n);
+}
+
+/*
  * msg_abort: abort with a message
  */
 static inline void msg_abort(const char *msg) {
+    char tmp[500];
     int err_num = errno;
     const char* err = strerror(err_num);
-    int d;   /* XXX to avoid compiler warning about write ret val */
-    d = write(fileno(stderr), "!!!ABORT!!! ", sizeof("!!!ABORT!!! ") - 1);
-    d = write(fileno(stderr), msg, strlen(msg));
-    if (err_num) d = write(fileno(stderr), ": ", 2);
-    if (err_num) d = write(fileno(stderr), err, strlen(err));
-    d = write(fileno(stderr), "\n", 1);
+    if (err_num != 0) {
+        snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
+    } else {
+        snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s\n", msg);
+    }
+    int d = write(fileno(stderr), tmp, strlen(tmp));
     abort();
 }
 
@@ -116,6 +127,7 @@ typedef struct preload_ctx {
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
     int nomon;       /* skip monitoring */
+    int verbose;     /* verbose error */
     int logfd;       /* opened descriptor of the log file */
     int testin;      /* developer mode */
 

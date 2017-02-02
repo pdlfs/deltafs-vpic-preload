@@ -158,6 +158,8 @@ static void preload_init()
 
     if (is_envset("PRELOAD_Skip_monitoring"))
         pctx.nomon = 1;
+    if (is_envset("PRELOAD_Enable_verbose_error"))
+        pctx.verbose = 1;
     if (is_envset("PRELOAD_Testing"))
         pctx.testin = 1;
 
@@ -443,6 +445,12 @@ int mkdir(const char *dir, mode_t mode)
         rv = deltafs_mkdir(stripped, mode);
     }
 
+    if (rv != 0) {
+        if (pctx.verbose) {
+            verbose_error("mkdir:deltafs_mkdir");
+        }
+    }
+
     return(rv);
 }
 
@@ -593,6 +601,11 @@ int fclose(FILE *stream)
          */
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
                 &mctx);
+        if (rv != 0) {
+            if (pctx.verbose) {
+                verbose_error("fclose:preload_write");
+            }
+        }
     } else {
         /*
          * shuffle_write() will check if
@@ -600,6 +613,11 @@ int fclose(FILE *stream)
          */
         rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
                 &mctx);
+        if (rv != 0) {
+            if (pctx.verbose) {
+                verbose_error("fclose:shuffle_write");
+            }
+        }
     }
 
     must_maybelockmutex(&maybe_mtx);

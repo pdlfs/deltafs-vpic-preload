@@ -21,6 +21,7 @@
 //  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
 //  PRELOAD_Bypass_deltafs             Write to local file system
 //  PRELOAD_Skip_monitoring            Skip perf monitoring
+//  PRELOAD_Enable_verbose_error       Print error info when write op fails
 //  PRELOAD_Local_root                 Local file system root
 //  PRELOAD_Testing                    Used by developers to debug code
 // ----------------------------------|----------------------------------
