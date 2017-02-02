@@ -82,10 +82,10 @@ static const char* prepare_addr(char* buf)
                         ip, sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
                     msg_abort("getnameinfo");
 
-                SHUFFLE_LOG("maybe using ip %s\n", ip);
-
-                if (strcmp(subnet, ip) == 0) {
+                if (strncmp(subnet, ip, strlen(subnet)) == 0) {
                     break;
+                } else {
+                    SHUFFLE_LOG("reject ip %s\n", ip);
                 }
             }
         }
