@@ -7,18 +7,28 @@
  * found in the LICENSE file. See the AUTHORS file for names of contributors.
  */
 
+#include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <mpi.h>
-
-#include "../src/preload_internal.h" // msg_abort
-#include "../src/preload.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <stdio.h>
+#include <mpi.h>
+
+static inline void msg_abort(const char *msg) {
+    char tmp[500];
+    int err_num = errno;
+    const char* err = strerror(err_num);
+    if (err_num != 0) {
+        snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
+    } else {
+        snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s\n", msg);
+    }
+    int d = write(fileno(stderr), tmp, strlen(tmp));
+    abort();
+}
 
 int main(int argc, char **argv) {
     int rank;
