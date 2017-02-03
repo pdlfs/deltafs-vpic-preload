@@ -153,6 +153,8 @@ static void preload_init()
 
     if (is_envset("PRELOAD_Bypass_deltafs_plfsdir"))
         pctx.mode |= BYPASS_DELTAFS_PLFSDIR;
+    if (is_envset("PRELOAD_Bypass_deltafs_namespace"))
+        pctx.mode |= BYPASS_DELTAFS_NAMESPACE;
     if (is_envset("PRELOAD_Bypass_deltafs"))
         pctx.mode |= BYPASS_DELTAFS;
 
@@ -280,6 +282,7 @@ int MPI_Init(int *argc, char ***argv)
     bool exact;
     const char* stripped;
     char path[PATH_MAX];
+    char conf[100];
     int rank;
     int rv;
 
@@ -316,7 +319,8 @@ int MPI_Init(int *argc, char ***argv)
         }
 
         if (rank == 0) {
-            if (IS_BYPASS_DELTAFS(pctx.mode)) {
+            if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode) ||
+                    IS_BYPASS_DELTAFS(pctx.mode)) {
                 snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
                         stripped);
                 rv = nxt.mkdir(path, 0777);
@@ -327,7 +331,7 @@ int MPI_Init(int *argc, char ***argv)
             }
 
             if (rv != 0) {
-                msg_abort("MPI_Init:mkdir:plfsdir");
+                msg_abort("cannot make plfsdir");
             }
         }
 
@@ -335,11 +339,19 @@ int MPI_Init(int *argc, char ***argv)
         nxt.MPI_Barrier(MPI_COMM_WORLD);
 
         /* everyone opens it */
-        if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
+        if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+            snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
+            snprintf(conf, sizeof(conf), "rank=%d", rank);
+
+            pctx.plfsh = deltafs_plfsdir_create(path, conf);
+            if (pctx.plfsh == NULL) {
+                msg_abort("cannot open plfsdir");
+            }
+        } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
             pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
             if (pctx.plfsfd == -1) {
-                msg_abort("MPI_Init:open:plfsdir");
+                msg_abort("cannot open plfsdir");
             }
         }
     }
@@ -351,7 +363,7 @@ int MPI_Init(int *argc, char ***argv)
                 0777);
 
         if (pctx.logfd == -1) {
-            msg_abort("MPI_Init:open:log");
+            msg_abort("cannot open log");
         }
     }
 
@@ -390,11 +402,17 @@ int MPI_Finalize(void)
     }
 
     /* all writes done, time to close all plfsdirs */
+    if (pctx.plfsh != NULL) {
+        deltafs_plfsdir_close(pctx.plfsh);
+        pctx.plfsh = NULL;
+    }
+
     if (pctx.plfsfd != -1) {
         deltafs_close(pctx.plfsfd);
         pctx.plfsfd = -1;
     }
 
+    /* close log file*/
     if (pctx.logfd != -1) {
         if (!pctx.nomon)
             mon_dumpstate(pctx.logfd, &mctx);
@@ -436,11 +454,10 @@ int mkdir(const char *dir, mode_t mode)
         stripped = (exact) ? "/" : (dir + pctx.len_deltafs_root);
     }
 
-    if (IS_BYPASS_DELTAFS(pctx.mode)) {
+    if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode) ||
+            IS_BYPASS_DELTAFS(pctx.mode)) {
         snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
         rv = nxt.mkdir(path, mode);
-    } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
-        rv = deltafs_mkdir(stripped, mode | DELTAFS_DIR_PLFS_STYLE);
     } else {
         rv = deltafs_mkdir(stripped, mode);
     }
@@ -483,14 +500,29 @@ DIR *opendir(const char *dir)
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
-    if (pctx.plfsfd != -1 && !IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
-            !IS_BYPASS_DELTAFS(pctx.mode)) {
+    if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+        if (pctx.plfsh != NULL) {
+            deltafs_plfsdir_epoch_flush(pctx.plfsh, NULL);
 
-        deltafs_epoch_flush(pctx.plfsfd, NULL);
-
-        if (!pctx.nomon) {
-            mctx.ne++;
+            if (!pctx.nomon) {
+                mctx.ne++;
+            }
+        } else {
+            msg_abort("plfs not opened");
         }
+
+    } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
+            !IS_BYPASS_DELTAFS(pctx.mode)) {
+        if (pctx.plfsfd != -1 ) {
+            deltafs_epoch_flush(pctx.plfsfd, NULL);
+
+            if (!pctx.nomon) {
+                mctx.ne++;
+            }
+        } else {
+            msg_abort("plfs not opened");
+        }
+
     } else {
         /* no op */
     }
@@ -644,9 +676,22 @@ int preload_write(const char *fn, char *data, size_t len)
 
     rv = EOF;
 
-    if (IS_BYPASS_DELTAFS(pctx.mode)) {
+    if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+        if (pctx.plfsh == NULL) {
+            msg_abort("plfsdir not opened");
+        }
+
+        rv = deltafs_plfsdir_append(pctx.plfsh, fn + pctx.len_plfsdir + 1,
+                data, len);
+
+        if (rv != 0) {
+            rv = EOF;
+        }
+
+    } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
         snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
         fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+
         if (fd != -1) {
             n = write(fd, data, len);
             if (n == len) {
@@ -655,13 +700,12 @@ int preload_write(const char *fn, char *data, size_t len)
             close(fd);
         }
     } else {
-
-        if (under_plfsdir(fn)) {
-            fd = deltafs_openat(pctx.plfsfd, fn + pctx.len_plfsdir,  O_WRONLY |
-                    O_CREAT | O_APPEND, 0666);
-        } else {
-            fd = deltafs_open(fn, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (pctx.plfsfd == -1) {
+            msg_abort("plfsdir not opened");
         }
+
+        fd = deltafs_openat(pctx.plfsfd, fn + pctx.len_plfsdir + 1,
+                O_WRONLY | O_CREAT | O_APPEND, 0666);
 
         if (fd != -1) {
             n = deltafs_write(fd, data, len);

@@ -17,6 +17,8 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include <deltafs/deltafs_api.h>
+
 #include "mon.h"
 
 #include <set>
@@ -120,9 +122,10 @@ typedef struct preload_ctx {
 
     int mode;    /* operating mode */
 
-    const char* plfsdir;    /* path to the plfsdir */
-    size_t len_plfsdir;     /* strlen */
-    int plfsfd;             /* fd for the plfsdir */
+    const char* plfsdir;      /* path to the plfsdir */
+    size_t len_plfsdir;       /* strlen */
+    DELTAFS_PLFSDIR* plfsh;   /* opaque handle to an opened plfsdir */
+    int plfsfd;               /* fd for the plfsdir */
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
