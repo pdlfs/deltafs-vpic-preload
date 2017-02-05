@@ -282,9 +282,11 @@ int MPI_Init(int *argc, char ***argv)
     bool exact;
     const char* stripped;
     char path[PATH_MAX];
+    char buf[100];
     char conf[100];
     int rank;
     int rv;
+    int n;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Init:pthread_once");
@@ -296,10 +298,37 @@ int MPI_Init(int *argc, char ***argv)
         return(rv);
     }
 
+    if (pctx.testin) {
+        snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
+
+        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC |
+                O_APPEND, 0777);
+
+        if (pctx.logfd == -1) {
+            msg_abort("cannot open log");
+        }
+
+        if (rank == 0) {
+            warn("testing mode: "
+                    "code unnecessarily slow\n"
+                    "sleep 3 secs");
+
+            sleep(3);
+        }
+
+        nxt.MPI_Barrier(MPI_COMM_WORLD);
+    }
+
     mon_reinit(&mctx);
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_init();
+
+        nxt.MPI_Barrier(MPI_COMM_WORLD);
+
+        if (rank == 0) {
+            info("shuffle up");
+        }
     }
 
     /* pre-create plfsdirs if there is any */
@@ -354,16 +383,11 @@ int MPI_Init(int *argc, char ***argv)
                 msg_abort("cannot open plfsdir");
             }
         }
-    }
 
-    if (pctx.testin) {
-        snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
+        nxt.MPI_Barrier(MPI_COMM_WORLD);
 
-        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC |
-                O_APPEND, 0777);
-
-        if (pctx.logfd == -1) {
-            msg_abort("cannot open log");
+        if (rank == 0) {
+            info("plfsdir up");
         }
     }
 
@@ -396,9 +420,14 @@ int MPI_Finalize(void)
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
 
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         nxt.MPI_Barrier(MPI_COMM_WORLD);  /* ensures all peer messages are handled */
         shuffle_destroy();
+
+        if (rank == 0) {
+            info("shuffle off");
+        }
     }
 
     /* all writes done, time to close all plfsdirs */
@@ -420,7 +449,6 @@ int MPI_Finalize(void)
     }
 
     mon_reduce(&mctx, &sum);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (rank == 0) mon_dumpstate(fileno(stderr), &sum);
     rv = nxt.MPI_Finalize();
 
@@ -464,7 +492,7 @@ int mkdir(const char *dir, mode_t mode)
 
     if (rv != 0) {
         if (pctx.verbose) {
-            verbose_error("mkdir:deltafs_mkdir");
+            error("mkdir:deltafs_mkdir");
         }
     }
 
@@ -635,7 +663,7 @@ int fclose(FILE *stream)
                 &mctx);
         if (rv != 0) {
             if (pctx.verbose) {
-                verbose_error("fclose:preload_write");
+                error("fclose:preload_write");
             }
         }
     } else {
@@ -647,7 +675,7 @@ int fclose(FILE *stream)
                 &mctx);
         if (rv != 0) {
             if (pctx.verbose) {
-                verbose_error("fclose:shuffle_write");
+                error("fclose:shuffle_write");
             }
         }
     }

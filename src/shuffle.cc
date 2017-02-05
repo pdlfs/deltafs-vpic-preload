@@ -57,15 +57,17 @@ static const char* prepare_addr(char* buf)
 {
     int family;
     int port;
-    const char* tmp;
+    const char* env;
     int min_port;
     int max_port;
     struct ifaddrs *ifaddr, *cur;
     MPI_Comm comm;
     int rank;
     const char* subnet;
+    char tmp[100];
     char ip[50]; // ip
     int rv;
+    int n;
 
     /* figure out our ip addr by query the local socket layer */
 
@@ -87,8 +89,13 @@ static const char* prepare_addr(char* buf)
 
                 if (strncmp(subnet, ip, strlen(subnet)) == 0) {
                     break;
-                } else {
-                    SHUFFLE_LOG("reject ip %s\n", ip);
+                } else if (pctx.testin) {
+                    if (pctx.logfd != -1) {
+                        n = snprintf(tmp, sizeof(tmp), "[I] reject %s\n", ip);
+                        n = write(pctx.logfd, tmp, n);
+
+                        errno = 0;
+                    }
                 }
             }
         }
@@ -101,18 +108,18 @@ static const char* prepare_addr(char* buf)
 
     /* get port through MPI rank */
 
-    tmp = getenv("SHUFFLE_Min_port");
-    if (tmp == NULL) {
+    env = getenv("SHUFFLE_Min_port");
+    if (env == NULL) {
         min_port = DEFAULT_MIN_PORT;
     } else {
-        min_port = atoi(tmp);
+        min_port = atoi(env);
     }
 
-    tmp = getenv("SHUFFLE_Max_port");
-    if (tmp == NULL) {
+    env = getenv("SHUFFLE_Max_port");
+    if (env == NULL) {
         max_port = DEFAULT_MAX_PORT;
     } else {
-        max_port = atoi(tmp);
+        max_port = atoi(env);
     }
 
     /* sanity check on port range */
@@ -137,11 +144,18 @@ static const char* prepare_addr(char* buf)
 
     /* add proto */
 
-    tmp = getenv("SHUFFLE_Mercury_proto");
-    if (tmp == NULL) tmp = DEFAULT_PROTO;
-    sprintf(buf, "%s://%s:%d", tmp, ip, port);
+    env = getenv("SHUFFLE_Mercury_proto");
+    if (env == NULL) env = DEFAULT_PROTO;
+    sprintf(buf, "%s://%s:%d", env, ip, port);
 
-    SHUFFLE_LOG("using %s\n", buf);
+    if (pctx.testin) {
+        if (pctx.logfd != -1) {
+            n = snprintf(tmp, sizeof(tmp), "[I] using %s\n", buf);
+            n = write(pctx.logfd, tmp, n);
+
+            errno = 0;
+        }
+    }
 
     return(buf);
 }
@@ -474,6 +488,8 @@ static void* bg_work(void* foo)
     hg_return_t hret;
     unsigned int actual_count;
 
+    trace("bg on");
+
     while(true) {
         do {
             hret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
@@ -494,7 +510,7 @@ static void* bg_work(void* foo)
     pthread_cond_broadcast(&bg_cv);
     pthread_mutex_unlock(&mtx);
 
-    SHUFFLE_LOG("bg off\n");
+    trace("bg off");
 
     return(NULL);
 }
@@ -502,9 +518,11 @@ static void* bg_work(void* foo)
 /* shuffle_init_ssg(): init the ssg sublayer */
 void shuffle_init_ssg(void)
 {
+    char tmp[100];
     hg_return_t hret;
     int rank;
     int size;
+    int n;
 
     sctx.ssg = ssg_init_mpi(sctx.hg_clz, MPI_COMM_WORLD);
     if (sctx.ssg == SSG_NULL)
@@ -517,7 +535,15 @@ void shuffle_init_ssg(void)
     rank = ssg_get_rank(sctx.ssg);
     size = ssg_get_count(sctx.ssg);
 
-    SHUFFLE_LOG("ssg_rank=%d, ssg_size=%d\n", rank, size);
+    if (pctx.testin) {
+        if (pctx.logfd != -1) {
+            n = snprintf(tmp, sizeof(tmp), "[M] ssg_rank=%d ssg_size=%d\n",
+                    rank, size);
+            n = write(pctx.logfd, tmp, n);
+
+            errno = 0;
+        }
+    }
 
     sctx.chp = ch_placement_initialize("ring", size, 1 /* vir factor */,
             0 /* hash seed */);
@@ -579,7 +605,7 @@ void shuffle_init(void)
 
     pthread_detach(pid);
 
-    SHUFFLE_LOG("shuffle is up\n");
+    trace("shuffle on");
 
     return;
 }
@@ -598,7 +624,7 @@ void shuffle_destroy(void)
     HG_Context_destroy(sctx.hg_ctx);
     HG_Finalize(sctx.hg_clz);
 
-    SHUFFLE_LOG("shuffle off\n");
+    trace("shuffle off");
 
     return;
 }

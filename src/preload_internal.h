@@ -11,6 +11,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -51,26 +52,54 @@ typedef pthread_mutexattr_t maybe_mutexattr_t;
 #endif
 
 /*
- * verbose_error: print error with a message
+ * log: append message into a given file.
  */
-static inline void verbose_error(const char* msg) {
+static inline void log(int fd, const char* fmt, ...) {
     char tmp[500];
-    int err_num = errno;
-    const char* err = strerror(err_num);
-    int n = 0;
-    if (err_num != 0) {
-        n = snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
+    va_list va;
+    int n;
+    va_start(va, fmt);
+    n = vsnprintf(tmp, sizeof(tmp), fmt, va);
+    n = write(fd, tmp, n);
+    va_end(va);
+    errno = 0;
+}
+
+/*
+ * info: print a message
+ */
+static inline void info(const char* msg) {
+    log(fileno(stderr), "%s\n", msg);
+}
+
+/*
+ * warn: print a warning message
+ */
+static inline void warn(const char* msg) {
+    log(fileno(stderr), "!!!WARNING!!! %s\n", msg);
+}
+
+/*
+ * error: print an error message
+ */
+static inline void error(const char* msg) {
+    if (errno != 0) {
+        log(fileno(stderr), "!!!ERROR!!! %s: %s\n", msg, strerror(errno));
     } else {
-        n = snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s\n", msg);
+        log(fileno(stderr), "!!!ERROR!!! %s\n", msg);
     }
-    n = write(fileno(stderr), tmp, n);
 }
 
 /*
  * msg_abort: abort with a message
  */
 static inline void msg_abort(const char *msg) {
-    verbose_error(msg);
+    if (errno != 0) {
+        log(fileno(stderr), "!!!ABORT!!! %s: %s\n", msg, strerror(errno));
+    } else {
+        log(fileno(stderr), "!!!ABORT!!! %s\n", msg);
+    }
+
     abort();
 }
 
@@ -136,5 +165,13 @@ typedef struct preload_ctx {
 
 
 extern preload_ctx_t pctx;
+
+static void inline trace(const char* msg) {
+    if (pctx.testin) {
+        if (pctx.logfd != -1) {
+            log(pctx.logfd, "[T] %s\n", msg);
+        }
+    }
+}
 
 } // extern C

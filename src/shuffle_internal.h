@@ -30,18 +30,6 @@
 #include "preload.h"
 
 extern "C" {
-
-#ifndef SHUFFLE_LOG_OUTPUT
-#define SHUFFLE_LOG_OUTPUT 1
-#endif
-
-#define SHUFFLE_LOG(fmt, ...) \
-    do { \
-        if (SHUFFLE_LOG_OUTPUT) { \
-            fprintf(stderr, fmt, ##__VA_ARGS__); \
-        } \
-    } while(0)
-
 /*
  * XXX: threshold that determines whether a write is small enough to use
  * point-to-point rpc; otherwise we fall back to a bulk transfer.
