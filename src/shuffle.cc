@@ -321,9 +321,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     }
 
     if (hret != HG_SUCCESS) {
-        if (pctx.verbose) {
-            verbose_error("shuffle handle");
-        }
+        rpc_abort("HG_Respond", hret);
     }
 
     return hret;
@@ -441,7 +439,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
                 n = pthread_cond_timedwait(&rpc_cv, &mtx, &abstime);
                 if (n == -1) {
                     if (errno == ETIMEDOUT) {
-                        msg_abort("rpc timeout");
+                        msg_abort("HG_Forward timeout");
                     }
                 }
             }
@@ -462,12 +460,8 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     HG_Destroy(handle);
 
     if (hret != HG_SUCCESS) {
-        if (pctx.verbose) {
-            verbose_error("shuffle send");
-        }
-    }
-
-    if (hret != HG_SUCCESS || rv != 0) {
+        rpc_abort("HG_Forward", hret);
+    } else if (rv != 0) {
         return(EOF);
     } else {
         return(0);
@@ -477,18 +471,18 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
 /* bg_work(): dedicated thread function to drive mercury progress */
 static void* bg_work(void* foo)
 {
-    hg_return_t ret;
+    hg_return_t hret;
     unsigned int actual_count;
 
     while(true) {
         do {
-            ret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
-        } while(ret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
+            hret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
+        } while(hret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
 
         if(!is_shuttingdown()) {
-            ret = HG_Progress(sctx.hg_ctx, 100);
-            if (ret != HG_SUCCESS && ret != HG_TIMEOUT)
-                msg_abort("HG_Progress");
+            hret = HG_Progress(sctx.hg_ctx, 100);
+            if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
+                rpc_abort("HG_Progress", hret);
         } else {
             break;
         }
@@ -528,7 +522,7 @@ void shuffle_init_ssg(void)
     sctx.chp = ch_placement_initialize("ring", size, 1 /* vir factor */,
             0 /* hash seed */);
     if (!sctx.chp)
-        msg_abort("ch_placement_initialize");
+        msg_abort("ch_init");
 
     return;
 }

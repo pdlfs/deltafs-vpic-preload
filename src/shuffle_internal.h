@@ -51,6 +51,17 @@ extern "C" {
 #define SHUFFLE_SMALL_WRITE 1024
 
 /*
+ * rpc_abort: abort with a rpc error
+ */
+static inline void rpc_abort(const char* msg, hg_return_t ret) {
+    char tmp[500];
+    const char* err = HG_Error_to_string(ret);
+    int n = snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
+    n = write(fileno(stderr), tmp, n);
+    abort();
+}
+
+/*
  * shuffle context:
  *   - run-time state of the preload and shuffle lib
  */
