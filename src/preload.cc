@@ -359,8 +359,8 @@ int MPI_Init(int *argc, char ***argv)
     if (pctx.testin) {
         snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
 
-        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_APPEND,
-                0777);
+        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC |
+                O_APPEND, 0777);
 
         if (pctx.logfd == -1) {
             msg_abort("cannot open log");
