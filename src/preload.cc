@@ -281,8 +281,10 @@ int MPI_Init(int *argc, char ***argv)
 {
     bool exact;
     const char* stripped;
+    time_t now;
+    char buf[50];
+    char tmp[100];
     char path[PATH_MAX];
-    char buf[100];
     char conf[100];
     int rank;
     int rv;
@@ -306,12 +308,18 @@ int MPI_Init(int *argc, char ***argv)
 
         if (pctx.logfd == -1) {
             msg_abort("cannot open log");
+        } else {
+            now = time(NULL);
+            n = snprintf(tmp, sizeof(tmp), "%s\n--- trace ---\n",
+                    ctime_r(&now, buf));
+            n = write(pctx.logfd, tmp, n);
+
+            errno = 0;
         }
 
         if (rank == 0) {
-            warn("testing mode: "
-                    "code unnecessarily slow\n"
-                    "sleep 3 secs");
+            warn("testing mode: code unnecessarily slow\nsleep 3 secs\n"
+                    "use \"export PRELOAD_Testing=0\" to disable");
 
             sleep(3);
         }
@@ -327,7 +335,7 @@ int MPI_Init(int *argc, char ***argv)
         nxt.MPI_Barrier(MPI_COMM_WORLD);
 
         if (rank == 0) {
-            info("shuffle up");
+            info("shuffle layer ready");
         }
     }
 
@@ -344,7 +352,7 @@ int MPI_Init(int *argc, char ***argv)
         } else if (!exact) {
             stripped = pctx.plfsdir + pctx.len_deltafs_root;
         } else {
-            msg_abort("plfsdir is root");
+            msg_abort("bad plfsdir");
         }
 
         if (rank == 0) {
@@ -387,7 +395,7 @@ int MPI_Init(int *argc, char ***argv)
         nxt.MPI_Barrier(MPI_COMM_WORLD);
 
         if (rank == 0) {
-            info("plfsdir up");
+            info("plfsdir opened");
         }
     }
 
