@@ -61,6 +61,8 @@ typedef struct shuffle_ctx {
     hg_context_t* hg_ctx;
     hg_id_t hg_id;
 
+    int timeout;  /* rpc timeout (in secs) */
+
     /* SSG context */
     ssg_t ssg;
 

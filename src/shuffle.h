@@ -18,6 +18,7 @@
 //  SHUFFLE_Subnet                     IP prefix of the subnet we prefer to use
 //  SHUFFLE_Min_port                   The min port number we can use
 //  SHUFFLE_Max_port                   The max port number we can use
+//  SHUFFLE_Timeout                    RPC timeout
 // ----------------------------------|----------------------------------
 //
 
@@ -30,6 +31,11 @@
  * The default max.
  */
 #define DEFAULT_MAX_PORT 60000
+
+/*
+ * Default rpc timeout (in secs).
+ */
+#define DEFAULT_TIMEOUT 30
 
 /*
  * The default subnet.

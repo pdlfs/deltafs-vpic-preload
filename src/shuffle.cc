@@ -14,6 +14,7 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <pthread.h>
+#include <time.h>
 
 #include <pdlfs-common/xxhash.h>
 
@@ -351,6 +352,8 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     write_out_t write_out;
     write_cb_t write_cb;
     hg_addr_t peer_addr;
+    time_t now;
+    struct timespec abstime;
     char buf[1024];
     int rv;
     unsigned long target;
@@ -431,7 +434,16 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
 
                 pthread_mutex_lock(&mtx);
             } else {
-                pthread_cond_wait(&rpc_cv, &mtx);
+                now = time(NULL);
+                abstime.tv_sec = now + sctx.timeout;
+                abstime.tv_nsec = 0;
+
+                n = pthread_cond_timedwait(&rpc_cv, &mtx, &abstime);
+                if (n == -1) {
+                    if (errno == ETIMEDOUT) {
+                        msg_abort("rpc timeout");
+                    }
+                }
             }
         }
         pthread_mutex_unlock(&mtx);
@@ -526,9 +538,17 @@ void shuffle_init(void)
 {
     hg_return_t hret;
     pthread_t pid;
+    const char* env;
     int rv;
 
     prepare_addr(sctx.my_addr);
+
+    env = getenv("SHUFFLE_Timeout");
+    if (env == NULL) {
+        sctx.timeout = DEFAULT_TIMEOUT;
+    } else {
+        sctx.timeout = atoi(env);
+    }
 
     sctx.hg_clz = HG_Init(sctx.my_addr, HG_TRUE);
     if (!sctx.hg_clz)
