@@ -311,6 +311,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     }
 
     HG_Free_input(h, &in);
+    HG_Destroy(h);
 
     if (!pctx.nomon) {
         if (hret == HG_SUCCESS && out.rv == 0)
