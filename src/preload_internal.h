@@ -55,8 +55,14 @@ typedef pthread_mutexattr_t maybe_mutexattr_t;
  */
 static inline void verbose_error(const char* msg) {
     char tmp[500];
-    int n = snprintf(tmp, sizeof(tmp), "!!!ERROR!!! %s: %s\n", msg,
-            strerror(errno));
+    int err_num = errno;
+    const char* err = strerror(err_num);
+    int n = 0;
+    if (err_num != 0) {
+        n = snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
+    } else {
+        n = snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s\n", msg);
+    }
     n = write(fileno(stderr), tmp, n);
 }
 
@@ -64,15 +70,7 @@ static inline void verbose_error(const char* msg) {
  * msg_abort: abort with a message
  */
 static inline void msg_abort(const char *msg) {
-    char tmp[500];
-    int err_num = errno;
-    const char* err = strerror(err_num);
-    if (err_num != 0) {
-        snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
-    } else {
-        snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s\n", msg);
-    }
-    int d = write(fileno(stderr), tmp, strlen(tmp));
+    verbose_error(msg);
     abort();
 }
 

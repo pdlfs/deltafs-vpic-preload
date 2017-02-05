@@ -8,6 +8,8 @@
  */
 
 #include <assert.h>
+#include <errno.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -280,7 +282,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     write_in_t in;
     char path[PATH_MAX];
     char buf[1024];
-    int rank_in;
+    int peer_rank;
     int rank;
     int n;
 
@@ -288,7 +290,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
     if (hret == HG_SUCCESS) {
         rank = ssg_get_rank(sctx.ssg);
-        rank_in = in.rank_in;
+        peer_rank = in.rank_in;
 
         assert(pctx.plfsdir != NULL);
 
@@ -298,10 +300,11 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
-            n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", path,
-                    int(in.data_len), rank_in, rank);
-
+            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes %d->%d\n", path,
+                    int(in.data_len), peer_rank, rank);
             n = write(pctx.logfd, buf, n);
+
+            errno = 0;
         }
 
         hret = HG_Respond(h, NULL, NULL, &out);
@@ -313,6 +316,12 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
         if (hret == HG_SUCCESS && out.rv == 0)
             mctx.nwrok++;
         mctx.nwr++;
+    }
+
+    if (hret != HG_SUCCESS) {
+        if (pctx.verbose) {
+            verbose_error("shuffle handle");
+        }
     }
 
     return hret;
@@ -367,19 +376,21 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
         peer_rank = rank;
     }
 
+    /* write trace if we are in testing mode */
+    if (pctx.testin && pctx.logfd != -1) {
+        n = snprintf(buf, sizeof(buf), "[S] %s %d bytes %d->%d\n", fn,
+                int(len), rank, peer_rank);
+        n = write(pctx.logfd, buf, n);
+
+        errno = 0;
+    }
+
     if (peer_rank == rank) {
-
-        /* write trace if we are in testing mode */
-        if (pctx.testin && pctx.logfd != -1) {
-            n = snprintf(buf, sizeof(buf), "%s %d bytes r%d->r%d\n", fn,
-                    int(len), rank, peer_rank);
-
-            n = write(pctx.logfd, buf, n);
-        }
-
         *is_local = 1;
 
-        return(mon_preload_write(fn, data, len, &mctx));
+        rv = mon_preload_write(fn, data, len, &mctx);
+
+        return(rv);
     }
 
     peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
@@ -402,10 +413,26 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     hret = HG_Forward(handle, shuffle_write_handler, &write_cb, &write_in);
 
     if (hret == HG_SUCCESS) {
-        /* here we wait rpc to complete */
+        /* here we block until rpc completes */
         pthread_mutex_lock(&mtx);
-        while(write_cb.ok == 0)
-            pthread_cond_wait(&rpc_cv, &mtx);
+        while(write_cb.ok == 0) {
+            if (pctx.testin) {
+                pthread_mutex_unlock(&mtx);
+                if (pctx.logfd != -1) {
+                    n = snprintf(buf, sizeof(buf), "[W] %s %d bytes %d->%d\n",
+                            fn, int(len), rank, peer_rank);
+                    n = write(pctx.logfd, buf, n);
+
+                    errno = 0;
+                }
+
+                usleep(100 * 1000);
+
+                pthread_mutex_lock(&mtx);
+            } else {
+                pthread_cond_wait(&rpc_cv, &mtx);
+            }
+        }
         pthread_mutex_unlock(&mtx);
 
         hret = write_cb.hret;
@@ -420,6 +447,12 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     }
 
     HG_Destroy(handle);
+
+    if (hret != HG_SUCCESS) {
+        if (pctx.verbose) {
+            verbose_error("shuffle send");
+        }
+    }
 
     if (hret != HG_SUCCESS || rv != 0) {
         return(EOF);
