@@ -55,7 +55,7 @@
  *
  * "deltafs_root" maybe a relative path.
  */
-#define DEFAULT_DELTAFS_ROOT "/tmp/pdlfs"
+#define DEFAULT_DELTAFS_ROOT "/deltafs"
 
 /*
  * If "local_root" is not specified, we set it to the following path.
@@ -66,6 +66,6 @@
  * In such cases, all local file system writes will
  * be rooted under the following path.
  */
-#define DEFAULT_LOCAL_ROOT "/tmp/pdlfs-test"
+#define DEFAULT_LOCAL_ROOT "/tmp/deltafs-vpic-test"
 
 // END
