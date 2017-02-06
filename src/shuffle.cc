@@ -525,9 +525,18 @@ void shuffle_init_ssg(void)
 {
     char tmp[100];
     hg_return_t hret;
+    const char* env;
+    int vf;
     int rank;
     int size;
     int n;
+
+    env = getenv("SHUFFLE_Virtual_factor");
+    if (env == NULL) {
+        vf = DEFAULT_VIRTUAL_FACTOR;
+    } else {
+        vf = atoi(env);
+    }
 
     sctx.ssg = ssg_init_mpi(sctx.hg_clz, MPI_COMM_WORLD);
     if (sctx.ssg == SSG_NULL)
@@ -542,15 +551,15 @@ void shuffle_init_ssg(void)
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
-            n = snprintf(tmp, sizeof(tmp), "[M] ssg_rank=%d ssg_size=%d\n",
-                    rank, size);
+            n = snprintf(tmp, sizeof(tmp), "[M] ssg_rank=%d ssg_size=%d "
+                    "vir_factor=%d\n", rank, size, vf);
             n = write(pctx.logfd, tmp, n);
 
             errno = 0;
         }
     }
 
-    sctx.chp = ch_placement_initialize("ring", size, 1 /* vir factor */,
+    sctx.chp = ch_placement_initialize("ring", size, vf /* vir factor */,
             0 /* hash seed */);
     if (!sctx.chp)
         msg_abort("ch_init");

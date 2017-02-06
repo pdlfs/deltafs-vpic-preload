@@ -18,6 +18,7 @@
 //  SHUFFLE_Subnet                     IP prefix of the subnet we prefer to use
 //  SHUFFLE_Min_port                   The min port number we can use
 //  SHUFFLE_Max_port                   The max port number we can use
+//  SHUFFLE_Virtual_factor             Virtual factor used by nodes in a ch ring
 //  SHUFFLE_Timeout                    RPC timeout
 // ----------------------------------|----------------------------------
 //
@@ -34,8 +35,19 @@
 
 /*
  * Default rpc timeout (in secs).
+ *
+ * If a rpc fails to complete within this amount of time,
+ * we abort.
  */
 #define DEFAULT_TIMEOUT 30
+
+/*
+ * Default virtual factor.
+ *
+ * Require a reasonably large number to achieve a more
+ * uniform distribution.
+ */
+#define DEFAULT_VIRTUAL_FACTOR 1024
 
 /*
  * The default subnet.
