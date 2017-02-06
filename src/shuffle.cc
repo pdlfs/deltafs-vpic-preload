@@ -366,6 +366,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     hg_addr_t peer_addr;
     time_t now;
     struct timespec abstime;
+    useconds_t delay;
     char buf[1024];
     int rv;
     unsigned long target;
@@ -428,6 +429,8 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
 
     hret = HG_Forward(handle, shuffle_write_handler, &write_cb, &write_in);
 
+    delay = 1000;  /* 1000 us */
+
     if (hret == HG_SUCCESS) {
         /* here we block until rpc completes */
         pthread_mutex_lock(&mtx);
@@ -435,14 +438,16 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
             if (pctx.testin) {
                 pthread_mutex_unlock(&mtx);
                 if (pctx.logfd != -1) {
-                    n = snprintf(buf, sizeof(buf), "[W] %s %d bytes %d->%d\n",
-                            fn, int(len), rank, peer_rank);
+                    n = snprintf(buf, sizeof(buf), "[W] %s %d bytes %d->%d "
+                            "%llu us\n", fn, int(len), rank, peer_rank,
+                            (unsigned long long) delay);
                     n = write(pctx.logfd, buf, n);
 
                     errno = 0;
                 }
 
-                usleep(100 * 1000);
+                usleep(delay);
+                delay <= 1;
 
                 pthread_mutex_lock(&mtx);
             } else {
