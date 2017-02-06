@@ -578,6 +578,9 @@ DIR *opendir(const char *dir)
         /* no op */
     }
 
+    /* previous epoch ends */
+    nxt.MPI_Barrier(MPI_COMM_WORLD);
+    /* new epoch begins */
     trace("epoch stamped");
 
     return(rv);
