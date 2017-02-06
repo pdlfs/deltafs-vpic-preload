@@ -144,6 +144,8 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
             if (n > ctx->max_wsz) ctx->max_wsz = n;
             if (n < ctx->min_wsz) ctx->min_wsz = n;
 
+            ctx->sum_fnl += l;
+            ctx->sum_wsz += n;
             ctx->nwok++;
         }
 
@@ -182,10 +184,15 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
             MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned*>(&src->max_fnl), &sum->max_fnl, 1,
             MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->sum_fnl), &sum->sum_fnl, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
     MPI_Reduce(const_cast<unsigned*>(&src->min_wsz), &sum->min_wsz, 1,
             MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned*>(&src->max_wsz), &sum->max_wsz, 1,
             MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->sum_wsz), &sum->sum_wsz, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
     MPI_Reduce(const_cast<unsigned long long*>(&src->nwsok), &sum->nwsok, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -220,8 +227,10 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "\n--- mon ---")
     DUMP(fd, buf, "max fname len: %u chars", ctx->max_fnl);
     DUMP(fd, buf, "min fname len: %u chars", ctx->min_fnl);
+    DUMP(fd, buf, "total fname len: %llu chars", ctx->sum_fnl);
     DUMP(fd, buf, "max write: %u bytes", ctx->max_wsz);
     DUMP(fd, buf, "min write: %u bytes", ctx->min_wsz);
+    DUMP(fd, buf, "total write: %llu bytes", ctx->sum_wsz);
     DUMP(fd, buf, "rpc sent: %llu/%llu", ctx->nwsok, ctx->nws);
     DUMP(fd, buf, "rpc received: %llu/%llu", ctx->nwrok, ctx->nwr);
     DUMP(fd, buf, "rpc avge lat: %.0f", hstg_avg(ctx->hstgrpcw));

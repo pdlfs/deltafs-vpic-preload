@@ -39,8 +39,15 @@ typedef struct mon_ctx {
 
     unsigned min_fnl;   /* min file name length */
     unsigned max_fnl;   /* max file name length */
+
+    /* total file name length */
+    unsigned long long sum_fnl;
+
     unsigned min_wsz;   /* min app write size */
     unsigned max_wsz;   /* max app write size */
+
+    /* total app write size */
+    unsigned long long sum_wsz;
 
     /* writes being shuffled out with remote write successful */
     unsigned long long nwsok;
