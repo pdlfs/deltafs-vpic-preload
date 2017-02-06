@@ -262,12 +262,12 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "[M] write 90th lat: %.0f us", hstg_ptile(ctx->hstgw, 90));
     DUMP(fd, buf, "[M] write 99th lat: %.0f us", hstg_ptile(ctx->hstgw, 99));
     DUMP(fd, buf, "[M] write maxm lat: %.0f us", hstg_max(ctx->hstgw));
-    DUMP(fd, buf, "[M] minm t to arr: %.0f us", hstg_min(ctx->hstgarr));
-    DUMP(fd, buf, "[M] avge t to arr: %.0f us", hstg_avg(ctx->hstgarr));
-    DUMP(fd, buf, "[M] 70th t to arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
-    DUMP(fd, buf, "[M] 90th t to arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
-    DUMP(fd, buf, "[M] 99th t to arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
-    DUMP(fd, buf, "[M] maxm t to arr: %.0f us", hstg_max(ctx->hstgarr));
+    DUMP(fd, buf, "[M] minm ttw arr: %.0f us", hstg_min(ctx->hstgarr));
+    DUMP(fd, buf, "[M] avge ttw arr: %.0f us", hstg_avg(ctx->hstgarr));
+    DUMP(fd, buf, "[M] 70th ttw arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
+    DUMP(fd, buf, "[M] 90th ttw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
+    DUMP(fd, buf, "[M] 99th ttw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
+    DUMP(fd, buf, "[M] maxm ttw arr: %.0f us", hstg_max(ctx->hstgarr));
     DUMP(fd, buf, "[M] num deltafs epoches: %u", ctx->ne);
     DUMP(fd, buf, "[M] num mpi barriers: %u", ctx->nb);
 

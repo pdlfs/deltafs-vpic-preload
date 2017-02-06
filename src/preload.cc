@@ -406,7 +406,7 @@ int MPI_Init(int *argc, char ***argv)
         nxt.MPI_Barrier(MPI_COMM_WORLD);
 
         if (rank == 0) {
-            info("plfsdir opened");
+            info("plfs dir opened");
         }
     }
 
@@ -444,12 +444,13 @@ int MPI_Finalize(void)
     trace("MPI finalizing ... ");
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    if (rank == 0) info("start finalizing ... ");
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         nxt.MPI_Barrier(MPI_COMM_WORLD);  /* ensures all peer messages are handled */
         shuffle_destroy();
 
         if (rank == 0) {
-            info("shuffle off");
+            info("shuffle layer closed");
         }
     }
 
@@ -457,11 +458,19 @@ int MPI_Finalize(void)
     if (pctx.plfsh != NULL) {
         deltafs_plfsdir_close(pctx.plfsh);
         pctx.plfsh = NULL;
+
+        if (rank == 0) {
+            info("plfs dir closed");
+        }
     }
 
     if (pctx.plfsfd != -1) {
         deltafs_close(pctx.plfsfd);
         pctx.plfsfd = -1;
+
+        if (rank == 0) {
+            info("plfs dir closed");
+        }
     }
 
     /* close log file*/
@@ -473,6 +482,7 @@ int MPI_Finalize(void)
 
     mon_reduce(&mctx, &sum);
     if (rank == 0) mon_dumpstate(fileno(stderr), &sum);
+    if (rank == 0) info("all done");
     rv = nxt.MPI_Finalize();
 
     return(rv);

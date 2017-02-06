@@ -69,7 +69,7 @@ static inline void log(int fd, const char* fmt, ...) {
  * info: print a message
  */
 static inline void info(const char* msg) {
-    log(fileno(stderr), "%s\n", msg);
+    log(fileno(stderr), "-INFO- %s\n", msg);
 }
 
 /*
