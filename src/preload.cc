@@ -309,16 +309,16 @@ int MPI_Init(int *argc, char ***argv)
 
 #ifndef NDEBUG
     if (rank == 0) {
-        warn("assertion enabled: code unnecessarily slow\n-- recompile with "
-                    "\"-DNDEBUG\" to ensure production mode");
+        warn("assertions enabled: code unnecessarily slow\n-- recompile with "
+                "\"-DNDEBUG\" to disable assertions");
     }
 #endif
 
     if (pctx.testin) {
         if (rank == 0) {
             warn("testing mode: code unnecessarily slow\n-- rerun with "
-                    "\"export PRELOAD_Testing=0\" "
-                    "to ensure production mode");
+                    "\"export PRELOAD_Testing=0\" to "
+                    "disable testing");
         }
 
         snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
