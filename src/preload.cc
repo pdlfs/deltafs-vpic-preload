@@ -300,7 +300,27 @@ int MPI_Init(int *argc, char ***argv)
         return(rv);
     }
 
+#if MPI_VERSION < 3
+    if (rank == 0) {
+        warn("using non-recent MPI release: some features disabled\n-- "
+                "MPI ver 3 is suggested in production mode");
+    }
+#endif
+
+#ifndef NDEBUG
+    if (rank == 0) {
+        warn("assertion enabled: code unnecessarily slow\n-- recompile with "
+                    "\"-DNDEBUG\" to ensure production mode");
+    }
+#endif
+
     if (pctx.testin) {
+        if (rank == 0) {
+            warn("testing mode: code unnecessarily slow\n-- rerun with "
+                    "\"export PRELOAD_Testing=0\" "
+                    "to ensure production mode");
+        }
+
         snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
 
         pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC |
@@ -316,15 +336,6 @@ int MPI_Init(int *argc, char ***argv)
 
             errno = 0;
         }
-
-        if (rank == 0) {
-            warn("testing mode: code unnecessarily slow\nsleep 3 secs\n"
-                    "use \"export PRELOAD_Testing=0\" to disable");
-
-            sleep(3);
-        }
-
-        nxt.MPI_Barrier(MPI_COMM_WORLD);
     }
 
     mon_reinit(&mctx);
