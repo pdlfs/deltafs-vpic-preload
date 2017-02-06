@@ -410,6 +410,8 @@ int MPI_Init(int *argc, char ***argv)
         }
     }
 
+    trace("MPI init done");
+
     return(rv);
 }
 
@@ -438,6 +440,8 @@ int MPI_Finalize(void)
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
+
+    trace("MPI finalizing ... ");
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
@@ -573,6 +577,8 @@ DIR *opendir(const char *dir)
     } else {
         /* no op */
     }
+
+    trace("epoch stamped");
 
     return(rv);
 }

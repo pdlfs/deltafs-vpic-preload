@@ -166,6 +166,9 @@ typedef struct preload_ctx {
 
 extern preload_ctx_t pctx;
 
+/*
+ * trace: if in testing mode, append a message to the testing log file.
+ */
 static void inline trace(const char* msg) {
     if (pctx.testin) {
         if (pctx.logfd != -1) {
