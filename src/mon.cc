@@ -19,6 +19,8 @@
 
 #include "mon.h"
 
+
+
 mon_ctx_t mctx = { 0 };
 
 static const double BUCKET_LIMITS[MON_NUM_BUCKETS] = {
@@ -202,9 +204,9 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
     hstg_reduce(src->hstgw, sum->hstgw);
 
     MPI_Reduce(const_cast<unsigned*>(&src->nb), &sum->nb, 1, MPI_UNSIGNED,
-            MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_MAX, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned*>(&src->ne), &sum->ne, 1, MPI_UNSIGNED,
-            MPI_SUM, 0, MPI_COMM_WORLD);
+            MPI_MAX, 0, MPI_COMM_WORLD);
 }
 
 #define DUMP(fd, buf, fmt, ...) { \
