@@ -35,7 +35,11 @@ typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
 
 typedef struct mon_ctx {
 
-    /* !!! monitoring state !!! */
+    /* !!! auxiliary state !!! */
+
+    uint64_t last_write_micros;  /* timestamp of the previous write */
+
+    /* !!! main monitoring state !!! */
 
     unsigned min_fnl;   /* min file name length */
     unsigned max_fnl;   /* max file name length */
@@ -64,6 +68,8 @@ typedef struct mon_ctx {
     unsigned long long nwok;
     /* total num of writes to deltafs */
     unsigned long long nw;
+
+    hstg_t hstgarr;    /* write interval distribution (mean time to arrive) */
     hstg_t hstgw;      /* deltafs write latency distribution */
 
     unsigned nb;  /* num of MPI barrier invoked by app */

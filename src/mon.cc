@@ -19,7 +19,7 @@
 
 #include "mon.h"
 
-
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 mon_ctx_t mctx = { 0 };
 
@@ -60,7 +60,7 @@ static void hstg_add(hstg_t& h, double d) {
     h[3] += d;               /* sum */
 }
 
-static double hstg_percentile(const hstg_t& h, double p) {
+static double hstg_ptile(const hstg_t& h, double p) {
     double threshold = h[0] * (p / 100.0);
     double sum = 0;
     for (int b = 0; b < MON_NUM_BUCKETS; b++) {
@@ -128,7 +128,15 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
     assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
     assert(strlen(fn) > pctx.len_plfsdir + 1);
 
-    if (!pctx.nomon) start = now_micros();
+    if (!pctx.nomon) {
+        pthread_mutex_lock(&mtx);
+        start = now_micros();
+        if (ctx->last_write_micros != 0) {
+            hstg_add(ctx->hstgarr, start - ctx->last_write_micros);
+        } else {
+            ctx->last_write_micros = start;
+        }
+    }
 
     rv = preload_write(fn, data, n);
 
@@ -146,10 +154,12 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
 
             ctx->sum_fnl += l;
             ctx->sum_wsz += n;
+
             ctx->nwok++;
         }
 
         ctx->nw++;
+        pthread_mutex_unlock(&mtx);
     }
 
     return(rv);
@@ -202,12 +212,15 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned long long*>(&src->nwr), &sum->nwr, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    hstg_reduce(src->hstgrpcw, sum->hstgrpcw);
+
     MPI_Reduce(const_cast<unsigned long long*>(&src->nwok), &sum->nwok, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned long long*>(&src->nw), &sum->nw, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    hstg_reduce(src->hstgrpcw, sum->hstgrpcw);
+    hstg_reduce(src->hstgarr, sum->hstgarr);
     hstg_reduce(src->hstgw, sum->hstgw);
 
     MPI_Reduce(const_cast<unsigned*>(&src->nb), &sum->nb, 1, MPI_UNSIGNED,
@@ -225,29 +238,38 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
 void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     char buf[1024];
     DUMP(fd, buf, "\n--- mon ---")
-    DUMP(fd, buf, "max fname len: %u chars", ctx->max_fnl);
-    DUMP(fd, buf, "min fname len: %u chars", ctx->min_fnl);
-    DUMP(fd, buf, "total fname len: %llu chars", ctx->sum_fnl);
-    DUMP(fd, buf, "max write: %u bytes", ctx->max_wsz);
-    DUMP(fd, buf, "min write: %u bytes", ctx->min_wsz);
-    DUMP(fd, buf, "total write: %llu bytes", ctx->sum_wsz);
-    DUMP(fd, buf, "rpc sent: %llu/%llu", ctx->nwsok, ctx->nws);
-    DUMP(fd, buf, "rpc received: %llu/%llu", ctx->nwrok, ctx->nwr);
-    DUMP(fd, buf, "rpc avge lat: %.0f", hstg_avg(ctx->hstgrpcw));
-    DUMP(fd, buf, "rpc 50th lat: %.0f", hstg_percentile(ctx->hstgrpcw, 50));
-    DUMP(fd, buf, "rpc 70th lat: %.0f", hstg_percentile(ctx->hstgrpcw, 70));
-    DUMP(fd, buf, "rpc 90th lat: %.0f", hstg_percentile(ctx->hstgrpcw, 90));
-    DUMP(fd, buf, "rpc 99th lat: %.0f", hstg_percentile(ctx->hstgrpcw, 99));
-    DUMP(fd, buf, "rpc maxm lat: %.0f", hstg_max(ctx->hstgrpcw));
-    DUMP(fd, buf, "write: %llu/%llu", ctx->nwok, ctx->nw);
-    DUMP(fd, buf, "write avge lat: %.0f", hstg_avg(ctx->hstgw));
-    DUMP(fd, buf, "write 50th lat: %.0f", hstg_percentile(ctx->hstgw, 50));
-    DUMP(fd, buf, "write 70th lat: %.0f", hstg_percentile(ctx->hstgw, 70));
-    DUMP(fd, buf, "write 90th lat: %.0f", hstg_percentile(ctx->hstgw, 90));
-    DUMP(fd, buf, "write 99th lat: %.0f", hstg_percentile(ctx->hstgw, 99));
-    DUMP(fd, buf, "write maxm lat: %.0f", hstg_max(ctx->hstgw));
-    DUMP(fd, buf, "num deltafs epoches: %u", ctx->ne);
-    DUMP(fd, buf, "num mpi barriers: %u", ctx->nb);
+    DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
+    DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
+    DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);
+    DUMP(fd, buf, "[M] max write: %u bytes", ctx->max_wsz);
+    DUMP(fd, buf, "[M] min write: %u bytes", ctx->min_wsz);
+    DUMP(fd, buf, "[M] total write: %llu bytes", ctx->sum_wsz);
+    DUMP(fd, buf, "[M] rpc sent ok: %llu", ctx->nwsok);
+    DUMP(fd, buf, "[M] rpc sent: %llu", ctx->nws);
+    DUMP(fd, buf, "[M] rpc received ok: %llu", ctx->nwrok);
+    DUMP(fd, buf, "[M] rpc received: %llu", ctx->nwr);
+    DUMP(fd, buf, "[M] rpc minm lat: %.0f us", hstg_min(ctx->hstgrpcw));
+    DUMP(fd, buf, "[M] rpc avge lat: %.0f us", hstg_avg(ctx->hstgrpcw));
+    DUMP(fd, buf, "[M] rpc 70th lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 70));
+    DUMP(fd, buf, "[M] rpc 90th lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 90));
+    DUMP(fd, buf, "[M] rpc 99th lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 99));
+    DUMP(fd, buf, "[M] rpc maxm lat: %.0f us", hstg_max(ctx->hstgrpcw));
+    DUMP(fd, buf, "[M] write ok: %llu", ctx->nwok);
+    DUMP(fd, buf, "[M] write: %llu", ctx->nw);
+    DUMP(fd, buf, "[M] write minm lat: %.0f us", hstg_min(ctx->hstgw));
+    DUMP(fd, buf, "[M] write avge lat: %.0f us", hstg_avg(ctx->hstgw));
+    DUMP(fd, buf, "[M] write 70th lat: %.0f us", hstg_ptile(ctx->hstgw, 70));
+    DUMP(fd, buf, "[M] write 90th lat: %.0f us", hstg_ptile(ctx->hstgw, 90));
+    DUMP(fd, buf, "[M] write 99th lat: %.0f us", hstg_ptile(ctx->hstgw, 99));
+    DUMP(fd, buf, "[M] write maxm lat: %.0f us", hstg_max(ctx->hstgw));
+    DUMP(fd, buf, "[M] minm t to arr: %.0f us", hstg_min(ctx->hstgarr));
+    DUMP(fd, buf, "[M] avge t to arr: %.0f us", hstg_avg(ctx->hstgarr));
+    DUMP(fd, buf, "[M] 70th t to arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
+    DUMP(fd, buf, "[M] 90th t to arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
+    DUMP(fd, buf, "[M] 99th t to arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
+    DUMP(fd, buf, "[M] maxm t to arr: %.0f us", hstg_max(ctx->hstgarr));
+    DUMP(fd, buf, "[M] num deltafs epoches: %u", ctx->ne);
+    DUMP(fd, buf, "[M] num mpi barriers: %u", ctx->nb);
 
     return;
 }
@@ -257,6 +279,7 @@ void mon_reinit(mon_ctx_t* ctx) {
     tmp.min_fnl = 0xffffffff;
     tmp.min_wsz = 0xffffffff;
     hstg_reset_min(tmp.hstgrpcw);
+    hstg_reset_min(tmp.hstgarr);
     hstg_reset_min(tmp.hstgw);
 
     *ctx = tmp;
