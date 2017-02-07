@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <sys/time.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -21,6 +22,17 @@ extern "C" {
  */
 #define MON_NUM_BUCKETS 154
 typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
+
+static inline uint64_t now_micros() {
+    struct timeval tv;
+    uint64_t t;
+
+    gettimeofday(&tv, NULL);
+    t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
+    t += tv.tv_usec;
+
+    return(t);
+}
 
 /* XXX: assuming VPIC has only a single main thread such that no
  * synchronization is needed to protect mon state.
@@ -38,6 +50,8 @@ typedef struct mon_ctx {
     /* !!! auxiliary state !!! */
 
     uint64_t last_write_micros;  /* timestamp of the previous write */
+    uint64_t epoch_start;
+    uint64_t epoch_end;
 
     /* !!! main monitoring state !!! */
 
@@ -72,8 +86,7 @@ typedef struct mon_ctx {
     hstg_t hstgarr;    /* write interval distribution (mean time to arrive) */
     hstg_t hstgw;      /* deltafs write latency distribution */
 
-    unsigned nb;  /* num of MPI barrier invoked by app */
-    unsigned ne;  /* num of epoch flushed */
+    unsigned dura;   /* epoch duration */
 
 } mon_ctx_t;
 

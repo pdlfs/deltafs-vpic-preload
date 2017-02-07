@@ -27,7 +27,18 @@
  */
 static maybe_mutex_t maybe_mtx = MAYBE_MUTEX_INITIALIZER;
 
+/* global context */
 preload_ctx_t pctx = { 0 };
+
+
+/* number of MPI barriers invoked by app */
+static int num_barriers = 0;
+
+/* number of epoches generated */
+static int num_epoches = 0;
+
+/* the start time of an epoch */
+static uint64_t epoch_start = 0;
 
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
@@ -338,7 +349,9 @@ int MPI_Init(int *argc, char ***argv)
         }
     }
 
-    mon_reinit(&mctx);
+    if (rank == 0) {
+        info("initializing ...");
+    }
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_init();
@@ -394,20 +407,20 @@ int MPI_Init(int *argc, char ***argv)
             pctx.plfsh = deltafs_plfsdir_create(path, conf);
             if (pctx.plfsh == NULL) {
                 msg_abort("cannot open plfsdir");
+            } else if (rank == 0) {
+                info("LW plfs dir opened");
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
             pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
             if (pctx.plfsfd == -1) {
                 msg_abort("cannot open plfsdir");
+            } else if (rank == 0) {
+                info("plfs dir opened");
             }
         }
 
         nxt.MPI_Barrier(MPI_COMM_WORLD);
-
-        if (rank == 0) {
-            info("plfs dir opened");
-        }
     }
 
     trace("MPI init done");
@@ -422,9 +435,7 @@ int MPI_Barrier(MPI_Comm comm)
 {
     int rv = nxt.MPI_Barrier(comm);
 
-    if (!pctx.nomon) {
-        mctx.nb++;
-    }
+    num_barriers++;
 
     return(rv);
 }
@@ -435,7 +446,6 @@ int MPI_Barrier(MPI_Comm comm)
 int MPI_Finalize(void)
 {
     int rv;
-    mon_ctx_t sum;
     int rank;
 
     rv = pthread_once(&init_once, preload_init);
@@ -444,7 +454,7 @@ int MPI_Finalize(void)
     trace("MPI finalizing ... ");
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if (rank == 0) info("start finalizing ... ");
+    if (rank == 0) info("finalizing ... ");
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         nxt.MPI_Barrier(MPI_COMM_WORLD);  /* ensures all peer messages are handled */
         shuffle_destroy();
@@ -460,7 +470,7 @@ int MPI_Finalize(void)
         pctx.plfsh = NULL;
 
         if (rank == 0) {
-            info("plfs dir closed");
+            info("LW plfs dir closed");
         }
     }
 
@@ -475,13 +485,10 @@ int MPI_Finalize(void)
 
     /* close log file*/
     if (pctx.logfd != -1) {
-        if (!pctx.nomon)
-            mon_dumpstate(pctx.logfd, &mctx);
         close(pctx.logfd);
+        pctx.logfd = -1;
     }
 
-    mon_reduce(&mctx, &sum);
-    if (rank == 0) mon_dumpstate(fileno(stderr), &sum);
     if (rank == 0) info("all done");
     rv = nxt.MPI_Finalize();
 
@@ -550,6 +557,12 @@ DIR *opendir(const char *dir)
         return(NULL);  /* not supported */
     }
 
+    num_epoches++;
+
+    epoch_start = now_micros();
+
+    trace("epoch stamped");
+
     /* relative paths we pass through; absolute we strip off prefix */
 
     if (*dir != '/') {
@@ -561,13 +574,11 @@ DIR *opendir(const char *dir)
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
+    trace("now flush data ... ");
+
     if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
         if (pctx.plfsh != NULL) {
             deltafs_plfsdir_epoch_flush(pctx.plfsh, NULL);
-
-            if (!pctx.nomon) {
-                mctx.ne++;
-            }
         } else {
             msg_abort("plfs not opened");
         }
@@ -576,10 +587,6 @@ DIR *opendir(const char *dir)
             !IS_BYPASS_DELTAFS(pctx.mode)) {
         if (pctx.plfsfd != -1 ) {
             deltafs_epoch_flush(pctx.plfsfd, NULL);
-
-            if (!pctx.nomon) {
-                mctx.ne++;
-            }
         } else {
             msg_abort("plfs not opened");
         }
@@ -588,10 +595,15 @@ DIR *opendir(const char *dir)
         /* no op */
     }
 
-    /* previous epoch ends */
+    /*
+     * this ensures all writes from the new epoch will go into a
+     * new write buffer
+     */
     nxt.MPI_Barrier(MPI_COMM_WORLD);
-    /* new epoch begins */
-    trace("epoch stamped");
+
+    mon_reinit(&mctx);  /* reset mon stats */
+
+    trace("epoch begins");
 
     return(rv);
 }
@@ -601,15 +613,37 @@ DIR *opendir(const char *dir)
  */
 int closedir(DIR *dirp)
 {
+    mon_ctx_t sum;
+    int rank;
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("closedir:pthread_once");
 
-    if (dirp == reinterpret_cast<DIR*>(&fake_dirptr))
-        return(0);   /* deltafs - it is a noop */
+    if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
+        return(nxt.closedir(dirp));
 
-    return(nxt.closedir(dirp));
+    } else {  /* deltafs */
+
+        if (!pctx.nomon) {
+            mctx.dura = now_micros() - epoch_start;
+            if (pctx.testin) {
+                if (pctx.logfd != -1) {
+                    mon_dumpstate(pctx.logfd, &mctx);
+                }
+            }
+
+            mon_reduce(&mctx, &sum);
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+            if (rank == 0) {
+                mon_dumpstate(fileno(stderr), &sum);
+            }
+        }
+
+        trace("epoch ends");
+
+        return(0);
+    }
 }
 
 /*

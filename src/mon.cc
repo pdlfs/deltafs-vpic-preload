@@ -11,7 +11,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/time.h>
 #include <time.h>
 
 #include "preload_internal.h"
@@ -103,17 +102,6 @@ static void hstg_reduce(const hstg_t&src, hstg_t& sum) {
 
     MPI_Reduce(const_cast<double*>(&src[4]), &sum[4], MON_NUM_BUCKETS,
             MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-}
-
-static uint64_t now_micros() {
-    struct timeval tv;
-    uint64_t t;
-
-    gettimeofday(&tv, NULL);
-    t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
-    t += tv.tv_usec;
-
-    return(t);
 }
 
 extern "C" {
@@ -223,10 +211,8 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
     hstg_reduce(src->hstgarr, sum->hstgarr);
     hstg_reduce(src->hstgw, sum->hstgw);
 
-    MPI_Reduce(const_cast<unsigned*>(&src->nb), &sum->nb, 1, MPI_UNSIGNED,
-            MPI_MAX, 0, MPI_COMM_WORLD);
-    MPI_Reduce(const_cast<unsigned*>(&src->ne), &sum->ne, 1, MPI_UNSIGNED,
-            MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned*>(&src->dura), &sum->dura, 1,
+            MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
 }
 
 #define DUMP(fd, buf, fmt, ...) { \
@@ -262,14 +248,12 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "[M] write 90th lat: %.0f us", hstg_ptile(ctx->hstgw, 90));
     DUMP(fd, buf, "[M] write 99th lat: %.0f us", hstg_ptile(ctx->hstgw, 99));
     DUMP(fd, buf, "[M] write maxm lat: %.0f us", hstg_max(ctx->hstgw));
-    DUMP(fd, buf, "[M] minm ttw arr: %.0f us", hstg_min(ctx->hstgarr));
-    DUMP(fd, buf, "[M] avge ttw arr: %.0f us", hstg_avg(ctx->hstgarr));
-    DUMP(fd, buf, "[M] 70th ttw arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
-    DUMP(fd, buf, "[M] 90th ttw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
-    DUMP(fd, buf, "[M] 99th ttw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
-    DUMP(fd, buf, "[M] maxm ttw arr: %.0f us", hstg_max(ctx->hstgarr));
-    DUMP(fd, buf, "[M] num deltafs epoches: %u", ctx->ne);
-    DUMP(fd, buf, "[M] num mpi barriers: %u", ctx->nb);
+    DUMP(fd, buf, "[M] minm btw arr: %.0f us", hstg_min(ctx->hstgarr));
+    DUMP(fd, buf, "[M] avge btw arr: %.0f us", hstg_avg(ctx->hstgarr));
+    DUMP(fd, buf, "[M] 70th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
+    DUMP(fd, buf, "[M] 90th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
+    DUMP(fd, buf, "[M] 99th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
+    DUMP(fd, buf, "[M] maxm btw arr: %.0f us", hstg_max(ctx->hstgarr));
 
     return;
 }
