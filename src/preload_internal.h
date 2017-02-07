@@ -157,10 +157,14 @@ typedef struct preload_ctx {
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
+    int testin;      /* developer mode - for debug use only */
     int nomon;       /* skip monitoring */
-    int verbose;     /* verbose error */
-    int logfd;       /* opened descriptor of the log file */
-    int testin;      /* developer mode */
+
+    int logfd;       /* descriptor for the testing log file */
+    int monfd;       /* descriptor for the mon dump file */
+
+    int vmon;        /* verbose mon stats */
+    int verr;        /* verbose error */
 
 } preload_ctx_t;
 

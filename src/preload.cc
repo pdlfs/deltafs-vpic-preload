@@ -105,6 +105,8 @@ static void preload_init()
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.ftell), "ftell");
 
     pctx.logfd = -1;
+    pctx.monfd = -1;
+
     pctx.isdeltafs = new std::set<FILE*>;
 
     pctx.deltafs_root = getenv("PRELOAD_Deltafs_root");
@@ -169,8 +171,10 @@ static void preload_init()
 
     if (is_envset("PRELOAD_Skip_monitoring"))
         pctx.nomon = 1;
+    if (is_envset("PRELOAD_Enable_verbose_mon"))
+        pctx.vmon = 1;
     if (is_envset("PRELOAD_Enable_verbose_error"))
-        pctx.verbose = 1;
+        pctx.verr = 1;
     if (is_envset("PRELOAD_Testing"))
         pctx.testin = 1;
 
@@ -306,6 +310,9 @@ int MPI_Init(int *argc, char ***argv)
     if (rv == MPI_SUCCESS) {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         pctx.rank = rank;
+        if (rank == 0) {
+            info("initializing ...");
+        }
     } else {
         return(rv);
     }
@@ -333,11 +340,11 @@ int MPI_Init(int *argc, char ***argv)
 
         snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
 
-        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC |
-                O_APPEND, 0777);
+        pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
+                0666);
 
         if (pctx.logfd == -1) {
-            msg_abort("cannot open log");
+            msg_abort("cannot create log");
         } else {
             now = time(NULL);
             n = snprintf(tmp, sizeof(tmp), "%s\n--- trace ---\n",
@@ -348,8 +355,22 @@ int MPI_Init(int *argc, char ***argv)
         }
     }
 
-    if (rank == 0) {
-        info("initializing ...");
+    if (!pctx.nomon && rank == 0) {
+
+        snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.mon", rank);
+
+        pctx.monfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
+                0666);
+
+        if (pctx.monfd == -1) {
+            msg_abort("cannot create mon file");
+        } else {
+            now = time(NULL);
+            n = snprintf(tmp, sizeof(tmp), "%s\n", ctime_r(&now, buf));
+            n = write(pctx.monfd, tmp, n);
+
+            errno = 0;
+        }
     }
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
@@ -482,7 +503,13 @@ int MPI_Finalize(void)
         }
     }
 
-    /* close log file*/
+    /* close mon file */
+    if (pctx.monfd != -1) {
+        close(pctx.monfd);
+        pctx.monfd = -1;
+    }
+
+    /* close testing log file */
     if (pctx.logfd != -1) {
         close(pctx.logfd);
         pctx.logfd = -1;
@@ -530,7 +557,7 @@ int mkdir(const char *dir, mode_t mode)
     }
 
     if (rv != 0) {
-        if (pctx.verbose) {
+        if (pctx.verr) {
             error("mkdir:deltafs_mkdir");
         }
     }
@@ -635,9 +662,15 @@ int closedir(DIR *dirp)
             mon_reduce(&mctx, &sum);
 
             if (pctx.rank == 0) {
-                info("dumping epoch mon stats ...");
-                mon_dumpstate(fileno(stderr), &sum);
-                info("dumping done");
+                if (pctx.monfd != -1) {
+                    info("dumping epoch mon stats ...");
+                    mon_dumpstate(pctx.monfd, &sum);
+                    info("done");
+                }
+
+                if (pctx.vmon) {
+                    mon_dumpstate(fileno(stderr), &sum);
+                }
             }
         }
 
@@ -735,7 +768,7 @@ int fclose(FILE *stream)
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
                 &mctx);
         if (rv != 0) {
-            if (pctx.verbose) {
+            if (pctx.verr) {
                 error("fclose:preload_write");
             }
         }
@@ -747,7 +780,7 @@ int fclose(FILE *stream)
         rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
                 &mctx);
         if (rv != 0) {
-            if (pctx.verbose) {
+            if (pctx.verr) {
                 error("fclose:shuffle_write");
             }
         }

@@ -22,6 +22,7 @@
 //  PRELOAD_Bypass_deltafs_namespace   Use deltafs light-wright plfsdir api
 //  PRELOAD_Bypass_deltafs             Write to local file system
 //  PRELOAD_Skip_monitoring            Skip perf monitoring
+//  PRELOAD_Enable_verbose_mon         Print mon info at the end of each epoch
 //  PRELOAD_Enable_verbose_error       Print error info when write op fails
 //  PRELOAD_Local_root                 Local file system root
 //  PRELOAD_Testing                    Used by developers to debug code
