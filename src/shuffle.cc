@@ -91,7 +91,7 @@ static const char* prepare_addr(char* buf)
                     break;
                 } else if (pctx.testin) {
                     if (pctx.logfd != -1) {
-                        n = snprintf(tmp, sizeof(tmp), "[I] reject %s\n", ip);
+                        n = snprintf(tmp, sizeof(tmp), "[N] reject %s\n", ip);
                         n = write(pctx.logfd, tmp, n);
 
                         errno = 0;
@@ -150,7 +150,7 @@ static const char* prepare_addr(char* buf)
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
-            n = snprintf(tmp, sizeof(tmp), "[I] using %s\n", buf);
+            n = snprintf(tmp, sizeof(tmp), "[N] using %s\n", buf);
             n = write(pctx.logfd, tmp, n);
 
             errno = 0;
@@ -315,8 +315,8 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
-            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes %d->%d\n", path,
-                    int(in.data_len), peer_rank, rank);
+            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes r%d << r%d\n", path,
+                    int(in.data_len), rank, peer_rank);
             n = write(pctx.logfd, buf, n);
 
             errno = 0;
@@ -395,8 +395,14 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
 
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[S] %s %d bytes %d->%d\n", fn,
-                int(len), rank, peer_rank);
+        if (rank != peer_rank) {
+            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes r%d >> r%d\n", fn,
+                    int(len), rank, peer_rank);
+        } else {
+            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes\n",
+                    fn, int(len));
+        }
+
         n = write(pctx.logfd, buf, n);
 
         errno = 0;
@@ -438,8 +444,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
             if (pctx.testin) {
                 pthread_mutex_unlock(&mtx);
                 if (pctx.logfd != -1) {
-                    n = snprintf(buf, sizeof(buf), "[W] %s %d bytes %d->%d "
-                            "%llu us\n", fn, int(len), rank, peer_rank,
+                    n = snprintf(buf, sizeof(buf), "[X] %s %llu us\n", fn,
                             (unsigned long long) delay);
                     n = write(pctx.logfd, buf, n);
 
@@ -551,7 +556,7 @@ void shuffle_init_ssg(void)
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
-            n = snprintf(tmp, sizeof(tmp), "[M] ssg_rank=%d ssg_size=%d "
+            n = snprintf(tmp, sizeof(tmp), "[G] ssg_rank=%d ssg_size=%d "
                     "vir_factor=%d\n", rank, size, vf);
             n = write(pctx.logfd, tmp, n);
 

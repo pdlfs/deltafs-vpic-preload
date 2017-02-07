@@ -649,6 +649,9 @@ int closedir(DIR *dirp)
 
     } else {  /* deltafs */
 
+        /* this ensures we have received all incoming writes */
+        nxt.MPI_Barrier(MPI_COMM_WORLD);
+
         if (!pctx.nomon) {
             mctx.dura = now_micros() - mctx.epoch_start;
             if (pctx.testin) {
