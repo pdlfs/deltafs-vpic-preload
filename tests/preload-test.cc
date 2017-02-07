@@ -9,6 +9,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -56,6 +57,7 @@ int main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
 
+    DIR* d = opendir(dname);
     char fname[PATH_MAX];
     for (int i = 0; i < 10; i++) {
         snprintf(fname, sizeof(fname), "%s/%03d%03d", dname, rank, i);
@@ -74,6 +76,7 @@ int main(int argc, char **argv) {
             msg_abort("fclose");
         }
     }
+    closedir(d);
 
     MPI_Finalize();
 
