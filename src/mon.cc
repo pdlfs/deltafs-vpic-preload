@@ -223,7 +223,8 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
 
 void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     char buf[1024];
-    DUMP(fd, buf, "\n--- mon ---")
+    DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
+    DUMP(fd, buf, "[M] epoch dura: %u us", ctx->dura);
     DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
     DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
     DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);
@@ -254,6 +255,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "[M] 90th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
     DUMP(fd, buf, "[M] 99th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
     DUMP(fd, buf, "[M] maxm btw arr: %.0f us", hstg_max(ctx->hstgarr));
+    DUMP(fd, buf, "\n");
 
     return;
 }

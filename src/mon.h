@@ -23,6 +23,9 @@ extern "C" {
 #define MON_NUM_BUCKETS 154
 typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
 
+/*
+ * the current timestamp in microseconds.
+ */
 static inline uint64_t now_micros() {
     struct timeval tv;
     uint64_t t;
@@ -50,8 +53,9 @@ typedef struct mon_ctx {
     /* !!! auxiliary state !!! */
 
     uint64_t last_write_micros;  /* timestamp of the previous write */
-    uint64_t epoch_start;
-    uint64_t epoch_end;
+
+    uint64_t epoch_start;   /* the start time of an epoch */
+    int epoch_seq;     /* epoch seq num */
 
     /* !!! main monitoring state !!! */
 

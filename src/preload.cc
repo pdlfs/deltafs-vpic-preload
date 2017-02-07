@@ -35,10 +35,8 @@ preload_ctx_t pctx = { 0 };
 static int num_barriers = 0;
 
 /* number of epoches generated */
-static int num_epoches = 0;
+static int num_epochs = 0;
 
-/* the start time of an epoch */
-static uint64_t epoch_start = 0;
 
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
@@ -557,9 +555,10 @@ DIR *opendir(const char *dir)
         return(NULL);  /* not supported */
     }
 
-    num_epoches++;
-
-    epoch_start = now_micros();
+    num_epochs++;
+    mon_reinit(&mctx);  /* reset mon stats */
+    mctx.epoch_start = now_micros();
+    mctx.epoch_seq = num_epochs;
 
     trace("epoch stamped");
 
@@ -601,8 +600,6 @@ DIR *opendir(const char *dir)
      */
     nxt.MPI_Barrier(MPI_COMM_WORLD);
 
-    mon_reinit(&mctx);  /* reset mon stats */
-
     trace("epoch begins");
 
     return(rv);
@@ -626,7 +623,7 @@ int closedir(DIR *dirp)
     } else {  /* deltafs */
 
         if (!pctx.nomon) {
-            mctx.dura = now_micros() - epoch_start;
+            mctx.dura = now_micros() - mctx.epoch_start;
             if (pctx.testin) {
                 if (pctx.logfd != -1) {
                     mon_dumpstate(pctx.logfd, &mctx);
@@ -636,7 +633,9 @@ int closedir(DIR *dirp)
             mon_reduce(&mctx, &sum);
             MPI_Comm_rank(MPI_COMM_WORLD, &rank);
             if (rank == 0) {
+                info("dumping epoch mon stats ...");
                 mon_dumpstate(fileno(stderr), &sum);
+                info("dumping done");
             }
         }
 
