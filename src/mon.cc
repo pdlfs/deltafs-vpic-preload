@@ -146,7 +146,10 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
             ctx->nwok++;
         }
 
+        ctx->min_nw++;
+        ctx->max_nw++;
         ctx->nw++;
+
         pthread_mutex_unlock(&mtx);
     }
 
@@ -171,6 +174,8 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
             ctx->nwsok++;
         }
 
+        ctx->min_nws++;
+        ctx->max_nws++;
         ctx->nws++;
     }
 
@@ -196,10 +201,19 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned long long*>(&src->nws), &sum->nws, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->min_nws), &sum->min_nws, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->max_nws), &sum->max_nws, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
     MPI_Reduce(const_cast<unsigned long long*>(&src->nwrok), &sum->nwrok, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned long long*>(&src->nwr), &sum->nwr, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->min_nwr), &sum->min_nwr, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->max_nwr), &sum->max_nwr, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
     hstg_reduce(src->hstgrpcw, sum->hstgrpcw);
 
@@ -207,6 +221,10 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     MPI_Reduce(const_cast<unsigned long long*>(&src->nw), &sum->nw, 1,
             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->min_nw), &sum->min_nw, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->max_nw), &sum->max_nw, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
     hstg_reduce(src->hstgarr, sum->hstgarr);
     hstg_reduce(src->hstgw, sum->hstgw);
@@ -233,28 +251,34 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "[M] total write size: %llu bytes", ctx->sum_wsz);
     DUMP(fd, buf, "[M] total rpc sent ok: %llu", ctx->nwsok);
     DUMP(fd, buf, "[M] total rpc sent: %llu", ctx->nws);
+    DUMP(fd, buf, "[M] min rpc sent per rank: %llu", ctx->min_nws);
+    DUMP(fd, buf, "[M] max rpc sent per rank: %llu", ctx->max_nws);
     DUMP(fd, buf, "[M] total rpc received ok: %llu", ctx->nwrok);
     DUMP(fd, buf, "[M] total rpc received: %llu", ctx->nwr);
-    DUMP(fd, buf, "[M] rpc minm lat: %.0f us", hstg_min(ctx->hstgrpcw));
-    DUMP(fd, buf, "[M] rpc avge lat: %.0f us", hstg_avg(ctx->hstgrpcw));
-    DUMP(fd, buf, "[M] rpc 70th lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 70));
-    DUMP(fd, buf, "[M] rpc 90th lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 90));
-    DUMP(fd, buf, "[M] rpc 99th lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 99));
-    DUMP(fd, buf, "[M] rpc maxm lat: %.0f us", hstg_max(ctx->hstgrpcw));
+    DUMP(fd, buf, "[M] min rpc received per rank: %llu", ctx->min_nwr);
+    DUMP(fd, buf, "[M] max rpc received per rank: %llu", ctx->max_nwr);
+    DUMP(fd, buf, "[M] rpc min lat: %.0f us", hstg_min(ctx->hstgrpcw));
+    DUMP(fd, buf, "[M] rpc avg lat: %.0f us", hstg_avg(ctx->hstgrpcw));
+    DUMP(fd, buf, "[M] rpc 70t lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 70));
+    DUMP(fd, buf, "[M] rpc 90t lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 90));
+    DUMP(fd, buf, "[M] rpc 99t lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 99));
+    DUMP(fd, buf, "[M] rpc max lat: %.0f us", hstg_max(ctx->hstgrpcw));
     DUMP(fd, buf, "[M] total writes ok: %llu", ctx->nwok);
     DUMP(fd, buf, "[M] total writes: %llu", ctx->nw);
-    DUMP(fd, buf, "[M] write minm lat: %.0f us", hstg_min(ctx->hstgw));
-    DUMP(fd, buf, "[M] write avge lat: %.0f us", hstg_avg(ctx->hstgw));
-    DUMP(fd, buf, "[M] write 70th lat: %.0f us", hstg_ptile(ctx->hstgw, 70));
-    DUMP(fd, buf, "[M] write 90th lat: %.0f us", hstg_ptile(ctx->hstgw, 90));
-    DUMP(fd, buf, "[M] write 99th lat: %.0f us", hstg_ptile(ctx->hstgw, 99));
-    DUMP(fd, buf, "[M] write maxm lat: %.0f us", hstg_max(ctx->hstgw));
-    DUMP(fd, buf, "[M] minm btw arr: %.0f us", hstg_min(ctx->hstgarr));
-    DUMP(fd, buf, "[M] avge btw arr: %.0f us", hstg_avg(ctx->hstgarr));
-    DUMP(fd, buf, "[M] 70th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
-    DUMP(fd, buf, "[M] 90th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
-    DUMP(fd, buf, "[M] 99th btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
-    DUMP(fd, buf, "[M] maxm btw arr: %.0f us", hstg_max(ctx->hstgarr));
+    DUMP(fd, buf, "[M] min writes per rank: %llu", ctx->min_nw);
+    DUMP(fd, buf, "[M] max writes per rank: %llu", ctx->max_nw);
+    DUMP(fd, buf, "[M] write min lat: %.0f us", hstg_min(ctx->hstgw));
+    DUMP(fd, buf, "[M] write avg lat: %.0f us", hstg_avg(ctx->hstgw));
+    DUMP(fd, buf, "[M] write 70t lat: %.0f us", hstg_ptile(ctx->hstgw, 70));
+    DUMP(fd, buf, "[M] write 90t lat: %.0f us", hstg_ptile(ctx->hstgw, 90));
+    DUMP(fd, buf, "[M] write 99t lat: %.0f us", hstg_ptile(ctx->hstgw, 99));
+    DUMP(fd, buf, "[M] write max lat: %.0f us", hstg_max(ctx->hstgw));
+    DUMP(fd, buf, "[M] min btw arr: %.0f us", hstg_min(ctx->hstgarr));
+    DUMP(fd, buf, "[M] avg btw arr: %.0f us", hstg_avg(ctx->hstgarr));
+    DUMP(fd, buf, "[M] 70t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
+    DUMP(fd, buf, "[M] 90t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
+    DUMP(fd, buf, "[M] 99t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
+    DUMP(fd, buf, "[M] max btw arr: %.0f us", hstg_max(ctx->hstgarr));
     DUMP(fd, buf, "\n");
 
     return;

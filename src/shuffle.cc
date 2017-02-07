@@ -331,6 +331,9 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     if (!pctx.nomon) {
         if (hret == HG_SUCCESS && out.rv == 0)
             mctx.nwrok++;
+
+        mctx.min_nwr++;
+        mctx.max_nwr++;
         mctx.nwr++;
     }
 

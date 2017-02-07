@@ -75,10 +75,19 @@ typedef struct mon_ctx {
     unsigned long long nwsok;
     /* total num of writes being shuffled out */
     unsigned long long nws;
+
+    /* num of writes sent per rank */
+    unsigned long long max_nws;
+    unsigned long long min_nws;
+
     /* writes being shuffled in with local write successful */
     unsigned long long nwrok;
     /* total num of writes being shuffled in */
     unsigned long long nwr;
+
+    /* num of writes received per rank */
+    unsigned long long max_nwr;
+    unsigned long long min_nwr;
 
     hstg_t hstgrpcw;      /* rpc write latency distribution */
 
@@ -86,6 +95,10 @@ typedef struct mon_ctx {
     unsigned long long nwok;
     /* total num of writes to deltafs */
     unsigned long long nw;
+
+    /* num of writes executed per rank */
+    unsigned long long max_nw;
+    unsigned long long min_nw;
 
     hstg_t hstgarr;    /* write interval distribution (mean time to arrive) */
     hstg_t hstgw;      /* deltafs write latency distribution */
