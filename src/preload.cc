@@ -584,11 +584,13 @@ DIR *opendir(const char *dir)
     }
 
     num_epochs++;
-    mon_reinit(&mctx);  /* reset mon stats */
+    if (pctx.rank == 0) info("epoch begins");
+    trace("epoch begins");
+
+    mon_reinit(&mctx);   /* reset mon stats */
+
     mctx.epoch_start = now_micros();
     mctx.epoch_seq = num_epochs;
-
-    trace("epoch stamped");
 
     /* relative paths we pass through; absolute we strip off prefix */
 
@@ -627,9 +629,6 @@ DIR *opendir(const char *dir)
      * new write buffer
      */
     nxt.MPI_Barrier(MPI_COMM_WORLD);
-
-    trace("epoch begins");
-
     return(rv);
 }
 
@@ -680,8 +679,8 @@ int closedir(DIR *dirp)
             }
         }
 
+        if (pctx.rank == 0) info("epoch ends");
         trace("epoch ends");
-
         return(0);
     }
 }
