@@ -148,6 +148,7 @@ typedef struct preload_ctx {
     size_t len_local_root;        /* strlen */
 
     int mode;    /* operating mode */
+    int rank;    /* my MPI world rank */
 
     const char* plfsdir;      /* path to the plfsdir */
     size_t len_plfsdir;       /* strlen */

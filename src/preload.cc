@@ -305,6 +305,7 @@ int MPI_Init(int *argc, char ***argv)
     rv = nxt.MPI_Init(argc, argv);
     if (rv == MPI_SUCCESS) {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        pctx.rank = rank;
     } else {
         return(rv);
     }
@@ -444,20 +445,20 @@ int MPI_Barrier(MPI_Comm comm)
 int MPI_Finalize(void)
 {
     int rv;
-    int rank;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
 
     trace("MPI finalizing ... ");
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if (rank == 0) info("finalizing ... ");
+    if (pctx.rank == 0) info("finalizing ... ");
+
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-        nxt.MPI_Barrier(MPI_COMM_WORLD);  /* ensures all peer messages are handled */
+        /* ensures all peer messages are handled */
+        nxt.MPI_Barrier(MPI_COMM_WORLD);
         shuffle_destroy();
 
-        if (rank == 0) {
+        if (pctx.rank == 0) {
             info("shuffle layer closed");
         }
     }
@@ -467,7 +468,7 @@ int MPI_Finalize(void)
         deltafs_plfsdir_close(pctx.plfsh);
         pctx.plfsh = NULL;
 
-        if (rank == 0) {
+        if (pctx.rank == 0) {
             info("LW plfs dir closed");
         }
     }
@@ -476,7 +477,7 @@ int MPI_Finalize(void)
         deltafs_close(pctx.plfsfd);
         pctx.plfsfd = -1;
 
-        if (rank == 0) {
+        if (pctx.rank == 0) {
             info("plfs dir closed");
         }
     }
@@ -487,9 +488,9 @@ int MPI_Finalize(void)
         pctx.logfd = -1;
     }
 
-    if (rank == 0) info("all done");
+    /* !!! OK !!! */
+    if (pctx.rank == 0) info("all done");
     rv = nxt.MPI_Finalize();
-
     return(rv);
 }
 
@@ -611,7 +612,6 @@ DIR *opendir(const char *dir)
 int closedir(DIR *dirp)
 {
     mon_ctx_t sum;
-    int rank;
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
@@ -630,9 +630,11 @@ int closedir(DIR *dirp)
                 }
             }
 
+            if (pctx.rank == 0) info("merging epoch mon stats ...");
+
             mon_reduce(&mctx, &sum);
-            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-            if (rank == 0) {
+
+            if (pctx.rank == 0) {
                 info("dumping epoch mon stats ...");
                 mon_dumpstate(fileno(stderr), &sum);
                 info("dumping done");
