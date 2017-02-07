@@ -119,11 +119,10 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
     if (!pctx.nomon) {
         pthread_mutex_lock(&mtx);
         start = now_micros();
-        if (ctx->last_write_micros != 0) {
+
+        if (ctx->last_write_micros != 0)
             hstg_add(ctx->hstgarr, start - ctx->last_write_micros);
-        } else {
-            ctx->last_write_micros = start;
-        }
+        ctx->last_write_micros = start;
     }
 
     rv = preload_write(fn, data, n);
