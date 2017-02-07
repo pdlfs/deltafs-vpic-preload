@@ -660,12 +660,15 @@ int closedir(DIR *dirp)
             if (pctx.rank == 0) info("merging epoch mon stats ...");
 
             mon_reduce(&mctx, &sum);
+            sum.epoch_seq = mctx.epoch_seq;
 
             if (pctx.rank == 0) {
+                info("merging ok");
+
                 if (pctx.monfd != -1) {
                     info("dumping epoch mon stats ...");
                     mon_dumpstate(pctx.monfd, &sum);
-                    info("done");
+                    info("dumping ok");
                 }
 
                 if (pctx.vmon) {
