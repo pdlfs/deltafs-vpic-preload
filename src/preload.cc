@@ -295,8 +295,8 @@ int MPI_Init(int *argc, char ***argv)
     bool exact;
     const char* stripped;
     time_t now;
-    char buf[50];
-    char tmp[100];
+    char buf[50];  // ctime_r
+    char tmp[100];  // snprintf
     char path[PATH_MAX];
     char conf[100];
     int rank;
@@ -311,7 +311,7 @@ int MPI_Init(int *argc, char ***argv)
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         pctx.rank = rank;
         if (rank == 0) {
-            info("initializing ...");
+            info("lib initializing ...");
         }
     } else {
         return(rv);
@@ -338,7 +338,7 @@ int MPI_Init(int *argc, char ***argv)
                     "disable testing");
         }
 
-        snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.log", rank);
+        snprintf(path, sizeof(path), "/tmp/vpic-preload-trace.%d", rank);
 
         pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
                 0666);
@@ -357,7 +357,7 @@ int MPI_Init(int *argc, char ***argv)
 
     if (!pctx.nomon && rank == 0) {
 
-        snprintf(path, sizeof(path), "/tmp/vpic-preload-%d.mon", rank);
+        snprintf(path, sizeof(path), "/tmp/vpic-preload-mon.%d", rank);
 
         pctx.monfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
                 0666);
@@ -365,11 +365,9 @@ int MPI_Init(int *argc, char ***argv)
         if (pctx.monfd == -1) {
             msg_abort("cannot create mon file");
         } else {
-            now = time(NULL);
-            n = snprintf(tmp, sizeof(tmp), "%s\n", ctime_r(&now, buf));
-            n = write(pctx.monfd, tmp, n);
-
-            errno = 0;
+            snprintf(tmp, sizeof(tmp), "in-mem mon stats %d bytes",
+                    int(sizeof(mctx)));
+            info(tmp);
         }
     }
 
@@ -472,7 +470,7 @@ int MPI_Finalize(void)
 
     trace("MPI finalizing ... ");
 
-    if (pctx.rank == 0) info("finalizing ... ");
+    if (pctx.rank == 0) info("lib finalizing ... ");
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         /* ensures all peer messages are handled */
@@ -517,6 +515,7 @@ int MPI_Finalize(void)
 
     /* !!! OK !!! */
     if (pctx.rank == 0) info("all done");
+    if (pctx.rank == 0) info("bye");
     rv = nxt.MPI_Finalize();
     return(rv);
 }
@@ -637,8 +636,13 @@ DIR *opendir(const char *dir)
  */
 int closedir(DIR *dirp)
 {
+    uint64_t ts;
+    uint64_t diff;
+    char dump[4096];
+    char msg[100];  // snprintf
     mon_ctx_t sum;
     int rv;
+    int n;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("closedir:pthread_once");
@@ -659,18 +663,32 @@ int closedir(DIR *dirp)
                 }
             }
 
-            if (pctx.rank == 0) info("merging epoch mon stats ...");
+            if (pctx.rank == 0) {
+                info("merging epoch mon stats ...");
+                ts = now_micros();
+                mon_reinit(&sum);
+            }
 
             mon_reduce(&mctx, &sum);
-            sum.epoch_seq = mctx.epoch_seq;
 
             if (pctx.rank == 0) {
-                info("merging ok");
+                sum.epoch_seq = mctx.epoch_seq;
+                diff = now_micros() - ts;
+                snprintf(msg, sizeof(msg), "merging ok %d us", int(diff));
+                info(msg);
 
                 if (pctx.monfd != -1) {
                     info("dumping epoch mon stats ...");
-                    mon_dumpstate(pctx.monfd, &sum);
-                    info("dumping ok");
+                    ts = now_micros();
+                    memset(dump, 0, sizeof(dump));
+                    assert(sizeof(sum) < sizeof(dump));
+                    memcpy(dump, &sum, sizeof(sum));
+                    n = write(pctx.monfd, dump, sizeof(dump));
+                    diff = now_micros() - ts;
+                    snprintf(msg, sizeof(msg), "dumping ok %d us", int(diff));
+                    info(msg);
+
+                    errno = 0;
                 }
 
                 if (pctx.vmon) {

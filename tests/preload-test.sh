@@ -71,6 +71,6 @@ if [ $RC -ne 0 ]; then
     exit 1
 else
     echo "Preload test OK"
-    head -n 1000 /tmp/vpic-preload-*
+    head -n 1000 /tmp/vpic-preload-trace*
     exit 0
 fi
