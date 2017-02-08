@@ -242,6 +242,8 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     char buf[1024];
     DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
     DUMP(fd, buf, "[M] epoch dura: %u us", ctx->dura);
+    DUMP(fd, buf, "[M] observed epoch tput: %.2f bytes/s",
+            double(ctx->sum_wsz) / ctx->dura * 1000000);
     DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
     DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
     DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);
@@ -282,7 +284,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "[M] 99t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
     DUMP(fd, buf, "[M] max btw arr: %.0f us", hstg_max(ctx->hstgarr));
     DUMP(fd, buf, "[M] avg btw arr: %.0f us", hstg_avg(ctx->hstgarr));
-    DUMP(fd, buf, "\n");
+    DUMP(fd, buf, "--- end ---\n");
 
     return;
 }

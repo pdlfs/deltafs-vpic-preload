@@ -463,6 +463,7 @@ int MPI_Barrier(MPI_Comm comm)
  */
 int MPI_Finalize(void)
 {
+    char msg[100];
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
@@ -470,7 +471,11 @@ int MPI_Finalize(void)
 
     trace("MPI finalizing ... ");
 
-    if (pctx.rank == 0) info("lib finalizing ... ");
+    if (pctx.rank == 0) {
+        info("lib finalizing ... ");
+        snprintf(msg, sizeof(msg), "%d epochs generated in total", num_epochs);
+        info(msg);
+    }
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         /* ensures all peer messages are handled */
