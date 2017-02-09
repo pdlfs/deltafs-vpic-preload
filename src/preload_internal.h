@@ -159,6 +159,7 @@ typedef struct preload_ctx {
 
     int testin;      /* developer mode - for debug use only */
     int nomon;       /* skip monitoring */
+    int nomondist;   /* skip copying mon files out */
 
     int logfd;       /* descriptor for the testing log file */
     int monfd;       /* descriptor for the mon dump file */

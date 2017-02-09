@@ -169,8 +169,10 @@ static void preload_init()
     if (is_envset("PRELOAD_Bypass_deltafs"))
         pctx.mode |= BYPASS_DELTAFS;
 
-    if (is_envset("PRELOAD_Skip_monitoring"))
+    if (is_envset("PRELOAD_Skip_mon"))
         pctx.nomon = 1;
+    if (is_envset("PRELOAD_Skip_mon_dist"))
+        pctx.nomondist = 1;
     if (is_envset("PRELOAD_Enable_verbose_mon"))
         pctx.vmon = 1;
     if (is_envset("PRELOAD_Enable_verbose_error"))
@@ -338,7 +340,7 @@ int MPI_Init(int *argc, char ***argv)
                     "disable testing");
         }
 
-        snprintf(path, sizeof(path), "/tmp/vpic-preload-trace.%d", rank);
+        snprintf(path, sizeof(path), "/tmp/vpic-deltafs-trace.log.%d", rank);
 
         pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
                 0666);
@@ -357,9 +359,9 @@ int MPI_Init(int *argc, char ***argv)
 
     if (!pctx.nomon && rank == 0) {
 
-        snprintf(path, sizeof(path), "/tmp/vpic-preload-mon.%d", rank);
+        snprintf(path, sizeof(path), "/tmp/vpic-deltafs-mon.bin.%d", rank);
 
-        pctx.monfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
+        pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC,
                 0666);
 
         if (pctx.monfd == -1) {
@@ -463,8 +465,17 @@ int MPI_Barrier(MPI_Comm comm)
  */
 int MPI_Finalize(void)
 {
+    int fd1;
+    int fd2;
+    mon_ctx_t tmp;
+    char dump[4096];
+    char path[4096];
     char msg[100];
+    int ts;
+    int diff;
+    int epoch;
     int rv;
+    int n;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
@@ -506,8 +517,51 @@ int MPI_Finalize(void)
         }
     }
 
-    /* close mon file */
+    /* close and dist mon file */
     if (pctx.monfd != -1) {
+        if (!pctx.nomondist) {
+            info("copying mon files out ...");
+            ts = now_micros();
+            assert(sizeof(dump) > sizeof(tmp));
+            snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
+                    "vpic-deltafs-mon.bin");
+            info(path);
+            fd1 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
+                    "vpic-deltafs-mon.txt");
+            info(path);
+            fd2 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            if (fd1 != -1 && fd2 != -1) {
+                n = lseek(pctx.monfd, 0, SEEK_SET);
+                if (n == 0) {
+                    epoch = 0;
+                    while (epoch != num_epochs) {
+                        n = read(pctx.monfd, dump, sizeof(dump));
+                        if (n == sizeof(dump)) {
+                            n = write(fd1, dump, sizeof(dump));
+                            memcpy(&tmp, dump, sizeof(tmp));
+                            mon_dumpstate(fd2, &tmp);
+
+                            errno = 0;
+                            epoch++;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            if (fd1 != -1) {
+                close(fd1);
+            }
+            if (fd2 != -1) {
+                close(fd2);
+            }
+            diff = now_micros() - ts;
+            snprintf(msg, sizeof(msg), "copied %d epochs %d us",
+                    epoch, int(diff));
+            info(msg);
+        }
+
         close(pctx.monfd);
         pctx.monfd = -1;
     }

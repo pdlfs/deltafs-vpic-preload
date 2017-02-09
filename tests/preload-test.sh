@@ -8,7 +8,7 @@
 
 DELTAFS_ROOT="particle"
 
-LOCAL_ROOT="/tmp/pdlfs-test"
+LOCAL_ROOT="/tmp/vpic-deltafs-test"
 
 BUILD_PREFIX="."
 if [ ! -z "$1" ]; then
@@ -71,6 +71,6 @@ if [ $RC -ne 0 ]; then
     exit 1
 else
     echo "Preload test OK"
-    head -n 1000 /tmp/vpic-preload-trace*
+    head -n 1000 /tmp/vpic-deltafs-trace*
     exit 0
 fi

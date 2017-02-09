@@ -21,7 +21,8 @@
 //  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
 //  PRELOAD_Bypass_deltafs_namespace   Use deltafs light-wright plfsdir api
 //  PRELOAD_Bypass_deltafs             Write to local file system
-//  PRELOAD_Skip_monitoring            Skip perf monitoring
+//  PRELOAD_Skip_mon                   Skip perf monitoring
+//  PRELOAD_Skip_mon_dist              Skip copying mon files out
 //  PRELOAD_Enable_verbose_mon         Print mon info at the end of each epoch
 //  PRELOAD_Enable_verbose_error       Print error info when write op fails
 //  PRELOAD_Local_root                 Local file system root
@@ -67,6 +68,6 @@
  * In such cases, all local file system writes will
  * be rooted under the following path.
  */
-#define DEFAULT_LOCAL_ROOT "/tmp/deltafs-vpic-test"
+#define DEFAULT_LOCAL_ROOT "/tmp/vpic-deltafs-test"
 
 // END
