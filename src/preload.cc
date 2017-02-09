@@ -540,12 +540,12 @@ int MPI_Finalize(void)
     int fd1;
     int fd2;
     mon_ctx_t local;
-    mon_ctx_t sum;
+    mon_ctx_t glob;
     char buf[4096];
     char path1[4096];
     char path2[4096];
     char suffix[100];
-    char msg[100];
+    char msg[200];
     time_t now;
     struct tm timeinfo;
     uint64_t ts;
@@ -662,10 +662,10 @@ int MPI_Finalize(void)
                 MPI_Allreduce(&ok, &go, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
 
                 if (go) {
-                    mon_reinit(&sum);
-                    mon_reduce(&local, &sum);
-                    sum.epoch_seq = epoch + 1;
-                    sum.global = 1;
+                    mon_reinit(&glob);
+                    mon_reduce(&local, &glob);
+                    glob.epoch_seq = epoch + 1;
+                    glob.global = 1;
                 } else if (pctx.rank == 0) {
                     snprintf(msg, sizeof(msg), "error merging epoch %d; "
                             "abort action!", epoch + 1);
@@ -674,15 +674,18 @@ int MPI_Finalize(void)
 
                 if (go) {
                     if (pctx.rank == 0) {
-                        mon_dumpstate(fd2, &sum);
+                        mon_dumpstate(fd2, &glob);
                         memset(buf, 0, sizeof(buf));
                         assert(sizeof(buf) > sizeof(mon_ctx_t));
-                        memcpy(buf, &sum, sizeof(mon_ctx_t));
+                        memcpy(buf, &glob, sizeof(mon_ctx_t));
                         n = write(fd1, buf, sizeof(buf));
 
                         if (n == sizeof(buf)) {
-                            snprintf(msg, sizeof(msg), "epoch %d\tok",
-                                    epoch + 1);
+                            snprintf(msg, sizeof(msg), ">>> epoch %d\t"
+                                    "%llu bytes, %llu writes, %.2f bytes/s ok",
+                                    epoch + 1, glob.sum_wsz, glob.nwok,
+                                    double(glob.sum_wsz) /
+                                    glob.dura * 1000000);
                             info(msg);
                         }
 
