@@ -455,7 +455,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
                 }
 
                 usleep(delay);
-                delay <= 1;
+                delay <<= 1;
 
                 pthread_mutex_lock(&mtx);
             } else {
