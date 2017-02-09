@@ -350,12 +350,12 @@ int MPI_Init(int *argc, char ***argv)
 #endif
     }
 
-#ifndef NDEBUG
     if (rank == 0) {
+#ifndef NDEBUG
         warn("assertions enabled: code unnecessarily slow\n>>> recompile with "
                 "\"-DNDEBUG\" to disable assertions");
-    }
 #endif
+    }
 
     if (pctx.testin) {
         if (rank == 0) {
@@ -381,7 +381,7 @@ int MPI_Init(int *argc, char ***argv)
         }
     }
 
-    if (!pctx.nomon && rank == 0) {
+    if (!pctx.nomon) {
 
         snprintf(path, sizeof(path), "/tmp/vpic-deltafs-mon.bin.%d", rank);
 
@@ -390,7 +390,7 @@ int MPI_Init(int *argc, char ***argv)
 
         if (pctx.monfd == -1) {
             msg_abort("cannot create mon file");
-        } else {
+        } else if (rank ==0) {
             snprintf(msg, sizeof(msg), "in-mem mon stats %d bytes",
                     int(sizeof(mctx)));
             info(msg);
@@ -437,6 +437,8 @@ int MPI_Init(int *argc, char ***argv)
 
             if (rv != 0) {
                 msg_abort("cannot make plfsdir");
+            } else {
+                info("plfs dir created");
             }
         }
 
@@ -451,24 +453,27 @@ int MPI_Init(int *argc, char ***argv)
             pctx.plfsh = deltafs_plfsdir_create(path, conf);
             if (pctx.plfsh == NULL) {
                 msg_abort("cannot open plfsdir");
-            } else if (rank == 0) {
-                info("LW plfs dir opened");
+            } else {
+                nxt.MPI_Barrier(MPI_COMM_WORLD);
+                if (rank == 0) {
+                    info("LW plfs dir opened");
+                }
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
             pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
             if (pctx.plfsfd == -1) {
                 msg_abort("cannot open plfsdir");
-            } else if (rank == 0) {
-                info("plfs dir opened");
+            } else {
+                nxt.MPI_Barrier(MPI_COMM_WORLD);
+                if (rank == 0) {
+                    info("plfs dir opened");
+                }
             }
         }
-
-        nxt.MPI_Barrier(MPI_COMM_WORLD);
     }
 
-    trace("MPI init done");
-
+    trace(__func__);
     return(rv);
 }
 
@@ -543,7 +548,7 @@ int MPI_Finalize(void)
 
     /* close and dist mon file */
     if (pctx.monfd != -1) {
-        if (!pctx.nomondist) {
+        if (!pctx.nomondist && pctx.rank == 0) {
             info("copying mon files out ...");
             ts = now_micros();
             assert(sizeof(dump) > sizeof(tmp));
