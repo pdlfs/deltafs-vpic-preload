@@ -544,9 +544,9 @@ int MPI_Finalize(void)
     int fd1;
     int fd2;
     mon_ctx_t tmp;
-    char dump[4096];
+    char buf[4096];
     char path[4096];
-    char msg[100];  // snprintf
+    char msg[100];
     uint64_t ts;
     uint64_t diff;
     int epoch;
@@ -555,8 +555,6 @@ int MPI_Finalize(void)
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("MPI_Finalize:pthread_once");
-
-    trace("MPI finalizing ... ");
 
     if (pctx.rank == 0) {
         info("lib finalizing ... ");
@@ -595,10 +593,14 @@ int MPI_Finalize(void)
 
     /* close and dist mon file */
     if (pctx.monfd != -1) {
+        if (num_epochs != 0) {
+            dump_mon(&mctx);
+        }
+
         if (!pctx.nomondist && pctx.rank == 0) {
             info("copying mon files out ...");
             ts = now_micros();
-            assert(sizeof(dump) > sizeof(tmp));
+            assert(sizeof(buf) > sizeof(tmp));
             snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
                     "vpic-deltafs-mon.bin");
             info(path);
@@ -612,10 +614,10 @@ int MPI_Finalize(void)
                 if (n == 0) {
                     epoch = 0;
                     while (epoch != num_epochs) {
-                        n = read(pctx.monfd, dump, sizeof(dump));
-                        if (n == sizeof(dump)) {
-                            n = write(fd1, dump, sizeof(dump));
-                            memcpy(&tmp, dump, sizeof(tmp));
+                        n = read(pctx.monfd, buf, sizeof(buf));
+                        if (n == sizeof(buf)) {
+                            n = write(fd1, buf, sizeof(buf));
+                            memcpy(&tmp, buf, sizeof(tmp));
                             mon_dumpstate(fd2, &tmp);
 
                             errno = 0;
@@ -652,6 +654,7 @@ int MPI_Finalize(void)
     if (pctx.rank == 0) info("all done");
     if (pctx.rank == 0) info("bye");
     rv = nxt.MPI_Finalize();
+    trace(__func__);
     return(rv);
 }
 
@@ -704,26 +707,77 @@ int mkdir(const char *dir, mode_t mode)
  */
 DIR *opendir(const char *dir)
 {
+    bool ignored_exact;
+    char msg[100];
     double start;
     double min;
     double dura;
-    bool exact;
-    char msg[100]; // snprintf
-    const char *stripped;
     DIR* rv;
 
     int ret = pthread_once(&init_once, preload_init);
     if (ret) msg_abort("opendir:pthread_once");
 
-    if (!claim_path(dir, &exact)) {
+    if (!claim_path(dir, &ignored_exact)) {
         return(nxt.opendir(dir));
     } else if (!under_plfsdir(dir)) {
         return(NULL);  /* not supported */
     }
 
-    num_epochs++;
+    /* return a fake DIR* since we don't actually open */
+    rv = reinterpret_cast<DIR*>(&fake_dirptr);
+
     if (pctx.rank == 0) {
-        snprintf(msg, sizeof(msg), "epoch %d begins", num_epochs);
+        snprintf(msg, sizeof(msg), "epoch %d bootstrapping ... (rank 0)",
+                num_epochs + 1);
+        info(msg);
+    }
+
+    if (num_epochs != 0) {
+        /*
+         * XXX: explicit epoch flush
+         *
+         * could be removed if deltafs supports auto epoch flush
+         *
+         */
+        if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+            if (pctx.plfsh != NULL) {
+                deltafs_plfsdir_epoch_flush(pctx.plfsh, NULL);
+                if (pctx.rank == 0) {
+                    info("LW plfs dir flushed (rank 0)");
+                }
+            } else {
+                msg_abort("plfs not opened");
+            }
+
+        } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
+                !IS_BYPASS_DELTAFS(pctx.mode)) {
+            if (pctx.plfsfd != -1 ) {
+                deltafs_epoch_flush(pctx.plfsfd, NULL);
+                if (pctx.rank == 0) {
+                    info("plfs dir flushed (rank 0)");
+                }
+            } else {
+                msg_abort("plfs not opened");
+            }
+
+        } else {
+            /* no op */
+        }
+    }
+
+    if (num_epochs != 0) {
+        /*
+         * delay dumping mon stats collected from the previous
+         * epoch until the beginning of the next epoch
+         */
+        dump_mon(&mctx);
+    }
+
+    /* increase epoch seq */
+    num_epochs++;
+
+    if (pctx.rank == 0) {
+        snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_epochs);
         info(msg);
     }
 
@@ -731,36 +785,6 @@ DIR *opendir(const char *dir)
 
     mctx.epoch_start = now_micros();
     mctx.epoch_seq = num_epochs;
-
-    /* relative paths we pass through; absolute we strip off prefix */
-
-    if (*dir != '/') {
-        stripped = dir;
-    } else {
-        stripped = (exact) ? "/" : (dir + pctx.len_deltafs_root);
-    }
-
-    /* return a fake DIR* since we don't actually open */
-    rv = reinterpret_cast<DIR*>(&fake_dirptr);
-
-    if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-        if (pctx.plfsh != NULL) {
-            deltafs_plfsdir_epoch_flush(pctx.plfsh, NULL);
-        } else {
-            msg_abort("plfs not opened");
-        }
-
-    } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
-            !IS_BYPASS_DELTAFS(pctx.mode)) {
-        if (pctx.plfsfd != -1 ) {
-            deltafs_epoch_flush(pctx.plfsfd, NULL);
-        } else {
-            msg_abort("plfs not opened");
-        }
-
-    } else {
-        /* no op */
-    }
 
     if (!pctx.paranoid_barrier) {
         if (pctx.rank == 0) {
@@ -831,12 +855,18 @@ int closedir(DIR *dirp)
             }
         }
 
+        /* record epoch duration */
         if (!pctx.nomon) {
             mctx.dura = now_micros() - mctx.epoch_start;
-            dump_mon(&mctx);
         }
 
-        if (pctx.rank == 0) info("epoch ends");
+        if (pctx.rank == 0) {
+            if (!pctx.paranoid_barrier)
+                info("epoch ends (rank 0)");
+            else
+                info("epoch ends");
+        }
+
         trace(__func__);
         return(0);
     }
