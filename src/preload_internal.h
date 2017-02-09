@@ -148,6 +148,7 @@ typedef struct preload_ctx {
     size_t len_local_root;        /* strlen */
 
     int mode;    /* operating mode */
+    int paranoid_barrier;   /* surround each epoch with barriers */
     int rank;    /* my MPI world rank */
 
     const char* plfsdir;      /* path to the plfsdir */

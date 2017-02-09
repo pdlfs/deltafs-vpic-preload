@@ -109,6 +109,8 @@ static void preload_init()
 
     pctx.isdeltafs = new std::set<FILE*>;
 
+    pctx.paranoid_barrier = 1;
+
     pctx.deltafs_root = getenv("PRELOAD_Deltafs_root");
     if (!pctx.deltafs_root) pctx.deltafs_root = DEFAULT_DELTAFS_ROOT;
     pctx.len_deltafs_root = strlen(pctx.deltafs_root);
@@ -725,8 +727,6 @@ DIR *opendir(const char *dir)
         info(msg);
     }
 
-    trace("epoch begins");
-
     mon_reinit(&mctx);   /* reset mon stats */
 
     mctx.epoch_start = now_micros();
@@ -742,8 +742,6 @@ DIR *opendir(const char *dir)
 
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
-
-    trace("now flush data ... ");
 
     if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
         if (pctx.plfsh != NULL) {
@@ -764,22 +762,31 @@ DIR *opendir(const char *dir)
         /* no op */
     }
 
-    /*
-     * this ensures all writes from the new epoch will go into a
-     * new write buffer
-     */
-    if (pctx.rank == 0)
-        info("barrier ...");
-    start = MPI_Wtime();
-    MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
-    if (pctx.rank == 0) {
-        dura = MPI_Wtime() - start;
-        snprintf(msg, sizeof(msg), "barrier %d us",
-                int(dura * 1000000));
-        info(msg);
-        info("dumping particles ...");
+    if (!pctx.paranoid_barrier) {
+        if (pctx.rank == 0) {
+            info("dumping particles ... (rank 0)");
+        }
+    } else {
+        /*
+         * this ensures writes belong to the new epoch will go into a
+         * new write buffer
+         */
+        if (pctx.rank == 0) {
+            info("barrier ...");
+        }
+        start = MPI_Wtime();
+        MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+        if (pctx.rank == 0) {
+            dura = MPI_Wtime() - min;
+            snprintf(msg, sizeof(msg), "barrier %d us",
+                    int(dura * 1000000));
+            info(msg);
+
+            info("dumping particles ...");
+        }
     }
 
+    trace(__func__);
     return(rv);
 }
 
@@ -803,18 +810,25 @@ int closedir(DIR *dirp)
 
     } else {  /* deltafs */
 
-        /* this ensures we have received all incoming writes */
-        if (pctx.rank == 0) {
-            info("dumping done");
-            info("barrier ...");
-        }
-        start = MPI_Wtime();
-        MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
-        if (pctx.rank == 0) {
-            dura = MPI_Wtime() - start;
-            snprintf(msg, sizeof(msg), "barrier %d us",
-                    int(dura * 1000000));
-            info(msg);
+        if (!pctx.paranoid_barrier) {
+            if (pctx.rank == 0) {
+                info("dumping done (rank 0)");
+            }
+        } else {
+            /* this ensures we have received all incoming writes */
+            if (pctx.rank == 0) {
+                info("barrier ...");
+            }
+            start = MPI_Wtime();
+            MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+            if (pctx.rank == 0) {
+                dura = MPI_Wtime() - min;
+                snprintf(msg, sizeof(msg), "barrier %d us",
+                        int(dura * 1000000));
+                info(msg);
+
+                info("dumping done");
+            }
         }
 
         if (!pctx.nomon) {
