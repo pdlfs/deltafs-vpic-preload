@@ -298,9 +298,10 @@ int MPI_Init(int *argc, char ***argv)
     const char* stripped;
     time_t now;
     char buf[50];  // ctime_r
-    char tmp[100];  // snprintf
+    char msg[100];  // snprintf
     char path[PATH_MAX];
     char conf[100];
+    int size;
     int rank;
     int rv;
     int n;
@@ -310,10 +311,13 @@ int MPI_Init(int *argc, char ***argv)
 
     rv = nxt.MPI_Init(argc, argv);
     if (rv == MPI_SUCCESS) {
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         pctx.rank = rank;
         if (rank == 0) {
             info("lib initializing ...");
+            snprintf(msg, sizeof(msg), "%d cores", size);
+            info(msg);
         }
     } else {
         return(rv);
@@ -321,21 +325,21 @@ int MPI_Init(int *argc, char ***argv)
 
 #if MPI_VERSION < 3
     if (rank == 0) {
-        warn("using non-recent MPI release: some features disabled\n-- "
+        warn("using non-recent MPI release: some features disabled\n>>> "
                 "MPI ver 3 is suggested in production mode");
     }
 #endif
 
 #ifndef NDEBUG
     if (rank == 0) {
-        warn("assertions enabled: code unnecessarily slow\n-- recompile with "
+        warn("assertions enabled: code unnecessarily slow\n>>> recompile with "
                 "\"-DNDEBUG\" to disable assertions");
     }
 #endif
 
     if (pctx.testin) {
         if (rank == 0) {
-            warn("testing mode: code unnecessarily slow\n-- rerun with "
+            warn("testing mode: code unnecessarily slow\n>>> rerun with "
                     "\"export PRELOAD_Testing=0\" to "
                     "disable testing");
         }
@@ -349,9 +353,9 @@ int MPI_Init(int *argc, char ***argv)
             msg_abort("cannot create log");
         } else {
             now = time(NULL);
-            n = snprintf(tmp, sizeof(tmp), "%s\n--- trace ---\n",
+            n = snprintf(msg, sizeof(msg), "%s\n--- trace ---\n",
                     ctime_r(&now, buf));
-            n = write(pctx.logfd, tmp, n);
+            n = write(pctx.logfd, msg, n);
 
             errno = 0;
         }
@@ -367,9 +371,9 @@ int MPI_Init(int *argc, char ***argv)
         if (pctx.monfd == -1) {
             msg_abort("cannot create mon file");
         } else {
-            snprintf(tmp, sizeof(tmp), "in-mem mon stats %d bytes",
+            snprintf(msg, sizeof(msg), "in-mem mon stats %d bytes",
                     int(sizeof(mctx)));
-            info(tmp);
+            info(msg);
         }
     }
 
@@ -470,7 +474,7 @@ int MPI_Finalize(void)
     mon_ctx_t tmp;
     char dump[4096];
     char path[4096];
-    char msg[100];
+    char msg[100];  // snprintf
     int ts;
     int diff;
     int epoch;
@@ -629,6 +633,7 @@ int mkdir(const char *dir, mode_t mode)
 DIR *opendir(const char *dir)
 {
     bool exact;
+    char msg[100]; // snprintf
     const char *stripped;
     DIR* rv;
 
@@ -642,7 +647,11 @@ DIR *opendir(const char *dir)
     }
 
     num_epochs++;
-    if (pctx.rank == 0) info("epoch begins");
+    if (pctx.rank == 0) {
+        snprintf(msg, sizeof(msg), "epoch %d begins", num_epochs);
+        info(msg);
+    }
+
     trace("epoch begins");
 
     mon_reinit(&mctx);   /* reset mon stats */
