@@ -254,10 +254,12 @@ static void dump_mon(const mon_ctx_t* mon)
             if (pctx.logfd != -1) {
                 mon_dumpstate(pctx.logfd, mon);
             }
-            if (pctx.vmon) {
-                if (pctx.rank == 0) {
-                    mon_dumpstate(fileno(stderr), mon);
-                }
+        }
+
+        /* dump txt mon stats to stderr if in verbose mode */
+        if (pctx.vmon) {
+            if (pctx.rank == 0) {
+                mon_dumpstate(fileno(stderr), mon);
             }
         }
 
