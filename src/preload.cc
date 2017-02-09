@@ -341,10 +341,12 @@ int MPI_Init(int *argc, char ***argv)
                 warn("wtime is not global");
             }
         } else {
-            warn("cannot determine if wtime is global");
+            warn("cannot determine if wtime is global\n>>> "
+                    "attr MPI_WTIME_IS_GLOBAL not set");
         }
 #else
-        warn("cannot determine if wtime is global");
+        warn("cannot determine if wtime is global\n>>> "
+                "MPI_WTIME_IS_GLOBAL undefined");
 #endif
     }
 
