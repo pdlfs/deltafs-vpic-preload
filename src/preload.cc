@@ -575,7 +575,7 @@ int MPI_Finalize(void)
         pctx.plfsh = NULL;
 
         if (pctx.rank == 0) {
-            info("LW plfs dir closed");
+            info("LW plfs dir closed (rank 0)");
         }
     }
 
@@ -584,7 +584,7 @@ int MPI_Finalize(void)
         pctx.plfsfd = -1;
 
         if (pctx.rank == 0) {
-            info("plfs dir closed");
+            info("plfs dir closed (rank 0)");
         }
     }
 
@@ -686,9 +686,9 @@ int MPI_Finalize(void)
     }
 
     /* !!! OK !!! */
+    rv = nxt.MPI_Finalize();
     if (pctx.rank == 0) info("all done");
     if (pctx.rank == 0) info("bye");
-    rv = nxt.MPI_Finalize();
     trace(__func__);
     return(rv);
 }
