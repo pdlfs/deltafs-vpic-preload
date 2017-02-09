@@ -543,12 +543,15 @@ int MPI_Finalize(void)
 {
     int fd1;
     int fd2;
-    mon_ctx_t tmp;
+    mon_ctx_t local;
+    mon_ctx_t sum;
     char buf[4096];
     char path[4096];
     char msg[100];
     uint64_t ts;
     uint64_t diff;
+    int ok;
+    int go;
     int epoch;
     int rv;
     int n;
@@ -591,53 +594,91 @@ int MPI_Finalize(void)
         }
     }
 
-    /* close and dist mon file */
+    /* close, merge, and dist mon files */
     if (pctx.monfd != -1) {
-        if (num_epochs != 0) {
+        if (!pctx.nomon && num_epochs != 0) {
             dump_mon(&mctx);
         }
 
-        if (!pctx.nomondist && pctx.rank == 0) {
-            info("copying mon files out ...");
-            ts = now_micros();
-            assert(sizeof(buf) > sizeof(tmp));
-            snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
-                    "vpic-deltafs-mon.bin");
-            info(path);
-            fd1 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-            snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
-                    "vpic-deltafs-mon.txt");
-            info(path);
-            fd2 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-            if (fd1 != -1 && fd2 != -1) {
-                n = lseek(pctx.monfd, 0, SEEK_SET);
-                if (n == 0) {
-                    epoch = 0;
-                    while (epoch != num_epochs) {
-                        n = read(pctx.monfd, buf, sizeof(buf));
-                        if (n == sizeof(buf)) {
-                            n = write(fd1, buf, sizeof(buf));
-                            memcpy(&tmp, buf, sizeof(tmp));
-                            mon_dumpstate(fd2, &tmp);
+        if (!pctx.nomondist) {
+            ok = 1;  /* ready to go */
 
-                            errno = 0;
-                            epoch++;
-                        } else {
-                            break;
-                        }
-                    }
+            if (pctx.rank == 0) {
+                info("merging and copying mon files out ...");
+                ts = now_micros();
+                snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
+                        "vpic-deltafs-mon-reduced.bin");
+                info(path);
+                fd1 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
+                        "vpic-deltafs-mon-reduced.txt");
+                info(path);
+                fd2 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                if (fd1 == -1 || fd2 == -1) {
+                    warn("cannot open mon files");
+                    ok = 0;
                 }
             }
-            if (fd1 != -1) {
-                close(fd1);
+
+            if (ok) {
+                n = lseek(pctx.monfd, 0, SEEK_SET);
+                if (n != 0) {
+                    ok = 0;
+                }
             }
-            if (fd2 != -1) {
-                close(fd2);
+
+            epoch = 0;
+
+            while (epoch != num_epochs) {
+                if (ok) {
+                    n = read(pctx.monfd, buf, sizeof(buf));
+                    if (n == sizeof(buf)) {
+                        memcpy(&local, buf, sizeof(mon_ctx_t));
+                    } else {
+                        ok = 0;
+                    }
+                }
+
+                MPI_Allreduce(&ok, &go, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+
+                if (go) {
+                    mon_reduce(&local, &sum);
+                } else if (pctx.rank == 0) {
+                    snprintf(msg, sizeof(msg), "error merging epoch %d; "
+                            "abort action!", epoch + 1);
+                    warn(msg);
+                }
+
+                if (go) {
+                    if (pctx.rank == 0) {
+                        mon_dumpstate(fd2, &sum);
+                        memset(buf, 0, sizeof(buf));
+                        assert(sizeof(buf) > sizeof(mon_ctx_t));
+                        memcpy(buf, &sum, sizeof(mon_ctx_t));
+                        n = write(fd1, buf, sizeof(buf));
+
+                        errno = 0;
+                    }
+                } else {
+                    break;
+                }
+
+                epoch++;
             }
-            diff = now_micros() - ts;
-            snprintf(msg, sizeof(msg), "copied %d epochs %d us",
-                    epoch, int(diff));
-            info(msg);
+
+            if (pctx.rank == 0) {
+                if (fd1 != -1) {
+                    close(fd1);
+                }
+                if (fd2 != -1) {
+                    close(fd2);
+                }
+                diff = now_micros() - ts;
+
+                snprintf(msg, sizeof(msg), "processed %d epochs %d us",
+                        epoch, int(diff));
+                info(msg);
+            }
         }
 
         close(pctx.monfd);
@@ -824,7 +865,6 @@ int closedir(DIR *dirp)
     double dura;
     char msg[100];
     int rv;
-    int n;
 
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("closedir:pthread_once");
