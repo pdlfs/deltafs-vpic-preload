@@ -235,6 +235,51 @@ static bool claim_FILE(FILE *stream)
     return(rv);
 }
 
+/*
+ * dump in-memory mon stats to files.
+ */
+static void dump_mon(const mon_ctx_t* mon)
+{
+    uint64_t ts;
+    uint64_t diff;
+    char buf[4096];
+    char msg[100];
+    int n;
+
+    if (!pctx.nomon) {
+        /* dump txt mon stats to log file if in testing mode */
+        if (pctx.testin) {
+            if (pctx.logfd != -1) {
+                mon_dumpstate(pctx.logfd, mon);
+            }
+            if (pctx.vmon) {
+                if (pctx.rank == 0) {
+                    mon_dumpstate(fileno(stderr), mon);
+                }
+            }
+        }
+
+        if (pctx.monfd != -1) {
+            if (pctx.rank == 0) {
+                info("dumping epoch mon stats ... (rank 0)");
+                ts = now_micros();
+            }
+            memset(buf, 0, sizeof(buf));
+            assert(sizeof(mon_ctx_t) < sizeof(buf));
+            memcpy(buf, mon, sizeof(mon_ctx_t));
+            n = write(pctx.monfd, buf, sizeof(buf));
+            if (pctx.rank == 0) {
+                diff = now_micros() - ts;
+                snprintf(msg, sizeof(msg), "dumping ok %d us (rank 0)",
+                        int(diff));
+                info(msg);
+            }
+
+            errno = 0;
+        }
+    }
+}
+
 namespace {
 /*
  * fake_file is a replacement for FILE* that we use to accumulate all the
@@ -746,11 +791,7 @@ int closedir(DIR *dirp)
     double start;
     double min;
     double dura;
-    uint64_t ts;
-    uint64_t diff;
-    char dump[4096];
-    char msg[100];  // snprintf
-    mon_ctx_t sum;
+    char msg[100];
     int rv;
     int n;
 
@@ -778,48 +819,11 @@ int closedir(DIR *dirp)
 
         if (!pctx.nomon) {
             mctx.dura = now_micros() - mctx.epoch_start;
-            if (pctx.testin) {
-                if (pctx.logfd != -1) {
-                    mon_dumpstate(pctx.logfd, &mctx);
-                }
-            }
-
-            if (pctx.rank == 0) {
-                info("merging epoch mon stats ...");
-                ts = now_micros();
-                mon_reinit(&sum);
-            }
-
-            mon_reduce(&mctx, &sum);
-
-            if (pctx.rank == 0) {
-                sum.epoch_seq = mctx.epoch_seq;
-                diff = now_micros() - ts;
-                snprintf(msg, sizeof(msg), "merging ok %d us", int(diff));
-                info(msg);
-
-                if (pctx.monfd != -1) {
-                    info("dumping epoch mon stats ...");
-                    ts = now_micros();
-                    memset(dump, 0, sizeof(dump));
-                    assert(sizeof(sum) < sizeof(dump));
-                    memcpy(dump, &sum, sizeof(sum));
-                    n = write(pctx.monfd, dump, sizeof(dump));
-                    diff = now_micros() - ts;
-                    snprintf(msg, sizeof(msg), "dumping ok %d us", int(diff));
-                    info(msg);
-
-                    errno = 0;
-                }
-
-                if (pctx.vmon) {
-                    mon_dumpstate(fileno(stderr), &sum);
-                }
-            }
+            dump_mon(&mctx);
         }
 
         if (pctx.rank == 0) info("epoch ends");
-        trace("epoch ends");
+        trace(__func__);
         return(0);
     }
 }
