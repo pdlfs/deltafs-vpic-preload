@@ -485,7 +485,7 @@ int MPI_Init(int *argc, char ***argv)
             if (rv != 0) {
                 msg_abort("cannot make plfsdir");
             } else {
-                info("plfs dir created");
+                info("plfs dir created (rank 0)");
             }
         }
 
@@ -500,22 +500,16 @@ int MPI_Init(int *argc, char ***argv)
             pctx.plfsh = deltafs_plfsdir_create(path, conf);
             if (pctx.plfsh == NULL) {
                 msg_abort("cannot open plfsdir");
-            } else {
-                nxt.MPI_Barrier(MPI_COMM_WORLD);
-                if (rank == 0) {
-                    info("LW plfs dir opened");
-                }
+            } else if (rank == 0) {
+                info("LW plfs dir opened (rank 0)");
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
             pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
             if (pctx.plfsfd == -1) {
                 msg_abort("cannot open plfsdir");
-            } else {
-                nxt.MPI_Barrier(MPI_COMM_WORLD);
-                if (rank == 0) {
-                    info("plfs dir opened");
-                }
+            } else if (rank == 0) {
+                info("plfs dir opened (rank 0)");
             }
         }
     }
