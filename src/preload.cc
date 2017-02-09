@@ -297,7 +297,7 @@ int MPI_Init(int *argc, char ***argv)
     bool exact;
     const char* stripped;
     time_t now;
-    char buf[50];  // ctime_r
+    char buf[50];   // ctime_r
     char msg[100];  // snprintf
     char path[PATH_MAX];
     char conf[100];
@@ -475,8 +475,8 @@ int MPI_Finalize(void)
     char dump[4096];
     char path[4096];
     char msg[100];  // snprintf
-    int ts;
-    int diff;
+    uint64_t ts;
+    uint64_t diff;
     int epoch;
     int rv;
     int n;
