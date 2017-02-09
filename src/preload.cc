@@ -638,7 +638,10 @@ int MPI_Finalize(void)
                 MPI_Allreduce(&ok, &go, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
 
                 if (go) {
+                    mon_reinit(&sum);
                     mon_reduce(&local, &sum);
+                    sum.epoch_seq = epoch + 1;
+                    sum.global = 1;
                 } else if (pctx.rank == 0) {
                     snprintf(msg, sizeof(msg), "error merging epoch %d; "
                             "abort action!", epoch + 1);
@@ -652,6 +655,12 @@ int MPI_Finalize(void)
                         assert(sizeof(buf) > sizeof(mon_ctx_t));
                         memcpy(buf, &sum, sizeof(mon_ctx_t));
                         n = write(fd1, buf, sizeof(buf));
+
+                        if (n == sizeof(buf)) {
+                            snprintf(msg, sizeof(msg), "epoch %d ok",
+                                    epoch + 1);
+                            info(msg);
+                        }
 
                         errno = 0;
                     }

@@ -240,7 +240,13 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
 
 void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     char buf[1024];
-    DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
+    if (!ctx->global) {
+        DUMP(fd, buf, "\n--- epoch-[%d] (rank %d) ---", ctx->epoch_seq,
+                pctx.rank);
+        DUMP(fd, buf, "!!! NON GLOBAL !!!");
+    } else {
+        DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
+    }
     DUMP(fd, buf, "[M] epoch dura: %u us", ctx->dura);
     DUMP(fd, buf, "[M] observed epoch tput: %.2f bytes/s",
             double(ctx->sum_wsz) / ctx->dura * 1000000);
@@ -284,6 +290,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "[M] 99t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
     DUMP(fd, buf, "[M] max btw arr: %.0f us", hstg_max(ctx->hstgarr));
     DUMP(fd, buf, "[M] avg btw arr: %.0f us", hstg_avg(ctx->hstgarr));
+    if (!ctx->global) DUMP(fd, buf, "!!! NON GLOBAL !!!");
     DUMP(fd, buf, "--- end ---\n");
 
     return;
