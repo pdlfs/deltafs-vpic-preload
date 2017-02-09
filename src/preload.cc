@@ -542,8 +542,12 @@ int MPI_Finalize(void)
     mon_ctx_t local;
     mon_ctx_t sum;
     char buf[4096];
-    char path[4096];
+    char path1[4096];
+    char path2[4096];
+    char suffix[100];
     char msg[100];
+    time_t now;
+    struct tm timeinfo;
     uint64_t ts;
     uint64_t diff;
     int ok;
@@ -602,14 +606,34 @@ int MPI_Finalize(void)
             if (pctx.rank == 0) {
                 info("merging and copying mon files out ...");
                 ts = now_micros();
-                snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
-                        "vpic-deltafs-mon-reduced.bin");
-                info(path);
-                fd1 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-                snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
-                        "vpic-deltafs-mon-reduced.txt");
-                info(path);
-                fd2 = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+                now = time(NULL);
+                localtime_r(&now, &timeinfo);
+                snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
+                        timeinfo.tm_year + 1900, timeinfo.tm_mon + 1,
+                        timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min,
+                        timeinfo.tm_sec);
+                snprintf(path1, sizeof(path1), "%s/%s-%s.bin", pctx.local_root,
+                        "vpic-deltafs-mon-reduced", suffix);
+                info(path1);
+                fd1 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0666);
+                if (fd1 != -1) {
+                    snprintf(path2, sizeof(path2), "%s/"
+                            "vpic-deltafs-mon-reduced.bin",
+                            pctx.local_root);
+                    n = unlink(path2);
+                    n = symlink(path1, path2);
+                }
+                snprintf(path1, sizeof(path1), "%s/%s-%s.txt", pctx.local_root,
+                        "vpic-deltafs-mon-reduced", suffix);
+                info(path1);
+                fd2 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0666);
+                if (fd2 != -1) {
+                    snprintf(path2, sizeof(path2), "%s/"
+                            "vpic-deltafs-mon-reduced.txt",
+                            pctx.local_root);
+                    n = unlink(path2);
+                    n = symlink(path1, path2);
+                }
                 if (fd1 == -1 || fd2 == -1) {
                     warn("cannot open mon files");
                     ok = 0;
@@ -657,7 +681,7 @@ int MPI_Finalize(void)
                         n = write(fd1, buf, sizeof(buf));
 
                         if (n == sizeof(buf)) {
-                            snprintf(msg, sizeof(msg), "epoch %d ok",
+                            snprintf(msg, sizeof(msg), "epoch %d\tok",
                                     epoch + 1);
                             info(msg);
                         }
