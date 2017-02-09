@@ -301,6 +301,8 @@ int MPI_Init(int *argc, char ***argv)
     char msg[100];  // snprintf
     char path[PATH_MAX];
     char conf[100];
+    int mpi_wtime_is_global;
+    int flag;
     int size;
     int rank;
     int rv;
@@ -329,6 +331,22 @@ int MPI_Init(int *argc, char ***argv)
                 "MPI ver 3 is suggested in production mode");
     }
 #endif
+
+    if (rank == 0) {
+#if defined(MPI_WTIME_IS_GLOBAL)
+        MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_WTIME_IS_GLOBAL,
+                &mpi_wtime_is_global, &flag);
+        if (flag != 0) {
+            if (mpi_wtime_is_global == 0) {
+                warn("wtime is not global");
+            }
+        } else {
+            warn("cannot determine if wtime is global");
+        }
+#else
+        warn("cannot determine if wtime is global");
+#endif
+    }
 
 #ifndef NDEBUG
     if (rank == 0) {
