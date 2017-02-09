@@ -632,6 +632,9 @@ int mkdir(const char *dir, mode_t mode)
  */
 DIR *opendir(const char *dir)
 {
+    double start;
+    double min;
+    double dura;
     bool exact;
     char msg[100]; // snprintf
     const char *stripped;
@@ -695,7 +698,18 @@ DIR *opendir(const char *dir)
      * this ensures all writes from the new epoch will go into a
      * new write buffer
      */
-    nxt.MPI_Barrier(MPI_COMM_WORLD);
+    if (pctx.rank == 0)
+        info("barrier ...");
+    start = MPI_Wtime();
+    MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+    if (pctx.rank == 0) {
+        dura = MPI_Wtime() - start;
+        snprintf(msg, sizeof(msg), "barrier %d us",
+                int(dura * 1000000));
+        info(msg);
+        info("dumping particles ...");
+    }
+
     return(rv);
 }
 
@@ -704,6 +718,9 @@ DIR *opendir(const char *dir)
  */
 int closedir(DIR *dirp)
 {
+    double start;
+    double min;
+    double dura;
     uint64_t ts;
     uint64_t diff;
     char dump[4096];
@@ -721,7 +738,18 @@ int closedir(DIR *dirp)
     } else {  /* deltafs */
 
         /* this ensures we have received all incoming writes */
-        nxt.MPI_Barrier(MPI_COMM_WORLD);
+        if (pctx.rank == 0) {
+            info("dumping done");
+            info("barrier ...");
+        }
+        start = MPI_Wtime();
+        MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+        if (pctx.rank == 0) {
+            dura = MPI_Wtime() - start;
+            snprintf(msg, sizeof(msg), "barrier %d us",
+                    int(dura * 1000000));
+            info(msg);
+        }
 
         if (!pctx.nomon) {
             mctx.dura = now_micros() - mctx.epoch_start;
