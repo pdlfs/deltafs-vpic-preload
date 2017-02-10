@@ -627,7 +627,7 @@ void shuffle_init(void)
 
     pthread_detach(pid);
 
-    trace("shuffle on");
+    trace(__func__);
 
     return;
 }
@@ -646,7 +646,7 @@ void shuffle_destroy(void)
     HG_Context_destroy(sctx.hg_ctx);
     HG_Finalize(sctx.hg_clz);
 
-    trace("shuffle off");
+    trace(__func__);
 
     return;
 }

@@ -260,16 +260,16 @@ static std::string pretty_size(double size)
     char tmp[100];
     if (size >= 1000000000000.0) {
         size /= 1000000000000.0;
-        snprintf(tmp, sizeof(tmp), "%.0f TB", size);
+        snprintf(tmp, sizeof(tmp), "%.1f TB", size);
     } else if (size >= 1000000000.0) {
         size /= 1000000000.0;
-        snprintf(tmp, sizeof(tmp), "%.0f GB", size);
+        snprintf(tmp, sizeof(tmp), "%.1f GB", size);
     } else if (size >= 1000000.0) {
         size /= 1000000.0;
-        snprintf(tmp, sizeof(tmp), "%.0f MB", size);
+        snprintf(tmp, sizeof(tmp), "%.1f MB", size);
     } else if (size >= 1000.0) {
         size /= 1000.0;
-        snprintf(tmp, sizeof(tmp), "%.0f K", size);
+        snprintf(tmp, sizeof(tmp), "%.1f K", size);
     } else {
         snprintf(tmp, sizeof(tmp), "%.0f bytes",
                 size);
@@ -672,7 +672,7 @@ int MPI_Finalize(void)
             ok = 1;  /* ready to go */
 
             if (pctx.rank == 0) {
-                info("merging and copying mon files out ...");
+                info("merging and copying mon stats to ...");
                 ts = now_micros();
                 now = time(NULL);
                 localtime_r(&now, &timeinfo);
@@ -736,7 +736,7 @@ int MPI_Finalize(void)
                     glob.global = 1;
                 } else if (pctx.rank == 0) {
                     snprintf(msg, sizeof(msg), "error merging epoch %d; "
-                            "abort action!", epoch + 1);
+                            "ABORT action!", epoch + 1);
                     warn(msg);
                 }
 
@@ -749,7 +749,7 @@ int MPI_Finalize(void)
                         n = write(fd1, buf, sizeof(buf));
 
                         if (n == sizeof(buf)) {
-                            snprintf(msg, sizeof(msg), " > epoch#%-2d "
+                            snprintf(msg, sizeof(msg), " > epoch #%-3d "
                                     "%llu files, %s, %s ok", epoch + 1, glob.nw,
                                     pretty_size(glob.sum_wsz).c_str(),
                                     pretty_tput(glob.sum_wsz,
@@ -776,7 +776,7 @@ int MPI_Finalize(void)
                 diff = now_micros() - ts;
 
                 snprintf(msg, sizeof(msg),
-                        "processed %d epochs %s", epoch,
+                        "processed %d epoch stats %s", epoch,
                         pretty_dura(diff).c_str());
                 info(msg);
             }
