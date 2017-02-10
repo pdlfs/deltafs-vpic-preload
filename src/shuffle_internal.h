@@ -73,8 +73,12 @@ typedef struct shuffle_ctx {
 extern shuffle_ctx_t sctx;
 
 typedef struct write_in {
+    /* metadata of a write operation */
     hg_const_string_t fname;
-    hg_int32_t rank_in;
+    hg_int32_t epoch;
+    hg_int32_t rank;
+
+    /* data to be written */
     hg_uint8_t data_len;
     hg_string_t data;
 
@@ -94,7 +98,8 @@ void shuffle_init(void);
 void shuffle_init_ssg(void);
 hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
-int shuffle_write(const char *fn, char *data, size_t len, int* is_local);
+int shuffle_write(const char *fn, char *data, size_t len,
+        int epoch, int* is_local);
 void shuffle_destroy(void);
 
 } // extern C

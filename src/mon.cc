@@ -106,7 +106,8 @@ static void hstg_reduce(const hstg_t&src, hstg_t& sum) {
 
 extern "C" {
 
-int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
+int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
+                      mon_ctx_t* ctx) {
     uint64_t start;
     uint64_t end;
     size_t l;
@@ -155,7 +156,8 @@ int mon_preload_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
     return(rv);
 }
 
-int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
+int mon_shuffle_write(const char* fn, char* data, size_t n, int epoch,
+                      mon_ctx_t* ctx) {
     uint64_t start;
     uint64_t end;
     int local;
@@ -163,7 +165,7 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, mon_ctx_t* ctx) {
 
     if (!pctx.nomon) start = now_micros();
 
-    rv = shuffle_write(fn, data, n, &local);
+    rv = shuffle_write(fn, data, n, epoch, &local);
 
     if (!pctx.nomon && !local) {
         if (rv == 0) {

@@ -197,7 +197,9 @@ static hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
     if (op == HG_ENCODE) {
         enc_len = 2;  /* reserves 2 bytes for the encoding length */
 
-        memcpy(in->buf + enc_len, &in->rank_in, 4);
+        memcpy(in->buf + enc_len, &in->epoch, 4);
+        enc_len += 4;
+        memcpy(in->buf + enc_len, &in->rank, 4);
         enc_len += 4;
         in->buf[enc_len] = in->data_len;
         memcpy(in->buf + enc_len + 1, in->data, in->data_len);
@@ -227,7 +229,15 @@ static hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
         }
 
         if (hret == HG_SUCCESS && enc_len >= 4) {
-            memcpy(&in->rank_in, in->buf + dec_len, 4);
+            memcpy(&in->epoch, in->buf + dec_len, 4);
+            enc_len -= 4;
+            dec_len += 4;
+        } else {
+            hret = HG_OTHER_ERROR;
+        }
+
+        if (hret == HG_SUCCESS && enc_len >= 4) {
+            memcpy(&in->rank, in->buf + dec_len, 4);
             enc_len -= 4;
             dec_len += 4;
         } else {
@@ -297,6 +307,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     write_in_t in;
     char path[PATH_MAX];
     char buf[1024];
+    int epoch;
     int peer_rank;
     int rank;
     int n;
@@ -304,19 +315,21 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     hret = HG_Get_input(h, &in);
 
     if (hret == HG_SUCCESS) {
+        epoch = in.epoch;
         rank = ssg_get_rank(sctx.ssg);
-        peer_rank = in.rank_in;
+        peer_rank = in.rank;
 
         assert(pctx.plfsdir != NULL);
 
         snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
 
-        out.rv = mon_preload_write(path, in.data, in.data_len, &mctx);
+        out.rv = mon_preload_write(path, in.data, in.data_len,
+                epoch, &mctx);
 
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
-            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes r%d << r%d\n", path,
-                    int(in.data_len), rank, peer_rank);
+            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes (e%d) r%d << r%d\n",
+                    path, int(in.data_len), epoch, rank, peer_rank);
             n = write(pctx.logfd, buf, n);
 
             errno = 0;
@@ -359,7 +372,8 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 }
 
 /* redirect writes to an appropriate rank for buffering and writing */
-int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
+int shuffle_write(const char *fn, char *data, size_t len, int epoch,
+                  int* is_local)
 {
     hg_return_t hret;
     hg_handle_t handle;
@@ -399,11 +413,11 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
         if (rank != peer_rank) {
-            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes r%d >> r%d\n", fn,
-                    int(len), rank, peer_rank);
+            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d\n",
+                    fn, int(len), epoch, rank, peer_rank);
         } else {
-            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes\n",
-                    fn, int(len));
+            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
+                    fn, int(len), epoch);
         }
 
         n = write(pctx.logfd, buf, n);
@@ -414,7 +428,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     if (peer_rank == rank) {
         *is_local = 1;
 
-        rv = mon_preload_write(fn, data, len, &mctx);
+        rv = mon_preload_write(fn, data, len, epoch, &mctx);
 
         return(rv);
     }
@@ -432,7 +446,8 @@ int shuffle_write(const char *fn, char *data, size_t len, int* is_local)
     write_in.fname = fn + pctx.len_plfsdir;
     write_in.data = data;
     write_in.data_len = len;
-    write_in.rank_in = rank;
+    write_in.epoch = epoch;
+    write_in.rank = rank;
 
     write_cb.ok = 0;
 

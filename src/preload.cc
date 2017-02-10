@@ -1099,7 +1099,7 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS
          */
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                &mctx);
+                num_epochs, &mctx);
         if (rv != 0) {
             if (pctx.verr) {
                 error("fclose:preload_write");
@@ -1111,7 +1111,7 @@ int fclose(FILE *stream)
          *   - BYPASS_PLACEMENT
          */
         rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
-                &mctx);
+                num_epochs, &mctx);
         if (rv != 0) {
             if (pctx.verr) {
                 error("fclose:shuffle_write");
