@@ -238,6 +238,74 @@ static bool claim_FILE(FILE *stream)
 }
 
 /*
+ * print a human-readable time duration
+ */
+static std::string pretty_dura(double us)
+{
+    char tmp[100];
+    if (us >= 1000000) {
+        snprintf(tmp, sizeof(tmp), "%.3f s", us / 1000000.0);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.3f ms", us / 1000.0);
+    }
+
+    return tmp;
+}
+
+/*
+ * print a human-readable size.
+ */
+static std::string pretty_size(double size)
+{
+    char tmp[100];
+    if (size >= 1000000000000.0) {
+        size /= 1000000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.0f TB", size);
+    } else if (size >= 1000000000.0) {
+        size /= 1000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.0f GB", size);
+    } else if (size >= 1000000.0) {
+        size /= 1000000.0;
+        snprintf(tmp, sizeof(tmp), "%.0f MB", size);
+    } else if (size >= 1000.0) {
+        size /= 1000.0;
+        snprintf(tmp, sizeof(tmp), "%.0f K", size);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.0f bytes",
+                size);
+    }
+
+    return tmp;
+}
+
+/*
+ * print a human-readable tput.
+ */
+static std::string pretty_tput(double bytes, double us)
+{
+    char tmp[100];
+    double bytes_per_s = bytes / us * 1000000;
+    if (bytes_per_s >= 1000000000000.0) {
+        bytes_per_s /= 1000000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f TB/s", bytes_per_s);
+    } else if (bytes_per_s >= 1000000000.0) {
+        bytes_per_s /= 1000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f GB/s", bytes_per_s);
+    } else if (bytes_per_s >= 1000000.0) {
+        bytes_per_s /= 1000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f MB/s", bytes_per_s);
+    } else if (bytes_per_s >= 1000.0) {
+        bytes_per_s /= 1000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f K/s", bytes_per_s);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.3f bytes/s",
+                bytes_per_s);
+    }
+
+    return tmp;
+}
+
+/*
  * dump in-memory mon stats to files.
  */
 static void dump_mon(const mon_ctx_t* mon)
@@ -274,8 +342,8 @@ static void dump_mon(const mon_ctx_t* mon)
             n = write(pctx.monfd, buf, sizeof(buf));
             if (pctx.rank == 0) {
                 diff = now_micros() - ts;
-                snprintf(msg, sizeof(msg), "dumping ok %d us (rank 0)",
-                        int(diff));
+                snprintf(msg, sizeof(msg), "dumping ok %s (rank 0)",
+                        pretty_dura(diff).c_str());
                 info(msg);
             }
 
@@ -681,11 +749,11 @@ int MPI_Finalize(void)
                         n = write(fd1, buf, sizeof(buf));
 
                         if (n == sizeof(buf)) {
-                            snprintf(msg, sizeof(msg), ">>> epoch %d\t"
-                                    "%llu bytes, %llu writes, %.2f bytes/s ok",
-                                    epoch + 1, glob.sum_wsz, glob.nwok,
-                                    double(glob.sum_wsz) /
-                                    glob.dura * 1000000);
+                            snprintf(msg, sizeof(msg), " > epoch#%-2d "
+                                    "%llu files, %s, %s ok", epoch + 1, glob.nw,
+                                    pretty_size(glob.sum_wsz).c_str(),
+                                    pretty_tput(glob.sum_wsz,
+                                    glob.dura).c_str());
                             info(msg);
                         }
 
@@ -707,8 +775,9 @@ int MPI_Finalize(void)
                 }
                 diff = now_micros() - ts;
 
-                snprintf(msg, sizeof(msg), "processed %d epochs %d us",
-                        epoch, int(diff));
+                snprintf(msg, sizeof(msg),
+                        "processed %d epochs %s", epoch,
+                        pretty_dura(diff).c_str());
                 info(msg);
             }
         }
@@ -875,8 +944,8 @@ DIR *opendir(const char *dir)
         MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
         if (pctx.rank == 0) {
             dura = MPI_Wtime() - min;
-            snprintf(msg, sizeof(msg), "barrier %d us",
-                    int(dura * 1000000));
+            snprintf(msg, sizeof(msg), "barrier %s", pretty_dura(
+                    dura * 1000000).c_str());
             info(msg);
 
             info("dumping particles ...");
@@ -919,8 +988,8 @@ int closedir(DIR *dirp)
             MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
             if (pctx.rank == 0) {
                 dura = MPI_Wtime() - min;
-                snprintf(msg, sizeof(msg), "barrier %d us",
-                        int(dura * 1000000));
+                snprintf(msg, sizeof(msg), "barrier %s", pretty_dura(
+                        dura * 1000000).c_str());
                 info(msg);
 
                 info("dumping done");
