@@ -601,8 +601,8 @@ int MPI_Init(int *argc, char ***argv)
         /* everyone opens it */
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-            snprintf(conf, sizeof(conf), "rank=%d&%s", rank,
-                    plfsdir_conf().c_str());
+            snprintf(conf, sizeof(conf), "rank=%d&value_size=%d&%s", rank,
+                    40, plfsdir_conf().c_str());
 
             trace(conf);
 
