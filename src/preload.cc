@@ -17,6 +17,8 @@
 
 #include <string>
 
+#include "io_plfsdir.h"
+
 #include "shuffle_internal.h"
 #include "preload_internal.h"
 
@@ -352,6 +354,40 @@ static void dump_mon(const mon_ctx_t* mon)
     }
 }
 
+static std::string plfsdir_conf() {
+    char tmp[500];
+    const char* lg_parts;
+    const char* index_buf;
+    const char* data_buf;
+    const char* memtable_size;
+
+    memtable_size = getenv("PLFSDIR_Memtable_size");
+    if (memtable_size == NULL) {
+        memtable_size = DEFAULT_MEMTABLE_SIZE;
+    }
+
+    index_buf = getenv("PLFSDIR_Index_buf_size");
+    if (index_buf == NULL) {
+        index_buf = DEFAULT_INDEX_BUF;
+    }
+
+    data_buf = getenv("PLFSDIR_Data_buf_size");
+    if (data_buf == NULL) {
+        data_buf = DEFAULT_DATA_BUF;
+    }
+
+    lg_parts = getenv("PLFSDIR_Lg_parts");
+    if (lg_parts == NULL) {
+        lg_parts = DEFAULT_LG_PARTS;
+    }
+
+    snprintf(tmp, sizeof(tmp), "memtable_size=%s&index_buffer=%s&"
+            "data_buffer=%s&lg_parts=%s", memtable_size,
+            index_buf, data_buf, lg_parts);
+
+    return tmp;
+}
+
 namespace {
 /*
  * fake_file is a replacement for FILE* that we use to accumulate all the
@@ -417,7 +453,7 @@ int MPI_Init(int *argc, char ***argv)
     char buf[50];   // ctime_r
     char msg[100];  // snprintf
     char path[PATH_MAX];
-    char conf[100];
+    char conf[500];
     int mpi_wtime_is_global;
     int flag;
     int size;
@@ -565,7 +601,10 @@ int MPI_Init(int *argc, char ***argv)
         /* everyone opens it */
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-            snprintf(conf, sizeof(conf), "rank=%d", rank);
+            snprintf(conf, sizeof(conf), "rank=%d&%s", rank,
+                    plfsdir_conf().c_str());
+
+            trace(conf);
 
             pctx.plfsh = deltafs_plfsdir_create(path, conf);
             if (pctx.plfsh == NULL) {
