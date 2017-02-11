@@ -890,6 +890,7 @@ DIR *opendir(const char *dir)
 {
     bool ignored_exact;
     char msg[100];
+    uint64_t epoch_start;
     double start;
     double min;
     double dura;
@@ -906,6 +907,7 @@ DIR *opendir(const char *dir)
 
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
+    epoch_start = now_micros();
 
     if (pctx.rank == 0) {
         snprintf(msg, sizeof(msg), "epoch %d bootstrapping ... (rank 0)",
@@ -964,7 +966,7 @@ DIR *opendir(const char *dir)
 
     mon_reinit(&mctx);   /* reset mon stats */
 
-    mctx.epoch_start = now_micros();
+    mctx.epoch_start = epoch_start;
     mctx.epoch_seq = num_epochs;
 
     if (!pctx.paranoid_barrier) {
