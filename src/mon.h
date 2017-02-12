@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <deltafs/deltafs_api.h>
 #include <sys/time.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -37,6 +38,7 @@ static inline uint64_t now_micros() {
     return(t);
 }
 
+typedef deltafs_plfsdir_stat_t dir_stat_t;
 /* XXX: assuming VPIC has only a single main thread such that no
  * synchronization is needed to protect mon state.
  *
@@ -52,8 +54,9 @@ typedef struct mon_ctx {
 
     /* !!! auxiliary state !!! */
 
-    uint64_t last_write_micros;  /* timestamp of the previous write */
+    dir_stat_t dir_stat;
 
+    uint64_t last_write_micros;  /* timestamp of the previous write */
     uint64_t epoch_start;   /* the start time of an epoch */
     int epoch_seq;   /* epoch seq num */
 
@@ -105,7 +108,14 @@ typedef struct mon_ctx {
     hstg_t hstgarr;    /* write interval distribution (mean time to arrive) */
     hstg_t hstgw;      /* deltafs write latency distribution */
 
-    unsigned dura;   /* epoch duration */
+    unsigned long long dura;   /* epoch duration */
+
+    /* !!! collected by deltafs !!! */
+
+    unsigned long long dat_sz;  /* total physical data written */
+    unsigned long long index_sz;  /* total physical index */
+
+    unsigned long long w_tm;    /* total time spent on writing */
 
 } mon_ctx_t;
 

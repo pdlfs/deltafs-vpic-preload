@@ -230,8 +230,14 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
     hstg_reduce(src->hstgarr, sum->hstgarr);
     hstg_reduce(src->hstgw, sum->hstgw);
 
-    MPI_Reduce(const_cast<unsigned*>(&src->dura), &sum->dura, 1,
-            MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->w_tm), &sum->w_tm, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->index_sz), &sum->index_sz,
+            1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<unsigned long long*>(&src->dat_sz), &sum->dat_sz, 1,
+            MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 }
 
 #define DUMP(fd, buf, fmt, ...) { \
@@ -249,9 +255,12 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     } else {
         DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
     }
-    DUMP(fd, buf, "[M] epoch dura: %u us", ctx->dura);
+    DUMP(fd, buf, "[M] epoch dura: %llu us", ctx->dura);
     DUMP(fd, buf, "[M] observed epoch tput: %.2f bytes/s",
             double(ctx->sum_wsz) / ctx->dura * 1000000);
+    DUMP(fd, buf, "[M] write time: %llu us", ctx->w_tm);
+    DUMP(fd, buf, "[M] physical index written: %llu bytes", ctx->index_sz);
+    DUMP(fd, buf, "[M] physical data written: %llu bytes", ctx->dat_sz);
     DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
     DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
     DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);

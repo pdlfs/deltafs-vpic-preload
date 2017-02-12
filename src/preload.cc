@@ -310,7 +310,7 @@ static std::string pretty_tput(double bytes, double us)
 /*
  * dump in-memory mon stats to files.
  */
-static void dump_mon(const mon_ctx_t* mon)
+static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
 {
     uint64_t ts;
     uint64_t diff;
@@ -319,6 +319,14 @@ static void dump_mon(const mon_ctx_t* mon)
     int n;
 
     if (!pctx.nomon) {
+        /* collect stats from deltafs */
+        if (pctx.plfsh != NULL) {
+            deltafs_plfsdir_write_stat(pctx.plfsh, tmp_stat);
+            mon->w_tm = tmp_stat->ds_wtim - mon->dir_stat.ds_wtim;
+            mon->index_sz = tmp_stat->ds_isz - mon->dir_stat.ds_isz;
+            mon->dat_sz = tmp_stat->ds_dsz - mon->dir_stat.ds_dsz;
+        }
+
         /* dump txt mon stats to log file if in testing mode */
         if (pctx.testin) {
             if (pctx.logfd != -1) {
@@ -648,6 +656,7 @@ int MPI_Finalize(void)
     int fd2;
     mon_ctx_t local;
     mon_ctx_t glob;
+    dir_stat_t tmp_stat;
     char buf[4096];
     char path1[4096];
     char path2[4096];
@@ -704,7 +713,7 @@ int MPI_Finalize(void)
     /* close, merge, and dist mon files */
     if (pctx.monfd != -1) {
         if (!pctx.nomon && num_epochs != 0) {
-            dump_mon(&mctx);
+            dump_mon(&mctx, &tmp_stat);
         }
 
         if (!pctx.nomondist) {
@@ -890,6 +899,7 @@ DIR *opendir(const char *dir)
 {
     bool ignored_exact;
     char msg[100];
+    dir_stat_t tmp_stat;
     uint64_t epoch_start;
     double start;
     double min;
@@ -907,7 +917,10 @@ DIR *opendir(const char *dir)
 
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
-    epoch_start = now_micros();
+
+    if (!pctx.nomon) {
+        epoch_start = now_micros();
+    }
 
     if (pctx.rank == 0) {
         snprintf(msg, sizeof(msg), "epoch %d bootstrapping ... (rank 0)",
@@ -953,7 +966,7 @@ DIR *opendir(const char *dir)
          * delay dumping mon stats collected from the previous
          * epoch until the beginning of the next epoch
          */
-        dump_mon(&mctx);
+        dump_mon(&mctx, &tmp_stat);
     }
 
     /* increase epoch seq */
@@ -964,10 +977,13 @@ DIR *opendir(const char *dir)
         info(msg);
     }
 
-    mon_reinit(&mctx);   /* reset mon stats */
+    if (!pctx.nomon) {
+        mon_reinit(&mctx);   /* reset mon stats */
 
-    mctx.epoch_start = epoch_start;
-    mctx.epoch_seq = num_epochs;
+        mctx.dir_stat = tmp_stat;
+        mctx.epoch_start = epoch_start;
+        mctx.epoch_seq = num_epochs;
+    }
 
     if (!pctx.paranoid_barrier) {
         if (pctx.rank == 0) {
