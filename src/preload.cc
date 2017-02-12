@@ -924,6 +924,7 @@ DIR *opendir(const char *dir)
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
     if (!pctx.nomon) {
+        memset(&tmp_stat, 0, sizeof(dir_stat_t));
         epoch_start = now_micros();
     }
 
