@@ -327,6 +327,10 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
             mon->dat_sz = tmp_stat->ds_dsz - mon->dir_stat.ds_dsz;
         }
 
+        if (pctx.plfsfd != -1) {
+            // XXX: TODO
+        }
+
         /* dump txt mon stats to log file if in testing mode */
         if (pctx.testin) {
             if (pctx.logfd != -1) {
@@ -693,6 +697,10 @@ int MPI_Finalize(void)
 
     /* all writes done, time to close all plfsdirs */
     if (pctx.plfsh != NULL) {
+        deltafs_plfsdir_finish(pctx.plfsh);
+        if (num_epochs != 0) {
+            dump_mon(&mctx, &tmp_stat);
+        }
         deltafs_plfsdir_close(pctx.plfsh);
         pctx.plfsh = NULL;
 
@@ -712,10 +720,6 @@ int MPI_Finalize(void)
 
     /* close, merge, and dist mon files */
     if (pctx.monfd != -1) {
-        if (!pctx.nomon && num_epochs != 0) {
-            dump_mon(&mctx, &tmp_stat);
-        }
-
         if (!pctx.nomondist) {
             ok = 1;  /* ready to go */
 
