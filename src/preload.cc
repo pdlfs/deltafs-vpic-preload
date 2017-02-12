@@ -325,9 +325,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
             mon->w_tm = tmp_stat->ds_wtim - mon->dir_stat.ds_wtim;
             mon->index_sz = tmp_stat->ds_isz - mon->dir_stat.ds_isz;
             mon->dat_sz = tmp_stat->ds_dsz - mon->dir_stat.ds_dsz;
-        }
-
-        if (pctx.plfsfd != -1) {
+        } else if (pctx.plfsfd != -1) {
             // XXX: TODO
         }
 
@@ -698,23 +696,25 @@ int MPI_Finalize(void)
     /* all writes done, time to close all plfsdirs */
     if (pctx.plfsh != NULL) {
         deltafs_plfsdir_finish(pctx.plfsh);
-        if (num_epochs != 0) {
+        if (num_epochs != 0)
             dump_mon(&mctx, &tmp_stat);
-        }
         deltafs_plfsdir_close(pctx.plfsh);
         pctx.plfsh = NULL;
 
         if (pctx.rank == 0) {
             info("LW plfs dir closed (rank 0)");
         }
-    }
-
-    if (pctx.plfsfd != -1) {
+    } else if (pctx.plfsfd != -1) {
+        if (num_epochs != 0) dump_mon(&mctx, &tmp_stat);
         deltafs_close(pctx.plfsfd);
         pctx.plfsfd = -1;
 
         if (pctx.rank == 0) {
             info("plfs dir closed (rank 0)");
+        }
+    } else {
+        if (num_epochs != 0) {
+            dump_mon(&mctx, &tmp_stat);
         }
     }
 
@@ -775,6 +775,7 @@ int MPI_Finalize(void)
                     if (n == sizeof(buf)) {
                         memcpy(&local, buf, sizeof(mon_ctx_t));
                     } else {
+                        warn("cannot read mon stats");
                         ok = 0;
                     }
                 }
