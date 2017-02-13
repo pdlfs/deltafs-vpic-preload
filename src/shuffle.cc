@@ -31,17 +31,26 @@
  */
 static pthread_mutex_t mtx;
 
-/* used when waiting an on-going rpc to finish. */
+/* used when waiting an on-going rpc to finish */
 static pthread_cond_t rpc_cv;
 
-/* used when waiting all bg threads to terminate. */
+/* used when waiting all bg threads to terminate */
 static pthread_cond_t bg_cv;
+
+/* used when waiting for the next available rpc callback slot */
+static pthread_cond_t cb_cv;
 
 /* true iff in shutdown seq */
 static int shutting_down = 0;  /* XXX: better if this is atomic */
 
 /* number of bg threads running */
 static int num_bg = 0;
+
+/* rpc callback slots */
+static const int OUTSTANDING_RPC = 128;
+static write_async_cb_t cb_slots[OUTSTANDING_RPC];
+static int cb_flags[OUTSTANDING_RPC] = { 0 };
+static int cb_left = OUTSTANDING_RPC;
 
 /* shuffle context */
 shuffle_ctx_t sctx = { 0 };
@@ -348,17 +357,157 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     return hret;
 }
 
+/* rpc client-side callback for async shuffled writes */
+hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
+{
+    hg_return_t hret;
+    hg_handle_t h;
+    write_out_t write_out;
+    write_async_cb_t* write_cb;
+    int rv;
+
+    hret = info->ret;
+    assert(info->type == HG_CB_FORWARD);
+    h = info->info.forward.handle;
+    if (hret == HG_SUCCESS) {
+        hret = HG_Get_output(h, &write_out);
+        if (hret == HG_SUCCESS) {
+            rv = write_out.rv;
+        }
+        HG_Free_output(h, &write_out);
+    }
+
+    pthread_mutex_lock(&mtx);
+    write_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
+    cb_flags[write_cb->slot] = 0;
+    if (cb_left == 0) {
+        pthread_cond_broadcast(&cb_cv);
+    }
+    cb_left++;
+    pthread_mutex_unlock(&mtx);
+
+    HG_Destroy(h);
+
+    return HG_SUCCESS;
+}
+
+/* send an incoming write to an appropriate peer and return without waiting */
+int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
+                        int* is_local)
+{
+    hg_return_t hret;
+    hg_addr_t peer_addr;
+    hg_handle_t handle;
+    write_in_t write_in;
+    write_async_cb_t* write_cb;
+    char buf[100];
+    int rv;
+    int slot;
+    unsigned long target;
+    int peer_rank;
+    int rank;
+    int n;
+
+    *is_local = 0;
+    assert(ssg_get_count(sctx.ssg) != 0);
+    assert(fn != NULL);
+
+    rank = ssg_get_rank(sctx.ssg);  /* my rank */
+
+    if (ssg_get_count(sctx.ssg) != 1) {
+        if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+            /* send to next-door neighbor instead of using ch-placement */
+            peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
+        } else {
+            ch_placement_find_closest(sctx.chp,
+                    pdlfs::xxhash64(fn, strlen(fn), 0), 1, &target);
+            peer_rank = target;
+        }
+    } else {
+        peer_rank = rank;
+    }
+
+    /* write trace if we are in testing mode */
+    if (pctx.testin && pctx.logfd != -1) {
+        if (rank != peer_rank || sctx.force_rpc) {
+            n = snprintf(buf, sizeof(buf), "[A] %s %d bytes (e%d) r%d >> r%d\n",
+                    fn, int(len), epoch, rank, peer_rank);
+        } else {
+            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
+                    fn, int(len), epoch);
+        }
+
+        n = write(pctx.logfd, buf, n);
+
+        errno = 0;
+    }
+
+    /* avoid rpc is local */
+    if (peer_rank == rank && !sctx.force_rpc) {
+        *is_local = 1;
+
+        rv = mon_preload_write(fn, data, len, epoch,
+                0 /* non-foreign */, &mctx);
+
+        return(rv);
+    }
+
+    /* wait for rpc callback slot */
+    pthread_mutex_lock(&mtx);
+    while (cb_left == 0) pthread_cond_wait(&cb_cv, &mtx);
+    for (slot = 0; slot < OUTSTANDING_RPC; slot++) {
+        if (cb_flags[slot] == 0) {
+            break;
+        }
+    }
+    assert(slot < OUTSTANDING_RPC);
+    write_cb = &cb_slots[slot];
+    cb_flags[slot] = 1;
+    assert(cb_left > 0);
+    cb_left--;
+
+    pthread_mutex_unlock(&mtx);
+
+    peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
+    if (peer_addr == HG_ADDR_NULL)
+        msg_abort("cannot obtain addr");
+
+    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &handle);
+    if (hret != HG_SUCCESS)
+        rpc_abort("HG_Create", hret);
+
+    assert(pctx.plfsdir != NULL);
+
+    write_in.fname = fn + pctx.len_plfsdir;
+    write_in.data = data;
+    write_in.data_len = len;
+    write_in.epoch = epoch;
+    write_in.rank = rank;
+
+    write_cb->slot = slot;
+
+    hret = HG_Forward(handle, shuffle_write_async_handler, write_cb,
+            &write_in);
+
+    if (hret != HG_SUCCESS) {
+        rpc_abort("HG_Forward", hret);
+    } else {
+        return(0);
+    }
+}
+
 /* rpc client-side callback for shuffled writes */
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 {
-    pthread_mutex_lock(&mtx);
+    write_cb_t* cb;
+    cb = reinterpret_cast<write_cb_t*>(info->arg);
 
-    write_cb_t* cb = reinterpret_cast<write_cb_t*>(info->arg);
+    pthread_mutex_lock(&mtx);
     cb->hret = info->ret;
     cb->ok = 1;
-
     pthread_cond_broadcast(&rpc_cv);
     pthread_mutex_unlock(&mtx);
+
     return HG_SUCCESS;
 }
 
