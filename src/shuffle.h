@@ -16,6 +16,8 @@
 // ----------------------------------|----------------------------------
 //  SHUFFLE_Mercury_proto              Mercury rpc proto
 //  SHUFFLE_Force_rpc                  Send rpc even if addr is local
+//  SHUFFLE_Force_sync_rpc             Avoid sending async rpc
+//  SHUFFLE_Num_outstanding_rpc        Max num of outstanding rpc allowed
 //  SHUFFLE_Subnet                     IP prefix of the subnet we prefer to use
 //  SHUFFLE_Min_port                   The min port number we can use
 //  SHUFFLE_Max_port                   The max port number we can use
@@ -35,13 +37,27 @@
 #define DEFAULT_MAX_PORT 60000
 
 /*
+ * Default num of outstanding rpc.
+ *
+ * This is considered a soft limit. There is also a hard limit
+ * set at compile time.
+ *
+ * Ignored if rpc is forced to be sync.
+ */
+#define DEFAULT_OUTSTANDING_RPC 16
+
+/*
  * Default rpc timeout (in secs).
  *
  * Abort when a rpc fails to complete within this amount of time.
  *
+ * A server may not be able to finish rpc in time if its
+ * in-memory write buffer is full and the background compaction
+ * progress is unable to keep up.
+ *
  * Timeout ignored in testing mode.
  */
-#define DEFAULT_TIMEOUT 30
+#define DEFAULT_TIMEOUT 300
 
 /*
  * Default virtual factor.
@@ -63,6 +79,8 @@
  *
  * This assumes the mercury linked by us has been
  * built with this specific transport.
+ *
+ * Use of tcp is subject to high latency.
  */
 #define DEFAULT_PROTO "bmi+tcp"
 

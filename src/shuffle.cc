@@ -47,10 +47,10 @@ static int shutting_down = 0;  /* XXX: better if this is atomic */
 static int num_bg = 0;
 
 /* rpc callback slots */
-static const int OUTSTANDING_RPC = 128;
-static write_async_cb_t cb_slots[OUTSTANDING_RPC];
-static int cb_flags[OUTSTANDING_RPC] = { 0 };
-static int cb_left = OUTSTANDING_RPC;
+#define MAX_OUTSTANDING_RPC 128  /* hard limit */
+static write_async_cb_t cb_slots[MAX_OUTSTANDING_RPC];
+static int cb_flags[MAX_OUTSTANDING_RPC] = { 0 };
+static int cb_left = 1  /* soft limit */;
 
 /* shuffle context */
 shuffle_ctx_t sctx = { 0 };
@@ -455,12 +455,12 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     /* wait for rpc callback slot */
     pthread_mutex_lock(&mtx);
     while (cb_left == 0) pthread_cond_wait(&cb_cv, &mtx);
-    for (slot = 0; slot < OUTSTANDING_RPC; slot++) {
+    for (slot = 0; slot < MAX_OUTSTANDING_RPC; slot++) {
         if (cb_flags[slot] == 0) {
             break;
         }
     }
-    assert(slot < OUTSTANDING_RPC);
+    assert(slot < MAX_OUTSTANDING_RPC);
     write_cb = &cb_slots[slot];
     cb_flags[slot] = 1;
     assert(cb_left > 0);
@@ -742,19 +742,33 @@ void shuffle_init(void)
 
     prepare_addr(sctx.my_addr);
 
-    if (is_envset("SHUFFLE_Force_rpc")) {
-        sctx.force_rpc = 1;
-        if (pctx.rank == 0) {
-            warn("shuffle force_rpc is set");
-        }
-    }
-
     env = getenv("SHUFFLE_Timeout");
     if (env == NULL) {
         sctx.timeout = DEFAULT_TIMEOUT;
     } else {
         sctx.timeout = atoi(env);
+        if (sctx.timeout < 5) {
+            sctx.timeout = 5;
+        }
     }
+
+    env = getenv("SHUFFLE_Num_outstanding_rpc");
+    if (env == NULL) {
+        cb_left = DEFAULT_OUTSTANDING_RPC;
+    } else {
+        cb_left = atoi(env);
+        if (cb_left > MAX_OUTSTANDING_RPC) {
+            cb_left = MAX_OUTSTANDING_RPC;
+        }
+        else if (cb_left <= 0) {
+            cb_left = 1;
+        }
+    }
+
+    if (is_envset("SHUFFLE_Force_rpc"))
+        sctx.force_rpc = 1;
+    if (is_envset("SHUFFLE_Force_sync_rpc"))
+        sctx.force_sync = 1;
 
     sctx.hg_clz = HG_Init(sctx.my_addr, HG_TRUE);
     if (!sctx.hg_clz)
