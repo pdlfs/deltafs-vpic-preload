@@ -403,7 +403,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
-        if (rank != peer_rank) {
+        if (rank != peer_rank || sctx.force_rpc) {
             n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d\n",
                     fn, int(len), epoch, rank, peer_rank);
         } else {
@@ -416,7 +416,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
         errno = 0;
     }
 
-    if (peer_rank == rank) {
+    if (peer_rank == rank && !sctx.force_rpc) {
         *is_local = 1;
 
         rv = mon_preload_write(fn, data, len, epoch,
@@ -591,6 +591,13 @@ void shuffle_init(void)
     int rv;
 
     prepare_addr(sctx.my_addr);
+
+    if (is_envset("SHUFFLE_Force_rpc")) {
+        sctx.force_rpc = 1;
+        if (pctx.rank == 0) {
+            warn("shuffle force_rpc is set");
+        }
+    }
 
     env = getenv("SHUFFLE_Timeout");
     if (env == NULL) {

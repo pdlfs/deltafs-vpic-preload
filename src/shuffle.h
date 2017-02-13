@@ -15,6 +15,7 @@
 //  Env                                Description
 // ----------------------------------|----------------------------------
 //  SHUFFLE_Mercury_proto              Mercury rpc proto
+//  SHUFFLE_Force_rpc                  Send rpc even if addr is local
 //  SHUFFLE_Subnet                     IP prefix of the subnet we prefer to use
 //  SHUFFLE_Min_port                   The min port number we can use
 //  SHUFFLE_Max_port                   The max port number we can use
@@ -36,8 +37,9 @@
 /*
  * Default rpc timeout (in secs).
  *
- * If a rpc fails to complete within this amount of time,
- * we abort.
+ * Abort when a rpc fails to complete within this amount of time.
+ *
+ * Timeout ignored in testing mode.
  */
 #define DEFAULT_TIMEOUT 30
 

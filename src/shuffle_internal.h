@@ -61,6 +61,7 @@ typedef struct shuffle_ctx {
     hg_id_t hg_id;
 
     int timeout;  /* rpc timeout (in secs) */
+    int force_rpc;  /* send rpc even if addr is local */
 
     /* SSG context */
     ssg_t ssg;
