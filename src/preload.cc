@@ -1004,7 +1004,7 @@ DIR *opendir(const char *dir)
             info("barrier ...");
         }
         start = MPI_Wtime();
-        MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
         if (pctx.rank == 0) {
             dura = MPI_Wtime() - min;
             snprintf(msg, sizeof(msg), "barrier %s", pretty_dura(
@@ -1048,7 +1048,7 @@ int closedir(DIR *dirp)
                 info("barrier ...");
             }
             start = MPI_Wtime();
-            MPI_Reduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
+            MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
             if (pctx.rank == 0) {
                 dura = MPI_Wtime() - min;
                 snprintf(msg, sizeof(msg), "barrier %s", pretty_dura(
