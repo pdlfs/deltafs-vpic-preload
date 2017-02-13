@@ -315,7 +315,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     write_out_t out;
     write_in_t in;
     char path[PATH_MAX];
-    char buf[1024];
+    char buf[200];
     int epoch;
     int peer_rank;
     int rank;
@@ -400,7 +400,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     hg_handle_t handle;
     write_in_t write_in;
     write_async_cb_t* write_cb;
-    char buf[100];
+    char buf[200];
     int rv;
     int slot;
     unsigned long target;
@@ -524,7 +524,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     time_t now;
     struct timespec abstime;
     useconds_t delay;
-    char buf[100];
+    char buf[200];
     int rv;
     unsigned long target;
     int peer_rank;
