@@ -97,7 +97,9 @@ typedef struct write_cb {
 } write_cb_t;
 
 typedef struct write_async_cb {
-    int slot;
+    void* arg;
+    void(*cb)(int rv, void*);
+    int slot;  /* cb slot used */
 } write_async_cb_t;
 
 void shuffle_init(void);
@@ -105,10 +107,28 @@ void shuffle_init_ssg(void);
 hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
 hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
+
+/*
+ * shuffle_write_async: async send write to a remote peer.
+ *
+ * set *is_local to 1 if write is local. Otherwise invoke *async_cb once
+ * a response is ready.
+ *
+ * return 0 on success, or EOF on errors.
+ */
 int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-        int* is_local);
+        int* is_local, void(*async_cb)(int rv, void* arg),
+        void* arg);
+/*
+ * shuffle_write: send write to a remote peer and wait for response.
+ *
+ * set *is_local to 1 if write is local so rpc is bypassed.
+ *
+ * return 0 on success, or EOF on errors.
+ */
 int shuffle_write(const char *fn, char *data, size_t len,
         int epoch, int* is_local);
+
 void shuffle_destroy(void);
 
 } // extern C

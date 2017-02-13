@@ -348,6 +348,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     }
 
     HG_Free_input(h, &in);
+
     HG_Destroy(h);
 
     if (hret != HG_SUCCESS) {
@@ -368,6 +369,7 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
     hret = info->ret;
     assert(info->type == HG_CB_FORWARD);
+    write_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
     h = info->info.forward.handle;
     if (hret == HG_SUCCESS) {
         hret = HG_Get_output(h, &write_out);
@@ -377,8 +379,17 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
         HG_Free_output(h, &write_out);
     }
 
+    /* publish response */
+    if (hret == HG_SUCCESS) {
+        if (write_cb->cb != NULL) {
+            write_cb->cb(rv, write_cb->arg);
+        }
+    } else {
+        rpc_abort("HG_Forward", hret);
+    }
+
+    /* return rpc callback slot */
     pthread_mutex_lock(&mtx);
-    write_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
     cb_flags[write_cb->slot] = 0;
     if (cb_left == 0) {
         pthread_cond_broadcast(&cb_cv);
@@ -393,7 +404,8 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
 /* send an incoming write to an appropriate peer and return without waiting */
 int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-                        int* is_local)
+                        int* is_local, void(*async_cb)(int rv, void*),
+                        void* arg)
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
@@ -468,6 +480,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
 
     pthread_mutex_unlock(&mtx);
 
+    /* go */
     peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("cannot obtain addr");
@@ -485,6 +498,8 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     write_in.rank = rank;
 
     write_cb->slot = slot;
+    write_cb->cb = async_cb;
+    write_cb->arg = arg;
 
     hret = HG_Forward(handle, shuffle_write_async_handler, write_cb,
             &write_in);
