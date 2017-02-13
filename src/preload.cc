@@ -1162,7 +1162,7 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS
          */
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                num_epochs, &mctx);
+                num_epochs, 0 /* non-foreign */, &mctx);
         if (rv != 0) {
             if (pctx.verr) {
                 error("fclose:preload_write");

@@ -107,7 +107,7 @@ static void hstg_reduce(const hstg_t&src, hstg_t& sum) {
 extern "C" {
 
 int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
-                      mon_ctx_t* ctx) {
+                      int is_foreign, mon_ctx_t* ctx) {
     uint64_t start;
     uint64_t end;
     size_t l;
@@ -143,7 +143,14 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
             ctx->sum_fnl += l;
             ctx->sum_wsz += n;
 
+            if (is_foreign) ctx->nwrok++;
             ctx->nwok++;
+        }
+
+        if (is_foreign) {
+            ctx->min_nwr++;
+            ctx->max_nwr++;
+            ctx->nwr++;
         }
 
         ctx->min_nw++;
@@ -168,6 +175,7 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, int epoch,
     rv = shuffle_write(fn, data, n, epoch, &local);
 
     if (!pctx.nomon && !local) {
+        pthread_mutex_lock(&mtx);
         if (rv == 0) {
             end = now_micros();
             hstg_add(ctx->hstgrpcw, end - start);
@@ -178,6 +186,8 @@ int mon_shuffle_write(const char* fn, char* data, size_t n, int epoch,
         ctx->min_nws++;
         ctx->max_nws++;
         ctx->nws++;
+
+        pthread_mutex_unlock(&mtx);
     }
 
     return(rv);

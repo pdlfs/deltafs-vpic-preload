@@ -324,7 +324,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
         snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
 
         out.rv = mon_preload_write(path, in.data, in.data_len,
-                epoch, &mctx);
+                epoch, 1 /* foreign */, &mctx);
 
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
@@ -340,15 +340,6 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
     HG_Free_input(h, &in);
     HG_Destroy(h);
-
-    if (!pctx.nomon) {
-        if (hret == HG_SUCCESS && out.rv == 0)
-            mctx.nwrok++;
-
-        mctx.min_nwr++;
-        mctx.max_nwr++;
-        mctx.nwr++;
-    }
 
     if (hret != HG_SUCCESS) {
         rpc_abort("HG_Respond", hret);
@@ -428,7 +419,8 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     if (peer_rank == rank) {
         *is_local = 1;
 
-        rv = mon_preload_write(fn, data, len, epoch, &mctx);
+        rv = mon_preload_write(fn, data, len, epoch,
+                0 /* non-foreign */, &mctx);
 
         return(rv);
     }

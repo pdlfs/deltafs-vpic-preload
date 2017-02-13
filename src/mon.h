@@ -39,17 +39,11 @@ static inline uint64_t now_micros() {
 }
 
 typedef deltafs_plfsdir_stat_t dir_stat_t;
-/* XXX: assuming VPIC has only a single main thread such that no
- * synchronization is needed to protect mon state.
- *
+/*
  * XXX: we could use atomic counters in future
  * when VPIC goes openmp.
  *
- * Do NOT update a same counter from different threads.
- *
- * Okay to read in any thread.
  */
-
 typedef struct mon_ctx {
 
     /* !!! auxiliary state !!! */
@@ -123,7 +117,7 @@ typedef struct mon_ctx {
 extern mon_ctx_t mctx;
 
 extern int mon_preload_write(const char* fn, char* data, size_t n,
-        int epoch, mon_ctx_t* ctx);
+        int epoch, int is_foreign, mon_ctx_t* ctx);
 extern int mon_shuffle_write(const char* fn, char* data, size_t n,
         int epoch, mon_ctx_t* ctx);
 
