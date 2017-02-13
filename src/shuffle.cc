@@ -181,8 +181,6 @@ static inline bool is_shuttingdown() {
 
 /* main shuffle code */
 
-extern "C" {
-
 static hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
 {
     hg_return_t hret;
@@ -299,6 +297,8 @@ static hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
     return ret;
 }
 
+extern "C" {
+
 /* rpc server-side handler for shuffled writes */
 hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 {
@@ -362,20 +362,20 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
     return HG_SUCCESS;
 }
 
-/* redirect writes to an appropriate rank for buffering and writing */
+/* send an incoming write to an appropriate peer and wait for its result */
 int shuffle_write(const char *fn, char *data, size_t len, int epoch,
                   int* is_local)
 {
     hg_return_t hret;
+    hg_addr_t peer_addr;
     hg_handle_t handle;
     write_in_t write_in;
     write_out_t write_out;
     write_cb_t write_cb;
-    hg_addr_t peer_addr;
     time_t now;
     struct timespec abstime;
     useconds_t delay;
-    char buf[1024];
+    char buf[100];
     int rv;
     unsigned long target;
     int peer_rank;
@@ -416,6 +416,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
         errno = 0;
     }
 
+    /* avoid rpc if local */
     if (peer_rank == rank && !sctx.force_rpc) {
         *is_local = 1;
 
@@ -427,11 +428,11 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 
     peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
-        return(EOF);
+        msg_abort("cannot obtain addr");
 
     hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &handle);
     if (hret != HG_SUCCESS)
-        return(EOF);
+        rpc_abort("HG_Create", hret);
 
     assert(pctx.plfsdir != NULL);
 
