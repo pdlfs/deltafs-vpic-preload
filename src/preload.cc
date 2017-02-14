@@ -1170,11 +1170,16 @@ int fclose(FILE *stream)
         }
     } else {
         /*
-         * shuffle_write() will check if
+         * shuffle_write() or shuffle_write_async() will check if
          *   - BYPASS_PLACEMENT
          */
-        rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
-                num_epochs, &mctx);
+        if (!sctx.force_sync) {
+            rv = mon_shuffle_write_async(ff->file_name(), ff->data(), ff->size(),
+                    num_epochs, &mctx);
+        } else {
+            rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
+                    num_epochs, &mctx);
+        }
         if (rv != 0) {
             if (pctx.verr) {
                 error("fclose:shuffle_write");
