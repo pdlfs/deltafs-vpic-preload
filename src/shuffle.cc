@@ -409,9 +409,12 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
-    hg_handle_t handle;
+    hg_handle_t h;
     write_in_t write_in;
     write_async_cb_t* write_cb;
+    time_t now;
+    struct timespec abstime;
+    useconds_t delay;
     char buf[200];
     int rv;
     int slot;
@@ -454,19 +457,48 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
         errno = 0;
     }
 
-    /* avoid rpc is local */
+    /* avoid rpc if target is local */
     if (peer_rank == rank && !sctx.force_rpc) {
         *is_local = 1;
 
-        rv = mon_preload_write(fn, data, len, epoch,
-                0 /* non-foreign */, &mctx);
+        rv = mon_preload_write(fn, data, len, epoch, 0 /* non-foreign */,
+                &mctx);
 
         return(rv);
     }
 
+    delay = 1000; /* 1000 us */
+
     /* wait for rpc callback slot */
     pthread_mutex_lock(&mtx);
-    while (cb_left == 0) pthread_cond_wait(&cb_cv, &mtx);
+    while (cb_left == 0) {
+        if (pctx.testin) {
+            pthread_mutex_unlock(&mtx);
+            if (pctx.logfd != -1) {
+                n = snprintf(buf, sizeof(buf), "[X] %s %llu us\n", fn,
+                        (unsigned long long) delay);
+                n = write(pctx.logfd, buf, n);
+
+                errno = 0;
+            }
+
+            usleep(delay);
+            delay <<= 1;
+
+            pthread_mutex_lock(&mtx);
+        } else {
+            now = time(NULL);
+            abstime.tv_sec = now + sctx.timeout;
+            abstime.tv_nsec = 0;
+
+            n = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
+            if (n == -1) {
+                if (errno == ETIMEDOUT) {
+                    msg_abort("HG_Forward timeout");
+                }
+            }
+        }
+    }
     for (slot = 0; slot < MAX_OUTSTANDING_RPC; slot++) {
         if (cb_flags[slot] == 0) {
             break;
@@ -485,7 +517,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("cannot obtain addr");
 
-    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &handle);
+    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h);
     if (hret != HG_SUCCESS)
         rpc_abort("HG_Create", hret);
 
@@ -501,7 +533,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     write_cb->cb = async_cb;
     write_cb->arg = arg;
 
-    hret = HG_Forward(handle, shuffle_write_async_handler, write_cb,
+    hret = HG_Forward(h, shuffle_write_async_handler, write_cb,
             &write_in);
 
     if (hret != HG_SUCCESS) {
@@ -532,7 +564,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
-    hg_handle_t handle;
+    hg_handle_t h;
     write_in_t write_in;
     write_out_t write_out;
     write_cb_t write_cb;
@@ -580,12 +612,12 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
         errno = 0;
     }
 
-    /* avoid rpc if local */
+    /* avoid rpc if target is local */
     if (peer_rank == rank && !sctx.force_rpc) {
         *is_local = 1;
 
-        rv = mon_preload_write(fn, data, len, epoch,
-                0 /* non-foreign */, &mctx);
+        rv = mon_preload_write(fn, data, len, epoch, 0 /* non-foreign */,
+                &mctx);
 
         return(rv);
     }
@@ -594,7 +626,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("cannot obtain addr");
 
-    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &handle);
+    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h);
     if (hret != HG_SUCCESS)
         rpc_abort("HG_Create", hret);
 
@@ -608,7 +640,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 
     write_cb.ok = 0;
 
-    hret = HG_Forward(handle, shuffle_write_handler, &write_cb, &write_in);
+    hret = HG_Forward(h, shuffle_write_handler, &write_cb, &write_in);
 
     delay = 1000;  /* 1000 us */
 
@@ -649,14 +681,14 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 
         if (hret == HG_SUCCESS) {
 
-            hret = HG_Get_output(handle, &write_out);
+            hret = HG_Get_output(h, &write_out);
             if (hret == HG_SUCCESS)
                 rv = write_out.rv;
-            HG_Free_output(handle, &write_out);
+            HG_Free_output(h, &write_out);
         }
     }
 
-    HG_Destroy(handle);
+    HG_Destroy(h);
 
     if (hret != HG_SUCCESS) {
         rpc_abort("HG_Forward", hret);
