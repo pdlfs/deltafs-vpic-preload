@@ -364,12 +364,12 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
     hg_return_t hret;
     hg_handle_t h;
     write_out_t write_out;
-    write_async_cb_t* write_cb;
+    write_async_cb_t* async_cb;
     int rv;
 
     hret = info->ret;
     assert(info->type == HG_CB_FORWARD);
-    write_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
+    async_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
     h = info->info.forward.handle;
     if (hret == HG_SUCCESS) {
         hret = HG_Get_output(h, &write_out);
@@ -381,8 +381,8 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
     /* publish response */
     if (hret == HG_SUCCESS) {
-        if (write_cb->cb != NULL) {
-            write_cb->cb(rv, write_cb->arg);
+        if (async_cb->cb != NULL) {
+            async_cb->cb(rv, async_cb->arg);
         }
     } else {
         rpc_abort("HG_Forward", hret);
@@ -390,7 +390,7 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
     /* return rpc callback slot */
     pthread_mutex_lock(&mtx);
-    cb_flags[write_cb->slot] = 0;
+    cb_flags[async_cb->slot] = 0;
     if (cb_left == 0) {
         pthread_cond_broadcast(&cb_cv);
     }
@@ -404,14 +404,14 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
 /* send an incoming write to an appropriate peer and return without waiting */
 int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-                        int* is_local, void(*async_cb)(int rv, void*),
+                        int* is_local, void(*shuffle_cb)(int rv, void*),
                         void* arg)
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
     hg_handle_t h;
     write_in_t write_in;
-    write_async_cb_t* write_cb;
+    write_async_cb_t* async_cb;
     time_t now;
     struct timespec abstime;
     useconds_t delay;
@@ -505,7 +505,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
         }
     }
     assert(slot < MAX_OUTSTANDING_RPC);
-    write_cb = &cb_slots[slot];
+    async_cb = &cb_slots[slot];
     cb_flags[slot] = 1;
     assert(cb_left > 0);
     cb_left--;
@@ -529,11 +529,11 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     write_in.epoch = epoch;
     write_in.rank = rank;
 
-    write_cb->slot = slot;
-    write_cb->cb = async_cb;
-    write_cb->arg = arg;
+    async_cb->slot = slot;
+    async_cb->cb = shuffle_cb;
+    async_cb->arg = arg;
 
-    hret = HG_Forward(h, shuffle_write_async_handler, write_cb,
+    hret = HG_Forward(h, shuffle_write_async_handler, async_cb,
             &write_in);
 
     if (hret != HG_SUCCESS) {
@@ -548,6 +548,7 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 {
     write_cb_t* cb;
     cb = reinterpret_cast<write_cb_t*>(info->arg);
+    assert(info->type == HG_CB_FORWARD);
 
     pthread_mutex_lock(&mtx);
     cb->hret = info->ret;

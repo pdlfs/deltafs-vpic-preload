@@ -118,6 +118,8 @@ extern mon_ctx_t mctx;
 
 extern int mon_preload_write(const char* fn, char* data, size_t n,
         int epoch, int is_foreign, mon_ctx_t* ctx);
+extern int mon_shuffle_write_aync(const char* fn, char* data, size_t n,
+        int epoch, mon_ctx_t* ctx);
 extern int mon_shuffle_write(const char* fn, char* data, size_t n,
         int epoch, mon_ctx_t* ctx);
 

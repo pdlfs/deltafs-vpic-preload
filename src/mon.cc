@@ -163,6 +163,59 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
     return(rv);
 }
 
+namespace {
+typedef struct async_state {
+    mon_ctx_t* ctx;  /* mon ctx */
+    uint64_t start;
+} async_state_t;
+
+static void mon_shuffle_write_async_cb(int rv, void* arg) {
+    uint64_t end;
+
+    async_state_t* state = reinterpret_cast<async_state_t*>(arg);
+
+    if (!pctx.nomon && state != NULL) {
+        pthread_mutex_lock(&mtx);
+        if (rv == 0) {
+            end = now_micros();
+            hstg_add(state->ctx->hstgrpcw, end - state->start);
+
+            state->ctx->nwsok++;
+        }
+
+        state->ctx->min_nws++;
+        state->ctx->max_nws++;
+        state->ctx->nws++;
+
+        pthread_mutex_unlock(&mtx);
+    }
+
+    if (state != NULL) {
+        free(state);
+    }
+}
+} // namespace
+
+int mon_shuffle_write_async(const char* fn, char* data, size_t n, int epoch,
+                            mon_ctx_t* ctx) {
+    async_state_t* state;
+    int ignored;
+    int rv;
+
+    if (!pctx.nomon) {
+        state = (async_state_t*) malloc(sizeof(async_state_t));
+        state->start = now_micros();
+        state->ctx = ctx;
+    } else {
+        state = NULL;
+    }
+
+    rv = shuffle_write_async(fn, data, n, epoch, &ignored,
+            mon_shuffle_write_async_cb, state);
+
+    return(rv);
+}
+
 int mon_shuffle_write(const char* fn, char* data, size_t n, int epoch,
                       mon_ctx_t* ctx) {
     uint64_t start;
