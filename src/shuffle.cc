@@ -50,7 +50,8 @@ static int num_bg = 0;
 #define MAX_OUTSTANDING_RPC 128  /* hard limit */
 static write_async_cb_t cb_slots[MAX_OUTSTANDING_RPC];
 static int cb_flags[MAX_OUTSTANDING_RPC] = { 0 };
-static int cb_left = 1  /* soft limit */;
+static int cb_allowed = 1; /* soft limit */
+static int cb_left = 1;
 
 /* shuffle context */
 shuffle_ctx_t sctx = { 0 };
@@ -391,7 +392,8 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
     /* return rpc callback slot */
     pthread_mutex_lock(&mtx);
     cb_flags[async_cb->slot] = 0;
-    if (cb_left == 0) {
+    assert(cb_left < cb_allowed);
+    if (cb_left == 0 || cb_left == cb_allowed - 1) {
         pthread_cond_broadcast(&cb_cv);
     }
     cb_left++;
@@ -499,12 +501,12 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
             }
         }
     }
-    for (slot = 0; slot < MAX_OUTSTANDING_RPC; slot++) {
+    for (slot = 0; slot < cb_allowed; slot++) {
         if (cb_flags[slot] == 0) {
             break;
         }
     }
-    assert(slot < MAX_OUTSTANDING_RPC);
+    assert(slot < cb_allowed);
     async_cb = &cb_slots[slot];
     cb_flags[slot] = 1;
     assert(cb_left > 0);
@@ -541,6 +543,50 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     } else {
         return(0);
     }
+}
+
+/* block until all outstanding rpc to finish or timeout abort */
+void shuffle_wait()
+{
+    time_t now;
+    struct timespec abstime;
+    useconds_t delay;
+    char buf[50];
+    int n;
+
+    delay = 1000; /* 1000 us */
+
+    pthread_mutex_lock(&mtx);
+    while (cb_left != cb_allowed) {
+        if (pctx.testin) {
+            pthread_mutex_unlock(&mtx);
+            if (pctx.logfd != -1) {
+                n = snprintf(buf, sizeof(buf), "[Z] %llu us\n",
+                        (unsigned long long) delay);
+                n = write(pctx.logfd, buf, n);
+
+                errno = 0;
+            }
+
+            usleep(delay);
+            delay <<= 1;
+
+            pthread_mutex_lock(&mtx);
+        } else {
+            now = time(NULL);
+            abstime.tv_sec = now + sctx.timeout;
+            abstime.tv_nsec = 0;
+
+            n = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
+            if (n == -1) {
+                if (errno == ETIMEDOUT) {
+                    msg_abort("HG_Forward timeout");
+                }
+            }
+        }
+    }
+
+    pthread_mutex_unlock(&mtx);
 }
 
 /* rpc client-side callback for shuffled writes */
@@ -802,16 +848,18 @@ void shuffle_init(void)
 
     env = getenv("SHUFFLE_Num_outstanding_rpc");
     if (env == NULL) {
-        cb_left = DEFAULT_OUTSTANDING_RPC;
+        cb_allowed = DEFAULT_OUTSTANDING_RPC;
     } else {
-        cb_left = atoi(env);
-        if (cb_left > MAX_OUTSTANDING_RPC) {
-            cb_left = MAX_OUTSTANDING_RPC;
+        cb_allowed = atoi(env);
+        if (cb_allowed > MAX_OUTSTANDING_RPC) {
+            cb_allowed = MAX_OUTSTANDING_RPC;
         }
-        else if (cb_left <= 0) {
-            cb_left = 1;
+        else if (cb_allowed <= 0) {
+            cb_allowed = 1;
         }
     }
+
+    cb_left = cb_allowed;
 
     if (is_envset("SHUFFLE_Force_rpc"))
         sctx.force_rpc = 1;

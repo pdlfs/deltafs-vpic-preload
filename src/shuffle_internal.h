@@ -107,6 +107,7 @@ void shuffle_init_ssg(void);
 hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
 hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
+void shuffle_wait(void);  /* wait for outstanding rpc */
 
 /*
  * shuffle_write_async: async send write to a remote peer.

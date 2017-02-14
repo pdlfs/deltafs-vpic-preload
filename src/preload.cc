@@ -1038,6 +1038,11 @@ int closedir(DIR *dirp)
 
     } else {  /* deltafs */
 
+        /* drain on-going rpc */
+        if (!sctx.force_sync) {
+            shuffle_wait();
+        }
+
         if (!pctx.paranoid_barrier) {
             if (pctx.rank == 0) {
                 info("dumping done (rank 0)");
