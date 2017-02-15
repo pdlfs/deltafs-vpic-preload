@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 
 extern "C" {
 
@@ -28,12 +29,26 @@ typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
  * the current timestamp in microseconds.
  */
 static inline uint64_t now_micros() {
-    struct timeval tv;
     uint64_t t;
+
+#if defined(__linux)
+    struct timespec tp;
+
+#if defined(CLOCK_MONOTONIC_RAW)
+    clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &tp);
+#endif
+
+    t = static_cast<uint64_t>(tp.tv_sec) * 1000000;
+    t += tp.tv_nsec / 1000;
+#else
+    struct timeval tv;
 
     gettimeofday(&tv, NULL);
     t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
     t += tv.tv_usec;
+#endif
 
     return(t);
 }
