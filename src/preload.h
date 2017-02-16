@@ -21,7 +21,7 @@
 //  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
 //  PRELOAD_Bypass_deltafs_namespace   Use deltafs light-wright plfsdir api
 //  PRELOAD_Bypass_deltafs             Write to local file system
-//  PRELOAD_Bypass_write               Make every write an noop
+//  PRELOAD_Bypass_write               Make every write and mkdir an noop
 //  PRELOAD_Skip_mon                   Skip perf monitoring
 //  PRELOAD_Skip_mon_dist              Skip copying mon files out
 //  PRELOAD_Enable_verbose_mon         Print mon info at the end of each epoch

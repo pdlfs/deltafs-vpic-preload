@@ -573,7 +573,7 @@ int MPI_Init(int *argc, char ***argv)
     }
 
     /* pre-create plfsdirs if there is any */
-    if (pctx.plfsdir != NULL) {
+    if (pctx.plfsdir != NULL && !IS_BYPASS_WRITE(pctx.mode)) {
         if (!claim_path(pctx.plfsdir, &exact)) {
             msg_abort("plfsdir out of deltafs");  /* Oops!! */
         }
@@ -882,7 +882,10 @@ int mkdir(const char *dir, mode_t mode)
         stripped = (exact) ? "/" : (dir + pctx.len_deltafs_root);
     }
 
-    if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode) ||
+    if (IS_BYPASS_WRITE(pctx.mode)) {
+        rv = 0;  /* noop */
+
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode) ||
             IS_BYPASS_DELTAFS(pctx.mode)) {
         snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
         rv = nxt.mkdir(path, mode);
