@@ -15,7 +15,7 @@
 #
 # test programs
 #
-set (tests preload)  # XXX: add later: shuffle, placement, noplfs, deltafs
+set (tests preload vpic)  # XXX: add later: shuffle, placement, noplfs, deltafs
 
 foreach (tst ${tests})
 
