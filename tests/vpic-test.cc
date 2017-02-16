@@ -28,6 +28,7 @@
 int main(int argc, char **argv) {
     int rank;
     int r;
+#if 0
     /*
      * XXX: all mkdir and write operations are converted to noop.
      *
@@ -36,8 +37,10 @@ int main(int argc, char **argv) {
      * "local_root" is only used to store trace and statistics.
      */
     ASSERT_OK(setenv("PRELOAD_Bypass_write", "1", 0) == 0);
+    ASSERT_OK(setenv("PRELOAD_Bypass_placement", "1", 0) == 0);
     ASSERT_OK(setenv("PRELOAD_Local_root", "/tmp/vpic-deltafs-test", 0) == 0);
     ASSERT_OK(setenv("PRELOAD_Deltafs_root", "d", 0) == 0);
+#endif
     ASSERT_OK(MPI_Init(&argc, &argv) == MPI_SUCCESS);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     const char* rt = getenv("PRELOAD_Deltafs_root");
@@ -48,6 +51,7 @@ int main(int argc, char **argv) {
     ASSERT_OK(d != NULL);
     char fname[PATH_MAX];
 
+    double start = MPI_Wtime();
     static const int NUM_PARTICLES = 400000;  /* 400k */
     for (int i = 0; i < NUM_PARTICLES; i++) {
         snprintf(fname, sizeof(fname), "%s/%03d%03d", dname, rank, i);
@@ -65,6 +69,9 @@ int main(int argc, char **argv) {
         fp = NULL;
     }
 
+    double dura = MPI_Wtime() - start;
+    fprintf(stderr, "%d: %d rpc, %.2f sec (%3f sec/op)\n", rank, NUM_PARTICLES,
+            dura, dura / NUM_PARTICLES);
     closedir(d);
     MPI_Finalize();
     exit(0);
