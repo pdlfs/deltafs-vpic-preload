@@ -21,6 +21,7 @@
 //  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
 //  PRELOAD_Bypass_deltafs_namespace   Use deltafs light-wright plfsdir api
 //  PRELOAD_Bypass_deltafs             Write to local file system
+//  PRELOAD_Bypass_write               Make every write an noop
 //  PRELOAD_Skip_mon                   Skip perf monitoring
 //  PRELOAD_Skip_mon_dist              Skip copying mon files out
 //  PRELOAD_Enable_verbose_mon         Print mon info at the end of each epoch
@@ -38,6 +39,7 @@
 #define BYPASS_DELTAFS_PLFSDIR (1 << 2)
 #define BYPASS_DELTAFS_NAMESPACE (1 << 3)
 #define BYPASS_DELTAFS (1 << 4)
+#define BYPASS_WRITE (1 << 5)
 #define BYPASS_MASK 0xFF
 
 /*
@@ -48,6 +50,7 @@
 #define IS_BYPASS_DELTAFS_PLFSDIR(m) (((m) & BYPASS_DELTAFS_PLFSDIR) == BYPASS_DELTAFS_PLFSDIR)
 #define IS_BYPASS_DELTAFS_NAMESPACE(m) (((m) & BYPASS_DELTAFS_NAMESPACE) == BYPASS_DELTAFS_NAMESPACE)
 #define IS_BYPASS_DELTAFS(m) (((m) & BYPASS_DELTAFS) == BYPASS_DELTAFS)
+#define IS_BYPASS_WRITE(m) (((m) & BYPASS_WRITE) == BYPASS_WRITE)
 
 /*
  * If "deltafs_root" is not specified, we set it to the following path.

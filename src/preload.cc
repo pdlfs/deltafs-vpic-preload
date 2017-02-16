@@ -172,6 +172,8 @@ static void preload_init()
         pctx.mode |= BYPASS_DELTAFS_NAMESPACE;
     if (is_envset("PRELOAD_Bypass_deltafs"))
         pctx.mode |= BYPASS_DELTAFS;
+    if (is_envset("PRELOAD_Bypass_write"))
+        pctx.mode |= BYPASS_WRITE;
 
     if (is_envset("PRELOAD_Skip_mon"))
         pctx.nomon = 1;
@@ -1216,7 +1218,10 @@ int preload_write(const char *fn, char *data, size_t len)
 
     rv = EOF;
 
-    if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+    if (IS_BYPASS_WRITE(pctx.mode)) {
+        rv = 0; /* noop */
+
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
         if (pctx.plfsh == NULL) {
             msg_abort("plfsdir not opened");
         }
