@@ -941,9 +941,19 @@ DIR *opendir(const char *dir)
 
     if (num_epochs != 0) {
         /*
-         * XXX: explicit epoch flush
+         * XXX: explicit epoch flush.
          *
-         * could be removed if deltafs supports auto epoch flush
+         * unable to perform this at closedir() time because we are
+         * likely to progress faster than some peers, causing
+         * an epoch to be flushed prematurely and confusing
+         * deltafs.
+         *
+         * could be removed when deltafs supports auto epoch flush though.
+         *
+         * epoch flush may also be triggered by an unexpected
+         * write from a remote peer.
+         *
+         * XXX: need to send the epoch num to deltafs.
          *
          */
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
@@ -974,8 +984,11 @@ DIR *opendir(const char *dir)
 
     if (num_epochs != 0) {
         /*
-         * delay dumping mon stats collected from the previous
-         * epoch until the beginning of the next epoch
+         * delay dumping mon stats collected from the previous epoch
+         * until the beginning of the next epoch, which allows us
+         * to get mostly up-to-date stats on the background
+         * compaction work.
+         *
          */
         dump_mon(&mctx, &tmp_stat);
     }
@@ -1044,8 +1057,10 @@ int closedir(DIR *dirp)
     } else {  /* deltafs */
 
         /* drain on-going rpc */
-        if (!sctx.force_sync) {
-            shuffle_wait();
+        if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+            if (!sctx.force_sync) {
+                shuffle_wait();
+            }
         }
 
         if (!pctx.paranoid_barrier) {
