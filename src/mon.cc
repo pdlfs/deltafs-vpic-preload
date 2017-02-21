@@ -163,55 +163,45 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
     return(rv);
 }
 
-namespace {
-typedef struct async_state {
-    mon_ctx_t* ctx;  /* mon ctx */
+static void mon_shuffle_write_async_cb(int rv, void* arg1, void* arg2) {
     uint64_t start;
-} async_state_t;
-
-static void mon_shuffle_write_async_cb(int rv, void* arg) {
     uint64_t end;
 
-    async_state_t* state = reinterpret_cast<async_state_t*>(arg);
+    mon_ctx_t* const ctx = static_cast<mon_ctx_t*>(arg2);
 
-    if (!pctx.nomon && state != NULL) {
+    if (!pctx.nomon && ctx != NULL) {
         pthread_mutex_lock(&mtx);
+        start = reinterpret_cast<uintptr_t>(arg1);
         if (rv == 0) {
             end = now_micros();
-            hstg_add(state->ctx->hstgrpcw, end - state->start);
+            hstg_add(ctx->hstgrpcw, end - start);
 
-            state->ctx->nwsok++;
+            ctx->nwsok++;
         }
 
-        state->ctx->min_nws++;
-        state->ctx->max_nws++;
-        state->ctx->nws++;
+        ctx->min_nws++;
+        ctx->max_nws++;
+        ctx->nws++;
 
         pthread_mutex_unlock(&mtx);
     }
-
-    if (state != NULL) {
-        free(state);
-    }
 }
-} // namespace
 
 int mon_shuffle_write_async(const char* fn, char* data, size_t n, int epoch,
                             mon_ctx_t* ctx) {
-    async_state_t* state;
+    void* start;
     int ignored;
     int rv;
 
     if (!pctx.nomon) {
-        state = (async_state_t*) malloc(sizeof(async_state_t));
-        state->start = now_micros();
-        state->ctx = ctx;
+        start = reinterpret_cast<void*>(now_micros());
     } else {
-        state = NULL;
+        start = NULL;
+        ctx = NULL;
     }
 
     rv = shuffle_write_async(fn, data, n, epoch, &ignored,
-            mon_shuffle_write_async_cb, state);
+            mon_shuffle_write_async_cb, start, ctx);
 
     return(rv);
 }

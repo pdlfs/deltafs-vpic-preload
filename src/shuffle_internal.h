@@ -97,8 +97,9 @@ typedef struct write_cb {
 } write_cb_t;
 
 typedef struct write_async_cb {
-    void* arg;
-    void(*cb)(int rv, void*);
+    void* arg1;
+    void* arg2;
+    void(*cb)(int rv, void*, void*);
     int slot;  /* cb slot used */
 } write_async_cb_t;
 
@@ -118,8 +119,8 @@ void shuffle_wait(void);  /* wait for outstanding rpc */
  * return 0 on success, or EOF on errors.
  */
 int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-        int* is_local, void(*async_cb)(int rv, void* arg),
-        void* arg);
+        int* is_local, void(*async_cb)(int rv, void*, void*),
+        void* arg1, void* arg2);
 /*
  * shuffle_write: send write to a remote peer and wait for response.
  *

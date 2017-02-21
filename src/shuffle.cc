@@ -383,7 +383,7 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
     /* publish response */
     if (hret == HG_SUCCESS) {
         if (async_cb->cb != NULL) {
-            async_cb->cb(rv, async_cb->arg);
+            async_cb->cb(rv, async_cb->arg1, async_cb->arg2);
         }
     } else {
         rpc_abort("HG_Forward", hret);
@@ -406,8 +406,9 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
 /* send an incoming write to an appropriate peer and return without waiting */
 int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-                        int* is_local, void(*shuffle_cb)(int rv, void*),
-                        void* arg)
+                        int* is_local,
+                        void(*shuffle_cb)(int rv, void* arg1, void* arg2),
+                        void* arg1, void* arg2)
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
@@ -533,7 +534,8 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
 
     async_cb->slot = slot;
     async_cb->cb = shuffle_cb;
-    async_cb->arg = arg;
+    async_cb->arg1 = arg1;
+    async_cb->arg2 = arg2;
 
     hret = HG_Forward(h, shuffle_write_async_handler, async_cb,
             &write_in);
