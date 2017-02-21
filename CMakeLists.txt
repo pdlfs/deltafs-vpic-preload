@@ -14,12 +14,6 @@
 #      -DCMAKE_PREFIX_PATH='/dir1;/dir2;/dir3'
 #
 
-#
-# debugging options for testing:
-#    -DSHUFFLE_BYPASS=OFF
-#    -DPLFS_DIRMODE_BYPASS=OFF
-#
-
 cmake_minimum_required (VERSION 3.0)
 project (deltafs-preload C CXX)
 enable_testing ()
@@ -42,9 +36,6 @@ set (DEBUG_SANITIZER Off CACHE STRING "Sanitizer for debug builds")
 set_property (CACHE DEBUG_SANITIZER PROPERTY STRINGS
               "Off" "Address" "Thread")
 set (CMAKE_PREFIX_PATH "" CACHE STRING "External dependencies path")
-
-set (PLFS_DIRMODE_BYPASS Off CACHE BOOL "Bypass deltafs PLFS mode for mkdir")
-set (SHUFFLE_BYPASS Off CACHE BOOL "Bypass shuffle module")
 
 #
 # sanitizer config (XXX: does not probe compiler to see if sanitizer flags

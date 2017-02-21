@@ -30,16 +30,6 @@ if (CMAKE_THREAD_LIBS_INIT)
 endif ()
 
 #
-# testing/debug options
-#
-if (PLFS_DIRMODE_BYPASS)
-  target_compile_definitions (deltafs-preload PRIVATE -DPLFS_DIRMODE_BYPASS)
-endif ()
-if (SHUFFLE_BYPASS)
-  target_compile_definitions (deltafs-preload PRIVATE -DSHUFFLE_BYPASS)
-endif ()
-
-#
 # make sure we link with MPI
 #
 
