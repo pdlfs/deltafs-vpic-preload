@@ -424,6 +424,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     unsigned long target;
     int peer_rank;
     int rank;
+    int e;
     int n;
 
     *is_local = 0;
@@ -494,11 +495,9 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
             abstime.tv_sec = now + sctx.timeout;
             abstime.tv_nsec = 0;
 
-            n = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
-            if (n == -1) {
-                if (errno == ETIMEDOUT) {
-                    msg_abort("HG_Forward timeout");
-                }
+            e = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
+            if (e == ETIMEDOUT) {
+                msg_abort("HG_Forward timeout");
             }
         }
     }
@@ -554,6 +553,7 @@ void shuffle_wait()
     struct timespec abstime;
     useconds_t delay;
     char buf[50];
+    int e;
     int n;
 
     delay = 1000; /* 1000 us */
@@ -579,11 +579,9 @@ void shuffle_wait()
             abstime.tv_sec = now + sctx.timeout;
             abstime.tv_nsec = 0;
 
-            n = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
-            if (n == -1) {
-                if (errno == ETIMEDOUT) {
-                    msg_abort("HG_Forward timeout");
-                }
+            e = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
+            if (e == ETIMEDOUT) {
+                msg_abort("HG_Forward timeout");
             }
         }
     }
@@ -625,6 +623,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     unsigned long target;
     int peer_rank;
     int rank;
+    int e;
     int n;
 
     *is_local = 0;
@@ -716,11 +715,9 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
                 abstime.tv_sec = now + sctx.timeout;
                 abstime.tv_nsec = 0;
 
-                n = pthread_cond_timedwait(&rpc_cv, &mtx, &abstime);
-                if (n == -1) {
-                    if (errno == ETIMEDOUT) {
-                        msg_abort("HG_Forward timeout");
-                    }
+                e = pthread_cond_timedwait(&rpc_cv, &mtx, &abstime);
+                if (e == ETIMEDOUT) {
+                    msg_abort("HG_Forward timeout");
                 }
             }
         }
