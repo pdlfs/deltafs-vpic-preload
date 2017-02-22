@@ -262,23 +262,41 @@ static std::string pretty_dura(double us)
 static std::string pretty_size(double size)
 {
     char tmp[100];
+#if defined(PRELOAD_PRETTY_USE_BINARY)
     if (size >= 1099511627776.0) {
         size /= 1099511627776.0;
-        snprintf(tmp, sizeof(tmp), "%.1f TB", size);
+        snprintf(tmp, sizeof(tmp), "%.1f TiB", size);
     } else if (size >= 1073741824.0) {
         size /= 1073741824.0;
-        snprintf(tmp, sizeof(tmp), "%.1f GB", size);
+        snprintf(tmp, sizeof(tmp), "%.1f GiB", size);
     } else if (size >= 1048576.0) {
         size /= 1048576.0;
-        snprintf(tmp, sizeof(tmp), "%.1f MB", size);
+        snprintf(tmp, sizeof(tmp), "%.1f MiB", size);
     } else if (size >= 1024.0) {
         size /= 1024.0;
+        snprintf(tmp, sizeof(tmp), "%.1f KiB", size);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.0f bytes",
+                size);
+    }
+#else
+    if (size >= 1000000000000.0) {
+        size /= 1000000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f TB", size);
+    } else if (size >= 1000000000.0) {
+        size /= 1000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f GB", size);
+    } else if (size >= 1000000.0) {
+        size /= 1000000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f MB", size);
+    } else if (size >= 1000.0) {
+        size /= 1000.0;
         snprintf(tmp, sizeof(tmp), "%.1f KB", size);
     } else {
         snprintf(tmp, sizeof(tmp), "%.0f bytes",
                 size);
     }
-
+#endif
     return tmp;
 }
 
@@ -289,23 +307,41 @@ static std::string pretty_tput(double bytes, double us)
 {
     char tmp[100];
     double bytes_per_s = bytes / us * 1000000;
+#if defined(PRELOAD_PRETTY_USE_BINARY)
     if (bytes_per_s >= 1099511627776.0) {
         bytes_per_s /= 1099511627776.0;
-        snprintf(tmp, sizeof(tmp), "%.3f TB/s", bytes_per_s);
+        snprintf(tmp, sizeof(tmp), "%.3f TiB/s", bytes_per_s);
     } else if (bytes_per_s >= 1073741824.0) {
         bytes_per_s /= 1073741824.0;
-        snprintf(tmp, sizeof(tmp), "%.3f GB/s", bytes_per_s);
+        snprintf(tmp, sizeof(tmp), "%.3f GiB/s", bytes_per_s);
     } else if (bytes_per_s >= 1048576.0) {
         bytes_per_s /= 1048576.0;
-        snprintf(tmp, sizeof(tmp), "%.3f MB/s", bytes_per_s);
+        snprintf(tmp, sizeof(tmp), "%.3f MiB/s", bytes_per_s);
     } else if (bytes_per_s >= 1024.0) {
         bytes_per_s /= 1024.0;
+        snprintf(tmp, sizeof(tmp), "%.3f KiB/s", bytes_per_s);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.3f bytes/s",
+                bytes_per_s);
+    }
+#else
+    if (bytes_per_s >= 1000000000000.0) {
+        bytes_per_s /= 1000000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f TB/s", bytes_per_s);
+    } else if (bytes_per_s >= 1000000000.0) {
+        bytes_per_s /= 1000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f GB/s", bytes_per_s);
+    } else if (bytes_per_s >= 1000000.0) {
+        bytes_per_s /= 1000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f MB/s", bytes_per_s);
+    } else if (bytes_per_s >= 1000.0) {
+        bytes_per_s /= 1000.0;
         snprintf(tmp, sizeof(tmp), "%.3f KB/s", bytes_per_s);
     } else {
         snprintf(tmp, sizeof(tmp), "%.3f bytes/s",
                 bytes_per_s);
     }
-
+#endif
     return tmp;
 }
 
