@@ -53,7 +53,20 @@ static inline uint64_t now_micros() {
     return(t);
 }
 
-typedef deltafs_plfsdir_stat_t dir_stat_t;
+/*
+ * statistics maintained by deltafs
+ */
+typedef struct dir_stat {
+    /* total time spent on compaction */
+    unsigned long long total_compaction_time;
+
+    /* bytes of data pushed to index log */
+    unsigned long long total_index_size;
+    /* bytes of data pushed to data log */
+    unsigned long long total_data_size;
+
+} dir_stat_t;
+
 /*
  * XXX: we could use atomic counters in future
  * when VPIC goes openmp.
@@ -62,9 +75,7 @@ typedef deltafs_plfsdir_stat_t dir_stat_t;
 typedef struct mon_ctx {
 
     /* !!! auxiliary state !!! */
-
-    dir_stat_t dir_stat;
-
+    dir_stat_t last_dir_stat;
     uint64_t last_write_micros;  /* timestamp of the previous write */
     uint64_t epoch_start;   /* the start time of an epoch */
     int epoch_seq;   /* epoch seq num */
@@ -120,11 +131,7 @@ typedef struct mon_ctx {
     unsigned long long dura;   /* epoch duration */
 
     /* !!! collected by deltafs !!! */
-
-    unsigned long long dat_sz;  /* total physical data written */
-    unsigned long long index_sz;  /* total physical index */
-
-    unsigned long long w_tm;    /* total time spent on writing */
+    dir_stat_t dir_stat;
 
 } mon_ctx_t;
 

@@ -134,7 +134,7 @@ static inline bool is_envset(const char* key) {
  * preload_write(fn, data, n):
  *   - ship data to deltafs
  */
-extern int preload_write(const char* fn, char* data, size_t n);
+extern int preload_write(const char* fn, char* data, size_t n, int epoch);
 
 /*
  * preload context:
@@ -153,8 +153,8 @@ typedef struct preload_ctx {
 
     const char* plfsdir;      /* path to the plfsdir */
     size_t len_plfsdir;       /* strlen */
-    DELTAFS_PLFSDIR* plfsh;   /* opaque handle to an opened plfsdir */
-    int plfsfd;               /* fd for the plfsdir */
+    deltafs_plfsdir_t* plfsh; /* opaque handle to an opened plfsdir */
+    int plfsfd;      /* fd for the plfsdir */
 
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 

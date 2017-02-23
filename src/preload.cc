@@ -359,10 +359,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
     if (!pctx.nomon) {
         /* collect stats from deltafs */
         if (pctx.plfsh != NULL) {
-            deltafs_plfsdir_write_stat(pctx.plfsh, tmp_stat);
-            mon->w_tm = tmp_stat->ds_wtim - mon->dir_stat.ds_wtim;
-            mon->index_sz = tmp_stat->ds_isz - mon->dir_stat.ds_isz;
-            mon->dat_sz = tmp_stat->ds_dsz - mon->dir_stat.ds_dsz;
+            // XXX: TODO
         } else if (pctx.plfsfd != -1) {
             // XXX: TODO
         }
@@ -654,8 +651,11 @@ int MPI_Init(int *argc, char ***argv)
 
             trace(conf);
 
-            pctx.plfsh = deltafs_plfsdir_create(path, conf);
-            if (pctx.plfsh == NULL) {
+            pctx.plfsh = deltafs_plfsdir_create_handle(O_WRONLY);
+            if (pctx.plfsh != NULL) {
+                rv = deltafs_plfsdir_open(pctx.plfsh, path, conf);
+            }
+            if (pctx.plfsh == NULL || rv != 0) {
                 msg_abort("cannot open plfsdir");
             } else if (rank == 0) {
                 info("LW plfs dir opened (rank 0)");
@@ -736,7 +736,7 @@ int MPI_Finalize(void)
         deltafs_plfsdir_finish(pctx.plfsh);
         if (num_epochs != 0)
             dump_mon(&mctx, &tmp_stat);
-        deltafs_plfsdir_close(pctx.plfsh);
+        deltafs_plfsdir_free_handle(pctx.plfsh);
         pctx.plfsh = NULL;
 
         if (pctx.rank == 0) {
@@ -994,7 +994,7 @@ DIR *opendir(const char *dir)
          */
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             if (pctx.plfsh != NULL) {
-                deltafs_plfsdir_epoch_flush(pctx.plfsh, NULL);
+                deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
                 if (pctx.rank == 0) {
                     info("LW plfs dir flushed (rank 0)");
                 }
@@ -1261,7 +1261,7 @@ int fclose(FILE *stream)
 /*
  * preload_write
  */
-int preload_write(const char *fn, char *data, size_t len)
+int preload_write(const char *fn, char *data, size_t len, int epoch)
 {
     int rv;
     char path[PATH_MAX];
@@ -1281,7 +1281,7 @@ int preload_write(const char *fn, char *data, size_t len)
         }
 
         rv = deltafs_plfsdir_append(pctx.plfsh, fn + pctx.len_plfsdir + 1,
-                data, len);
+                epoch, data, len);
 
         if (rv != 0) {
             rv = EOF;
