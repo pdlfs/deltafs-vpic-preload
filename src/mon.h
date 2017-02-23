@@ -22,7 +22,7 @@ extern "C" {
  *
  * The first four are num. max, min, and sum.
  */
-#define MON_NUM_BUCKETS 154
+#define MON_NUM_BUCKETS 142
 typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
 
 /*
