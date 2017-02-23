@@ -138,6 +138,8 @@ typedef struct mon_ctx {
 
 extern mon_ctx_t mctx;
 
+extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
+
 extern int mon_preload_write(const char* fn, char* data, size_t n,
         int epoch, int is_foreign, mon_ctx_t* ctx);
 extern int mon_shuffle_write_async(const char* fn, char* data, size_t n,

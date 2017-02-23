@@ -359,7 +359,16 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
     if (!pctx.nomon) {
         /* collect stats from deltafs */
         if (pctx.plfsh != NULL) {
-            // XXX: TODO
+            mon_fetch_plfsdir_stat(pctx.plfsh, tmp_stat);
+            mon->dir_stat.total_compaction_time =
+                    tmp_stat->total_compaction_time -
+                    mon->last_dir_stat.total_compaction_time;
+            mon->dir_stat.total_index_size =
+                    tmp_stat->total_index_size -
+                    mon->last_dir_stat.total_index_size;
+            mon->dir_stat.total_data_size =
+                    tmp_stat->total_data_size -
+                    mon->last_dir_stat.total_data_size;
         } else if (pctx.plfsfd != -1) {
             // XXX: TODO
         }
@@ -1040,7 +1049,7 @@ DIR *opendir(const char *dir)
     if (!pctx.nomon) {
         mon_reinit(&mctx);   /* reset mon stats */
 
-        mctx.dir_stat = tmp_stat;
+        mctx.last_dir_stat = tmp_stat;
         mctx.epoch_start = epoch_start;
         mctx.epoch_seq = num_epochs;
     }

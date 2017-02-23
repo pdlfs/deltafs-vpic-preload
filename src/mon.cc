@@ -104,6 +104,32 @@ static void hstg_reduce(const hstg_t&src, hstg_t& sum) {
 
 extern "C" {
 
+static unsigned long long mon_get_long_property(deltafs_plfsdir_t* dir,
+                                                const char* key) {
+    unsigned long long rv;
+
+    char* val = deltafs_plfsdir_get_property(dir, key);
+    if (val != NULL) {
+        rv = atoll(val);
+        free(val);
+    } else {
+        rv = 0;
+    }
+
+    return rv;
+}
+
+int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
+    if (dir != NULL && buf != NULL) {
+        buf->total_index_size = mon_get_long_property(dir, "index_size");
+        buf->total_data_size = mon_get_long_property(dir, "data_size");
+        buf->total_compaction_time = mon_get_long_property(dir,
+                "compaction_time");
+    }
+
+    return 0;
+}
+
 int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
                       int is_foreign, mon_ctx_t* ctx) {
     uint64_t start;
