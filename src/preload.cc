@@ -1001,7 +1001,10 @@ DIR *opendir(const char *dir)
          * XXX: need to send the epoch num to deltafs.
          *
          */
-        if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+        if (IS_BYPASS_WRITE(pctx.mode)) {
+            /* noop */
+
+        } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             if (pctx.plfsh != NULL) {
                 deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
                 if (pctx.rank == 0) {
@@ -1023,7 +1026,7 @@ DIR *opendir(const char *dir)
             }
 
         } else {
-            /* no op */
+            /* noop */
         }
     }
 
