@@ -333,6 +333,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     write_in_t in;
     char path[PATH_MAX];
     char buf[200];
+    int ha;
     int epoch;
     int peer_rank;
     int rank;
@@ -354,8 +355,10 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         /* write trace if we are in testing mode */
         if (pctx.testin && pctx.logfd != -1) {
-            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes (e%d) r%d << r%d\n",
-                    path, int(in.data_len), epoch, rank, peer_rank);
+            ha = pdlfs::xxhash32(in.data, in.data_len, 0);
+            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes (e%d) r%d << r%d "
+                    "(hash=%08x)\n", path, int(in.data_len), epoch,
+                    rank, peer_rank, ha);
             n = write(pctx.logfd, buf, n);
 
             errno = 0;
@@ -438,6 +441,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     int rv;
     int slot;
     unsigned long target;
+    int ha;
     int peer_rank;
     int rank;
     int e;
@@ -465,8 +469,10 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
         if (rank != peer_rank || sctx.force_rpc) {
-            n = snprintf(buf, sizeof(buf), "[A] %s %d bytes (e%d) r%d >> r%d\n",
-                    fn, int(len), epoch, rank, peer_rank);
+            ha = pdlfs::xxhash32(data, len, 0);
+            n = snprintf(buf, sizeof(buf), "[A] %s %d bytes (e%d) r%d >> r%d "
+                    "(hash=%08x)\n", fn, int(len), epoch,
+                    rank, peer_rank, ha);
         } else {
             n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
                     fn, int(len), epoch);
@@ -637,6 +643,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     char buf[200];
     int rv;
     unsigned long target;
+    int ha;
     int peer_rank;
     int rank;
     int e;
@@ -664,8 +671,10 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
         if (rank != peer_rank || sctx.force_rpc) {
-            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d\n",
-                    fn, int(len), epoch, rank, peer_rank);
+            ha = pdlfs::xxhash32(data, len, 0);
+            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d "
+                    "(hash=%08x)\n", fn, int(len), epoch,
+                    rank, peer_rank, ha);
         } else {
             n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
                     fn, int(len), epoch);
