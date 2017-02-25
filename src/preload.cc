@@ -14,15 +14,18 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/stat.h>
-
 #include <string>
 
-#include "io_plfsdir.h"
+#include <pdlfs-common/xxhash.h>
 
+#include "io_plfsdir.h"
 #include "shuffle_internal.h"
 #include "preload_internal.h"
 
 #include "preload.h"
+
+/* particle size */
+#define PRELOAD_PARTICLE_SIZE 40
 
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
@@ -410,7 +413,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
     }
 }
 
-static std::string plfsdir_conf() {
+static std::string gen_plfsdir_conf() {
     char tmp[500];
     const char* lg_parts;
     const char* index_buf;
@@ -684,7 +687,7 @@ int MPI_Init(int *argc, char ***argv)
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
             snprintf(conf, sizeof(conf), "rank=%d&value_size=%d&%s", rank,
-                    40, plfsdir_conf().c_str());
+                    PRELOAD_PARTICLE_SIZE, gen_plfsdir_conf().c_str());
 
             trace(conf);
 
@@ -1320,19 +1323,21 @@ int fclose(FILE *stream)
 int preload_write(const char* fn, char* data, size_t len, int epoch)
 {
     int rv;
-    char buf[40];
+    char buf[PRELOAD_PARTICLE_SIZE];
     char path[PATH_MAX];
+    const char* name;
     ssize_t n;
     int fd;
+    int k;
 
     assert(pctx.plfsdir != NULL);
+    /* remove parent directory path */
+    name = fn + pctx.len_plfsdir + 1;
 
     if (pctx.fake_data) {
         memset(buf, 0, sizeof(buf));
-
-        snprintf(buf, sizeof(buf), "%s, epoch=%d", fn + pctx.len_plfsdir + 1,
-                epoch);
-
+        k = pdlfs::xxhash32(name, strlen(name), 0);
+        snprintf(buf, sizeof(buf), "key=%08x, epoch=%d\n", k, epoch);
         len = sizeof(buf);
         data = buf;
     }
@@ -1349,8 +1354,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch)
             msg_abort("plfsdir not opened");
         }
 
-        rv = deltafs_plfsdir_append(pctx.plfsh, fn + pctx.len_plfsdir + 1,
-                epoch, data, len);
+        rv = deltafs_plfsdir_append(pctx.plfsh, name, epoch, data, len);
 
         if (rv != 0) {
             rv = EOF;
@@ -1372,8 +1376,8 @@ int preload_write(const char* fn, char* data, size_t len, int epoch)
             msg_abort("plfsdir not opened");
         }
 
-        fd = deltafs_openat(pctx.plfsfd, fn + pctx.len_plfsdir + 1,
-                O_WRONLY | O_CREAT | O_APPEND, 0666);
+        fd = deltafs_openat(pctx.plfsfd, name, O_WRONLY | O_CREAT | O_APPEND,
+                0666);
 
         if (fd != -1) {
             n = deltafs_write(fd, data, len);
