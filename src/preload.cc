@@ -709,6 +709,9 @@ int MPI_Init(int *argc, char ***argv)
     }
 
     if (rank == 0) {
+        if (pctx.fake_data) warn("vpic output replaced with fake data");
+        if (pctx.nomon) warn("perf monitoring disabled");
+
         if (IS_BYPASS_WRITE(pctx.mode)) {
             warn("particle writes bypassed");
         } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
