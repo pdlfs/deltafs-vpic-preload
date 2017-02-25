@@ -534,8 +534,8 @@ int MPI_Init(int *argc, char ***argv)
             deltafs_major = deltafs_version_major();
             deltafs_minor = deltafs_version_minor();
             deltafs_patch = deltafs_version_patch();
-            snprintf(msg, sizeof(msg), "using deltafs %d.%d.%d",
-                    deltafs_major, deltafs_minor, deltafs_patch);
+            snprintf(msg, sizeof(msg), "deltafs %d.%d.%d", deltafs_major,
+                    deltafs_minor, deltafs_patch);
             info(msg);
             info("deltafs-vpic lib initializing ...");
             snprintf(msg, sizeof(msg), "%d cores", size);
@@ -630,11 +630,13 @@ int MPI_Init(int *argc, char ***argv)
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_init();
-
         nxt.MPI_Barrier(MPI_COMM_WORLD);
-
         if (rank == 0) {
             info("shuffle layer ready");
+        }
+    } else {
+        if (rank == 0) {
+            warn("shuffle bypassed");
         }
     }
 
@@ -701,6 +703,18 @@ int MPI_Init(int *argc, char ***argv)
             } else if (rank == 0) {
                 info("plfs dir opened (rank 0)");
             }
+        }
+    }
+
+    if (rank == 0) {
+        if (IS_BYPASS_WRITE(pctx.mode)) {
+            warn("particle writes bypassed");
+        } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+            warn("deltafs metadata bypassed");
+        } else if (IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
+            warn("deltafs plfsdir bypassed");
+        } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
+            warn("deltafs bypassed");
         }
     }
 
