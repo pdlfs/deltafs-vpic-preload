@@ -508,6 +508,13 @@ int MPI_Init(int *argc, char ***argv)
     char msg[100];  // snprintf
     char path[PATH_MAX];
     char conf[500];
+#if MPI_VERSION >= 3
+    char mpi_info[MPI_MAX_LIBRARY_VERSION_STRING];
+    char* c;
+#endif
+    int deltafs_major;
+    int deltafs_minor;
+    int deltafs_patch;
     int mpi_wtime_is_global;
     int flag;
     int size;
@@ -524,7 +531,13 @@ int MPI_Init(int *argc, char ***argv)
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         pctx.rank = rank;
         if (rank == 0) {
-            info("lib initializing ...");
+            deltafs_major = deltafs_version_major();
+            deltafs_minor = deltafs_version_minor();
+            deltafs_patch = deltafs_version_patch();
+            snprintf(msg, sizeof(msg), "using deltafs %d.%d.%d",
+                    deltafs_major, deltafs_minor, deltafs_patch);
+            info(msg);
+            info("deltafs-vpic lib initializing ...");
             snprintf(msg, sizeof(msg), "%d cores", size);
             info(msg);
         }
@@ -532,12 +545,23 @@ int MPI_Init(int *argc, char ***argv)
         return(rv);
     }
 
-#if MPI_VERSION < 3
     if (rank == 0) {
+#if MPI_VERSION < 3
         warn("using non-recent MPI release: some features disabled\n>>> "
                 "MPI ver 3 is suggested in production mode");
-    }
+#else
+        MPI_Get_library_version(mpi_info, &n);
+        c = strchr(mpi_info, '\n');
+        if (c != NULL) {
+            *c = 0;
+        }
+        c = strchr(mpi_info, '\r');
+        if (c != NULL) {
+            *c = 0;
+        }
+        info(mpi_info);
 #endif
+    }
 
     if (rank == 0) {
 #if defined(MPI_WTIME_IS_GLOBAL)
