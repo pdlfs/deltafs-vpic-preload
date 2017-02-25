@@ -74,7 +74,7 @@ static const char* prepare_addr(char* buf)
     MPI_Comm comm;
     int rank;
     const char* subnet;
-    char tmp[100];
+    char msg[100];
     char ip[50]; // ip
     int rv;
     int n;
@@ -85,8 +85,14 @@ static const char* prepare_addr(char* buf)
         msg_abort("getifaddrs");
 
     subnet = getenv("SHUFFLE_Subnet");
-    if (subnet == NULL)
+    if (subnet == NULL) {
         subnet = DEFAULT_SUBNET;
+    }
+
+    if (pctx.rank == 0) {
+        snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
+        info(msg);
+    }
 
     for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
         if (cur->ifa_addr != NULL) {
@@ -101,8 +107,8 @@ static const char* prepare_addr(char* buf)
                     break;
                 } else if (pctx.testin) {
                     if (pctx.logfd != -1) {
-                        n = snprintf(tmp, sizeof(tmp), "[N] reject %s\n", ip);
-                        n = write(pctx.logfd, tmp, n);
+                        n = snprintf(msg, sizeof(msg), "[N] reject %s\n", ip);
+                        n = write(pctx.logfd, msg, n);
 
                         errno = 0;
                     }
@@ -140,6 +146,12 @@ static const char* prepare_addr(char* buf)
     if (max_port > 65535)
         msg_abort("bad max port");
 
+    if (pctx.rank == 0) {
+        snprintf(msg, sizeof(msg), "using port range [%d,%d]",
+                min_port, max_port);
+        info(msg);
+    }
+
 #if MPI_VERSION >= 3
     rv = MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0,
             MPI_INFO_NULL, &comm);
@@ -160,8 +172,8 @@ static const char* prepare_addr(char* buf)
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
-            n = snprintf(tmp, sizeof(tmp), "[N] using %s\n", buf);
-            n = write(pctx.logfd, tmp, n);
+            n = snprintf(msg, sizeof(msg), "[N] using %s\n", buf);
+            n = write(pctx.logfd, msg, n);
 
             errno = 0;
         }
