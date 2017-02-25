@@ -888,8 +888,9 @@ int MPI_Finalize(void)
 
                         if (n == sizeof(buf)) {
                             snprintf(msg, sizeof(msg), " > epoch #%-3d "
-                                    "%llu files, %s, %s ok", epoch + 1, glob.nw,
-                                    pretty_size(glob.sum_wsz).c_str(),
+                                    "%s, %llu particles, %s, %s ok",
+                                    epoch + 1, pretty_dura(glob.dura).c_str(),
+                                    glob.nw, pretty_size(glob.sum_wsz).c_str(),
                                     pretty_tput(glob.sum_wsz,
                                     glob.dura).c_str());
                             info(msg);
@@ -914,7 +915,7 @@ int MPI_Finalize(void)
                 diff = now_micros() - ts;
 
                 snprintf(msg, sizeof(msg),
-                        "processed %d epoch stats %s", epoch,
+                        "merged %d epoch stats %s", epoch,
                         pretty_dura(diff).c_str());
                 info(msg);
             }
