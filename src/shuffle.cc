@@ -169,6 +169,10 @@ static const char* prepare_addr(char* buf)
     env = getenv("SHUFFLE_Mercury_proto");
     if (env == NULL) env = DEFAULT_PROTO;
     sprintf(buf, "%s://%s:%d", env, ip, port);
+    if (pctx.rank == 0) {
+        snprintf(msg, sizeof(msg), "using %s", env);
+        info(msg);
+    }
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
