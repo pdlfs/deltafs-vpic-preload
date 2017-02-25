@@ -28,6 +28,7 @@
 //  PRELOAD_Enable_verbose_error       Print error info when write op fails
 //  PRELOAD_Local_root                 Local file system root
 //  PRELOAD_Testing                    Used by developers to debug code
+//  PRELOAD_Inject_fake_data           Replace particle data with fake data
 // ----------------------------------|----------------------------------
 //
 

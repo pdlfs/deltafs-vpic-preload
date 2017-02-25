@@ -159,8 +159,9 @@ typedef struct preload_ctx {
     std::set<FILE*>* isdeltafs;         /* open files owned by deltafs */
 
     int testin;      /* developer mode - for debug use only */
+    int fake_data;   /* replace vpic output with fake data - for debug only */
     int nomon;       /* skip monitoring */
-    int nomondist;   /* skip copying mon files out */
+    int nodist;      /* skip copying mon files out */
 
     int logfd;       /* descriptor for the testing log file */
     int monfd;       /* descriptor for the mon dump file */

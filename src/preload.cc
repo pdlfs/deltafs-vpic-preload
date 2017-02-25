@@ -178,11 +178,13 @@ static void preload_init()
     if (is_envset("PRELOAD_Skip_mon"))
         pctx.nomon = 1;
     if (is_envset("PRELOAD_Skip_mon_dist"))
-        pctx.nomondist = 1;
+        pctx.nodist = 1;
     if (is_envset("PRELOAD_Enable_verbose_mon"))
         pctx.vmon = 1;
     if (is_envset("PRELOAD_Enable_verbose_error"))
         pctx.verr = 1;
+    if (is_envset("PRELOAD_Inject_fake_data"))
+        pctx.fake_data = 1;
     if (is_envset("PRELOAD_Testing"))
         pctx.testin = 1;
 
@@ -805,7 +807,7 @@ int MPI_Finalize(void)
 
     /* close, merge, and dist mon files */
     if (pctx.monfd != -1) {
-        if (!pctx.nomondist) {
+        if (!pctx.nodist) {
             ok = 1;  /* ready to go */
 
             if (pctx.rank == 0) {
@@ -1312,12 +1314,25 @@ int fclose(FILE *stream)
 /*
  * preload_write
  */
-int preload_write(const char *fn, char *data, size_t len, int epoch)
+int preload_write(const char* fn, char* data, size_t len, int epoch)
 {
     int rv;
+    char buf[40];
     char path[PATH_MAX];
     ssize_t n;
     int fd;
+
+    assert(pctx.plfsdir != NULL);
+
+    if (pctx.fake_data) {
+        memset(buf, 0, sizeof(buf));
+
+        snprintf(buf, sizeof(buf), "%s, epoch=%d", fn + pctx.len_plfsdir + 1,
+                epoch);
+
+        len = sizeof(buf);
+        data = buf;
+    }
 
     /* Return 0 on success, or EOF on errors */
 
