@@ -22,24 +22,27 @@
 #include <map>
 #include <list>
 
+static const char* prefixes[] = { "electron_tracer", "ion_tracer", NULL };
 typedef std::map<int,FILE*> FileMap;
 typedef std::list<int> EpochList;
 
 static const char* argv0 = NULL;
 static struct ch_placement_instance* ch_inst = NULL;
 static const char* ch_type = "ring";
-static int ch_size = 4;
 static int ch_vf = 1024;
+static int ch_size = 1;
 static int ch_seed = 0;
 
-void usage(int ret)
+static void usage(int ret)
 {
-    printf("\n"
-           "usage: %s [options] -i input_dir -o output_dir\n"
+    assert(argv0 != NULL);
+    printf("\nusage: %s [options] -i input_dir -o output_dir\n\n"
            "  options:\n"
-           "    -d        Run in DeltaFS mode\n"
-           "    -n num    Number of particles to read (reading ID 1 to num)\n"
-           "    -h        This usage info\n"
+           "    -d        Run in deltafs mode\n"
+           "    -s size   Consistent-hash ring size\n"
+           "    -v factor Consistent-hash virtual factor\n"
+           "    -n num    Number of particles to read (from 1 to num)\n"
+           "    -h        Print this usage info\n"
            "\n",
            argv0);
 
@@ -62,7 +65,7 @@ int generate_files(char *outdir, long long int num, FileMap *out)
     FileMap::iterator it;
 
     for (long long int i = 1; i <= num; i++) {
-        if (!snprintf(fpath, PATH_MAX, "%s/particle%lld.txt", outdir, i)) {
+        if (!snprintf(fpath, PATH_MAX, "%s/particle%lld.out", outdir, i)) {
             perror("Error: snprintf failed");
             usage(1);
         }
@@ -93,39 +96,47 @@ int deltafs_read_particles(long long int num, char *indir, char *outdir)
     }
 
     assert(ch_inst != NULL);
+
     ret = 0;
 
-    for (int i = 1; ret == 0 && i <= num; i++) {
-        /* determine file name for particle */
-        snprintf(fname, sizeof(fname), "eparticle.%016lx", long(i));
-        fprintf(stderr, "%s ...\n", fname);
-        ch_placement_find_closest(ch_inst,
-                pdlfs::xxhash64(fname, strlen(fname), 0), 1, &rank);
-        dir = deltafs_plfsdir_create_handle(O_RDONLY);
-        snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=true", rank);
-        ret = deltafs_plfsdir_open(dir, indir, conf);
-        if (ret == 0) {
-            file_data = (char*) deltafs_plfsdir_readall(dir, fname, &file_len);
-            if (file_data != NULL) {
-                /* dump particle trajectory data */
-                if (fwrite(file_data, 1, file_len, out[i]) != file_len) {
-                    snprintf(msg, sizeof(msg), "cannot write into output "
-                            "particle file #%d", i);
-                    perror(msg);
+    for (int i = 1; i <= num; i++) {
+        for (int j = 0; prefixes[j] != NULL; j++) {
+            /* determine file name for particle */
+            snprintf(fname, sizeof(fname), "%s.%016lx", prefixes[j], long(i));
+            fprintf(stderr, "%s ...\n", fname);
+            ch_placement_find_closest(ch_inst,
+                    pdlfs::xxhash64(fname, strlen(fname), 0), 1, &rank);
+            dir = deltafs_plfsdir_create_handle(O_RDONLY);
+            snprintf(conf, sizeof(conf),
+                    "rank=%lu&verify_checksums=true", rank);
+            ret = deltafs_plfsdir_open(dir, indir, conf);
+            if (ret == 0) {
+                file_data = (char*) deltafs_plfsdir_readall(dir, fname,
+                        &file_len);
+                if (file_data != NULL) {
+                    /* dump particle trajectory data */
+                    if (fwrite(file_data, 1, file_len, out[i]) != file_len) {
+                        snprintf(msg, sizeof(msg), "cannot write into output "
+                                "particle file #%d", i);
+                        perror(msg);
+                    } else {
+                        fprintf(stderr, "%s %llu bytes ok\n", fname,
+                                (unsigned long long) file_len);
+                    }
+                    free(file_data);
                 } else {
-                    fprintf(stderr, "%s %llu bytes ok\n", fname,
-                            (unsigned long long) file_len);
+                    snprintf(msg, sizeof(msg), "cannot fetch particle #%d", i);
+                    perror(msg);
                 }
-                free(file_data);
             } else {
-                snprintf(msg, sizeof(msg), "cannot fetch particle #%d", i);
-                perror(msg);
+                perror("cannot open input directory");
             }
-        } else {
-            perror("cannot open input directory");
-        }
 
-        deltafs_plfsdir_free_handle(dir);
+            deltafs_plfsdir_free_handle(dir);
+            if (ret != 0) {
+                break;
+            }
+        }
     }
 
     close_files(&out);
@@ -222,32 +233,48 @@ int main(int argc, char **argv)
     argv0 = argv[0];
     indir[0] = outdir[0] = '\0';
 
-    while ((c = getopt(argc, argv, "dhi:n:o:p:")) != -1) {
+    while ((c = getopt(argc, argv, "dhi:s:v:n:o:p:")) != -1) {
         switch(c) {
-        case 'd': /* run in DeltaFS mode */
+        case 'd': /* run in deltafs mode */
             d = 1;
             break;
         case 'h': /* print help */
             usage(0);
-        case 'i': /* input directory (VPIC output) */
-            if (!strncpy(indir, optarg, PATH_MAX)) {
-                perror("Error: invalid input dir");
+        case 'i': /* input directory (vpic output) */
+            strncpy(indir, optarg, PATH_MAX);
+            break;
+        case 's': { /* ring size */
+            char* end;
+            ch_size = strtol(optarg, &end, 10);
+            if (end[0] != 0) {
+                fprintf(stderr, "%s: invalid ring size -- '%s'\n",
+                        argv0, optarg);
                 usage(1);
             }
             break;
-        case 'n': /* number of particles to fetch */
-            char *end;
+        }
+        case 'v': { /* ring virtual factor */
+            char* end;
+            ch_vf = strtol(optarg, &end, 10);
+            if (end[0] != 0) {
+                fprintf(stderr, "%s: invalid virtual factor -- '%s'\n",
+                        argv0, optarg);
+                usage(1);
+            }
+            break;
+        }
+        case 'n': { /* number of particles to fetch */
+            char* end;
             num = strtoll(optarg, &end, 10);
-            if (*end) {
-                perror("Error: invalid num argument");
+            if (end[0] != 0) {
+                fprintf(stderr, "%s: invalid particle num -- '%s'\n",
+                        argv0, optarg);
                 usage(1);
             }
             break;
+        }
         case 'o': /* output directory (trajectory files) */
-            if (!strncpy(outdir, optarg, PATH_MAX)) {
-                perror("Error: invalid output dir");
-                usage(1);
-            }
+            strncpy(outdir, optarg, PATH_MAX);
             break;
         default:
             usage(1);
@@ -255,7 +282,8 @@ int main(int argc, char **argv)
     }
 
     if (!indir[0] || !outdir[0]) {
-        fprintf(stderr, "Error: input and output directories are mandatory\n");
+        fprintf(stderr, "%s: input and output directories are mandatory\n",
+                argv0);
         usage(1);
     }
 
