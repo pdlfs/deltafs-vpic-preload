@@ -64,7 +64,7 @@ xpkg_import_module (ch-placement REQUIRED ch-placement)
 xpkg_import_module (ssg REQUIRED ssg)
 
 # user hook to build tools
-set (BUILD_TOOLS "OFF" CACHE BOOL "Build tools")
+set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
 
 add_subdirectory (src)
 add_subdirectory (tests)
