@@ -348,7 +348,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
         assert(pctx.plfsdir != NULL);
 
-        snprintf(path, sizeof(path), "%s%s", pctx.plfsdir, in.fname);
+        snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, in.fname);
 
         out.rv = mon_preload_write(path, in.data, in.data_len,
                 epoch, 1 /* foreign */, &mctx);
@@ -440,6 +440,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     char buf[200];
     int rv;
     int slot;
+    const char* fname;
     unsigned long target;
     int ha;
     int peer_rank;
@@ -449,8 +450,10 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
 
     *is_local = 0;
     assert(ssg_get_count(sctx.ssg) != 0);
+    assert(pctx.plfsdir != NULL);
     assert(fn != NULL);
 
+    fname = fn + pctx.len_plfsdir + 1;  /* remove parent path */
     rank = ssg_get_rank(sctx.ssg);  /* my rank */
 
     if (ssg_get_count(sctx.ssg) != 1) {
@@ -459,7 +462,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
             peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
         } else {
             ch_placement_find_closest(sctx.chp,
-                    pdlfs::xxhash64(fn, strlen(fn), 0), 1, &target);
+                    pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
             peer_rank = target;
         }
     } else {
@@ -547,7 +550,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
 
     assert(pctx.plfsdir != NULL);
 
-    write_in.fname = fn + pctx.len_plfsdir;
+    write_in.fname = fname;
     write_in.data = data;
     write_in.data_len = len;
     write_in.epoch = epoch;
@@ -642,6 +645,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     useconds_t delay;
     char buf[200];
     int rv;
+    const char* fname;
     unsigned long target;
     int ha;
     int peer_rank;
@@ -651,8 +655,10 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 
     *is_local = 0;
     assert(ssg_get_count(sctx.ssg) != 0);
+    assert(pctx.plfsdir != NULL);
     assert(fn != NULL);
 
+    fname = fn + pctx.len_plfsdir + 1; /* remove parent path */
     rank = ssg_get_rank(sctx.ssg);  /* my rank */
 
     if (ssg_get_count(sctx.ssg) != 1) {
@@ -661,7 +667,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
             peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
         } else {
             ch_placement_find_closest(sctx.chp,
-                    pdlfs::xxhash64(fn, strlen(fn), 0), 1, &target);
+                    pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
             peer_rank = target;
         }
     } else {
@@ -705,7 +711,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
 
     assert(pctx.plfsdir != NULL);
 
-    write_in.fname = fn + pctx.len_plfsdir;
+    write_in.fname = fname;
     write_in.data = data;
     write_in.data_len = len;
     write_in.epoch = epoch;

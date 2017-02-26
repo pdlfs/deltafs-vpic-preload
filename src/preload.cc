@@ -1325,18 +1325,18 @@ int preload_write(const char* fn, char* data, size_t len, int epoch)
     int rv;
     char buf[PRELOAD_PARTICLE_SIZE];
     char path[PATH_MAX];
-    const char* name;
+    const char* fname;
     ssize_t n;
     int fd;
     int k;
 
     assert(pctx.plfsdir != NULL);
     /* remove parent directory path */
-    name = fn + pctx.len_plfsdir + 1;
+    fname = fn + pctx.len_plfsdir + 1;
 
     if (pctx.fake_data) {
         memset(buf, 0, sizeof(buf));
-        k = pdlfs::xxhash32(name, strlen(name), 0);
+        k = pdlfs::xxhash32(fname, strlen(fname), 0);
         snprintf(buf, sizeof(buf), "key=%08x, epoch=%d\n", k, epoch);
         len = sizeof(buf);
         data = buf;
@@ -1354,7 +1354,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch)
             msg_abort("plfsdir not opened");
         }
 
-        rv = deltafs_plfsdir_append(pctx.plfsh, name, epoch, data, len);
+        rv = deltafs_plfsdir_append(pctx.plfsh, fname, epoch, data, len);
 
         if (rv != 0) {
             rv = EOF;
@@ -1376,7 +1376,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch)
             msg_abort("plfsdir not opened");
         }
 
-        fd = deltafs_openat(pctx.plfsfd, name, O_WRONLY | O_CREAT | O_APPEND,
+        fd = deltafs_openat(pctx.plfsfd, fname, O_WRONLY | O_CREAT | O_APPEND,
                 0666);
 
         if (fd != -1) {
