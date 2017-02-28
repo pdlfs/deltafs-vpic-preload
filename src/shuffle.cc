@@ -71,6 +71,8 @@ static const char* prepare_addr(char* buf)
     int min_port;
     int max_port;
     struct ifaddrs *ifaddr, *cur;
+    struct sockaddr_in addr;
+    socklen_t addr_len;
     MPI_Comm comm;
     int rank;
     int size;
@@ -147,7 +149,7 @@ static const char* prepare_addr(char* buf)
     /* sanity check on port range */
     if (max_port - min_port < 0)
         msg_abort("bad min-max port");
-    if (min_port < 0)
+    if (min_port < 1)
         msg_abort("bad min port");
     if (max_port > 65535)
         msg_abort("bad max port");
@@ -174,7 +176,6 @@ static const char* prepare_addr(char* buf)
         /* test port availability */
         so = socket(PF_INET, SOCK_STREAM, 0);
         if (so != -1) {
-            struct sockaddr_in addr;
             addr.sin_family = AF_INET;
             addr.sin_addr.s_addr = 0;
             addr.sin_port = port;
@@ -188,6 +189,33 @@ static const char* prepare_addr(char* buf)
             msg_abort("socket");
         }
     }
+
+    if (port > max_port) {
+        port = 0;
+        warn("no free ports available within the specified range\n>>> "
+                "auto detecting ports ...");
+        so = socket(PF_INET, SOCK_STREAM, 0);
+        if (so != -1) {
+            addr.sin_family = AF_INET;
+            addr.sin_addr.s_addr = 0;
+            addr.sin_port = 0;
+            n = bind(so, (struct sockaddr*)&addr, sizeof(addr));
+            if (n == 0) {
+                n = getsockname(so, (struct sockaddr*)&addr, &addr_len);
+                if (n == 0) {
+                    port = addr.sin_port;
+                    /* okay */
+                }
+            }
+            close(so);
+            errno = 0;
+        } else {
+            msg_abort("socket");
+        }
+    }
+
+    if (port == 0) /* maybe a wrong port range has been specified */
+        msg_abort("no free ports");
 
     /* add proto */
 
