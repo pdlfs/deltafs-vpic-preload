@@ -91,7 +91,11 @@ static const char* prepare_addr(char* buf)
 
     if (pctx.rank == 0) {
         snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
-        info(msg);
+        if (strcmp(subnet, "127.0.0.1") == 0) {
+            warn(msg);
+        } else {
+            info(msg);
+        }
     }
 
     for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
@@ -171,7 +175,11 @@ static const char* prepare_addr(char* buf)
     sprintf(buf, "%s://%s:%d", env, ip, port);
     if (pctx.rank == 0) {
         snprintf(msg, sizeof(msg), "using %s", env);
-        info(msg);
+        if (strstr(env, "tcp") != NULL) {
+            warn(msg);
+        } else {
+            info(msg);
+        }
     }
 
     if (pctx.testin) {
