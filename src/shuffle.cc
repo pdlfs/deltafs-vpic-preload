@@ -73,9 +73,11 @@ static const char* prepare_addr(char* buf)
     struct ifaddrs *ifaddr, *cur;
     MPI_Comm comm;
     int rank;
+    int size;
     const char* subnet;
     char msg[100];
     char ip[50]; // ip
+    int so;
     int rv;
     int n;
 
@@ -166,7 +168,26 @@ static const char* prepare_addr(char* buf)
 #endif
 
     MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
     port = min_port + (rank % (1 + max_port - min_port));
+    for (; port <= max_port; port += size) {
+        /* test port availability */
+        so = socket(PF_INET, SOCK_STREAM, 0);
+        if (so != -1) {
+            struct sockaddr_in addr;
+            addr.sin_family = AF_INET;
+            addr.sin_addr.s_addr = 0;
+            addr.sin_port = port;
+            n = bind(so, (struct sockaddr*)&addr, sizeof(addr));
+            close(so);
+            errno = 0;
+            if (n == 0) {
+                break;  /* done */
+            }
+        } else {
+            msg_abort("socket");
+        }
+    }
 
     /* add proto */
 
