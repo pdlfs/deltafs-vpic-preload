@@ -84,7 +84,7 @@ static const char* prepare_addr(char* buf)
     if (getifaddrs(&ifaddr) == -1)
         msg_abort("getifaddrs");
 
-    subnet = getenv("SHUFFLE_Subnet");
+    subnet = maybe_getenv("SHUFFLE_Subnet");
     if (subnet == NULL) {
         subnet = DEFAULT_SUBNET;
     }
@@ -124,14 +124,14 @@ static const char* prepare_addr(char* buf)
 
     /* get port through MPI rank */
 
-    env = getenv("SHUFFLE_Min_port");
+    env = maybe_getenv("SHUFFLE_Min_port");
     if (env == NULL) {
         min_port = DEFAULT_MIN_PORT;
     } else {
         min_port = atoi(env);
     }
 
-    env = getenv("SHUFFLE_Max_port");
+    env = maybe_getenv("SHUFFLE_Max_port");
     if (env == NULL) {
         max_port = DEFAULT_MAX_PORT;
     } else {
@@ -166,7 +166,7 @@ static const char* prepare_addr(char* buf)
 
     /* add proto */
 
-    env = getenv("SHUFFLE_Mercury_proto");
+    env = maybe_getenv("SHUFFLE_Mercury_proto");
     if (env == NULL) env = DEFAULT_PROTO;
     sprintf(buf, "%s://%s:%d", env, ip, port);
     if (pctx.rank == 0) {
@@ -820,7 +820,7 @@ void shuffle_init_ssg(void)
     int size;
     int n;
 
-    env = getenv("SHUFFLE_Virtual_factor");
+    env = maybe_getenv("SHUFFLE_Virtual_factor");
     if (env == NULL) {
         vf = DEFAULT_VIRTUAL_FACTOR;
     } else {
@@ -866,7 +866,7 @@ void shuffle_init(void)
 
     prepare_addr(sctx.my_addr);
 
-    env = getenv("SHUFFLE_Timeout");
+    env = maybe_getenv("SHUFFLE_Timeout");
     if (env == NULL) {
         sctx.timeout = DEFAULT_TIMEOUT;
     } else {
@@ -876,7 +876,7 @@ void shuffle_init(void)
         }
     }
 
-    env = getenv("SHUFFLE_Num_outstanding_rpc");
+    env = maybe_getenv("SHUFFLE_Num_outstanding_rpc");
     if (env == NULL) {
         cb_allowed = DEFAULT_OUTSTANDING_RPC;
     } else {

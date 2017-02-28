@@ -117,8 +117,15 @@ static inline void must_maybeunlock(maybe_mutex_t* __mut) {
     }
 }
 
+static inline const char* maybe_getenv(const char* key) {
+    const char* env = getenv(key);
+    errno = 0;
+    return env;
+}
+
 static inline bool is_envset(const char* key) {
     const char* env = getenv(key);
+    errno = 0;
     if (env == NULL) {
         return(false);
     } else if (strlen(env) == 0) {
