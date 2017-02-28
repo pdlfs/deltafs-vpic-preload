@@ -173,12 +173,14 @@ static const char* prepare_addr(char* buf)
     MPI_Comm_size(comm, &size);
     port = min_port + (rank % (1 + max_port - min_port));
     for (; port <= max_port; port += size) {
+        n = 1;
         /* test port availability */
         so = socket(PF_INET, SOCK_STREAM, 0);
+        setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n));
         if (so != -1) {
             addr.sin_family = AF_INET;
-            addr.sin_addr.s_addr = 0;
-            addr.sin_port = port;
+            addr.sin_addr.s_addr = INADDR_ANY;
+            addr.sin_port = htons(port);
             n = bind(so, (struct sockaddr*)&addr, sizeof(addr));
             close(so);
             errno = 0;
@@ -192,18 +194,20 @@ static const char* prepare_addr(char* buf)
 
     if (port > max_port) {
         port = 0;
+        n = 1;
         warn("no free ports available within the specified range\n>>> "
                 "auto detecting ports ...");
         so = socket(PF_INET, SOCK_STREAM, 0);
+        setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n));
         if (so != -1) {
             addr.sin_family = AF_INET;
-            addr.sin_addr.s_addr = 0;
-            addr.sin_port = 0;
+            addr.sin_addr.s_addr = INADDR_ANY;
+            addr.sin_port = htons(0);
             n = bind(so, (struct sockaddr*)&addr, sizeof(addr));
             if (n == 0) {
                 n = getsockname(so, (struct sockaddr*)&addr, &addr_len);
                 if (n == 0) {
-                    port = addr.sin_port;
+                    port = ntohs(addr.sin_port);
                     /* okay */
                 }
             }
