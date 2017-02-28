@@ -869,6 +869,7 @@ void shuffle_init(void)
 {
     hg_return_t hret;
     pthread_t pid;
+    char msg[100];
     const char* env;
     int rv;
 
@@ -939,8 +940,20 @@ void shuffle_init(void)
 
     pthread_detach(pid);
 
-    trace(__func__);
+    if (pctx.rank == 0) {
+        if (sctx.force_sync) {
+            warn("async rpc disabled");
+        } else {
+            snprintf(msg, sizeof(msg), "num outstanding rpc %d", cb_left);
+            if (cb_left <= 1) {
+                warn(msg);
+            } else {
+                info(msg);
+            }
+        }
+    }
 
+    trace(__func__);
     return;
 }
 
@@ -959,7 +972,6 @@ void shuffle_destroy(void)
     HG_Finalize(sctx.hg_clz);
 
     trace(__func__);
-
     return;
 }
 
