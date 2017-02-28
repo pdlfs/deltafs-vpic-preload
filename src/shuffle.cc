@@ -141,7 +141,7 @@ static const char* prepare_addr(char* buf)
     /* sanity check on port range */
     if (max_port - min_port < 0)
         msg_abort("bad min-max port");
-    if (min_port < 1000)
+    if (min_port < 0)
         msg_abort("bad min port");
     if (max_port > 65535)
         msg_abort("bad max port");
@@ -162,7 +162,7 @@ static const char* prepare_addr(char* buf)
 #endif
 
     MPI_Comm_rank(comm, &rank);
-    port = min_port + (rank % (max_port - min_port));
+    port = min_port + (rank % (1 + max_port - min_port));
 
     /* add proto */
 

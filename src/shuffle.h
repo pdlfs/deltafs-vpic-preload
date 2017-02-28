@@ -34,7 +34,7 @@
 /*
  * The default max.
  */
-#define DEFAULT_MAX_PORT 60000
+#define DEFAULT_MAX_PORT 59999
 
 /*
  * Default num of outstanding rpc.
