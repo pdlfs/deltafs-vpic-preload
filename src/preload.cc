@@ -113,8 +113,9 @@ static void preload_init()
     pctx.monfd = -1;
 
     pctx.isdeltafs = new std::set<FILE*>;
-
-    pctx.paranoid_barrier = 1;
+    pctx.paranoid_barrier = 1;  /* XXX */
+    pctx.rank = 0;
+    pctx.size = 1;
 
     pctx.deltafs_root = getenv("PRELOAD_Deltafs_root");
     if (!pctx.deltafs_root) pctx.deltafs_root = DEFAULT_DELTAFS_ROOT;
@@ -535,6 +536,7 @@ int MPI_Init(int *argc, char ***argv)
         MPI_Comm_size(MPI_COMM_WORLD, &size);
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         pctx.rank = rank;
+        pctx.size = size;
         if (rank == 0) {
             deltafs_major = deltafs_version_major();
             deltafs_minor = deltafs_version_minor();
