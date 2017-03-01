@@ -853,6 +853,13 @@ int MPI_Finalize(void)
                     warn("cannot open mon files");
                     ok = 0;
                 }
+                if (fd2 != -1) {
+                    n = snprintf(msg, sizeof(msg), "== Please send me back "
+                            "to deltafs authors ^_^\n");
+                    n = write(fd2, msg, n);
+
+                    errno = 0;
+                }
             }
 
             if (ok) {
