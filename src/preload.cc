@@ -834,7 +834,8 @@ int MPI_Finalize(void)
                             "vpic-deltafs-mon-reduced.bin",
                             pctx.local_root);
                     n = unlink(path2);
-                    n = symlink(path1, path2);
+                    n = symlink(path1 + pctx.len_local_root + 1,
+                            path2);
                 }
                 snprintf(path1, sizeof(path1), "%s/%s-%s.txt", pctx.local_root,
                         "vpic-deltafs-mon-reduced", suffix);
@@ -845,7 +846,8 @@ int MPI_Finalize(void)
                             "vpic-deltafs-mon-reduced.txt",
                             pctx.local_root);
                     n = unlink(path2);
-                    n = symlink(path1, path2);
+                    n = symlink(path1 + pctx.len_local_root + 1,
+                            path2);
                 }
                 if (fd1 == -1 || fd2 == -1) {
                     warn("cannot open mon files");
