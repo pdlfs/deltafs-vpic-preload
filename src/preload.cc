@@ -26,6 +26,8 @@
 
 /* particle size */
 #define PRELOAD_PARTICLE_SIZE 40
+/* filter bits per particle per epoch */
+#define PRELOAD_FILTER_BITS 10
 
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
@@ -688,10 +690,11 @@ int MPI_Init(int *argc, char ***argv)
         /* everyone opens it */
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-            snprintf(conf, sizeof(conf), "rank=%d&value_size=%d&%s", rank,
-                    PRELOAD_PARTICLE_SIZE, gen_plfsdir_conf().c_str());
-
-            trace(conf);
+            snprintf(conf, sizeof(conf), "rank=%d&value_size=%d&"
+                    "filter_bits_per_key=%d&%s", rank,
+                    PRELOAD_PARTICLE_SIZE,
+                    PRELOAD_FILTER_BITS,
+                    gen_plfsdir_conf().c_str());
 
             pctx.plfsh = deltafs_plfsdir_create_handle(O_WRONLY);
             if (pctx.plfsh != NULL) {
@@ -701,6 +704,7 @@ int MPI_Init(int *argc, char ***argv)
                 msg_abort("cannot open plfsdir");
             } else if (rank == 0) {
                 info("LW plfs dir opened (rank 0)");
+                info(conf);
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
