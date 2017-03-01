@@ -10,10 +10,13 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <sched.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <pthread.h>
+#include <sys/resource.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include <pdlfs-common/xxhash.h>
@@ -55,6 +58,55 @@ static int cb_left = 1;
 
 /* shuffle context */
 shuffle_ctx_t sctx = { 0 };
+
+/*
+ * misc_checks(): check cpu affinity and rlimits.
+ */
+static void misc_checks()
+{
+    struct rlimit rl;
+    unsigned long softnofile;
+    unsigned long hardnofile;
+    unsigned long oknofile;
+    cpu_set_t cpuset;
+    int ncputset;
+    int cpus;
+    char msg[200];
+    int n;
+
+    if (pctx.rank != 0) return;
+    n = getrlimit(RLIMIT_NOFILE, &rl);
+    if (n == 0) {
+        oknofile = 2 * unsigned(pctx.size) + unsigned(128);
+        softnofile = rl.rlim_cur;
+        hardnofile = rl.rlim_max;
+        snprintf(msg, sizeof(msg), "max open files per process: "
+                "%lu soft, %lu hard, %lu suggested",
+                softnofile, hardnofile, oknofile);
+        if (softnofile < oknofile) {
+            warn(msg);
+        } else {
+            info(msg);
+        }
+    }
+
+#if defined(_SC_NPROCESSORS_CONF)
+    cpus = sysconf(_SC_NPROCESSORS_CONF);
+    if (cpus != -1) {
+        n = sched_getaffinity(0, sizeof(cpuset), &cpuset);
+        if (n == 0) {
+            ncputset = CPU_COUNT(&cpuset);
+            snprintf(msg, sizeof(msg), "cpu affinity: %d/%d cores",
+                    ncputset, cpus);
+            if (ncputset == cpus) {
+                warn(msg);
+            } else {
+                info(msg);
+            }
+        }
+    }
+#endif
+}
 
 /*
  * prepare_addr(): obtain the mercury addr to bootstrap the rpc
@@ -927,6 +979,7 @@ void shuffle_init(void)
     int rv;
 
     prepare_addr(sctx.my_addr);
+    misc_checks();
 
     env = maybe_getenv("SHUFFLE_Timeout");
     if (env == NULL) {
