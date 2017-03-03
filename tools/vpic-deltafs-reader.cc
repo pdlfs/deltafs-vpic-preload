@@ -46,7 +46,7 @@ int deltafs_read_particles(int64_t num, char *indir, char *outdir)
     deltafs_plfsdir_t *dir;
     char *file_data;
     char conf[100];
-    char fname[PATH_MAX], wpath[PATH_MAX];
+    char fname[PATH_MAX], wpath[PATH_MAX], rpath[PATH_MAX];
     size_t file_len;
     FILE *fp;
 
@@ -58,11 +58,15 @@ int deltafs_read_particles(int64_t num, char *indir, char *outdir)
         return 1;
     }
 
+    if (snprintf(rpath, sizeof(rpath), "%s/plfs/particle", indir) <= 0) {
+        fprintf(stderr, "Error: snprintf for rpath failed\n");
+        return 1;
+    }
+
     for (int64_t i = 1; i <= num; i++) {
         for (int j = 0; prefixes[j] != NULL; j++) {
             /* Determine file name for particle */
-            if (snprintf(fname, sizeof(fname), "%s.%016lx", prefixes[j],
-                         long(i)) <= 0) {
+            if (snprintf(fname, sizeof(fname), "%s.%016lx", prefixes[j], i) <= 0) {
                 fprintf(stderr, "Error: snprintf for fname failed\n");
                 return 1;
             }
@@ -74,12 +78,13 @@ int deltafs_read_particles(int64_t num, char *indir, char *outdir)
             dir = deltafs_plfsdir_create_handle(O_RDONLY);
 
             if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=true",
-                        rank) <= 0) {
+                         rank) <= 0) {
                 fprintf(stderr, "Error: snprintf for conf failed\n");
+                return 1;
             }
 
-            if (deltafs_plfsdir_open(dir, indir, conf)) {
-                fprintf(stderr, "Error: cannot open DeltaFS input directory\n");
+            if (deltafs_plfsdir_open(dir, rpath, conf)) {
+                perror("Error: cannot open DeltaFS input directory");
                 return 1;
             }
 
