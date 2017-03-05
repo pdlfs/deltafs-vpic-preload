@@ -119,7 +119,7 @@ static void preload_init()
     pctx.rank = 0;
     pctx.size = 1;
 
-    pctx.deltafs_root = getenv("PRELOAD_Deltafs_root");
+    pctx.deltafs_root = maybe_getenv("PRELOAD_Deltafs_root");
     if (!pctx.deltafs_root) pctx.deltafs_root = DEFAULT_DELTAFS_ROOT;
     pctx.len_deltafs_root = strlen(pctx.deltafs_root);
 
@@ -134,7 +134,7 @@ static void preload_init()
         msg_abort("bad deltafs_root");
 
     /* obtain the path to plfsdir */
-    pctx.plfsdir = getenv("PRELOAD_Plfsdir");
+    pctx.plfsdir = maybe_getenv("PRELOAD_Plfsdir");
 
     /* plfsdir:
      *   - if null, no plfsdir will ever be created
@@ -152,7 +152,7 @@ static void preload_init()
 
     pctx.plfsfd = -1;
 
-    pctx.local_root = getenv("PRELOAD_Local_root");
+    pctx.local_root = maybe_getenv("PRELOAD_Local_root");
     if (!pctx.local_root) pctx.local_root = DEFAULT_LOCAL_ROOT;
     pctx.len_local_root = strlen(pctx.local_root);
 
@@ -423,22 +423,22 @@ static std::string gen_plfsdir_conf() {
     const char* data_buf;
     const char* memtable_size;
 
-    memtable_size = getenv("PLFSDIR_Memtable_size");
+    memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
     if (memtable_size == NULL) {
         memtable_size = DEFAULT_MEMTABLE_SIZE;
     }
 
-    index_buf = getenv("PLFSDIR_Index_buf_size");
+    index_buf = maybe_getenv("PLFSDIR_Index_buf_size");
     if (index_buf == NULL) {
         index_buf = DEFAULT_INDEX_BUF;
     }
 
-    data_buf = getenv("PLFSDIR_Data_buf_size");
+    data_buf = maybe_getenv("PLFSDIR_Data_buf_size");
     if (data_buf == NULL) {
         data_buf = DEFAULT_DATA_BUF;
     }
 
-    lg_parts = getenv("PLFSDIR_Lg_parts");
+    lg_parts = maybe_getenv("PLFSDIR_Lg_parts");
     if (lg_parts == NULL) {
         lg_parts = DEFAULT_LG_PARTS;
     }
@@ -769,8 +769,8 @@ int MPI_Finalize(void)
     mon_ctx_t glob;
     dir_stat_t tmp_stat;
     char buf[4096];
-    char path1[4096];
-    char path2[4096];
+    char path1[PATH_MAX];
+    char path2[PATH_MAX];
     char suffix[100];
     char msg[200];
     time_t now;
