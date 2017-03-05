@@ -514,6 +514,7 @@ int MPI_Init(int *argc, char ***argv)
     time_t now;
     char buf[50];   // ctime_r
     char msg[100];  // snprintf
+    char dirpath[PATH_MAX];
     char path[PATH_MAX];
     char conf[500];
 #if MPI_VERSION >= 3
@@ -524,6 +525,7 @@ int MPI_Init(int *argc, char ***argv)
     int deltafs_minor;
     int deltafs_patch;
     int mpi_wtime_is_global;
+    uid_t uid;
     int flag;
     int size;
     int rank;
@@ -537,6 +539,7 @@ int MPI_Init(int *argc, char ***argv)
     if (rv == MPI_SUCCESS) {
         MPI_Comm_size(MPI_COMM_WORLD, &size);
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        uid = getuid();
         pctx.rank = rank;
         pctx.size = size;
         if (rank == 0) {
@@ -604,8 +607,12 @@ int MPI_Init(int *argc, char ***argv)
                     "disable testing");
         }
 
-        snprintf(path, sizeof(path), "/tmp/vpic-deltafs-trace.log.%d", rank);
+        snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
+                static_cast<unsigned>(uid));
+        snprintf(path, sizeof(path), "%s/vpic-deltafs-trace.log.%d",
+                dirpath, rank);
 
+        mkdir(dirpath, 0777);
         pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
                 0666);
 
@@ -622,9 +629,12 @@ int MPI_Init(int *argc, char ***argv)
     }
 
     if (!pctx.nomon) {
+        snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
+                static_cast<unsigned>(uid));
+        snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d",
+                dirpath, rank);
 
-        snprintf(path, sizeof(path), "/tmp/vpic-deltafs-mon.bin.%d", rank);
-
+        mkdir(dirpath, 0777);
         pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC,
                 0666);
 
