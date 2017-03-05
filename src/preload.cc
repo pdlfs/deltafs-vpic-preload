@@ -524,7 +524,7 @@ int MPI_Init(int *argc, char ***argv)
     int deltafs_major;
     int deltafs_minor;
     int deltafs_patch;
-    int mpi_wtime_is_global;
+    intptr_t mpi_wtime_is_global;
     uid_t uid;
     int flag;
     int size;
