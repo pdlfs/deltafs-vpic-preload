@@ -549,8 +549,8 @@ int MPI_Init(int *argc, char ***argv)
             snprintf(msg, sizeof(msg), "deltafs %d.%d.%d", deltafs_major,
                     deltafs_minor, deltafs_patch);
             info(msg);
-            info("deltafs-vpic lib initializing ...");
-            snprintf(msg, sizeof(msg), "VPIC %d cores", size);
+            snprintf(msg, sizeof(msg), "deltafs-vpic lib initializing "
+                    "... %d cores", size);
             info(msg);
         }
     } else {
@@ -626,26 +626,6 @@ int MPI_Init(int *argc, char ***argv)
             n = write(pctx.logfd, msg, n);
 
             errno = 0;
-        }
-    }
-
-    if (!pctx.nomon) {
-        snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
-                static_cast<unsigned>(uid));
-        snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d",
-                dirpath, rank);
-
-        n = nxt.mkdir(dirpath, 0777);
-        errno = 0;
-        pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC,
-                0666);
-
-        if (pctx.monfd == -1) {
-            msg_abort("cannot create mon file");
-        } else if (rank ==0) {
-            snprintf(msg, sizeof(msg), "in-mem mon stats %d bytes",
-                    int(sizeof(mctx)));
-            info(msg);
         }
     }
 
@@ -726,6 +706,26 @@ int MPI_Init(int *argc, char ***argv)
             } else if (rank == 0) {
                 info("plfs dir opened (rank 0)");
             }
+        }
+    }
+
+    if (!pctx.nomon) {
+        snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
+                static_cast<unsigned>(uid));
+        snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d",
+                dirpath, rank);
+
+        n = nxt.mkdir(dirpath, 0777);
+        errno = 0;
+        pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC,
+                0666);
+
+        if (pctx.monfd == -1) {
+            msg_abort("cannot create mon file");
+        } else if (rank ==0) {
+            snprintf(msg, sizeof(msg), "in-mem mon stats %d bytes",
+                    int(sizeof(mctx)));
+            info(msg);
         }
     }
 

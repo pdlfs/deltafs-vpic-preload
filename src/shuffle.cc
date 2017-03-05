@@ -8,6 +8,7 @@
  */
 
 #include <assert.h>
+#include <dirent.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <sched.h>
@@ -59,6 +60,134 @@ static int cb_left = 1;
 /* shuffle context */
 shuffle_ctx_t sctx = { 0 };
 
+/* read a line from file */
+static std::string readline(const char* fname)
+{
+    char tmp[1000];
+    ssize_t n;
+    int fd;
+
+    memset(tmp, 0, sizeof(tmp));
+    fd = open(fname, O_RDONLY);
+    if (fd != -1) {
+        n = read(fd, tmp, sizeof(tmp) - 1);
+        if (n > 0) tmp[n - 1] = 0;
+        close(fd);
+        errno = 0;
+    }
+
+    return tmp;
+}
+
+/*
+ * try_scan_sysfs(): scan sysfs for important information ^_%
+ */
+static void try_scan_sysfs()
+{
+    DIR* d;
+    DIR* dd;
+    struct dirent* dent;
+    struct dirent* ddent;
+    char msg[200];
+    char path[PATH_MAX];
+    std::string mtu;
+    std::string txqlen;
+    std::string speed;
+    std::string nic;
+    int tx;
+    int rx;
+    int nnics;
+    int nnodes;
+    int ncpus;
+    int n;
+
+    if (pctx.rank != 0) return;
+    if (access("/sys", R_OK) != 0) {
+        /* give up */
+        errno = 0;
+        return;
+    }
+
+    ncpus = 0;
+    d = opendir("/sys/devices/system/cpu");
+    if (d != NULL) {
+       dent = readdir(d);
+       for (; dent != NULL; dent = readdir(d)) {
+           if (dent->d_type == DT_DIR || dent->d_type == DT_UNKNOWN) {
+               if (sscanf(dent->d_name, "cpu%d", &n) == 1) {
+                   ncpus++;
+               }
+           }
+       }
+       closedir(d);
+       snprintf(msg, sizeof(msg), "num CPU cores: %d", ncpus);
+       info(msg);
+    }
+
+    nnodes = 0;
+    d = opendir("/sys/devices/system/node");
+    if (d != NULL) {
+        dent = readdir(d);
+        for (; dent != NULL; dent = readdir(d)) {
+            if (dent->d_type == DT_DIR || dent->d_type == DT_UNKNOWN) {
+                if (sscanf(dent->d_name, "node%d", &n) == 1) {
+                    nnodes++;
+                }
+            }
+        }
+        closedir(d);
+        snprintf(msg, sizeof(msg), "num NUMA nodes: %d", nnodes);
+        info(msg);
+    }
+
+    nnics = 0;
+    d = opendir("/sys/class/net");
+    if (d != NULL) {
+        dent = readdir(d);
+        for (; dent != NULL; dent = readdir(d)) {
+            if (strcmp(dent->d_name, "lo") != 0 &&
+                    strcmp(dent->d_name, ".") != 0 &&
+                    strcmp(dent->d_name, "..") != 0) {
+                nic = dent->d_name;
+                snprintf(path, sizeof(path), "/sys/class/net/%s/tx_queue_len",
+                        dent->d_name);
+                txqlen = readline(path);
+                snprintf(path, sizeof(path), "/sys/class/net/%s/speed",
+                        dent->d_name);
+                speed = readline(path);
+                snprintf(path, sizeof(path), "/sys/class/net/%s/mtu",
+                        dent->d_name);
+                mtu = readline(path);
+                tx = 0;
+                rx = 0;
+                snprintf(path, sizeof(path), "/sys/class/net/%s/queues",
+                        dent->d_name);
+                dd = opendir(path);
+                if (dd != NULL) {
+                    ddent = readdir(dd);
+                    for (; ddent != NULL; ddent = readdir(dd)) {
+                        if (sscanf(ddent->d_name, "tx-%d", &n) == 1) {
+                            tx++;
+                        } else if (sscanf(ddent->d_name, "rx-%d", &n) == 1) {
+                            rx++;
+                        }
+                    }
+                    closedir(dd);
+                }
+                nnics++;
+                snprintf(msg, sizeof(msg), "%s: speed %s Mbps, tx_queue_len "
+                        "%s, mtu %s, rx-irq: %d, tx-irq: %d", nic.c_str(),
+                        speed.c_str(), txqlen.c_str(), mtu.c_str(),
+                        rx, tx);
+                info(msg);
+            }
+        }
+        closedir(d);
+    }
+
+    errno = 0;
+}
+
 /*
  * misc_checks(): check cpu affinity and rlimits.
  */
@@ -106,6 +235,8 @@ static void misc_checks()
         }
     }
 #endif
+
+    errno = 0;
 }
 
 /*
@@ -978,6 +1109,7 @@ void shuffle_init(void)
     const char* env;
     int rv;
 
+    try_scan_sysfs();
     prepare_addr(sctx.my_addr);
     misc_checks();
 
