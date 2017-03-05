@@ -550,7 +550,7 @@ int MPI_Init(int *argc, char ***argv)
                     deltafs_minor, deltafs_patch);
             info(msg);
             info("deltafs-vpic lib initializing ...");
-            snprintf(msg, sizeof(msg), "%d cores", size);
+            snprintf(msg, sizeof(msg), "VPIC %d cores", size);
             info(msg);
         }
     } else {
@@ -612,7 +612,8 @@ int MPI_Init(int *argc, char ***argv)
         snprintf(path, sizeof(path), "%s/vpic-deltafs-trace.log.%d",
                 dirpath, rank);
 
-        mkdir(dirpath, 0777);
+        n = nxt.mkdir(dirpath, 0777);
+        errno = 0;
         pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC,
                 0666);
 
@@ -634,7 +635,8 @@ int MPI_Init(int *argc, char ***argv)
         snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d",
                 dirpath, rank);
 
-        mkdir(dirpath, 0777);
+        n = nxt.mkdir(dirpath, 0777);
+        errno = 0;
         pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC,
                 0666);
 
