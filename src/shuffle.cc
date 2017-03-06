@@ -197,6 +197,8 @@ static void misc_checks()
     unsigned long softnofile;
     unsigned long hardnofile;
     unsigned long oknofile;
+    unsigned long softmemlock;
+    unsigned long hardmemlock;
     cpu_set_t cpuset;
     int ncputset;
     int cpus;
@@ -217,6 +219,16 @@ static void misc_checks()
         } else {
             info(msg);
         }
+    }
+
+    n = getrlimit(RLIMIT_MEMLOCK, &rl);
+    if (n == 0) {
+        softmemlock = rl.rlim_cur;
+        hardmemlock = rl.rlim_max;
+        snprintf(msg, sizeof(msg), "max memlock size: "
+                "%lu soft, %lu hard", softmemlock,
+                hardmemlock);
+        info(msg);
     }
 
 #if defined(_SC_NPROCESSORS_CONF)
