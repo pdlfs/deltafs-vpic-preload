@@ -71,6 +71,6 @@ if [ $RC -ne 0 ]; then
     exit 1
 else
     echo "Preload test OK"
-    head -n 1000 /tmp/vpic-deltafs-run-*/*
+    head -n 1000 /tmp/vpic-deltafs-run-`id -u`/vpic-deltafs-trace*
     exit 0
 fi
