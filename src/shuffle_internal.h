@@ -75,16 +75,7 @@ typedef struct shuffle_ctx {
 extern shuffle_ctx_t sctx;
 
 typedef struct write_in {
-    /* metadata of a write operation */
-    hg_const_string_t fname;
-    hg_int32_t epoch;
-    hg_int32_t rank;
-
-    /* data to be written */
-    hg_uint8_t data_len;
-    hg_string_t data;
-
-    char buf[500];
+    char encoding[4096];  /* encoded contents */
 } write_in_t;
 
 typedef struct write_out {
@@ -92,7 +83,7 @@ typedef struct write_out {
 } write_out_t;
 
 typedef struct write_cb {
-    int ok;   /* non-zero if rpc has completed */
+    int ok;  /* non-zero if rpc has completed */
     hg_return_t hret;
 } write_cb_t;
 
@@ -111,25 +102,30 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
 void shuffle_wait(void);  /* wait for outstanding rpc */
 
 /*
- * shuffle_write_async: async send write to a remote peer.
+ * shuffle_write_enqueue: add an incoming write into an rpc queue.
  *
- * set *is_local to 1 if write is local. Otherwise invoke *async_cb once
- * a response is ready.
+ * rpc maybe bypassed if write destination is local.
  *
  * return 0 on success, or EOF on errors.
  */
-int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-        int* is_local, void(*async_cb)(int rv, void*, void*),
+int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch);
+
+/*
+ * shuffle_write_send_async: asynchronously send one or more encoded writes to
+ * a remote peer and return immediately without waiting for response.
+ *
+ * return 0 on success, or EOF on errors.
+ */
+int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
+        void(*async_cb)(int rv, void* arg1, void* arg2),
         void* arg1, void* arg2);
 /*
- * shuffle_write: send write to a remote peer and wait for response.
- *
- * set *is_local to 1 if write is local so rpc is bypassed.
+ * shuffle_write_send: send one or more encoded writes to a remote peer
+ * and wait for its response.
  *
  * return 0 on success, or EOF on errors.
  */
-int shuffle_write(const char *fn, char *data, size_t len,
-        int epoch, int* is_local);
+int shuffle_write_send(write_in_t* write_in, int peer_rank);
 
 void shuffle_destroy(void);
 

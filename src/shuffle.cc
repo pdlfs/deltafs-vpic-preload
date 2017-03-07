@@ -483,124 +483,52 @@ static inline bool is_shuttingdown() {
 #endif
 
 /* main shuffle code */
+extern "C" {
 
-static hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
+hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data)
 {
     hg_return_t hret;
-    hg_uint8_t fname_len;
-    hg_uint16_t enc_len;
-    hg_uint16_t dec_len;
+    hg_uint16_t sz;
 
     write_in_t* in = reinterpret_cast<write_in_t*>(data);
-
     hg_proc_op_t op = hg_proc_get_op(proc);
 
     if (op == HG_ENCODE) {
-        enc_len = 2;  /* reserves 2 bytes for the encoding length */
-
-        memcpy(in->buf + enc_len, &in->epoch, 4);
-        enc_len += 4;
-        memcpy(in->buf + enc_len, &in->rank, 4);
-        enc_len += 4;
-        in->buf[enc_len] = in->data_len;
-        memcpy(in->buf + enc_len + 1, in->data, in->data_len);
-
-        enc_len += 1 + in->data_len;
-        fname_len = strlen(in->fname);
-        in->buf[enc_len] = fname_len;
-        memcpy(in->buf + enc_len + 1, in->fname, fname_len);
-
-        enc_len += 1 + fname_len;
-        assert(enc_len < sizeof(in->buf));
-
-        hret = hg_proc_hg_uint16_t(proc, &enc_len);
-        if (hret == HG_SUCCESS)
-            hret = hg_proc_memcpy(proc, in->buf + 2, enc_len - 2);
-
-    } else if (op == HG_DECODE) {
-        hret = hg_proc_hg_uint16_t(proc, &enc_len);
-        dec_len = 0;
-
-        assert(enc_len < sizeof(in->buf));
-
+        memcpy(&sz, in->encoding, 2);
+        hret = hg_proc_hg_uint16_t(proc, &sz);
         if (hret == HG_SUCCESS) {
-            hret = hg_proc_memcpy(proc, in->buf + 2, enc_len - 2);
-            enc_len -= 2;
-            dec_len += 2;
+            hret = hg_proc_memcpy(proc, in->encoding + 2, sz);
         }
-
-        if (hret == HG_SUCCESS && enc_len >= 4) {
-            memcpy(&in->epoch, in->buf + dec_len, 4);
-            enc_len -= 4;
-            dec_len += 4;
-        } else {
-            hret = HG_OTHER_ERROR;
+    } else if (op == HG_DECODE) {
+        hret = hg_proc_hg_uint16_t(proc, &sz);
+        if (hret == HG_SUCCESS) {
+            memcpy(in->encoding, &sz, 2);
+            hret = hg_proc_memcpy(proc, in->encoding + 2, sz);
         }
-
-        if (hret == HG_SUCCESS && enc_len >= 4) {
-            memcpy(&in->rank, in->buf + dec_len, 4);
-            enc_len -= 4;
-            dec_len += 4;
-        } else {
-            hret = HG_OTHER_ERROR;
-        }
-
-        if (hret == HG_SUCCESS && enc_len >= 1) {
-            in->data_len = in->buf[dec_len];
-            enc_len -= 1;
-            dec_len += 1;
-        } else {
-            hret = HG_OTHER_ERROR;
-        }
-
-        if (hret == HG_SUCCESS && enc_len >= in->data_len) {
-            in->data = in->buf + dec_len;
-            enc_len -= in->data_len;
-            dec_len += in->data_len;
-        } else {
-            hret = HG_OTHER_ERROR;
-        }
-
-        if (hret == HG_SUCCESS && enc_len >= 1) {
-            fname_len = in->buf[dec_len];
-            enc_len -= 1;
-            dec_len += 1;
-        } else {
-            hret = HG_OTHER_ERROR;
-        }
-
-        if (hret == HG_SUCCESS && enc_len >= fname_len) {
-            in->fname = in->buf + dec_len;
-            enc_len -= fname_len;
-            dec_len += fname_len;
-        } else {
-            hret = HG_OTHER_ERROR;
-        }
-
-        if (hret == HG_SUCCESS && enc_len == 0) {
-            in->buf[dec_len] = 0;
-        } else {
-            hret = HG_OTHER_ERROR;
-        }
-
     } else {
         hret = HG_SUCCESS;  /* noop */
     }
 
-    return hret;
+    return(hret);
 }
 
-static hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
+hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
 {
-    hg_return_t ret;
+    hg_return_t hret;
 
     write_out_t* out = reinterpret_cast<write_out_t*>(data);
-    ret = hg_proc_hg_int32_t(proc, &out->rv);
+    hg_proc_op_t op = hg_proc_get_op(proc);
 
-    return ret;
+    if (op == HG_ENCODE) {
+        hret = hg_proc_hg_int32_t(proc, &out->rv);
+    } else if (op == HG_DECODE) {
+        hret = hg_proc_hg_int32_t(proc, &out->rv);
+    } else {
+        hret = HG_SUCCESS;  /* noop */
+    }
+
+    return(hret);
 }
-
-extern "C" {
 
 /* rpc server-side handler for shuffled writes */
 hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
@@ -608,6 +536,9 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     hg_return_t hret;
     write_out_t out;
     write_in_t in;
+    char* data;
+    size_t len;
+    const char* fname;
     char path[PATH_MAX];
     char buf[200];
     int ha;
@@ -619,26 +550,29 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     hret = HG_Get_input(h, &in);
 
     if (hret == HG_SUCCESS) {
-        epoch = in.epoch;
-        rank = ssg_get_rank(sctx.ssg);
-        peer_rank = in.rank;
+        for (;;) { /* TODO */
+            fname = NULL;
+            epoch = 0;
+            rank = ssg_get_rank(sctx.ssg);
+            peer_rank = 0;
 
-        assert(pctx.plfsdir != NULL);
+            assert(pctx.plfsdir != NULL);
 
-        snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, in.fname);
+            snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
 
-        out.rv = mon_preload_write(path, in.data, in.data_len,
-                epoch, 1 /* foreign */, &mctx);
+            out.rv = mon_preload_write(path, data, len, epoch, 1 /* foreign */,
+                    &mctx);
 
-        /* write trace if we are in testing mode */
-        if (pctx.testin && pctx.logfd != -1) {
-            ha = pdlfs::xxhash32(in.data, in.data_len, 0);
-            n = snprintf(buf, sizeof(buf), "[R] %s %d bytes (e%d) r%d << r%d "
-                    "(hash=%08x)\n", path, int(in.data_len), epoch,
-                    rank, peer_rank, ha);
-            n = write(pctx.logfd, buf, n);
+            /* write trace if we are in testing mode */
+            if (pctx.testin && pctx.logfd != -1) {
+                ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
+                n = snprintf(buf, sizeof(buf), "[R] %s %d bytes (e%d) r%d << "
+                        "r%d (hash=%08x)\n", path, int(len),
+                        epoch, rank, peer_rank, ha);
+                n = write(pctx.logfd, buf, n);
 
-            errno = 0;
+                errno = 0;
+            }
         }
 
         hret = HG_Respond(h, NULL, NULL, &out);
@@ -655,18 +589,18 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     return hret;
 }
 
-/* rpc client-side callback for async shuffled writes */
+/* callback associated with shuffle_write_send_async(...) */
 hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 {
     hg_return_t hret;
     hg_handle_t h;
+    write_async_cb_t* write_cb;
     write_out_t write_out;
-    write_async_cb_t* async_cb;
     int rv;
 
     hret = info->ret;
     assert(info->type == HG_CB_FORWARD);
-    async_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
+    write_cb = reinterpret_cast<write_async_cb_t*>(info->arg);
     h = info->info.forward.handle;
     if (hret == HG_SUCCESS) {
         hret = HG_Get_output(h, &write_out);
@@ -678,8 +612,8 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
     /* publish response */
     if (hret == HG_SUCCESS) {
-        if (async_cb->cb != NULL) {
-            async_cb->cb(rv, async_cb->arg1, async_cb->arg2);
+        if (write_cb->cb != NULL) {
+            write_cb->cb(rv, write_cb->arg1, write_cb->arg2);
         }
     } else {
         rpc_abort("HG_Forward", hret);
@@ -687,7 +621,7 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
 
     /* return rpc callback slot */
     pthread_mutex_lock(&mtx);
-    cb_flags[async_cb->slot] = 0;
+    cb_flags[write_cb->slot] = 0;
     assert(cb_left < cb_allowed);
     if (cb_left == 0 || cb_left == cb_allowed - 1) {
         pthread_cond_broadcast(&cb_cv);
@@ -700,89 +634,50 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
     return HG_SUCCESS;
 }
 
-/* send an incoming write to an appropriate peer and return without waiting */
-int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
-                        int* is_local,
-                        void(*shuffle_cb)(int rv, void* arg1, void* arg2),
-                        void* arg1, void* arg2)
+/* send a write request to a specified peer and return without waiting */
+int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
+                            void(*shuffle_cb)(int rv, void* arg1, void* arg2),
+                            void* arg1, void* arg2)
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
     hg_handle_t h;
-    write_in_t write_in;
-    write_async_cb_t* async_cb;
+    write_async_cb_t* write_cb;
+    uint16_t write_sz;
     time_t now;
     struct timespec abstime;
     useconds_t delay;
     char buf[200];
-    int rv;
     int slot;
-    const char* fname;
-    unsigned long target;
-    int ha;
-    int peer_rank;
     int rank;
     int e;
     int n;
 
-    *is_local = 0;
-    assert(ssg_get_count(sctx.ssg) != 0);
-    assert(pctx.plfsdir != NULL);
-    assert(fn != NULL);
-
-    fname = fn + pctx.len_plfsdir + 1;  /* remove parent path */
-    rank = ssg_get_rank(sctx.ssg);  /* my rank */
-
-    if (ssg_get_count(sctx.ssg) != 1) {
-        if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-            /* send to next-door neighbor instead of using ch-placement */
-            peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
-        } else {
-            ch_placement_find_closest(sctx.chp,
-                    pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
-            peer_rank = target;
-        }
-    } else {
-        peer_rank = rank;
-    }
+    assert(write_in != NULL);
+    memcpy(&write_sz, write_in->encoding, 2);
+    assert(sctx.ssg != NULL);
+    rank = ssg_get_rank(sctx.ssg);
 
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
-        if (rank != peer_rank || sctx.force_rpc) {
-            ha = pdlfs::xxhash32(data, len, 0);
-            n = snprintf(buf, sizeof(buf), "[A] %s %d bytes (e%d) r%d >> r%d "
-                    "(hash=%08x)\n", fn, int(len), epoch,
-                    rank, peer_rank, ha);
-        } else {
-            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
-                    fn, int(len), epoch);
-        }
+        n = snprintf(buf, sizeof(buf), "[A] %d bytes r%d >> r%d\n",
+                int(write_sz), rank, peer_rank);
 
         n = write(pctx.logfd, buf, n);
 
         errno = 0;
     }
 
-    /* avoid rpc if target is local */
-    if (peer_rank == rank && !sctx.force_rpc) {
-        *is_local = 1;
-
-        rv = mon_preload_write(fn, data, len, epoch, 0 /* non-foreign */,
-                &mctx);
-
-        return(rv);
-    }
-
     delay = 1000; /* 1000 us */
 
-    /* wait for rpc callback slot */
+    /* wait for slot */
     pthread_mutex_lock(&mtx);
-    while (cb_left == 0) {
+    while (cb_left == 0) {  /* no slots available */
         if (pctx.testin) {
             pthread_mutex_unlock(&mtx);
             if (pctx.logfd != -1) {
-                n = snprintf(buf, sizeof(buf), "[X] %s %llu us\n", fn,
-                        (unsigned long long) delay);
+                n = snprintf(buf, sizeof(buf), "[X] r%d >> r%d %d us\n",
+                        rank, peer_rank, int(delay));
                 n = write(pctx.logfd, buf, n);
 
                 errno = 0;
@@ -809,7 +704,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
         }
     }
     assert(slot < cb_allowed);
-    async_cb = &cb_slots[slot];
+    write_cb = &cb_slots[slot];
     cb_flags[slot] = 1;
     assert(cb_left > 0);
     cb_left--;
@@ -821,25 +716,18 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("cannot obtain addr");
 
+    assert(sctx.hg_ctx != NULL);
     hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h);
     if (hret != HG_SUCCESS)
         rpc_abort("HG_Create", hret);
 
-    assert(pctx.plfsdir != NULL);
+    write_cb->slot = slot;
+    write_cb->cb = shuffle_cb;
+    write_cb->arg1 = arg1;
+    write_cb->arg2 = arg2;
 
-    write_in.fname = fname;
-    write_in.data = data;
-    write_in.data_len = len;
-    write_in.epoch = epoch;
-    write_in.rank = rank;
-
-    async_cb->slot = slot;
-    async_cb->cb = shuffle_cb;
-    async_cb->arg1 = arg1;
-    async_cb->arg2 = arg2;
-
-    hret = HG_Forward(h, shuffle_write_async_handler, async_cb,
-            &write_in);
+    hret = HG_Forward(h, shuffle_write_async_handler, write_cb,
+            write_in);
 
     if (hret != HG_SUCCESS) {
         rpc_abort("HG_Forward", hret);
@@ -848,7 +736,7 @@ int shuffle_write_async(const char* fn, char* data, size_t len, int epoch,
     }
 }
 
-/* block until all outstanding rpc to finish or timeout abort */
+/* block until all outstanding rpc finishes */
 void shuffle_wait()
 {
     time_t now;
@@ -891,30 +779,29 @@ void shuffle_wait()
     pthread_mutex_unlock(&mtx);
 }
 
-/* rpc client-side callback for shuffled writes */
+/* callback associated with shuffle_write_send(...) */
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
 {
-    write_cb_t* cb;
-    cb = reinterpret_cast<write_cb_t*>(info->arg);
+    write_cb_t* write_cb;
+    write_cb = reinterpret_cast<write_cb_t*>(info->arg);
     assert(info->type == HG_CB_FORWARD);
 
     pthread_mutex_lock(&mtx);
-    cb->hret = info->ret;
-    cb->ok = 1;
+    write_cb->hret = info->ret;
+    write_cb->ok = 1;
     pthread_cond_broadcast(&rpc_cv);
     pthread_mutex_unlock(&mtx);
 
     return HG_SUCCESS;
 }
 
-/* send an incoming write to an appropriate peer and wait for its result */
-int shuffle_write(const char *fn, char *data, size_t len, int epoch,
-                  int* is_local)
+/* send a write request to a specified peer and wait for its response */
+int shuffle_write_send(write_in_t* write_in, int peer_rank)
 {
     hg_return_t hret;
     hg_addr_t peer_addr;
     hg_handle_t h;
-    write_in_t write_in;
+    uint16_t write_sz;
     write_out_t write_out;
     write_cb_t write_cb;
     time_t now;
@@ -922,93 +809,49 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     useconds_t delay;
     char buf[200];
     int rv;
-    const char* fname;
-    unsigned long target;
-    int ha;
-    int peer_rank;
     int rank;
     int e;
     int n;
 
-    *is_local = 0;
-    assert(ssg_get_count(sctx.ssg) != 0);
-    assert(pctx.plfsdir != NULL);
-    assert(fn != NULL);
-
-    fname = fn + pctx.len_plfsdir + 1; /* remove parent path */
-    rank = ssg_get_rank(sctx.ssg);  /* my rank */
-
-    if (ssg_get_count(sctx.ssg) != 1) {
-        if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-            /* send to next-door neighbor instead of using ch-placement */
-            peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
-        } else {
-            ch_placement_find_closest(sctx.chp,
-                    pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
-            peer_rank = target;
-        }
-    } else {
-        peer_rank = rank;
-    }
+    assert(write_in != NULL);
+    memcpy(&write_sz, write_in->encoding, 2);
+    assert(sctx.ssg != NULL);
+    rank = ssg_get_rank(sctx.ssg);
 
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
-        if (rank != peer_rank || sctx.force_rpc) {
-            ha = pdlfs::xxhash32(data, len, 0);
-            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d "
-                    "(hash=%08x)\n", fn, int(len), epoch,
-                    rank, peer_rank, ha);
-        } else {
-            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
-                    fn, int(len), epoch);
-        }
+        n = snprintf(buf, sizeof(buf), "[S] %d bytes r%d >> r%d\n",
+                int(write_sz), rank, peer_rank);
 
         n = write(pctx.logfd, buf, n);
 
         errno = 0;
     }
 
-    /* avoid rpc if target is local */
-    if (peer_rank == rank && !sctx.force_rpc) {
-        *is_local = 1;
-
-        rv = mon_preload_write(fn, data, len, epoch, 0 /* non-foreign */,
-                &mctx);
-
-        return(rv);
-    }
-
     peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
     if (peer_addr == HG_ADDR_NULL)
         msg_abort("cannot obtain addr");
 
-    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h);
+    assert(sctx.hg_ctx != NULL);
+    hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h);  /* XXX: malloc */
     if (hret != HG_SUCCESS)
         rpc_abort("HG_Create", hret);
 
-    assert(pctx.plfsdir != NULL);
-
-    write_in.fname = fname;
-    write_in.data = data;
-    write_in.data_len = len;
-    write_in.epoch = epoch;
-    write_in.rank = rank;
-
     write_cb.ok = 0;
 
-    hret = HG_Forward(h, shuffle_write_handler, &write_cb, &write_in);
+    hret = HG_Forward(h, shuffle_write_handler, &write_cb, write_in);
 
     delay = 1000;  /* 1000 us */
 
     if (hret == HG_SUCCESS) {
         /* here we block until rpc completes */
         pthread_mutex_lock(&mtx);
-        while(write_cb.ok == 0) {
+        while(write_cb.ok == 0) {  /* rpc not completed */
             if (pctx.testin) {
                 pthread_mutex_unlock(&mtx);
                 if (pctx.logfd != -1) {
-                    n = snprintf(buf, sizeof(buf), "[X] %s %llu us\n", fn,
-                            (unsigned long long) delay);
+                    n = snprintf(buf, sizeof(buf), "[X] r%d >> r%d %d us\n",
+                            rank, peer_rank, int(delay));
                     n = write(pctx.logfd, buf, n);
 
                     errno = 0;
@@ -1042,7 +885,7 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
         }
     }
 
-    HG_Destroy(h);
+    HG_Destroy(h);  /* XXX: reuse */
 
     if (hret != HG_SUCCESS) {
         rpc_abort("HG_Forward", hret);
@@ -1099,7 +942,7 @@ int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch)
     if (pctx.testin && pctx.logfd != -1) {
         if (rank != peer_rank || sctx.force_rpc) {
             ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
-            n = snprintf(buf, sizeof(buf), "[Q] %s %d bytes (e%d) r%d >> r%d "
+            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d "
                     "(hash=%08x)\n", path, int(len), epoch,
                     rank, peer_rank, ha);
         } else {
