@@ -50,6 +50,15 @@ static int shutting_down = 0;  /* XXX: better if this is atomic */
 /* number of bg threads running */
 static int num_bg = 0;
 
+/* rpc queue */
+typedef struct rpcq {
+    char* buf;  /* dedicated memory for the queue */
+    size_t sz;  /* current queue size */
+} rpcq_t;
+static rpcq_t* rpcqs = NULL;
+static size_t max_rpcq_sz = 0;  /* bytes allocated for each queue */
+static int nrpcqs = 0;  /* number of queues */
+
 /* rpc callback slots */
 #define MAX_OUTSTANDING_RPC 128  /* hard limit */
 static write_async_cb_t cb_slots[MAX_OUTSTANDING_RPC];
@@ -1042,6 +1051,126 @@ int shuffle_write(const char *fn, char *data, size_t len, int epoch,
     } else {
         return(0);
     }
+}
+
+/* add an incoming write into an appropriate rpc sender queue */
+int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch)
+{
+
+    uint16_t nepoch;
+    uint32_t nrank;
+    rpcq_t* rpcq;
+    int rpcq_idx;
+    size_t rpc_sz;
+    char buf[200];
+    int rv;
+    const char* fname;
+    unsigned char fname_len;
+    unsigned long target;
+    int ha;
+    int peer_rank;
+    int rank;
+    int n;
+
+    assert(sctx.ssg != NULL);
+    assert(ssg_get_count(sctx.ssg) != 0);
+    assert(pctx.plfsdir != NULL);
+    assert(path != NULL);
+
+    fname = path + pctx.len_plfsdir + 1;  /* remove parent path */
+    fname_len = static_cast<unsigned char>(strlen(fname));
+    rank = ssg_get_rank(sctx.ssg);  /* my rank */
+
+    if (ssg_get_count(sctx.ssg) != 1) {
+        if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+            /* send to next-door neighbor instead of using ch-placement */
+            peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
+        } else {
+            assert(sctx.chp != NULL);
+            ch_placement_find_closest(sctx.chp,
+                    pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
+            peer_rank = target;
+        }
+    } else {
+        peer_rank = rank;
+    }
+
+    /* write trace if we are in testing mode */
+    if (pctx.testin && pctx.logfd != -1) {
+        if (rank != peer_rank || sctx.force_rpc) {
+            ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
+            n = snprintf(buf, sizeof(buf), "[Q] %s %d bytes (e%d) r%d >> r%d "
+                    "(hash=%08x)\n", path, int(len), epoch,
+                    rank, peer_rank, ha);
+        } else {
+            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
+                    path, int(len), epoch);
+        }
+
+        n = write(pctx.logfd, buf, n);
+
+        errno = 0;
+    }
+
+    /* bypass rpc if target is local */
+    if (peer_rank == rank && !sctx.force_rpc) {
+        rv = mon_preload_write(path, data, len, epoch, 0 /* non-foreign */,
+                &mctx);
+
+        return(rv);
+    }
+
+    /* XXX: mutex-lock */
+
+    rpcq_idx = peer_rank;  /* XXX: assuming 1 queue per rank */
+    assert(rpcq_idx < nrpcqs);
+    rpcq = &rpcqs[rpcq_idx];
+    assert(rpcq != NULL);
+    assert(fname_len < 256);
+    assert(len < 256);
+    rpc_sz = 0;
+
+    /* get an estimated size of the rpc */
+    rpc_sz += 1 + fname_len;  /* vpic fname */
+    rpc_sz += 1 + len;  /* vpic data */
+    rpc_sz += 2;  /* epoch */
+    rpc_sz += 4;  /* rank */
+
+    /* flush rpc if full */
+    if (rpcq->sz + rpc_sz > max_rpcq_sz) {
+        /* XXX: copy buffered contents to rpc input */
+        rv = 0;
+    }
+
+    /* enqueue */
+    if (rv == 0) {
+        if (rpcq->sz + rpc_sz <= max_rpcq_sz) {
+            /* happens when the entire queue buffer cannot hold
+             * even a single rpc */
+            msg_abort("rpc overflow");
+        } else {
+            /* vpic fname */
+            rpcq->buf[rpcq->sz] = fname_len;
+            memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
+            rpcq->sz += 1 + fname_len;
+            /* vpic data */
+            rpcq->buf[rpcq->sz] = len;
+            memcpy(rpcq->buf + rpcq->sz + 1, data, len);
+            rpcq->sz += 1 + len;
+            /* epoch */
+            nepoch = htons(epoch);
+            memcpy(rpcq->buf + rpcq->sz, &nepoch, 2);
+            rpcq->sz += 2;
+            /* rank */
+            nrank = htonl(rank);
+            memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
+            rpcq->sz += 4;
+        }
+    }
+
+    /* mutex-unlock */
+
+    return(rv);
 }
 
 /* bg_work(): dedicated thread function to drive mercury progress */
