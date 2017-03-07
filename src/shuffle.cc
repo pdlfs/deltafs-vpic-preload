@@ -194,11 +194,11 @@ static void try_scan_sysfs()
 static void misc_checks()
 {
     struct rlimit rl;
-    unsigned long softnofile;
-    unsigned long hardnofile;
-    unsigned long oknofile;
-    unsigned long softmemlock;
-    unsigned long hardmemlock;
+    long long softnofile;
+    long long hardnofile;
+    long long oknofile;
+    long long softmemlock;
+    long long hardmemlock;
     cpu_set_t cpuset;
     int ncputset;
     int cpus;
@@ -208,11 +208,17 @@ static void misc_checks()
     if (pctx.rank != 0) return;
     n = getrlimit(RLIMIT_NOFILE, &rl);
     if (n == 0) {
-        oknofile = 2 * unsigned(pctx.size) + unsigned(128);
-        softnofile = rl.rlim_cur;
-        hardnofile = rl.rlim_max;
+        oknofile = 2 * static_cast<long long>(pctx.size) + 128;
+        if (rl.rlim_cur != RLIM_INFINITY)
+            softnofile = rl.rlim_cur;
+        else
+            softnofile = -1;
+        if (rl.rlim_max != RLIM_INFINITY)
+            hardnofile = rl.rlim_max;
+        else
+            hardnofile = -1;
         snprintf(msg, sizeof(msg), "max open files per process: "
-                "%lu soft, %lu hard, %lu suggested",
+                "%lld soft, %lld hard, %lld suggested",
                 softnofile, hardnofile, oknofile);
         if (softnofile < oknofile) {
             warn(msg);
@@ -223,10 +229,16 @@ static void misc_checks()
 
     n = getrlimit(RLIMIT_MEMLOCK, &rl);
     if (n == 0) {
-        softmemlock = rl.rlim_cur;
-        hardmemlock = rl.rlim_max;
+        if (rl.rlim_cur != RLIM_INFINITY)
+            softmemlock = rl.rlim_cur;
+        else
+            softmemlock = -1;
+        if (rl.rlim_max != RLIM_INFINITY)
+            hardmemlock = rl.rlim_max;
+        else
+            hardmemlock = -1;
         snprintf(msg, sizeof(msg), "max memlock size: "
-                "%lu soft, %lu hard", softmemlock,
+                "%lld soft, %lld hard", softmemlock,
                 hardmemlock);
         info(msg);
     }
