@@ -1214,8 +1214,8 @@ void shuffle_init_ssg(void)
     hg_return_t hret;
     const char* env;
     int vf;
-    int rank;
-    int size;
+    int rank;  /* ssg */
+    int size;  /* ssg */
     int n;
 
     env = maybe_getenv("SHUFFLE_Virtual_factor");
@@ -1262,6 +1262,7 @@ void shuffle_init(void)
     char msg[100];
     const char* env;
     int rv;
+    int i;
 
     try_scan_sysfs();
     prepare_addr(sctx.my_addr);
@@ -1314,6 +1315,17 @@ void shuffle_init(void)
         msg_abort("HG_Context_create");
 
     shuffle_init_ssg();
+
+    /* rpc queue */
+    assert(sctx.ssg != NULL);
+    nrpcqs = ssg_get_count(sctx.ssg);
+    max_rpcq_sz = 1024;  /* XXX */
+    rpcqs = static_cast<rpcq_t*>(malloc(nrpcqs * sizeof(rpcq_t)));
+    for (i = 0; i < nrpcqs; i++) {
+        rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
+        rpcqs[i].busy = 0;
+        rpcqs[i].sz = 0;
+    }
 
     rv = pthread_cond_init(&rpc_cv, NULL);
     if (rv) msg_abort("pthread_cond_init");
