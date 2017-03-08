@@ -84,9 +84,15 @@ static std::string readline(const char* fname)
     fd = open(fname, O_RDONLY);
     if (fd != -1) {
         n = read(fd, tmp, sizeof(tmp) - 1);
-        if (n > 0) tmp[n - 1] = 0;
+        if (n > 0) {
+            tmp[n - 1] = 0;
+        }
+
         close(fd);
         errno = 0;
+    }
+    if (strlen(tmp) == 0) {
+        strcat(tmp, "???");
     }
 
     return tmp;
@@ -101,6 +107,7 @@ static void try_scan_sysfs()
     DIR* dd;
     struct dirent* dent;
     struct dirent* ddent;
+    const char* dirname;
     char msg[200];
     char path[PATH_MAX];
     std::string mtu;
@@ -122,7 +129,8 @@ static void try_scan_sysfs()
     }
 
     ncpus = 0;
-    d = opendir("/sys/devices/system/cpu");
+    dirname = "/sys/devices/system/cpu";
+    d = opendir(dirname);
     if (d != NULL) {
        dent = readdir(d);
        for (; dent != NULL; dent = readdir(d)) {
@@ -133,12 +141,13 @@ static void try_scan_sysfs()
            }
        }
        closedir(d);
-       snprintf(msg, sizeof(msg), "num CPU cores per CN: %d", ncpus);
+       snprintf(msg, sizeof(msg), "[sys] %d CPU_cores", ncpus);
        info(msg);
     }
 
     nnodes = 0;
-    d = opendir("/sys/devices/system/node");
+    dirname = "/sys/devices/system/node";
+    d = opendir(dirname);
     if (d != NULL) {
         dent = readdir(d);
         for (; dent != NULL; dent = readdir(d)) {
@@ -149,12 +158,13 @@ static void try_scan_sysfs()
             }
         }
         closedir(d);
-        snprintf(msg, sizeof(msg), "num NUMA nodes per CN: %d", nnodes);
+        snprintf(msg, sizeof(msg), "[sys] %d NUMA_nodes", nnodes);
         info(msg);
     }
 
     nnics = 0;
-    d = opendir("/sys/class/net");
+    dirname = "/sys/class/net";
+    d = opendir(dirname);
     if (d != NULL) {
         dent = readdir(d);
         for (; dent != NULL; dent = readdir(d)) {
@@ -188,10 +198,10 @@ static void try_scan_sysfs()
                     closedir(dd);
                 }
                 nnics++;
-                snprintf(msg, sizeof(msg), "%s: speed %s Mbps, tx_queue_len "
-                        "%s, mtu %s, rx-irq: %d, tx-irq: %d", nic.c_str(),
-                        speed.c_str(), txqlen.c_str(), mtu.c_str(),
-                        rx, tx);
+                snprintf(msg, sizeof(msg), "[if] speed %5s Mbps, tx_queue_len "
+                        "%5s, mtu %4s, rx-irq: %2d, tx-irq: %2d (%s)",
+                        speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx,
+                        nic.c_str());
                 info(msg);
             }
         }
@@ -230,7 +240,7 @@ static void misc_checks()
             hardnofile = rl.rlim_max;
         else
             hardnofile = -1;
-        snprintf(msg, sizeof(msg), "max open files per process: "
+        snprintf(msg, sizeof(msg), "[ulimit] max open files per process: "
                 "%lld soft, %lld hard, %lld suggested",
                 softnofile, hardnofile, oknofile);
         if (softnofile < oknofile) {
@@ -250,7 +260,7 @@ static void misc_checks()
             hardmemlock = rl.rlim_max;
         else
             hardmemlock = -1;
-        snprintf(msg, sizeof(msg), "max memlock size: "
+        snprintf(msg, sizeof(msg), "[ulimit] max memlock size: "
                 "%lld soft, %lld hard", softmemlock,
                 hardmemlock);
         info(msg);
@@ -262,7 +272,7 @@ static void misc_checks()
         n = sched_getaffinity(0, sizeof(cpuset), &cpuset);
         if (n == 0) {
             ncputset = CPU_COUNT(&cpuset);
-            snprintf(msg, sizeof(msg), "cpu affinity: %d/%d cores",
+            snprintf(msg, sizeof(msg), "[numa] cpu affinity: %d/%d cores",
                     ncputset, cpus);
             if (ncputset == cpus) {
                 warn(msg);
