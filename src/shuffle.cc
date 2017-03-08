@@ -1157,7 +1157,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         rpcq->buf[rpcq->sz] = fname_len;
         memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
         rpcq->sz += 1 + fname_len;
-        rpcq->buf[rpc_sz] = 0;
+        rpcq->buf[rpcq->sz] = 0;
         rpcq->sz += 1;
         /* vpic data */
         rpcq->buf[rpcq->sz] = len;
