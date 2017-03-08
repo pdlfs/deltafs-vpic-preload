@@ -33,16 +33,19 @@
 /*
  * main mutex shared among the main thread and the bg threads.
  */
-static pthread_mutex_t mtx;
+static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
-/* used when waiting an on-going rpc to finish */
+/* used when waiting for an on-going rpc to finish */
 static pthread_cond_t rpc_cv;
 
-/* used when waiting all bg threads to terminate */
+/* used when waiting for all bg threads to terminate */
 static pthread_cond_t bg_cv;
 
 /* used when waiting for the next available rpc callback slot */
 static pthread_cond_t cb_cv;
+
+/* used when waiting for a busy rpc queue */
+static pthread_cond_t qu_cv;
 
 /* true iff in shutdown seq */
 static int shutting_down = 0;  /* XXX: better if this is atomic */
@@ -964,7 +967,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         return(rv);
     }
 
-    /* XXX: mutex-lock */
+    pthread_mutex_lock(&mtx);
 
     rpcq_idx = peer_rank;  /* XXX: assuming 1 queue per rank */
     assert(rpcq_idx < nrpcqs);
@@ -973,6 +976,11 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     assert(fname_len < 256);
     assert(len < 256);
     rpc_sz = 0;
+
+    /* wait for queue */
+    while (rpcq->busy != 0) {
+        pthread_cond_wait(&qu_cv, &mtx);
+    }
 
     /* get an estimated size of the rpc */
     rpc_sz += 1 + fname_len;  /* vpic fname */
@@ -988,7 +996,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             msg_abort("rpc overflow");
         } else {
             rpcq->busy = 1;
-            /* XXX: mutex-unlock */
+            pthread_mutex_unlock(&mtx);
             memcpy(write_in.encoding, &rpcq->sz, 2);
             memcpy(write_in.encoding + 2, rpcq->buf, rpcq->sz);
             if (!sctx.force_sync) {
@@ -996,7 +1004,8 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             } else {
                 rv = mon_shuffle_write_send(&write_in, peer_rank, &mctx);
             }
-            /* XXX: mutex-lock */
+            pthread_mutex_lock(&mtx);
+            pthread_cond_broadcast(&qu_cv);
             rpcq->busy = 0;
             rpcq->sz = 0;
         }
@@ -1028,7 +1037,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         }
     }
 
-    /* mutex-unlock */
+    pthread_mutex_unlock(&mtx);
 
     return(rv);
 }
@@ -1174,21 +1183,19 @@ void shuffle_init(void)
 
     shuffle_init_ssg();
 
-    rv = pthread_mutex_init(&mtx, NULL);
-    if (rv) msg_abort("pthread_mutex_init");
-
     rv = pthread_cond_init(&rpc_cv, NULL);
     if (rv) msg_abort("pthread_cond_init");
     rv = pthread_cond_init(&bg_cv, NULL);
     if (rv) msg_abort("pthread_cond_init");
+    rv = pthread_cond_init(&cb_cv, NULL);
+    if (rv) msg_abort("pthread_cond_init");
+    rv = pthread_cond_init(&qu_cv, NULL);
+    if (rv) msg_abort("pthread_cond_init");
 
     shutting_down = 0;
-
     num_bg++;
-
     rv = pthread_create(&pid, NULL, bg_work, NULL);
     if (rv) msg_abort("pthread_create");
-
     pthread_detach(pid);
 
     if (pctx.rank == 0) {
