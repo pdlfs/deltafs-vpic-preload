@@ -1373,7 +1373,17 @@ void shuffle_init(void)
     /* rpc queue */
     assert(sctx.ssg != NULL);
     nrpcqs = ssg_get_count(sctx.ssg);
-    max_rpcq_sz = 1024;  /* XXX */
+    env = maybe_getenv("SHUFFLE_Buffer_per_queue");
+    if (env == NULL) {
+        max_rpcq_sz = DEFAULT_BUFFER_PER_QUEUE;
+    } else {
+        max_rpcq_sz = atoi(env);
+        if (max_rpcq_sz > 4096) {
+            max_rpcq_sz = 4096;
+        } else if (max_rpcq_sz < 128) {
+            max_rpcq_sz = 128;
+        }
+    }
     rpcqs = static_cast<rpcq_t*>(malloc(nrpcqs * sizeof(rpcq_t)));
     for (i = 0; i < nrpcqs; i++) {
         rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));

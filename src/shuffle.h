@@ -22,6 +22,7 @@
 //  SHUFFLE_Min_port                   The min port number we can use
 //  SHUFFLE_Max_port                   The max port number we can use
 //  SHUFFLE_Virtual_factor             Virtual factor used by nodes in a ch ring
+//  SHUFFLE_Buffer_per_queue           Memory allocated for each rpc queue
 //  SHUFFLE_Timeout                    RPC timeout
 // ----------------------------------|----------------------------------
 //
@@ -35,6 +36,14 @@
  * The default max.
  */
 #define DEFAULT_MAX_PORT 59999
+
+/*
+ * Default amount of memory allocated for each rpc queue.
+ *
+ * This is considered a soft limit. There is also a hard limit
+ * set for each rpc message.
+ */
+#define DEFAULT_BUFFER_PER_QUEUE 1024
 
 /*
  * Default num of outstanding rpc.
