@@ -99,7 +99,11 @@ void shuffle_init_ssg(void);
 hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
 hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
-void shuffle_wait(void);  /* wait for outstanding rpc */
+
+/* wait for outstanding rpc */
+void shuffle_wait(void);
+/* flush rpc queue */
+void shuffle_flush(void);
 
 /*
  * shuffle_write_enqueue: add an incoming write into an rpc queue.

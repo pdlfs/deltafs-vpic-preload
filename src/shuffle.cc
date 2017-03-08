@@ -1174,6 +1174,60 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     return(0);
 }
 
+/* force flush all rpc queue */
+void shuffle_flush()
+{
+    uint32_t nrank;
+    uint16_t write_sz;
+    write_in_t write_in;
+    rpcq_t* rpcq;
+    int rank;
+    int rv;
+    int i;
+
+    assert(sctx.ssg != NULL);
+
+    rank = ssg_get_rank(sctx.ssg);  /* my rank */
+
+    pthread_mutex_lock(&mtx);
+
+    for (i = 0; i < nrpcqs; i++) {
+        rpcq = &rpcqs[i];
+        if (rpcq->sz == 0) {  /* skip empty queue */
+            continue;
+        } else if (rpcq->sz + 2 + 4 > sizeof(write_in.encoding)) {
+            msg_abort("rpc overflow");
+        } else {
+            rpcq->busy = 1;  /* force other writers to block */
+            pthread_mutex_unlock(&mtx);
+            write_sz = rpcq->sz + 4;  /* with sender rank */
+            memcpy(write_in.encoding, &write_sz, 2);
+            nrank = htonl(rank);
+            memcpy(write_in.encoding + 2, &nrank, 4);
+            memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
+            if (!sctx.force_sync) {
+                rv = mon_shuffle_write_send_async(&write_in, i, NULL);
+            } else {
+                rv = mon_shuffle_write_send(&write_in, i, NULL);
+            }
+            if (rv != 0) {
+                if (pctx.verr) {
+                    /* XXX: set errno */
+                    error("xxx");
+                }
+            }
+            pthread_mutex_lock(&mtx);
+            pthread_cond_broadcast(&qu_cv);
+            rpcq->busy = 0;
+            rpcq->sz = 0;
+        }
+    }
+
+    pthread_mutex_unlock(&mtx);
+
+    return;
+}
+
 /* bg_work(): dedicated thread function to drive mercury progress */
 static void* bg_work(void* foo)
 {

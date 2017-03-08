@@ -1180,6 +1180,7 @@ int closedir(DIR *dirp)
 
         /* drain on-going rpc */
         if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+            shuffle_flush();
             if (!sctx.force_sync) {
                 shuffle_wait();
             }
