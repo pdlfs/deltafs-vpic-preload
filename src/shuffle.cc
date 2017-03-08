@@ -133,7 +133,7 @@ static void try_scan_sysfs()
            }
        }
        closedir(d);
-       snprintf(msg, sizeof(msg), "num CPU cores: %d", ncpus);
+       snprintf(msg, sizeof(msg), "num CPU cores per CN: %d", ncpus);
        info(msg);
     }
 
@@ -149,7 +149,7 @@ static void try_scan_sysfs()
             }
         }
         closedir(d);
-        snprintf(msg, sizeof(msg), "num NUMA nodes: %d", nnodes);
+        snprintf(msg, sizeof(msg), "num NUMA nodes per CN: %d", nnodes);
         info(msg);
     }
 
@@ -1313,7 +1313,7 @@ void shuffle_init(void)
 {
     hg_return_t hret;
     pthread_t pid;
-    char msg[100];
+    char msg[200];
     const char* env;
     int rv;
     int i;
@@ -1389,6 +1389,11 @@ void shuffle_init(void)
         rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
         rpcqs[i].busy = 0;
         rpcqs[i].sz = 0;
+    }
+    if (pctx.rank == 0) {
+        snprintf(msg, sizeof(msg), "in-mem rpc queue: %d x %d bytes", nrpcqs,
+                int(max_rpcq_sz));
+        info(msg);
     }
 
     rv = pthread_cond_init(&rpc_cv, NULL);
