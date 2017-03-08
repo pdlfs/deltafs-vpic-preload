@@ -901,6 +901,7 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
 int shuffle_write(const char* path, char* data, size_t len, int epoch)
 {
     write_in_t write_in;
+    uint16_t write_sz;
     uint16_t nepoch;
     uint32_t nrank;
     rpcq_t* rpcq;
@@ -1006,22 +1007,26 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     }
 
     /* get an estimated size of the rpc */
+    rpc_sz += 4;  /* src rank */
+    rpc_sz += 4;  /* dst rank */
     rpc_sz += 1 + fname_len;  /* vpic fname */
     rpc_sz += 1 + len;  /* vpic data */
     rpc_sz += 2;  /* epoch */
-    rpc_sz += 4;  /* rank */
 
-    /* flush rpc if full */
+    /* flush queue if full */
     if (rpcq->sz + rpc_sz > max_rpcq_sz) {
-        if (rpcq->sz + 2 > sizeof(write_in.encoding)) {
+        if (rpcq->sz + 2 + 4 > sizeof(write_in.encoding)) {
             /* happens when the total size of queued data is greater than
              * the size limit for an rpc message */
             msg_abort("rpc overflow");
         } else {
-            rpcq->busy = 1;
+            rpcq->busy = 1;  /* force other writers to block */
             pthread_mutex_unlock(&mtx);
-            memcpy(write_in.encoding, &rpcq->sz, 2);
-            memcpy(write_in.encoding + 2, rpcq->buf, rpcq->sz);
+            write_sz = rpcq->sz + 4;  /* with sender rank */
+            memcpy(write_in.encoding, &write_sz, 2);
+            nrank = htonl(rank);
+            memcpy(write_in.encoding + 2, &nrank, 4);
+            memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
             if (!sctx.force_sync) {
                 rv = mon_shuffle_write_send_async(&write_in, peer_rank, NULL);
             } else {
@@ -1046,6 +1051,13 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
          * a single write */
         msg_abort("rpc overflow");
     } else {
+        /* rank */
+        nrank = htonl(rank);
+        memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
+        rpcq->sz += 4;
+        nrank = htonl(peer_rank);
+        memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
+        rpcq->sz += 4;
         /* vpic fname */
         rpcq->buf[rpcq->sz] = fname_len;
         memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
@@ -1058,10 +1070,6 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         nepoch = htons(epoch);
         memcpy(rpcq->buf + rpcq->sz, &nepoch, 2);
         rpcq->sz += 2;
-        /* rank */
-        nrank = htonl(rank);
-        memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
-        rpcq->sz += 4;
     }
 
     pthread_mutex_unlock(&mtx);
