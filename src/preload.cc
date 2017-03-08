@@ -1309,27 +1309,24 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS
          */
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                num_epochs, 0 /* non-foreign */, &mctx);
+                num_epochs, 0 /* non-foreign */, NULL);
         if (rv != 0) {
+            /* XXX: set errno */
             if (pctx.verr) {
-                error("fclose:preload_write");
+                error("fclose");
             }
         }
     } else {
         /*
-         * shuffle_write() or shuffle_write_async() will check if
+         * shuffle_write() will check if
          *   - BYPASS_PLACEMENT
          */
-        if (!sctx.force_sync) {
-            rv = mon_shuffle_write_async(ff->file_name(), ff->data(), ff->size(),
-                    num_epochs, &mctx);
-        } else {
-            rv = mon_shuffle_write(ff->file_name(), ff->data(), ff->size(),
-                    num_epochs, &mctx);
-        }
+        rv = shuffle_write(ff->file_name(), ff->data(), ff->size(),
+                num_epochs);
         if (rv != 0) {
+            /* XXX: set errno */
             if (pctx.verr) {
-                error("fclose:shuffle_write");
+                error("fclose");
             }
         }
     }

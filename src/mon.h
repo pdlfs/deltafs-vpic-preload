@@ -142,10 +142,10 @@ extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
 
 extern int mon_preload_write(const char* fn, char* data, size_t n,
         int epoch, int is_foreign, mon_ctx_t* ctx);
-extern int mon_shuffle_write_async(const char* fn, char* data, size_t n,
-        int epoch, mon_ctx_t* ctx);
-extern int mon_shuffle_write(const char* fn, char* data, size_t n,
-        int epoch, mon_ctx_t* ctx);
+extern int mon_shuffle_write_send_async(void* write_in, int peer_rank,
+        mon_ctx_t* ctx);
+extern int mon_shuffle_write_send(void* write_in, int peer_rank,
+        mon_ctx_t* ctx);
 
 extern void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum);
 extern void mon_dumpstate(int fd, const mon_ctx_t* ctx);

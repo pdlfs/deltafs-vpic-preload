@@ -52,8 +52,9 @@ static int num_bg = 0;
 
 /* rpc queue */
 typedef struct rpcq {
+    uint16_t sz;  /* current queue size */
+    int busy;  /* non-0 if queue is locked and is being flushed */
     char* buf;  /* dedicated memory for the queue */
-    size_t sz;  /* current queue size */
 } rpcq_t;
 static rpcq_t* rpcqs = NULL;
 static size_t max_rpcq_sz = 0;  /* bytes allocated for each queue */
@@ -897,9 +898,9 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
 }
 
 /* add an incoming write into an appropriate rpc sender queue */
-int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch)
+int shuffle_write(const char* path, char* data, size_t len, int epoch)
 {
-
+    write_in_t write_in;
     uint16_t nepoch;
     uint32_t nrank;
     rpcq_t* rpcq;
@@ -942,7 +943,7 @@ int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch)
     if (pctx.testin && pctx.logfd != -1) {
         if (rank != peer_rank || sctx.force_rpc) {
             ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
-            n = snprintf(buf, sizeof(buf), "[S] %s %d bytes (e%d) r%d >> r%d "
+            n = snprintf(buf, sizeof(buf), "[E] %s %d bytes (e%d) r%d >> r%d "
                     "(hash=%08x)\n", path, int(len), epoch,
                     rank, peer_rank, ha);
         } else {
@@ -981,15 +982,31 @@ int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch)
 
     /* flush rpc if full */
     if (rpcq->sz + rpc_sz > max_rpcq_sz) {
-        /* XXX: copy buffered contents to rpc input */
-        rv = 0;
+        if (rpcq->sz + 2 > sizeof(write_in.encoding)) {
+            /* happens when the total size of queued data is greater than
+             * the size limit for an rpc message */
+            msg_abort("rpc overflow");
+        } else {
+            rpcq->busy = 1;
+            /* XXX: mutex-unlock */
+            memcpy(write_in.encoding, &rpcq->sz, 2);
+            memcpy(write_in.encoding + 2, rpcq->buf, rpcq->sz);
+            if (!sctx.force_sync) {
+                rv = mon_shuffle_write_send_async(&write_in, peer_rank, &mctx);
+            } else {
+                rv = mon_shuffle_write_send(&write_in, peer_rank, &mctx);
+            }
+            /* XXX: mutex-lock */
+            rpcq->busy = 0;
+            rpcq->sz = 0;
+        }
     }
 
     /* enqueue */
     if (rv == 0) {
-        if (rpcq->sz + rpc_sz <= max_rpcq_sz) {
-            /* happens when the entire queue buffer cannot hold
-             * even a single rpc */
+        if (rpcq->sz + rpc_sz > max_rpcq_sz) {
+            /* happens when the memory reserved for the queue is smaller than
+             * a single write */
             msg_abort("rpc overflow");
         } else {
             /* vpic fname */

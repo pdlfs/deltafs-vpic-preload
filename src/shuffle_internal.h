@@ -108,7 +108,7 @@ void shuffle_wait(void);  /* wait for outstanding rpc */
  *
  * return 0 on success, or EOF on errors.
  */
-int shuffle_write_enqueue(const char* path, char* data, size_t len, int epoch);
+int shuffle_write(const char* path, char* data, size_t len, int epoch);
 
 /*
  * shuffle_write_send_async: asynchronously send one or more encoded writes to
