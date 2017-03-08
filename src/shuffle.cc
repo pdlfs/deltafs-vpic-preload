@@ -534,54 +534,149 @@ hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
     return(hret);
 }
 
-/* rpc server-side handler for shuffled writes */
+/* server-side rpc handler */
 hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 {
+    char* input;
+    uint16_t input_left;
+    uint32_t nrank;
+    uint16_t nepoch;
     hg_return_t hret;
-    write_out_t out;
-    write_in_t in;
+    write_out_t write_out;
+    write_in_t write_in;
     char* data;
     size_t len;
     const char* fname;
+    unsigned char fname_len;
     char path[PATH_MAX];
     char buf[200];
     int ha;
     int epoch;
+    int src;
+    int dst;
     int peer_rank;
     int rank;
     int n;
 
-    hret = HG_Get_input(h, &in);
+    assert(pctx.plfsdir != NULL);
+    assert(sctx.ssg != NULL);
+
+    rank = ssg_get_rank(sctx.ssg);  /* my rank */
+
+    hret = HG_Get_input(h, &write_in);
 
     if (hret == HG_SUCCESS) {
-        for (;;) { /* TODO */
-            fname = NULL;
-            epoch = 0;
-            rank = ssg_get_rank(sctx.ssg);
-            peer_rank = 0;
+        memcpy(&input_left, write_in.encoding, 2);
 
-            assert(pctx.plfsdir != NULL);
+        /* sender rank */
+        if (input_left < 4) {
+            hret = HG_OTHER_ERROR;
+        } else {
+            memcpy(&nrank, write_in.encoding + 2, 4);
+            peer_rank = ntohl(nrank);
+
+            /* write trace if we are in testing mode */
+            if (pctx.testin) {
+                if (pctx.logfd != -1) {
+                    n = snprintf(buf, sizeof(buf), "[IN] %d bytes r%d << r%d\n",
+                            int(input_left), rank, peer_rank);
+                    n = write(pctx.logfd, buf, n);
+
+                    errno = 0;
+                }
+            }
+
+            input = write_in.encoding + 2 + 4;
+            input_left -= 4;
+        }
+
+        /* decode and execute writes */
+        while (hret == HG_SUCCESS && input_left != 0) {
+            /* rank */
+            if (input_left < 8) {
+                hret = HG_OTHER_ERROR;
+                break;
+            } else {
+                memcpy(&nrank, input, 4);
+                src = ntohl(nrank);
+                input_left -= 4;
+                input += 4;
+                memcpy(&nrank, input, 4);
+                dst = ntohl(nrank);
+                input_left -= 4;
+                input += 4;
+            }
+
+            /* fname */
+            if (input_left < 1) {
+                hret = HG_OTHER_ERROR;
+                break;
+            } else {
+                fname_len = static_cast<unsigned char>(input[0]);
+                input_left -= 1;
+                input += 1;
+                if (input_left < fname_len + 1) {
+                    hret = HG_OTHER_ERROR;
+                    break;
+                } else {
+                    fname = input;
+                    assert(strlen(fname) == fname_len);
+                    input_left -= fname_len + 1;
+                    input += fname_len + 1;
+                }
+            }
+
+            /* data */
+            if (input_left < 1) {
+                hret = HG_OTHER_ERROR;
+                break;
+            } else {
+                len = static_cast<unsigned char>(input[0]);
+                input_left -= 1;
+                input += 1;
+                if (input_left < len) {
+                    hret = HG_OTHER_ERROR;
+                    break;
+                } else {
+                    data = input;
+                    input_left -= len;
+                    input += len;
+                }
+            }
+
+            /* epoch */
+            if (input_left < 2) {
+                hret = HG_OTHER_ERROR;
+                break;
+            } else {
+                memcpy(&nepoch, input, 2);
+                epoch = ntohs(nepoch);
+                input_left -= 2;
+                input += 2;
+            }
 
             snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
-
-            out.rv = mon_preload_write(path, data, len, epoch, NULL);
+            write_out.rv = mon_preload_write(path, data, len,
+                    epoch, NULL);
 
             /* write trace if we are in testing mode */
             if (pctx.testin && pctx.logfd != -1) {
                 ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
                 n = snprintf(buf, sizeof(buf), "[RECV] %s %d bytes (e%d) r%d "
                         "<< r%d (hash=%08x)\n", path, int(len),
-                        epoch, rank, peer_rank, ha);
+                        epoch, dst, src, ha);
                 n = write(pctx.logfd, buf, n);
 
                 errno = 0;
             }
         }
 
-        hret = HG_Respond(h, NULL, NULL, &out);
+        if (hret == HG_SUCCESS) {
+            hret = HG_Respond(h, NULL, NULL, &write_out);
+        }
     }
 
-    HG_Free_input(h, &in);
+    HG_Free_input(h, &write_in);
 
     HG_Destroy(h);
 
@@ -1009,7 +1104,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     /* get an estimated size of the rpc */
     rpc_sz += 4;  /* src rank */
     rpc_sz += 4;  /* dst rank */
-    rpc_sz += 1 + fname_len;  /* vpic fname */
+    rpc_sz += 1 + fname_len + 1;  /* vpic fname */
     rpc_sz += 1 + len;  /* vpic data */
     rpc_sz += 2;  /* epoch */
 
@@ -1062,6 +1157,8 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         rpcq->buf[rpcq->sz] = fname_len;
         memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
         rpcq->sz += 1 + fname_len;
+        rpcq->buf[rpc_sz] = 0;
+        rpcq->sz += 1;
         /* vpic data */
         rpcq->buf[rpcq->sz] = len;
         memcpy(rpcq->buf + rpcq->sz + 1, data, len);
