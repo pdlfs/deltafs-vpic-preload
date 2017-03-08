@@ -1304,21 +1304,21 @@ int fclose(FILE *stream)
 
     if (IS_BYPASS_SHUFFLE(pctx.mode)) {
         /*
-         * preload_write() will check if
+         * preload_write() will be checking if
          *   - BYPASS_DELTAFS_PLFSDIR
          *   - BYPASS_DELTAFS
          */
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                num_epochs, 0 /* non-foreign */, NULL);
+                num_epochs, NULL);
         if (rv != 0) {
             /* XXX: set errno */
             if (pctx.verr) {
-                error("fclose");
+                error("xxx");
             }
         }
     } else {
         /*
-         * shuffle_write() will check if
+         * shuffle_write() will be checking if
          *   - BYPASS_PLACEMENT
          */
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size(),
@@ -1326,7 +1326,7 @@ int fclose(FILE *stream)
         if (rv != 0) {
             /* XXX: set errno */
             if (pctx.verr) {
-                error("fclose");
+                error("xxx");
             }
         }
     }

@@ -335,7 +335,7 @@ static const char* prepare_addr(char* buf)
                     break;
                 } else if (pctx.testin) {
                     if (pctx.logfd != -1) {
-                        n = snprintf(msg, sizeof(msg), "[N] reject %s\n", ip);
+                        n = snprintf(msg, sizeof(msg), "[IPV4] skip %s\n", ip);
                         n = write(pctx.logfd, msg, n);
 
                         errno = 0;
@@ -457,7 +457,7 @@ static const char* prepare_addr(char* buf)
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
-            n = snprintf(msg, sizeof(msg), "[N] using %s\n", buf);
+            n = snprintf(msg, sizeof(msg), "[URI] using %s\n", buf);
             n = write(pctx.logfd, msg, n);
 
             errno = 0;
@@ -564,14 +564,13 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
 
             snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
 
-            out.rv = mon_preload_write(path, data, len, epoch, 1 /* foreign */,
-                    &mctx);
+            out.rv = mon_preload_write(path, data, len, epoch, NULL);
 
             /* write trace if we are in testing mode */
             if (pctx.testin && pctx.logfd != -1) {
                 ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
-                n = snprintf(buf, sizeof(buf), "[R] %s %d bytes (e%d) r%d << "
-                        "r%d (hash=%08x)\n", path, int(len),
+                n = snprintf(buf, sizeof(buf), "[RECV] %s %d bytes (e%d) r%d "
+                        "<< r%d (hash=%08x)\n", path, int(len),
                         epoch, rank, peer_rank, ha);
                 n = write(pctx.logfd, buf, n);
 
@@ -664,7 +663,7 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
 
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[A] %d bytes r%d >> r%d\n",
+        n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n",
                 int(write_sz), rank, peer_rank);
 
         n = write(pctx.logfd, buf, n);
@@ -680,8 +679,7 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
         if (pctx.testin) {
             pthread_mutex_unlock(&mtx);
             if (pctx.logfd != -1) {
-                n = snprintf(buf, sizeof(buf), "[X] r%d >> r%d %d us\n",
-                        rank, peer_rank, int(delay));
+                n = snprintf(buf, sizeof(buf), "[SLOT] %d us\n", int(delay));
                 n = write(pctx.logfd, buf, n);
 
                 errno = 0;
@@ -698,7 +696,7 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
 
             e = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
             if (e == ETIMEDOUT) {
-                msg_abort("HG_Forward timeout");
+                msg_abort("timeout");
             }
         }
     }
@@ -757,8 +755,7 @@ void shuffle_wait()
         if (pctx.testin) {
             pthread_mutex_unlock(&mtx);
             if (pctx.logfd != -1) {
-                n = snprintf(buf, sizeof(buf), "[Z] %llu us\n",
-                        (unsigned long long) delay);
+                n = snprintf(buf, sizeof(buf), "[WAIT] %d us\n", int(delay));
                 n = write(pctx.logfd, buf, n);
 
                 errno = 0;
@@ -775,7 +772,7 @@ void shuffle_wait()
 
             e = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
             if (e == ETIMEDOUT) {
-                msg_abort("HG_Forward timeout");
+                msg_abort("timeout");
             }
         }
     }
@@ -824,7 +821,7 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
 
     /* write trace if we are in testing mode */
     if (pctx.testin && pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[S] %d bytes r%d >> r%d\n",
+        n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n",
                 int(write_sz), rank, peer_rank);
 
         n = write(pctx.logfd, buf, n);
@@ -854,7 +851,7 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
             if (pctx.testin) {
                 pthread_mutex_unlock(&mtx);
                 if (pctx.logfd != -1) {
-                    n = snprintf(buf, sizeof(buf), "[X] r%d >> r%d %d us\n",
+                    n = snprintf(buf, sizeof(buf), "[WAIT] r%d >> r%d %d us\n",
                             rank, peer_rank, int(delay));
                     n = write(pctx.logfd, buf, n);
 
@@ -872,7 +869,7 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
 
                 e = pthread_cond_timedwait(&rpc_cv, &mtx, &abstime);
                 if (e == ETIMEDOUT) {
-                    msg_abort("HG_Forward timeout");
+                    msg_abort("timeout");
                 }
             }
         }
@@ -909,6 +906,9 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     rpcq_t* rpcq;
     int rpcq_idx;
     size_t rpc_sz;
+    time_t now;
+    struct timespec abstime;
+    useconds_t delay;
     char buf[200];
     int rv;
     const char* fname;
@@ -917,6 +917,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     int ha;
     int peer_rank;
     int rank;
+    int e;
     int n;
 
     assert(sctx.ssg != NULL);
@@ -946,11 +947,11 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     if (pctx.testin && pctx.logfd != -1) {
         if (rank != peer_rank || sctx.force_rpc) {
             ha = pdlfs::xxhash32(data, len, 0);  /* checksum */
-            n = snprintf(buf, sizeof(buf), "[E] %s %d bytes (e%d) r%d >> r%d "
-                    "(hash=%08x)\n", path, int(len), epoch,
+            n = snprintf(buf, sizeof(buf), "[SEND] %s %d bytes (e%d) r%d >> "
+                    "r%d (hash=%08x)\n", path, int(len), epoch,
                     rank, peer_rank, ha);
         } else {
-            n = snprintf(buf, sizeof(buf), "[L] %s %d bytes (e%d)\n",
+            n = snprintf(buf, sizeof(buf), "[LO] %s %d bytes (e%d)\n",
                     path, int(len), epoch);
         }
 
@@ -961,15 +962,13 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
 
     /* bypass rpc if target is local */
     if (peer_rank == rank && !sctx.force_rpc) {
-        rv = mon_preload_write(path, data, len, epoch, 0 /* non-foreign */,
-                &mctx);
-
+        rv = mon_preload_write(path, data, len, epoch, NULL);
         return(rv);
     }
 
     pthread_mutex_lock(&mtx);
 
-    rpcq_idx = peer_rank;  /* XXX: assuming 1 queue per rank */
+    rpcq_idx = peer_rank;  /* XXX: assuming one queue per rank */
     assert(rpcq_idx < nrpcqs);
     rpcq = &rpcqs[rpcq_idx];
     assert(rpcq != NULL);
@@ -977,9 +976,33 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     assert(len < 256);
     rpc_sz = 0;
 
+    delay = 1000;  /* 1000 us */
+
     /* wait for queue */
     while (rpcq->busy != 0) {
-        pthread_cond_wait(&qu_cv, &mtx);
+        if (pctx.testin) {
+            pthread_mutex_unlock(&mtx);
+            if (pctx.logfd != -1) {
+                n = snprintf(buf, sizeof(buf), "[QUEUE] %d us\n", int(delay));
+                n = write(pctx.logfd, buf, n);
+
+                errno = 0;
+            }
+
+            usleep(delay);
+            delay <<= 1;
+
+            pthread_mutex_lock(&mtx);
+        } else {
+            now = time(NULL);
+            abstime.tv_sec = now + sctx.timeout;
+            abstime.tv_nsec = 0;
+
+            e = pthread_cond_timedwait(&qu_cv, &mtx, &abstime);
+            if (e == ETIMEDOUT) {
+                msg_abort("timeout");
+            }
+        }
     }
 
     /* get an estimated size of the rpc */
@@ -1000,9 +1023,15 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             memcpy(write_in.encoding, &rpcq->sz, 2);
             memcpy(write_in.encoding + 2, rpcq->buf, rpcq->sz);
             if (!sctx.force_sync) {
-                rv = mon_shuffle_write_send_async(&write_in, peer_rank, &mctx);
+                rv = mon_shuffle_write_send_async(&write_in, peer_rank, NULL);
             } else {
-                rv = mon_shuffle_write_send(&write_in, peer_rank, &mctx);
+                rv = mon_shuffle_write_send(&write_in, peer_rank, NULL);
+            }
+            if (rv != 0) {
+                if (pctx.verr) {
+                    /* XXX: set errno */
+                    error("xxx");
+                }
             }
             pthread_mutex_lock(&mtx);
             pthread_cond_broadcast(&qu_cv);
@@ -1012,34 +1041,32 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     }
 
     /* enqueue */
-    if (rv == 0) {
-        if (rpcq->sz + rpc_sz > max_rpcq_sz) {
-            /* happens when the memory reserved for the queue is smaller than
-             * a single write */
-            msg_abort("rpc overflow");
-        } else {
-            /* vpic fname */
-            rpcq->buf[rpcq->sz] = fname_len;
-            memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
-            rpcq->sz += 1 + fname_len;
-            /* vpic data */
-            rpcq->buf[rpcq->sz] = len;
-            memcpy(rpcq->buf + rpcq->sz + 1, data, len);
-            rpcq->sz += 1 + len;
-            /* epoch */
-            nepoch = htons(epoch);
-            memcpy(rpcq->buf + rpcq->sz, &nepoch, 2);
-            rpcq->sz += 2;
-            /* rank */
-            nrank = htonl(rank);
-            memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
-            rpcq->sz += 4;
-        }
+    if (rpcq->sz + rpc_sz > max_rpcq_sz) {
+        /* happens when the memory reserved for the queue is smaller than
+         * a single write */
+        msg_abort("rpc overflow");
+    } else {
+        /* vpic fname */
+        rpcq->buf[rpcq->sz] = fname_len;
+        memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
+        rpcq->sz += 1 + fname_len;
+        /* vpic data */
+        rpcq->buf[rpcq->sz] = len;
+        memcpy(rpcq->buf + rpcq->sz + 1, data, len);
+        rpcq->sz += 1 + len;
+        /* epoch */
+        nepoch = htons(epoch);
+        memcpy(rpcq->buf + rpcq->sz, &nepoch, 2);
+        rpcq->sz += 2;
+        /* rank */
+        nrank = htonl(rank);
+        memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
+        rpcq->sz += 4;
     }
 
     pthread_mutex_unlock(&mtx);
 
-    return(rv);
+    return(0);
 }
 
 /* bg_work(): dedicated thread function to drive mercury progress */
@@ -1106,7 +1133,7 @@ void shuffle_init_ssg(void)
 
     if (pctx.testin) {
         if (pctx.logfd != -1) {
-            n = snprintf(tmp, sizeof(tmp), "[G] ssg_rank=%d ssg_size=%d "
+            n = snprintf(tmp, sizeof(tmp), "[SSG] ssg_rank=%d ssg_size=%d "
                     "vir_factor=%d\n", rank, size, vf);
             n = write(pctx.logfd, tmp, n);
 

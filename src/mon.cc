@@ -131,7 +131,7 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
 }
 
 int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
-                      int is_foreign, mon_ctx_t* ctx) {
+                      mon_ctx_t* ctx) {
     uint64_t start;
     uint64_t end;
     size_t l;
@@ -167,15 +167,7 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
 
             ctx->sum_fnl += l;
             ctx->sum_wsz += n;
-
-            if (is_foreign) ctx->nwrok++;
             ctx->nwok++;
-        }
-
-        if (is_foreign) {
-            ctx->min_nwr++;
-            ctx->max_nwr++;
-            ctx->nwr++;
         }
 
         ctx->min_nw++;

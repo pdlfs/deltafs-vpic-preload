@@ -141,7 +141,7 @@ extern mon_ctx_t mctx;
 extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
 
 extern int mon_preload_write(const char* fn, char* data, size_t n,
-        int epoch, int is_foreign, mon_ctx_t* ctx);
+        int epoch, mon_ctx_t* ctx);
 extern int mon_shuffle_write_send_async(void* write_in, int peer_rank,
         mon_ctx_t* ctx);
 extern int mon_shuffle_write_send(void* write_in, int peer_rank,
