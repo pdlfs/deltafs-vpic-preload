@@ -43,7 +43,7 @@
  * This is considered a soft limit. There is also a hard limit
  * set for each rpc message.
  */
-#define DEFAULT_BUFFER_PER_QUEUE 1024
+#define DEFAULT_BUFFER_PER_QUEUE 4000
 
 /*
  * Default num of outstanding rpc.

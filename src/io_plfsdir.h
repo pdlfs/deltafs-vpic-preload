@@ -26,21 +26,21 @@
  *
  * Specified as a string.
  */
-#define DEFAULT_MEMTABLE_SIZE "32m"
+#define DEFAULT_MEMTABLE_SIZE "128m"
 
 /*
  * Default size of the index write buffer.
  *
  * Specified as a string.
  */
-#define DEFAULT_INDEX_BUF "2m"
+#define DEFAULT_INDEX_BUF "4m"
 
 /*
  * Default size of the data write buffer.
  *
  * Specified as a string.
  */
-#define DEFAULT_DATA_BUF "2m"
+#define DEFAULT_DATA_BUF "4m"
 
 /*
  * Default logarithmic number of partitions.
