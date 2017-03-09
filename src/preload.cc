@@ -1210,6 +1210,11 @@ int closedir(DIR *dirp)
         /* record epoch duration */
         if (!pctx.nomon) {
             mctx.dura = now_micros() - mctx.epoch_start;
+            if (pctx.rank == 0) {
+                snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
+                        pretty_dura(mctx.dura).c_str());
+                info(msg);
+            }
         }
 
         if (pctx.rank == 0) {
