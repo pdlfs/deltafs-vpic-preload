@@ -1529,10 +1529,21 @@ void shuffle_init(void)
 /* shuffle_destroy(): finalize the shuffle layer */
 void shuffle_destroy(void)
 {
+    int i;
+
     pthread_mutex_lock(&mtx);
     shutting_down = 1; // start shutdown seq
     while (num_bg != 0) pthread_cond_wait(&bg_cv, &mtx);
     pthread_mutex_unlock(&mtx);
+
+    for (i = 0; i < nrpcqs; i++) {
+        assert(rpcqs[i].busy == 0);
+        assert(rpcqs[i].sz == 0);
+
+        free(rpcqs[i].buf);
+    }
+
+    free(rpcqs);
 
     ch_placement_finalize(sctx.chp);
     ssg_finalize(sctx.ssg);
