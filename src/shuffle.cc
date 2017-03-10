@@ -77,6 +77,7 @@ shuffle_ctx_t sctx = { 0 };
 static std::string readline(const char* fname)
 {
     char tmp[1000];
+    ssize_t l;
     ssize_t n;
     int fd;
 
@@ -85,15 +86,44 @@ static std::string readline(const char* fname)
     if (fd != -1) {
         n = read(fd, tmp, sizeof(tmp) - 1);
         if (n > 0) {
+            /* remove end-of-line */
             tmp[n - 1] = 0;
         }
 
         close(fd);
         errno = 0;
     }
-    if (strlen(tmp) == 0) {
-        strcat(tmp, "???");
+    l = strlen(tmp);
+    if (l > 120) {
+        tmp[120] = 0;
+        strcat(tmp, " ...");
+    } else if (l == 0) {
+        strcat(tmp, "?");
     }
+
+    return tmp;
+}
+
+/* remove leading and tailing space */
+static std::string trim(const char* str, size_t limit)
+{
+    char tmp[1000];
+    size_t start;
+    size_t off;
+    size_t sz;
+
+    start = 0;
+    while (start < limit && isspace(str[start]))
+        start++;
+    off = limit;
+    while (off > start && isspace(str[off - 1]))
+        off--;
+    sz = off - start;
+    if (sz > sizeof(tmp))
+        sz = sizeof(tmp) - 1;
+    if (sz != 0)
+        memcpy(tmp, str + start, sz);
+    tmp[sz] = 0;
 
     return tmp;
 }
@@ -199,7 +229,7 @@ static void try_scan_sysfs()
                 }
                 nnics++;
                 snprintf(msg, sizeof(msg), "[if] speed %5s Mbps, tx_queue_len "
-                        "%5s, mtu %4s, rx-irq: %2d, tx-irq: %2d (%s)",
+                        "%5s, mtu %4s, rx-irq: %3d, tx-irq: %3d (%s)",
                         speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx,
                         nic.c_str());
                 info(msg);
@@ -207,6 +237,63 @@ static void try_scan_sysfs()
         }
         closedir(d);
     }
+
+    errno = 0;
+}
+
+/*
+ * try_scan_procfs(): scan procfs for important information ^_%
+ */
+static void try_scan_procfs()
+{
+    int num_cpus;
+    std::string cpu_type;
+    char msg[200];
+    char line[1000];
+    const char* sep;
+    std::string value;
+    std::string key;
+    std::string os;
+    FILE* cpuinfo;
+
+    if (pctx.rank != 0) return;
+    if (access("/proc", R_OK) != 0) {
+        /* give up */
+        errno = 0;
+        return;
+    }
+
+    cpuinfo = fopen("/proc/cpuinfo", "r");
+    if (cpuinfo != NULL) {
+        num_cpus = 0;
+        cpu_type = "?";
+        while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+            sep = strchr(line, ':');
+            if (sep == NULL) {
+                continue;
+            }
+            key = trim(line, sep - 1 - line);
+            value = trim(sep + 1, strlen(sep + 1));
+            if (key == "model name") {
+                cpu_type = value;
+            } else if (key == "processor") {
+                num_cpus++;
+            }
+        }
+        fclose(cpuinfo);
+        if (num_cpus != 0) {
+            snprintf(msg, sizeof(msg), "[cpu] %d x %s", num_cpus,
+                    cpu_type.c_str());
+            info(msg);
+        }
+    }
+
+    os = readline("/proc/version_signature");
+    if (strcmp(os.c_str(), "?") == 0) {
+        os = readline("/proc/version");
+    }
+    snprintf(msg, sizeof(msg), "[os] %s", os.c_str());
+    info(msg);
 
     errno = 0;
 }
@@ -1329,6 +1416,7 @@ void shuffle_init(void)
     int i;
 
     try_scan_sysfs();
+    try_scan_procfs();
     prepare_addr(sctx.my_addr);
     misc_checks();
 
