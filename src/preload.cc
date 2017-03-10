@@ -397,7 +397,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
 
         if (pctx.monfd != -1) {
             if (pctx.rank == 0) {
-                info("dumping epoch mon stats ... (rank 0)");
+                info("ckptring epoch statistics ... (rank 0)");
                 ts = now_micros();
             }
             memset(buf, 0, sizeof(buf));
@@ -406,7 +406,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
             n = write(pctx.monfd, buf, sizeof(buf));
             if (pctx.rank == 0) {
                 diff = now_micros() - ts;
-                snprintf(msg, sizeof(msg), "dumping ok %s (rank 0)",
+                snprintf(msg, sizeof(msg), "ckptring ok %s (rank 0)",
                         pretty_dura(diff).c_str());
                 info(msg);
             }
@@ -721,9 +721,9 @@ int MPI_Init(int *argc, char ***argv)
                 0666);
 
         if (pctx.monfd == -1) {
-            msg_abort("cannot create mon file");
+            msg_abort("cannot create statistics file");
         } else if (rank ==0) {
-            snprintf(msg, sizeof(msg), "in-mem mon stats %d bytes",
+            snprintf(msg, sizeof(msg), "in-mem epoch statistics %d bytes",
                     int(sizeof(mctx)));
             info(msg);
         }
@@ -835,7 +835,7 @@ int MPI_Finalize(void)
             ok = 1;  /* ready to go */
 
             if (pctx.rank == 0) {
-                info("merging and copying mon stats to ...");
+                info("merging and copying epoch statistics to ...");
                 ts = now_micros();
                 now = time(NULL);
                 localtime_r(&now, &timeinfo);
@@ -868,7 +868,7 @@ int MPI_Finalize(void)
                             path2);
                 }
                 if (fd1 == -1 || fd2 == -1) {
-                    warn("cannot open mon files");
+                    warn("cannot open statistics files");
                     ok = 0;
                 }
                 if (fd2 != -1) {
@@ -895,7 +895,7 @@ int MPI_Finalize(void)
                     if (n == sizeof(buf)) {
                         memcpy(&local, buf, sizeof(mon_ctx_t));
                     } else {
-                        warn("cannot read mon stats");
+                        warn("cannot read statistics");
                         ok = 0;
                     }
                 }
@@ -908,7 +908,7 @@ int MPI_Finalize(void)
                     glob.epoch_seq = epoch + 1;
                     glob.global = 1;
                 } else if (pctx.rank == 0) {
-                    snprintf(msg, sizeof(msg), "error merging epoch %d; "
+                    snprintf(msg, sizeof(msg), "error merging statistics %d; "
                             "ABORT action!", epoch + 1);
                     warn(msg);
                 }
@@ -950,7 +950,7 @@ int MPI_Finalize(void)
                 diff = now_micros() - ts;
 
                 snprintf(msg, sizeof(msg),
-                        "merged %d epoch stats %s", epoch,
+                        "merged %d epoch statistics %s", epoch,
                         pretty_dura(diff).c_str());
                 info(msg);
             }
