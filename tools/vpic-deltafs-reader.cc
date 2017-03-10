@@ -27,11 +27,15 @@ char *me;
 
 static void usage(int ret)
 {
-    printf("\nusage: %s [options] -i input_dir -o output_dir\n\n"
+    printf("\nusage: %s [options] -i input_dir\n\n"
            "  options:\n"
+           "    -o dir    Output directory, /dev/null if unspecified\n"
+           "    -n num    Number of particles to read (reading ID 1 to num)\n"
+           "              If unspecified we explore 10**i range, i in {0, k}\n"
+           "              with 10**k approaching total num of particles\n"
+           "    -r num    Number of query retries (before averaging, def. 3)\n"
            "    -s size   Consistent-hash ring size\n"
            "    -v factor Consistent-hash virtual factor\n"
-           "    -n num    Number of particles to read (from 1 to num)\n"
            "    -h        Print this usage info\n"
            "\n",
            me);
@@ -50,8 +54,8 @@ int deltafs_read_particles(int64_t num, char *indir, char *outdir)
     size_t file_len;
     FILE *fp;
 
-    printf("Reading particles from %s.\n", indir);
-    printf("Storing trajectories in %s.\n", outdir);
+    //printf("Reading particles from %s.\n", indir);
+    //printf("Storing trajectories in %s.\n", outdir);
 
     if (!ch_inst) {
         fprintf(stderr, "Error: ch-placement instance not initialized\n");
@@ -96,6 +100,13 @@ int deltafs_read_particles(int64_t num, char *indir, char *outdir)
                 return 1;
             }
 
+            /* Skip output if outdir is undefined */
+            if (!outdir[0]) {
+                free(file_data);
+                deltafs_plfsdir_free_handle(dir);
+                continue;
+            }
+
             /* Dump particle trajectory data */
             if (snprintf(wpath, PATH_MAX, "%s/particle%ld.out", outdir, i) <= 0) {
                 perror("Error: snprintf for wpath failed");
@@ -129,12 +140,68 @@ err:
     return 1;
 }
 
+int64_t get_total_particles(char *indir)
+{
+    int64_t total = 0;
+    char infop[PATH_MAX], buf[256];
+    FILE *fd;
+
+    if (snprintf(infop, PATH_MAX, "%s/info", indir) <= 0) {
+        fprintf(stderr, "Error: snprintf for infop failed\n");
+        return 1;
+    }
+
+    if (!(fd = fopen(infop, "r"))) {
+        perror("Error: fopen failed for info");
+        return 1;
+    }
+
+    while (fgets(buf, sizeof(buf), fd) != NULL) {
+        char *str;
+
+        if ((str = strstr(buf, "total # of particles = ")) != NULL) {
+            total = (int64_t) strtof(str + 23, NULL);
+            break;
+        }
+    }
+
+    fclose(fd);
+    return total;
+}
+
+int query_particles(int64_t retries, int64_t num, char *indir, char *outdir)
+{
+    int ret = 0;
+    struct timeval ts, te;
+    int64_t elapsed_sum = 0;
+
+    printf("Querying %ld particles (%ld retries)\n", num, retries);
+
+    for (int64_t i = 1; i <= retries; i++) {
+        int64_t elapsed;
+
+        gettimeofday(&ts, 0);
+        ret = deltafs_read_particles(num, indir, outdir);
+        gettimeofday(&te, 0);
+
+        elapsed = (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
+
+        printf("(%ld) %ldms / query, %ld ms / particle\n", i, elapsed, elapsed / num);
+
+        elapsed_sum += elapsed;
+    }
+
+    printf("Querying results: %ld ms / query, %ld ms / particle\n\n",
+           elapsed_sum / retries, elapsed_sum / num / retries);
+
+    return ret;
+}
+
 int main(int argc, char **argv)
 {
     int ret, c;
-    int64_t num = 1;
+    int64_t num = 0, retries = 3, total = 0;
     char indir[PATH_MAX], outdir[PATH_MAX];
-    struct timeval ts, te;
     int ch_vf = 1024;
     int ch_size = 1;
     char* end;
@@ -142,13 +209,33 @@ int main(int argc, char **argv)
     me = argv[0];
     indir[0] = outdir[0] = '\0';
 
-    while ((c = getopt(argc, argv, "hi:s:v:n:o:p:")) != -1) {
+    while ((c = getopt(argc, argv, "hi:n:r:o:s:v:p:")) != -1) {
         switch(c) {
         case 'h': /* print help */
             usage(0);
         case 'i': /* input directory (vpic output) */
             if (!strncpy(indir, optarg, PATH_MAX)) {
                 perror("Error: invalid input dir");
+                usage(1);
+            }
+            break;
+        case 'n': /* number of particles to fetch */
+            num = strtoll(optarg, &end, 10);
+            if (end[0] != 0) {
+                fprintf(stderr, "%s: invalid particle num -- '%s'\n",
+                        me, optarg);
+                usage(1);
+            }
+            break;
+        case 'r': /* number of query retries */
+            retries = strtoll(optarg, &end, 10);
+            if (*end) {
+                perror("Error: invalid retry argument");
+                usage(1);
+            }
+        case 'o': /* output directory (trajectory files) */
+            if (!strncpy(outdir, optarg, PATH_MAX)) {
+                perror("Error: invalid output dir");
                 usage(1);
             }
             break;
@@ -168,27 +255,13 @@ int main(int argc, char **argv)
                 usage(1);
             }
             break;
-        case 'n': /* number of particles to fetch */
-            num = strtoll(optarg, &end, 10);
-            if (end[0] != 0) {
-                fprintf(stderr, "%s: invalid particle num -- '%s'\n",
-                        me, optarg);
-                usage(1);
-            }
-            break;
-        case 'o': /* output directory (trajectory files) */
-            if (!strncpy(outdir, optarg, PATH_MAX)) {
-                perror("Error: invalid output dir");
-                usage(1);
-            }
-            break;
         default:
             usage(1);
         }
     }
 
-    if (!indir[0] || !outdir[0]) {
-        fprintf(stderr, "Error: input and output directories are mandatory\n");
+    if (!indir[0]) {
+        fprintf(stderr, "Error: input directory unspecified\n");
         usage(1);
     }
 
@@ -197,14 +270,32 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    /* Perform the particle queries */
-    gettimeofday(&ts, 0);
-    ret = deltafs_read_particles(num, indir, outdir);
-    gettimeofday(&te, 0);
+    /* Get total number of particles */
+    total = get_total_particles(indir);
+    if (!total) {
+        fprintf(stderr, "Error: failed to read the total number of particles\n");
+        return 1;
+    }
 
-    printf("Elapsed querying time: %ldms\n", (te.tv_sec-ts.tv_sec)*1000 +
-                                             (te.tv_usec-ts.tv_usec)/1000);
-    printf("Number of particles queries: %ld\n", num);
+    printf("\nNumber of particles: %ld\n\n", total);
+
+    /*
+     * Go through the query dance: increment num from 1 to total particles
+     * multiplying by 10 each time, unless num is specified.
+     */
+    if (num) {
+        ret = query_particles(retries, num, indir, outdir);
+    } else {
+        num = 1;
+
+        while (num <= total) {
+            ret = query_particles(retries, num, indir, outdir);
+            if (ret)
+                return ret;
+
+            num *= 10;
+        }
+    }
 
     return ret;
 }
