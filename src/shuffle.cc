@@ -1536,20 +1536,26 @@ void shuffle_destroy(void)
     while (num_bg != 0) pthread_cond_wait(&bg_cv, &mtx);
     pthread_mutex_unlock(&mtx);
 
-    for (i = 0; i < nrpcqs; i++) {
-        assert(rpcqs[i].busy == 0);
-        assert(rpcqs[i].sz == 0);
+    if (rpcqs != NULL) {
+        for (i = 0; i < nrpcqs; i++) {
+            assert(rpcqs[i].busy == 0);
+            assert(rpcqs[i].sz == 0);
 
-        free(rpcqs[i].buf);
+            free(rpcqs[i].buf);
+        }
+
+        free(rpcqs);
     }
 
-    free(rpcqs);
+    if (sctx.chp != NULL)
+        ch_placement_finalize(sctx.chp);
+    if (sctx.ssg != NULL)
+        ssg_finalize(sctx.ssg);
 
-    ch_placement_finalize(sctx.chp);
-    ssg_finalize(sctx.ssg);
-
-    HG_Context_destroy(sctx.hg_ctx);
-    HG_Finalize(sctx.hg_clz);
+    if (sctx.hg_ctx != NULL)
+        HG_Context_destroy(sctx.hg_ctx);
+    if (sctx.hg_clz != NULL)
+        HG_Finalize(sctx.hg_clz);
 
     trace(__func__);
     return;
