@@ -69,14 +69,14 @@ static inline void log(int fd, const char* fmt, ...) {
  * info: print a message
  */
 static inline void info(const char* msg) {
-    log(fileno(stderr), "-INFO- %s\n", msg);
+    log(fileno(stderr), "\033[0;32m-INFO-\033[0m %s\n", msg);
 }
 
 /*
  * warn: print a warning message
  */
 static inline void warn(const char* msg) {
-    log(fileno(stderr), "!!!WARNING!!! %s\n", msg);
+    log(fileno(stderr), "\033[0;33m!!!WARNING!!!\033[0m %s\n", msg);
 }
 
 /*
@@ -84,9 +84,10 @@ static inline void warn(const char* msg) {
  */
 static inline void error(const char* msg) {
     if (errno != 0) {
-        log(fileno(stderr), "!!!ERROR!!! %s: %s\n", msg, strerror(errno));
+        log(fileno(stderr), "\033[0;31m!!!ERROR!!!\033[0m %s: %s\n", msg,
+                strerror(errno));
     } else {
-        log(fileno(stderr), "!!!ERROR!!! %s\n", msg);
+        log(fileno(stderr), "\033[0;31m!!!ERROR!!!\033[0m %s\n", msg);
     }
 }
 
@@ -95,9 +96,10 @@ static inline void error(const char* msg) {
  */
 static inline void msg_abort(const char *msg) {
     if (errno != 0) {
-        log(fileno(stderr), "!!!ABORT!!! %s: %s\n", msg, strerror(errno));
+        log(fileno(stderr), "\033[0;31m!!!ABORT!!!\033[0m %s: %s\n", msg,
+                strerror(errno));
     } else {
-        log(fileno(stderr), "!!!ABORT!!! %s\n", msg);
+        log(fileno(stderr), "\033[0;31m!!!ABORT!!!\033[0m %s\n", msg);
     }
 
     abort();
