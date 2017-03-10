@@ -84,7 +84,7 @@ static std::string readline(const char* fname)
     memset(tmp, 0, sizeof(tmp));
     fd = open(fname, O_RDONLY);
     if (fd != -1) {
-        n = read(fd, tmp, sizeof(tmp) - 1);
+        n = read(fd, tmp, sizeof(tmp));
         if (n > 0) {
             /* remove end-of-line */
             tmp[n - 1] = 0;
@@ -119,7 +119,7 @@ static std::string trim(const char* str, size_t limit)
     while (off > start && isspace(str[off - 1]))
         off--;
     sz = off - start;
-    if (sz > sizeof(tmp))
+    if (sz >= sizeof(tmp))
         sz = sizeof(tmp) - 1;
     if (sz != 0)
         memcpy(tmp, str + start, sz);
