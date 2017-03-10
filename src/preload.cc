@@ -265,6 +265,50 @@ static std::string pretty_dura(double us)
 }
 
 /*
+ * print a human-readable num.
+ */
+static std::string pretty_num(double num)
+{
+    char tmp[100];
+#if defined(PRELOAD_PRETTY_USE_BINARY)
+    if (num >= 1099511627776.0) {
+        num /= 1099511627776.0;
+        snprintf(tmp, sizeof(tmp), "%.1f Ti", num);
+    } else if (num >= 1073741824.0) {
+        num /= 1073741824.0;
+        snprintf(tmp, sizeof(tmp), "%.1f Gi", num);
+    } else if (num >= 1048576.0) {
+        num /= 1048576.0;
+        snprintf(tmp, sizeof(tmp), "%.1f Mi", num);
+    } else if (num >= 1024.0) {
+        num /= 1024.0;
+        snprintf(tmp, sizeof(tmp), "%.1f Ki", num);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.0f",
+                num);
+    }
+#else
+    if (num >= 1000000000000.0) {
+        num /= 1000000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f T", num);
+    } else if (num >= 1000000000.0) {
+        num /= 1000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f G", num);
+    } else if (num >= 1000000.0) {
+        num /= 1000000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f M", num);
+    } else if (num >= 1000.0) {
+        num /= 1000.0;
+        snprintf(tmp, sizeof(tmp), "%.1f K", num);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.0f",
+                num);
+    }
+#endif
+    return tmp;
+}
+
+/*
  * print a human-readable size.
  */
 static std::string pretty_size(double size)
@@ -397,7 +441,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
 
         if (pctx.monfd != -1) {
             if (pctx.rank == 0) {
-                info("ckptring epoch statistics ... (rank 0)");
+                info("chkpting epoch statistics ... (rank 0)");
                 ts = now_micros();
             }
             memset(buf, 0, sizeof(buf));
@@ -406,7 +450,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
             n = write(pctx.monfd, buf, sizeof(buf));
             if (pctx.rank == 0) {
                 diff = now_micros() - ts;
-                snprintf(msg, sizeof(msg), "ckptring ok %s (rank 0)",
+                snprintf(msg, sizeof(msg), "chkpting ok %s (rank 0)",
                         pretty_dura(diff).c_str());
                 info(msg);
             }
@@ -920,14 +964,27 @@ int MPI_Finalize(void)
                         assert(sizeof(buf) > sizeof(mon_ctx_t));
                         memcpy(buf, &glob, sizeof(mon_ctx_t));
                         n = write(fd1, buf, sizeof(buf));
-
                         if (n == sizeof(buf)) {
-                            snprintf(msg, sizeof(msg), " > epoch #%-3d "
-                                    "%s, %llu particles, %s, %s ok",
-                                    epoch + 1, pretty_dura(glob.dura).c_str(),
-                                    glob.nw, pretty_size(glob.sum_wsz).c_str(),
+                            snprintf(msg, sizeof(msg), " > epoch #%-2d %s ok",
+                                    epoch + 1, pretty_dura(glob.dura).c_str());
+                            info(msg);
+                            snprintf(msg, sizeof(msg), "    > %s particles, "
+                                    "%s, %s, %s per core",
+                                    pretty_num(glob.nw).c_str(),
+                                    pretty_size(glob.sum_wsz).c_str(),
                                     pretty_tput(glob.sum_wsz,
-                                    glob.dura).c_str());
+                                        glob.dura).c_str(),
+                                    pretty_tput(double(glob.sum_wsz) /
+                                        pctx.size, glob.dura).c_str()
+                                    );
+                            info(msg);
+                            snprintf(msg, sizeof(msg), "       > %s rpc out, "
+                                    "%s rpc in, %s per rpc",
+                                    pretty_num(glob.nws).c_str(),
+                                    pretty_num(glob.nwr).c_str(),
+                                    pretty_dura(double(glob.dura) /
+                                        glob.nws).c_str()
+                                    );
                             info(msg);
                         }
 
