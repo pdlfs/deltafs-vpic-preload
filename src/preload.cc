@@ -562,6 +562,7 @@ int MPI_Init(int *argc, char ***argv)
     char path[PATH_MAX];
     char conf[500];
 #if MPI_VERSION >= 3
+    size_t l;
     char mpi_info[MPI_MAX_LIBRARY_VERSION_STRING];
     char* c;
 #endif
@@ -614,6 +615,11 @@ int MPI_Init(int *argc, char ***argv)
         c = strchr(mpi_info, '\r');
         if (c != NULL) {
             *c = 0;
+        }
+        l = strlen(mpi_info);
+        if (l > 125) {
+            mpi_info[120] = 0;
+            strcat(mpi_info, " ...");
         }
         info(mpi_info);
 #endif
