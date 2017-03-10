@@ -663,6 +663,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     hret = HG_Get_input(h, &write_in);
 
     if (hret == HG_SUCCESS) {
+        mon_shuffle_write_received(NULL);
         memcpy(&input_left, write_in.encoding, 2);
 
         /* sender rank */

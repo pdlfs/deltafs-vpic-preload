@@ -253,6 +253,19 @@ int mon_shuffle_write_send(void* write_in, int peer_rank, mon_ctx_t* ctx) {
     return(rv);
 }
 
+int mon_shuffle_write_received(mon_ctx_t* ctx) {
+    if (!pctx.nomon) {
+        if (ctx == NULL) ctx = &mctx;
+        pthread_mutex_lock(&mtx);
+        ctx->nwrok++;
+        ctx->min_nwr++;
+        ctx->max_nwr++;
+        ctx->nwr++;
+
+        pthread_mutex_unlock(&mtx);
+    }
+}
+
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
     MPI_Reduce(const_cast<unsigned*>(&src->min_fnl), &sum->min_fnl, 1,
             MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
