@@ -277,7 +277,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("\nNumber of particles: %ld\n\n", total);
+    printf("\nNumber of particles: %ld\n", total);
+    /* XXX: The following is only until we figure out caching */
+    if (total > 10e5) {
+        total = 10e5;
+        printf("Warning: will stop querying at 10K particles\n");
+    }
+    printf("\n");
 
     /*
      * Go through the query dance: increment num from 1 to total particles
