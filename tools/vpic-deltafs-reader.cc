@@ -14,6 +14,8 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <mpi.h>
+#include <sys/stat.h>
 
 #include <map>
 
@@ -22,8 +24,15 @@
 #include <ch-placement.h>
 
 struct ch_placement_instance *ch_inst;
-const char *prefixes[] = { "electron_tracer", "ion_tracer", NULL };
 char *me;
+int rank, worldsz;
+
+/* Name file state */
+FILE *nf = NULL;
+int core = 0;
+char pname[20];
+int64_t rank_num = 0;
+int64_t total = 0;
 
 static void usage(int ret)
 {
@@ -43,16 +52,52 @@ static void usage(int ret)
     exit(ret);
 }
 
-int deltafs_read_particles(int64_t num, char *indir, char *outdir)
+int get_particle_name(char *indir)
 {
-    int ret = 0;
-    unsigned long rank;
+    char nfpath[PATH_MAX];
+
+try_again:
+    /* Get next 19B particle name */
+    if (fread(pname, sizeof(char), 19, nf) != 19) {
+        if (feof(nf)) {
+            fclose(nf);
+            core++;
+            goto next_open;
+        }
+
+        perror("Error: name file fread failed");
+        goto err;
+    }
+
+    return 0;
+
+next_open:
+    if (snprintf(nfpath, PATH_MAX, "%s/names/names.%d", indir, core)) {
+        fprintf(stderr, "Error: snprintf for nfpath failed\n");
+        return 1;
+    }
+
+    if (!(nf = fopen(nfpath, "rb"))) {
+        perror("Error: cannot open name file");
+        return 1;
+    }
+
+    goto try_again;
+
+err:
+    fclose(nf);
+    return 1;
+}
+
+int deltafs_read_particles(char *indir, char *outdir)
+{
+    FILE *fp;
+    unsigned long chrank;
     deltafs_plfsdir_t *dir;
     char *file_data;
+    char rpath[PATH_MAX], wpath[PATH_MAX];
     char conf[100];
-    char fname[PATH_MAX], wpath[PATH_MAX], rpath[PATH_MAX];
     size_t file_len;
-    FILE *fp;
 
     //printf("Reading particles from %s.\n", indir);
     //printf("Storing trajectories in %s.\n", outdir);
@@ -67,77 +112,180 @@ int deltafs_read_particles(int64_t num, char *indir, char *outdir)
         return 1;
     }
 
-    for (int64_t i = 1; i <= num; i++) {
-        for (int j = 0; prefixes[j] != NULL; j++) {
-            /* Determine file name for particle */
-            if (snprintf(fname, sizeof(fname), "%s.%016lx", prefixes[j], i) <= 0) {
-                fprintf(stderr, "Error: snprintf for fname failed\n");
-                return 1;
-            }
-
-            ch_placement_find_closest(ch_inst,
-                                      pdlfs::xxhash64(fname, strlen(fname), 0),
-                                      1, &rank);
-
-            dir = deltafs_plfsdir_create_handle(O_RDONLY);
-
-            if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=true",
-                         rank) <= 0) {
-                fprintf(stderr, "Error: snprintf for conf failed\n");
-                return 1;
-            }
-
-            if (deltafs_plfsdir_open(dir, rpath, conf)) {
-                perror("Error: cannot open DeltaFS input directory");
-                return 1;
-            }
-
-            file_data = (char*) deltafs_plfsdir_readall(dir, fname, &file_len);
-
-            if (!file_data) {
-                fprintf(stderr, "Error: file_data is NULL\n");
-                deltafs_plfsdir_free_handle(dir);
-                return 1;
-            }
-
-            /* Skip output if outdir is undefined */
-            if (!outdir[0]) {
-                free(file_data);
-                deltafs_plfsdir_free_handle(dir);
-                continue;
-            }
-
-            /* Dump particle trajectory data */
-            if (snprintf(wpath, PATH_MAX, "%s/particle%ld.out", outdir, i) <= 0) {
-                perror("Error: snprintf for wpath failed");
-                goto err;
-            }
-
-            if (!(fp = fopen(wpath, "w"))) {
-                perror("Error: fopen failed");
-                goto err;
-            }
-
-            if (fwrite(file_data, 1, file_len, fp) != file_len) {
-                perror("Error: fwrite failed");
-                fclose(fp);
-                goto err;
-            }
-
-            //fprintf(stderr, "%s %lu bytes ok\n", fname, (int64_t) file_len);
-
-            free(file_data);
-            fclose(fp);
-            deltafs_plfsdir_free_handle(dir);
+    for (int64_t i = 1; i <= rank_num; i++) {
+        /* Get a particle name to search for */
+        if (get_particle_name(indir)) {
+            fprintf(stderr, "Error: get_particle_name failed");
+            return 1;
         }
+
+        ch_placement_find_closest(ch_inst, pdlfs::xxhash64(pname, 19, 0),
+                                  1, &chrank);
+
+        dir = deltafs_plfsdir_create_handle(O_RDONLY);
+
+        if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=true",
+                     chrank) <= 0) {
+            fprintf(stderr, "Error: snprintf for conf failed\n");
+            goto err_dir;
+        }
+
+        if (deltafs_plfsdir_open(dir, rpath, conf)) {
+            perror("Error: cannot open DeltaFS input directory");
+            goto err_dir;
+        }
+
+        file_data = (char*) deltafs_plfsdir_readall(dir, pname, &file_len);
+        if (!file_data) {
+            fprintf(stderr, "Error: file_data is NULL\n");
+            goto err_dir;
+        }
+
+        printf("(%d) Found %s\n", rank, pname);
+
+        /* Skip output if outdir is undefined */
+        if (!outdir[0])
+            goto done;
+
+        /* Dump particle trajectory data */
+        if (snprintf(wpath, PATH_MAX, "%s/particle%ld.out", outdir, i) <= 0) {
+            perror("Error: snprintf for wpath failed");
+            goto err;
+        }
+
+        if (!(fp = fopen(wpath, "w"))) {
+            perror("Error: fopen failed");
+            goto err;
+        }
+
+        if (fwrite(file_data, 1, file_len, fp) != file_len) {
+            perror("Error: fwrite failed");
+            fclose(fp);
+            goto err;
+        }
+
+        fclose(fp);
+done:
+        free(file_data);
+        deltafs_plfsdir_free_handle(dir);
     }
 
     return 0;
 
 err:
     free(file_data);
+err_dir:
     deltafs_plfsdir_free_handle(dir);
     return 1;
+}
+
+/*
+ * Picks the name file we should start from and sets the
+ * nf, core, and rank_num variables.
+ */
+int init_nf_data(char *indir)
+{
+    char nfpath[PATH_MAX];
+    int64_t filesz = 0;
+    struct stat s;
+    int64_t rank_offt = 0;
+
+    /*
+     * Calculate our share of the particles,
+     * and how many we need to skip until the first.
+     * We assume total is divisible by worldsz.
+     */
+    rank_num = total / worldsz;
+    rank_offt = rank * rank_num * 19;
+
+    /* Go over name files until we find the one we should start with */
+    while (rank_offt >= filesz) {
+        rank_offt -= filesz;
+
+        if (snprintf(nfpath, PATH_MAX, "%s/names/names.%d", indir, core)) {
+            fprintf(stderr, "Error: snprintf for nfpath failed\n");
+            return 1;
+        }
+
+        if (stat(nfpath, &s)) {
+            fprintf(stderr, "Error: stat failed");
+            return 1;
+        }
+
+        filesz = (int64_t) s.st_size;
+        core++;
+    }
+
+    /* Open the file we picked, move it to the right offset */
+    if (!(nf = fopen(nfpath, "rb"))) {
+        perror("Error: fopen nfpath failed");
+        return 1;
+    }
+
+    if (fseek(nf, rank_offt, SEEK_CUR)) {
+        perror("Error: fseek on nf failed");
+        fclose(nf);
+        return 1;
+    }
+
+    return 0;
+}
+
+int query_particles(int64_t retries, int64_t num, char *indir, char *outdir)
+{
+    int ret = 0;
+    struct timeval ts, te;
+    int64_t elapsed_sum = 0, max_elapsed_avg = 0;
+
+    if (init_nf_data(indir))
+        return 1;
+
+    if (rank == 0)
+        printf("Querying %ld particles (%ld retries)\n", num, retries);
+
+    for (int64_t i = 1; i <= retries; i++) {
+        int64_t elapsed, max_elapsed;
+        int64_t *elapsed_all;
+
+        if (rank == 0 &&
+            !(elapsed_all = (int64_t *)malloc(sizeof(int64_t) * worldsz))) {
+            perror("Error: malloc failed");
+            exit(1);
+        }
+
+        gettimeofday(&ts, 0);
+        ret = deltafs_read_particles(indir, outdir);
+        gettimeofday(&te, 0);
+
+        elapsed = (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
+
+        MPI_Gather(&elapsed, 1, MPI_LONG_LONG_INT, elapsed_all, 1,
+                   MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
+
+        //printf("(Rank %d, %ld) %ldms / query, %ld ms / particle\n",
+        //       rank, i, elapsed, elapsed / rank_num);
+        if (rank == 0) {
+            elapsed = max_elapsed = 0;
+            for (int j = 0; j < worldsz; j++) {
+                elapsed += elapsed_all[j];
+                if (max_elapsed < elapsed_all[j])
+                    max_elapsed = elapsed_all[j];
+            }
+            elapsed /= worldsz;
+            printf("Overall: %ldms / query, %ld ms / particle\n",
+                   max_elapsed, elapsed / num);
+            free(elapsed_all);
+        }
+
+        elapsed_sum += elapsed;
+        max_elapsed_avg += max_elapsed;
+    }
+
+    if (rank == 0)
+        printf("Querying results: %ld ms / query, %ld ms / particle\n\n",
+               elapsed_sum / retries, elapsed_sum / num / retries);
+
+    return ret;
 }
 
 int64_t get_total_particles(char *indir)
@@ -169,45 +317,25 @@ int64_t get_total_particles(char *indir)
     return total;
 }
 
-int query_particles(int64_t retries, int64_t num, char *indir, char *outdir)
-{
-    int ret = 0;
-    struct timeval ts, te;
-    int64_t elapsed_sum = 0;
-
-    printf("Querying %ld particles (%ld retries)\n", num, retries);
-
-    for (int64_t i = 1; i <= retries; i++) {
-        int64_t elapsed;
-
-        gettimeofday(&ts, 0);
-        ret = deltafs_read_particles(num, indir, outdir);
-        gettimeofday(&te, 0);
-
-        elapsed = (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
-
-        printf("(%ld) %ldms / query, %ld ms / particle\n", i, elapsed, elapsed / num);
-
-        elapsed_sum += elapsed;
-    }
-
-    printf("Querying results: %ld ms / query, %ld ms / particle\n\n",
-           elapsed_sum / retries, elapsed_sum / num / retries);
-
-    return ret;
-}
-
 int main(int argc, char **argv)
 {
     int ret, c;
-    int64_t num = 0, retries = 3, total = 0;
+    int64_t num = 0, retries = 3;
     char indir[PATH_MAX], outdir[PATH_MAX];
     int ch_vf = 1024;
     int ch_size = 1;
     char* end;
 
+    if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+        fprintf(stderr, "Error: MPI_Init failed\n");
+        return 1;
+    }
+
+    MPI_Comm_size(MPI_COMM_WORLD, &worldsz);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     me = argv[0];
-    indir[0] = outdir[0] = '\0';
+    indir[0] = outdir[0] = pname[19] = '\0';
 
     while ((c = getopt(argc, argv, "hi:n:r:o:s:v:p:")) != -1) {
         switch(c) {
@@ -277,13 +405,16 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("\nNumber of particles: %ld\n", total);
+    if (rank == 0)
+        printf("\nNumber of particles: %ld\n", total);
     /* XXX: The following is only until we figure out caching */
-    if (total > 10e5) {
-        total = 10e5;
-        printf("Warning: will stop querying at 10K particles\n");
+    if (total > 1e5) {
+        total = 1e5;
+        if (rank == 0)
+            printf("Warning: will stop querying at 10K particles\n");
     }
-    printf("\n");
+    if (rank == 0)
+        printf("\n");
 
     /*
      * Go through the query dance: increment num from 1 to total particles
@@ -302,6 +433,8 @@ int main(int argc, char **argv)
             num *= 10;
         }
     }
+
+    MPI_Finalize();
 
     return ret;
 }
