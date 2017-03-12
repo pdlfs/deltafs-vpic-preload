@@ -72,7 +72,7 @@ try_again:
     return 0;
 
 next_open:
-    if (snprintf(nfpath, PATH_MAX, "%s/names/names.%d", indir, core)) {
+    if (snprintf(nfpath, PATH_MAX, "%s/names/names.%d", indir, core) <= 0) {
         fprintf(stderr, "Error: snprintf for nfpath failed\n");
         return 1;
     }
@@ -202,7 +202,7 @@ int init_nf_data(char *indir)
     while (rank_offt >= filesz) {
         rank_offt -= filesz;
 
-        if (snprintf(nfpath, PATH_MAX, "%s/names/names.%d", indir, core)) {
+        if (snprintf(nfpath, PATH_MAX, "%s/names/names.%d", indir, core) <= 0) {
             fprintf(stderr, "Error: snprintf for nfpath failed\n");
             return 1;
         }
