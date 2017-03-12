@@ -141,7 +141,7 @@ int deltafs_read_particles(char *indir, char *outdir)
             goto err_dir;
         }
 
-        printf("(%d) Found %s\n", rank, pname);
+        //printf("(%d) Found %s\n", rank, pname);
 
         /* Skip output if outdir is undefined */
         if (!outdir[0])
@@ -206,7 +206,7 @@ int init_nf_data(char *indir)
         rank_num++;
     rank_offt = rank * rank_num * 19;
 
-    printf("Rank %d: Querying %ld particles\n", rank, rank_num);
+    //printf("Rank %d: Querying %ld particles\n", rank, rank_num);
 
     /* Go over name files until we find the one we should start with */
     while (rank_offt >= filesz) {
