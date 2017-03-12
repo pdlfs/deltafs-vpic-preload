@@ -33,6 +33,7 @@ int core = 0;
 char pname[20];
 int64_t rank_num = 0;
 int64_t num = 0;
+int64_t elapsed;
 
 static void usage(int ret)
 {
@@ -98,6 +99,7 @@ int deltafs_read_particles(char *indir, char *outdir)
     char rpath[PATH_MAX], wpath[PATH_MAX];
     char conf[100];
     size_t file_len;
+    struct timeval ts, te;
 
     //printf("Reading particles from %s.\n", indir);
     //printf("Storing trajectories in %s.\n", outdir);
@@ -119,6 +121,7 @@ int deltafs_read_particles(char *indir, char *outdir)
             return 1;
         }
 
+        gettimeofday(&ts, 0);
         ch_placement_find_closest(ch_inst, pdlfs::xxhash64(pname, 19, 0),
                                   1, &chrank);
 
@@ -168,6 +171,9 @@ int deltafs_read_particles(char *indir, char *outdir)
 done:
         free(file_data);
         deltafs_plfsdir_free_handle(dir);
+
+        gettimeofday(&te, 0);
+        elapsed += (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
     }
 
     return 0;
@@ -244,17 +250,18 @@ int init_nf_data(char *indir)
 int query_particles(int64_t retries, char *indir, char *outdir)
 {
     int ret = 0;
-    struct timeval ts, te;
     int64_t elapsed_sum = 0, max_elapsed_avg = 0;
 
     if (rank == 0)
         printf("Querying %ld particles (%ld retries)\n", num, retries);
 
     for (int64_t i = 1; i <= retries; i++) {
-        int64_t elapsed, max_elapsed;
+        int64_t max_elapsed;
         int64_t *elapsed_all;
 
         if (init_nf_data(indir)) return 1;
+
+        elapsed = 0;
 
         if (rank == 0 &&
             !(elapsed_all = (int64_t *)malloc(sizeof(int64_t) * worldsz))) {
@@ -262,11 +269,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
             exit(1);
         }
 
-        gettimeofday(&ts, 0);
         ret = deltafs_read_particles(indir, outdir);
-        gettimeofday(&te, 0);
-
-        elapsed = (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
 
         MPI_Gather(&elapsed, 1, MPI_LONG_LONG_INT, elapsed_all, 1,
                    MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
