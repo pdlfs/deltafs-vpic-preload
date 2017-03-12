@@ -179,6 +179,12 @@ err_dir:
     return 1;
 }
 
+void clear_nf_data(void)
+{
+    fclose(nf);
+    core = 0;
+}
+
 /*
  * Picks the name file we should start from and sets the
  * nf, core, and rank_num variables.
@@ -241,15 +247,14 @@ int query_particles(int64_t retries, char *indir, char *outdir)
     struct timeval ts, te;
     int64_t elapsed_sum = 0, max_elapsed_avg = 0;
 
-    if (init_nf_data(indir))
-        return 1;
-
     if (rank == 0)
         printf("Querying %ld particles (%ld retries)\n", num, retries);
 
     for (int64_t i = 1; i <= retries; i++) {
         int64_t elapsed, max_elapsed;
         int64_t *elapsed_all;
+
+        if (init_nf_data(indir)) return 1;
 
         if (rank == 0 &&
             !(elapsed_all = (int64_t *)malloc(sizeof(int64_t) * worldsz))) {
@@ -283,6 +288,8 @@ int query_particles(int64_t retries, char *indir, char *outdir)
 
         elapsed_sum += elapsed;
         max_elapsed_avg += max_elapsed;
+
+        clear_nf_data();
     }
 
     if (rank == 0)
