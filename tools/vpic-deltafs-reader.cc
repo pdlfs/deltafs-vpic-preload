@@ -32,7 +32,7 @@ FILE *nf = NULL;
 int core = 0;
 char pname[20];
 int64_t rank_num = 0;
-int64_t total = 0;
+int64_t num = 0;
 
 static void usage(int ret)
 {
@@ -195,8 +195,12 @@ int init_nf_data(char *indir)
      * and how many we need to skip until the first.
      * We assume total is divisible by worldsz.
      */
-    rank_num = total / worldsz;
+    rank_num = num / worldsz;
+    if (rank < num % worldsz)
+        rank_num++;
     rank_offt = rank * rank_num * 19;
+
+    printf("Rank %d: Querying %ld particles\n", rank, rank_num);
 
     /* Go over name files until we find the one we should start with */
     while (rank_offt >= filesz) {
@@ -231,7 +235,7 @@ int init_nf_data(char *indir)
     return 0;
 }
 
-int query_particles(int64_t retries, int64_t num, char *indir, char *outdir)
+int query_particles(int64_t retries, char *indir, char *outdir)
 {
     int ret = 0;
     struct timeval ts, te;
@@ -320,7 +324,7 @@ int64_t get_total_particles(char *indir)
 int main(int argc, char **argv)
 {
     int ret, c;
-    int64_t num = 0, retries = 3;
+    int64_t retries = 3, total = 0;
     char indir[PATH_MAX], outdir[PATH_MAX];
     int ch_vf = 1024;
     int ch_size = 1;
@@ -421,12 +425,12 @@ int main(int argc, char **argv)
      * multiplying by 10 each time, unless num is specified.
      */
     if (num) {
-        ret = query_particles(retries, num, indir, outdir);
+        ret = query_particles(retries, indir, outdir);
     } else {
         num = 1;
 
         while (num <= total) {
-            ret = query_particles(retries, num, indir, outdir);
+            ret = query_particles(retries, indir, outdir);
             if (ret)
                 return ret;
 
