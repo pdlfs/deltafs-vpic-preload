@@ -58,6 +58,7 @@ struct next_functions {
     int (*MPI_Init)(int *argc, char ***argv);
     int (*MPI_Finalize)(void);
     int (*MPI_Barrier)(MPI_Comm comm);
+    int (*chdir)(const char *path);
     int (*mkdir)(const char *path, mode_t mode);
     DIR *(*opendir)(const char *filename);
     int (*closedir)(DIR *dirp);
@@ -97,6 +98,7 @@ static void preload_init()
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Init), "MPI_Init");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Finalize), "MPI_Finalize");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.MPI_Barrier), "MPI_Barrier");
+    must_getnextdlsym(reinterpret_cast<void **>(&nxt.chdir), "chdir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.mkdir), "mkdir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.opendir), "opendir");
     must_getnextdlsym(reinterpret_cast<void **>(&nxt.closedir), "closedir");
@@ -650,6 +652,13 @@ int MPI_Init(int *argc, char ***argv)
 #endif
     }
 
+    /* print current directory */
+    if (rank == 0) {
+        n = snprintf(dirpath, sizeof(dirpath), "CWD - ");
+        getcwd(dirpath + n, sizeof(dirpath) - n);
+        info(dirpath);
+    }
+
     if (pctx.testin) {
         if (rank == 0) {
             warn("testing mode: code unnecessarily slow\n>>> rerun with "
@@ -1034,6 +1043,22 @@ int MPI_Finalize(void)
     if (pctx.rank == 0) info("all done");
     if (pctx.rank == 0) info("bye");
     trace(__func__);
+    return(rv);
+}
+
+/*
+ * chdir
+ */
+int chdir(const char *dir)
+{
+    int rv;
+
+    rv = pthread_once(&init_once, preload_init);
+    if (rv) msg_abort("pthread_once");
+
+    rv = chdir(dir);
+    if (rv) msg_abort("chdir");
+
     return(rv);
 }
 

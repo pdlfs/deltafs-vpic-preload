@@ -65,15 +65,15 @@ static inline void log(int fd, const char* fmt, ...) {
     errno = 0;
 }
 
-#if defined(PRELOAD_TERM_COLOR)
-#define ABORT "\033[0;31m!!!ABORT!!!\033[0m"
-#define ERROR "\033[0;31m!!!ERROR!!!\033[0m"
-#define WARNING "\033[0;33m!!!WARNING!!!\033[0m"
+#if defined(PRELOAD_TERM_COLOR) /* add color to message headers */
+#define ABORT "\033[0;31m!!! ABORT !!!\033[0m"
+#define ERROR "\033[0;31m!!! ERROR !!!\033[0m"
+#define WARNING "\033[0;33m!!! WARNING !!!\033[0m"
 #define INFO "\033[0;32m-INFO-\033[0m"
-#else
-#define ABORT "!!!ABORT!!!"
-#define ERROR "!!!ERROR!!!"
-#define WARNING "!!!WARNING!!!"
+#else /* no color */
+#define ABORT "!!! ABORT !!!"
+#define ERROR "!!! ERROR !!!"
+#define WARNING "!!! WARNING !!!"
 #define INFO "-INFO-"
 #endif
 
@@ -96,8 +96,7 @@ static inline void warn(const char* msg) {
  */
 static inline void error(const char* msg) {
     if (errno != 0) {
-        log(fileno(stderr), ERROR " %s: %s\n", msg,
-                strerror(errno));
+        log(fileno(stderr), ERROR " %s: %s\n", msg, strerror(errno));
     } else {
         log(fileno(stderr), ERROR " %s\n", msg);
     }
@@ -108,8 +107,7 @@ static inline void error(const char* msg) {
  */
 static inline void msg_abort(const char *msg) {
     if (errno != 0) {
-        log(fileno(stderr), ABORT " %s: %s\n", msg,
-                strerror(errno));
+        log(fileno(stderr), ABORT " %s: %s\n", msg, strerror(errno));
     } else {
         log(fileno(stderr), ABORT " %s\n", msg);
     }
