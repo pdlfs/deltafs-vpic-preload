@@ -557,6 +557,7 @@ int MPI_Init(int *argc, char ***argv)
 {
     bool exact;
     const char* stripped;
+    const char* cwd;
     time_t now;
     char buf[50];   // ctime_r
     char msg[100];  // snprintf
@@ -655,7 +656,7 @@ int MPI_Init(int *argc, char ***argv)
     /* print current directory */
     if (rank == 0) {
         n = snprintf(dirpath, sizeof(dirpath), "[cwd] ");
-        c = getcwd(dirpath + n, sizeof(dirpath) - n);
+        cwd = getcwd(dirpath + n, sizeof(dirpath) - n);
         info(dirpath);
     }
 
