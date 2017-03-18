@@ -1056,7 +1056,7 @@ int chdir(const char *dir)
     rv = pthread_once(&init_once, preload_init);
     if (rv) msg_abort("pthread_once");
 
-    rv = chdir(dir);
+    rv = nxt.chdir(dir);
     if (rv) msg_abort("chdir");
 
     return(rv);
