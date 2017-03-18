@@ -308,7 +308,7 @@ int64_t get_total_particles(char *indir)
     char infop[PATH_MAX], buf[256];
     FILE *fd;
 
-    if (snprintf(infop, PATH_MAX, "%s/info", indir) <= 0) {
+    if (snprintf(infop, PATH_MAX, "%s/vpic/info", indir) <= 0) {
         fprintf(stderr, "Error: snprintf for infop failed\n");
         return 1;
     }
