@@ -654,8 +654,8 @@ int MPI_Init(int *argc, char ***argv)
 
     /* print current directory */
     if (rank == 0) {
-        n = snprintf(dirpath, sizeof(dirpath), "CWD - ");
-        getcwd(dirpath + n, sizeof(dirpath) - n);
+        n = snprintf(dirpath, sizeof(dirpath), "[cwd] ");
+        c = getcwd(dirpath + n, sizeof(dirpath) - n);
         info(dirpath);
     }
 
