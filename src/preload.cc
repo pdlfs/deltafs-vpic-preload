@@ -581,7 +581,7 @@ int MPI_Init(int *argc, char ***argv)
     int n;
 
     rv = pthread_once(&init_once, preload_init);
-    if (rv) msg_abort("MPI_Init:pthread_once");
+    if (rv) msg_abort("pthread_once");
 
     rv = nxt.MPI_Init(argc, argv);
     if (rv == MPI_SUCCESS) {
@@ -846,7 +846,7 @@ int MPI_Finalize(void)
     int n;
 
     rv = pthread_once(&init_once, preload_init);
-    if (rv) msg_abort("MPI_Finalize:pthread_once");
+    if (rv) msg_abort("pthread_once");
 
     if (pctx.rank == 0) {
         info("lib finalizing ... ");
@@ -1074,7 +1074,7 @@ int mkdir(const char *dir, mode_t mode)
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
-    if (rv) msg_abort("mkdir:pthread_once");
+    if (rv) msg_abort("pthread_once");
 
     if (!claim_path(dir, &exact)) {
         return(nxt.mkdir(dir, mode));
@@ -1103,7 +1103,7 @@ int mkdir(const char *dir, mode_t mode)
 
     if (rv != 0) {
         if (pctx.verr) {
-            error("mkdir:deltafs_mkdir");
+            error("xxmkdir");
         }
     }
 
