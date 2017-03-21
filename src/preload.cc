@@ -722,7 +722,9 @@ int MPI_Init(int *argc, char ***argv)
                     IS_BYPASS_DELTAFS(pctx.mode)) {
                 snprintf(path, sizeof(path), "%s/%s", pctx.local_root,
                         stripped);
-                rv = nxt.mkdir(path, 0777);
+                n = nxt.mkdir(path, 0777);
+                errno = 0;
+                rv = 0;
             } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
                 rv = deltafs_mkdir(stripped, 0777 | DELTAFS_DIR_PLFS_STYLE);
             } else {
