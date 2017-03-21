@@ -463,30 +463,50 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
 }
 
 static std::string gen_plfsdir_conf() {
-    char tmp[500];
     const char* lg_parts;
     const char* index_buf;
     const char* data_buf;
     const char* memtable_size;
+    char tmp[500];
 
     memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
     if (memtable_size == NULL) {
         memtable_size = DEFAULT_MEMTABLE_SIZE;
+    }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "[plfs] memtable_size -> %s",
+                memtable_size);
+        info(tmp);
     }
 
     index_buf = maybe_getenv("PLFSDIR_Index_buf_size");
     if (index_buf == NULL) {
         index_buf = DEFAULT_INDEX_BUF;
     }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "[plfs] index_bufsize -> %s",
+                index_buf);
+        info(tmp);
+    }
 
     data_buf = maybe_getenv("PLFSDIR_Data_buf_size");
     if (data_buf == NULL) {
         data_buf = DEFAULT_DATA_BUF;
     }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "[plfs] data_bufsize -> %s",
+                data_buf);
+        info(tmp);
+    }
 
     lg_parts = maybe_getenv("PLFSDIR_Lg_parts");
     if (lg_parts == NULL) {
         lg_parts = DEFAULT_LG_PARTS;
+    }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "[plfs] lg_parts -> %s",
+                lg_parts);
+        info(tmp);
     }
 
     snprintf(tmp, sizeof(tmp), "memtable_size=%s&index_buffer=%s&"
