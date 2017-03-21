@@ -525,7 +525,7 @@ static std::string gen_plfsdir_conf() {
         memtable_size = DEFAULT_MEMTABLE_SIZE;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " > memtable_size -> %s",
+        snprintf(tmp, sizeof(tmp), " & set memtable_size -> %s",
                 memtable_size);
         info(tmp);
     }
@@ -535,7 +535,7 @@ static std::string gen_plfsdir_conf() {
         index_buf = DEFAULT_INDEX_BUF;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " > index_buf -> %s",
+        snprintf(tmp, sizeof(tmp), " & set index_buf -> %s",
                 index_buf);
         info(tmp);
     }
@@ -545,7 +545,7 @@ static std::string gen_plfsdir_conf() {
         data_buf = DEFAULT_DATA_BUF;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " > data_bufsize -> %s",
+        snprintf(tmp, sizeof(tmp), " & set data_buf -> %s",
                 data_buf);
         info(tmp);
     }
@@ -555,7 +555,7 @@ static std::string gen_plfsdir_conf() {
         lg_parts = DEFAULT_LG_PARTS;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " > lg_parts -> %s",
+        snprintf(tmp, sizeof(tmp), " & set lg_parts -> %s",
                 lg_parts);
         info(tmp);
     }
@@ -1057,18 +1057,16 @@ int MPI_Finalize(void)
                             snprintf(msg, sizeof(msg), " > epoch #%-2d %s ok",
                                     epoch + 1, pretty_dura(glob.dura).c_str());
                             info(msg);
-                            snprintf(msg, sizeof(msg), "    > %s particles, "
-                                    "%s per core, %s, %s per core, %s per op",
+                            snprintf(msg, sizeof(msg), "   > %s particles, "
+                                    "%s per core, %s, %s per core",
                                     pretty_num(glob.nw).c_str(),
                                     pretty_num(glob.nw / pctx.size).c_str(),
                                     pretty_tput(glob.nw, glob.dura).c_str(),
                                     pretty_tput(double(glob.nw) /
-                                        pctx.size, glob.dura).c_str(),
-                                    pretty_dura(double(glob.dura) /
-                                        glob.nw * pctx.size).c_str()
+                                        pctx.size, glob.dura).c_str()
                                     );
                             info(msg);
-                            snprintf(msg, sizeof(msg), "       > %s, "
+                            snprintf(msg, sizeof(msg), "     > %s, "
                                     "%s, %s per core",
                                     pretty_size(glob.sum_wsz).c_str(),
                                     pretty_bw(glob.sum_wsz,
@@ -1076,7 +1074,12 @@ int MPI_Finalize(void)
                                     pretty_bw(double(glob.sum_wsz) /
                                         pctx.size, glob.dura).c_str());
                             info(msg);
-                            snprintf(msg, sizeof(msg), "    > %s rpc out, "
+                            snprintf(msg, sizeof(msg), "       > %s per op",
+                                    pretty_dura(double(glob.dura) /
+                                        glob.nw * pctx.size).c_str()
+                                    );
+                            info(msg);
+                            snprintf(msg, sizeof(msg), "   > %s rpc out, "
                                     "%s rpc in, %s per rpc",
                                     pretty_num(glob.nws).c_str(),
                                     pretty_num(glob.nwr).c_str(),
