@@ -355,9 +355,9 @@ static std::string pretty_size(double size)
 }
 
 /*
- * print a human-readable tput.
+ * print a human-readable bandwidth number.
  */
-static std::string pretty_tput(double bytes, double us)
+static std::string pretty_bw(double bytes, double us)
 {
     char tmp[100];
     double bytes_per_s = bytes / us * 1000000;
@@ -1007,12 +1007,13 @@ int MPI_Finalize(void)
                                     epoch + 1, pretty_dura(glob.dura).c_str());
                             info(msg);
                             snprintf(msg, sizeof(msg), "    > %s particles, "
-                                    "%s, %s, %s per core",
+                                    "%s per core, %s, %s, %s per core",
                                     pretty_num(glob.nw).c_str(),
+                                    pretty_num(glob.nw / pctx.size).c_str(),
                                     pretty_size(glob.sum_wsz).c_str(),
-                                    pretty_tput(glob.sum_wsz,
+                                    pretty_bw(glob.sum_wsz,
                                         glob.dura).c_str(),
-                                    pretty_tput(double(glob.sum_wsz) /
+                                    pretty_bw(double(glob.sum_wsz) /
                                         pctx.size, glob.dura).c_str()
                                     );
                             info(msg);
