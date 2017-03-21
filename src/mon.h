@@ -31,7 +31,7 @@ typedef double (hstg_t)[MON_NUM_BUCKETS + 4];
 static inline uint64_t now_micros() {
     uint64_t t;
 
-#if defined(__linux)
+#if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
     struct timespec tp;
 
 #if defined(CLOCK_MONOTONIC_RAW)
