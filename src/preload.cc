@@ -778,7 +778,7 @@ int MPI_Init(int *argc, char ***argv)
                 msg_abort("cannot open plfsdir");
             } else if (rank == 0) {
                 info("LW plfs dir opened (rank 0)");
-                info(conf);
+                /* info(conf); */
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
@@ -1325,6 +1325,26 @@ int closedir(DIR *dirp)
                 snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
                         pretty_dura(mctx.dura).c_str());
                 info(msg);
+            }
+        }
+
+        /* epoch pre-flush */
+        if (pctx.paranoid_barrier) {
+            if (IS_BYPASS_WRITE(pctx.mode)) {
+                /* noop */
+
+            } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+                if (pctx.plfsh != NULL) {
+                    deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
+                    if (pctx.rank == 0) {
+                        info("LW plfs dir pre-flushed (rank 0)");
+                    }
+                } else {
+                    msg_abort("plfs not opened");
+                }
+
+            } else {
+                /* XXX */
             }
         }
 
