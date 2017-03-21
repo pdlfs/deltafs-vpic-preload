@@ -519,7 +519,7 @@ static std::string gen_plfsdir_conf() {
         memtable_size = DEFAULT_MEMTABLE_SIZE;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "[plfs] memtable_size -> %s",
+        snprintf(tmp, sizeof(tmp), " > memtable_size -> %s",
                 memtable_size);
         info(tmp);
     }
@@ -529,7 +529,7 @@ static std::string gen_plfsdir_conf() {
         index_buf = DEFAULT_INDEX_BUF;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "[plfs] index_bufsize -> %s",
+        snprintf(tmp, sizeof(tmp), " > index_buf -> %s",
                 index_buf);
         info(tmp);
     }
@@ -539,7 +539,7 @@ static std::string gen_plfsdir_conf() {
         data_buf = DEFAULT_DATA_BUF;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "[plfs] data_bufsize -> %s",
+        snprintf(tmp, sizeof(tmp), " > data_bufsize -> %s",
                 data_buf);
         info(tmp);
     }
@@ -549,7 +549,7 @@ static std::string gen_plfsdir_conf() {
         lg_parts = DEFAULT_LG_PARTS;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "[plfs] lg_parts -> %s",
+        snprintf(tmp, sizeof(tmp), " > lg_parts -> %s",
                 lg_parts);
         info(tmp);
     }
