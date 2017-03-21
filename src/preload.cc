@@ -777,7 +777,7 @@ int MPI_Init(int *argc, char ***argv)
             if (pctx.plfsh == NULL || rv != 0) {
                 msg_abort("cannot open plfsdir");
             } else if (rank == 0) {
-                info("LW plfs dir opened (rank 0)");
+                info("plfs dir (lightweight) opened (rank 0)");
                 /* info(conf); */
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
@@ -895,7 +895,7 @@ int MPI_Finalize(void)
         pctx.plfsh = NULL;
 
         if (pctx.rank == 0) {
-            info("LW plfs dir closed (rank 0)");
+            info("plfs dir (lightweight) closed (rank 0)");
         }
     } else if (pctx.plfsfd != -1) {
         if (num_epochs != 0) dump_mon(&mctx, &tmp_stat);
@@ -1141,13 +1141,15 @@ DIR *opendir(const char *dir)
     char msg[100];
     dir_stat_t tmp_stat;
     uint64_t epoch_start;
+    uint64_t flush_start;
+    uint64_t flush_end;
     double start;
     double min;
     double dura;
     DIR* rv;
 
     int ret = pthread_once(&init_once, preload_init);
-    if (ret) msg_abort("opendir:pthread_once");
+    if (ret) msg_abort("pthread_once");
 
     if (!claim_path(dir, &ignored_exact)) {
         return(nxt.opendir(dir));
@@ -1158,6 +1160,7 @@ DIR *opendir(const char *dir)
     /* return a fake DIR* since we don't actually open */
     rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
+    /* initialize mon stats */
     if (!pctx.nomon) {
         memset(&tmp_stat, 0, sizeof(dir_stat_t));
         epoch_start = now_micros();
@@ -1169,6 +1172,7 @@ DIR *opendir(const char *dir)
         info(msg);
     }
 
+    /* epoch flush */
     if (num_epochs != 0) {
         /*
          * XXX: explicit epoch flush.
@@ -1191,9 +1195,16 @@ DIR *opendir(const char *dir)
 
         } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             if (pctx.plfsh != NULL) {
+                if (pctx.rank == 0) {
+                    flush_start = now_micros();
+                    info("flushing plfs dir ... (rank 0)");
+                }
                 deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
                 if (pctx.rank == 0) {
-                    info("LW plfs dir flushed (rank 0)");
+                    flush_end = now_micros();
+                    snprintf(msg, sizeof(msg), "flushing done %s",
+                            pretty_dura(flush_end -flush_start).c_str());
+                    info(msg);
                 }
             } else {
                 msg_abort("plfs not opened");
@@ -1202,7 +1213,7 @@ DIR *opendir(const char *dir)
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
             if (pctx.plfsfd != -1 ) {
-                deltafs_epoch_flush(pctx.plfsfd, NULL);
+                deltafs_epoch_flush(pctx.plfsfd, NULL); /* XXX */
                 if (pctx.rank == 0) {
                     info("plfs dir flushed (rank 0)");
                 }
@@ -1278,11 +1289,13 @@ int closedir(DIR *dirp)
     double start;
     double min;
     double dura;
+    uint64_t flush_start;
+    uint64_t flush_end;
     char msg[100];
     int rv;
 
     rv = pthread_once(&init_once, preload_init);
-    if (rv) msg_abort("closedir:pthread_once");
+    if (rv) msg_abort("pthread_once");
 
     if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
         return(nxt.closedir(dirp));
@@ -1318,16 +1331,6 @@ int closedir(DIR *dirp)
             }
         }
 
-        /* record epoch duration */
-        if (!pctx.nomon) {
-            mctx.dura = now_micros() - mctx.epoch_start;
-            if (pctx.rank == 0) {
-                snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
-                        pretty_dura(mctx.dura).c_str());
-                info(msg);
-            }
-        }
-
         /* epoch pre-flush */
         if (pctx.paranoid_barrier) {
             if (IS_BYPASS_WRITE(pctx.mode)) {
@@ -1335,9 +1338,16 @@ int closedir(DIR *dirp)
 
             } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
                 if (pctx.plfsh != NULL) {
+                    if (pctx.rank == 0) {
+                        flush_start = now_micros();
+                        info("pre-flushing plfs dir ... (rank 0)");
+                    }
                     deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
                     if (pctx.rank == 0) {
-                        info("LW plfs dir pre-flushed (rank 0)");
+                        flush_end = now_micros();
+                        snprintf(msg, sizeof(msg), "pre-flushing done %s",
+                                pretty_dura(flush_end -flush_start).c_str());
+                        info(msg);
                     }
                 } else {
                     msg_abort("plfs not opened");
@@ -1345,6 +1355,16 @@ int closedir(DIR *dirp)
 
             } else {
                 /* XXX */
+            }
+        }
+
+        /* record epoch duration */
+        if (!pctx.nomon) {
+            mctx.dura = now_micros() - mctx.epoch_start;
+            if (pctx.rank == 0) {
+                snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
+                        pretty_dura(mctx.dura).c_str());
+                info(msg);
             }
         }
 
