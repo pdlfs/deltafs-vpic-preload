@@ -26,6 +26,8 @@
 //  PRELOAD_Skip_mon_dist              Skip copying mon files out
 //  PRELOAD_Enable_verbose_mon         Print mon info at the end of each epoch
 //  PRELOAD_Enable_verbose_error       Print error info when write op fails
+//  PRELOAD_No_epoch_pre_flushing      Do not perform epoch pre-flushing
+//  PRELOAD_No_paranoid_barrier        Do not do paranoid barriers
 //  PRELOAD_Local_root                 Local file system root
 //  PRELOAD_Testing                    Used by developers to debug code
 //  PRELOAD_Inject_fake_data           Replace particle data with fake data

@@ -168,6 +168,7 @@ typedef struct preload_ctx {
 
     int mode;    /* operating mode */
     int paranoid_barrier;   /* surround each epoch with barriers */
+    int pre_flushing; /* pre-flushing epoch at the end of an epoch */
     int rank;    /* my MPI world rank */
     int size;    /* my MPI world size */
 

@@ -117,7 +117,8 @@ static void preload_init()
     pctx.monfd = -1;
 
     pctx.isdeltafs = new std::set<FILE*>;
-    pctx.paranoid_barrier = 1;  /* XXX */
+    pctx.paranoid_barrier = 1;
+    pctx.pre_flushing = 1;
     pctx.rank = 0;
     pctx.size = 1;
 
@@ -191,6 +192,11 @@ static void preload_init()
         pctx.vmon = 1;
     if (is_envset("PRELOAD_Enable_verbose_error"))
         pctx.verr = 1;
+
+    if (is_envset("PRELOAD_No_paranoid_barrier"))
+        pctx.paranoid_barrier = 0;
+    if (is_envset("PRELOAD_No_epoch_pre_flushing"))
+        pctx.pre_flushing = 0;
     if (is_envset("PRELOAD_Inject_fake_data"))
         pctx.fake_data = 1;
     if (is_envset("PRELOAD_Testing"))
@@ -1386,7 +1392,7 @@ int closedir(DIR *dirp)
         }
 
         /* epoch pre-flush */
-        if (pctx.paranoid_barrier) {
+        if (pctx.paranoid_barrier && pctx.pre_flushing) {
             if (IS_BYPASS_WRITE(pctx.mode)) {
                 /* noop */
 
