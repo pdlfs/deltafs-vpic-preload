@@ -311,6 +311,51 @@ static std::string pretty_num(double num)
 }
 
 /*
+ * print a human-readable throughput number.
+ */
+static std::string pretty_tput(double ops, double us)
+{
+    char tmp[100];
+    double ops_per_s = ops / us * 1000000;
+#if defined(PRELOAD_PRETTY_USE_BINARY)
+    if (ops_per_s >= 1099511627776.0) {
+        ops_per_s /= 1099511627776.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Tiop/s", ops_per_s);
+    } else if (ops_per_s >= 1073741824.0) {
+        ops_per_s /= 1073741824.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Giop/s", ops_per_s);
+    } else if (ops_per_s >= 1048576.0) {
+        ops_per_s /= 1048576.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Miop/s", ops_per_s);
+    } else if (ops_per_s >= 1024.0) {
+        ops_per_s /= 1024.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Kiop/s", ops_per_s);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.0f op/s",
+                ops_per_s);
+    }
+#else
+    if (ops_per_s >= 1000000000000.0) {
+        ops_per_s /= 1000000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Top/s", ops_per_s);
+    } else if (ops_per_s >= 1000000000.0) {
+        ops_per_s /= 1000000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Gop/s", ops_per_s);
+    } else if (ops_per_s >= 1000000.0) {
+        ops_per_s /= 1000000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Mop/s", ops_per_s);
+    } else if (ops_per_s >= 1000.0) {
+        ops_per_s /= 1000.0;
+        snprintf(tmp, sizeof(tmp), "%.3f Kop/s", ops_per_s);
+    } else {
+        snprintf(tmp, sizeof(tmp), "%.0f op/s",
+                ops_per_s);
+    }
+#endif
+    return tmp;
+}
+
+/*
  * print a human-readable size.
  */
 static std::string pretty_size(double size)
@@ -1007,22 +1052,30 @@ int MPI_Finalize(void)
                                     epoch + 1, pretty_dura(glob.dura).c_str());
                             info(msg);
                             snprintf(msg, sizeof(msg), "    > %s particles, "
-                                    "%s per core, %s, %s, %s per core",
+                                    "%s per core, %s, %s per core, %s per op",
                                     pretty_num(glob.nw).c_str(),
                                     pretty_num(glob.nw / pctx.size).c_str(),
+                                    pretty_tput(glob.nw, glob.dura).c_str(),
+                                    pretty_tput(double(glob.nw) /
+                                        pctx.size, glob.dura).c_str(),
+                                    pretty_dura(double(glob.dura) /
+                                        glob.nw * pctx.size).c_str()
+                                    );
+                            info(msg);
+                            snprintf(msg, sizeof(msg), "       > %s, "
+                                    "%s, %s per core",
                                     pretty_size(glob.sum_wsz).c_str(),
                                     pretty_bw(glob.sum_wsz,
                                         glob.dura).c_str(),
                                     pretty_bw(double(glob.sum_wsz) /
-                                        pctx.size, glob.dura).c_str()
-                                    );
+                                        pctx.size, glob.dura).c_str());
                             info(msg);
-                            snprintf(msg, sizeof(msg), "       > %s rpc out, "
+                            snprintf(msg, sizeof(msg), "    > %s rpc out, "
                                     "%s rpc in, %s per rpc",
                                     pretty_num(glob.nws).c_str(),
                                     pretty_num(glob.nwr).c_str(),
                                     pretty_dura(double(glob.dura) /
-                                        glob.nws).c_str()
+                                        glob.nws * pctx.size).c_str()
                                     );
                             info(msg);
                         }
