@@ -1477,8 +1477,8 @@ void shuffle_init(void)
         max_rpcq_sz = DEFAULT_BUFFER_PER_QUEUE;
     } else {
         max_rpcq_sz = atoi(env);
-        if (max_rpcq_sz > 4096) {
-            max_rpcq_sz = 4096;
+        if (max_rpcq_sz > MAX_RPC_MESSAGE) {
+            max_rpcq_sz = MAX_RPC_MESSAGE;
         } else if (max_rpcq_sz < 128) {
             max_rpcq_sz = 128;
         }

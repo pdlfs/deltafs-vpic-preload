@@ -31,15 +31,16 @@
 
 extern "C" {
 /*
- * XXX: threshold that determines whether a write is small enough to use
- * point-to-point rpc; otherwise we fall back to a bulk transfer.
+ * The max allowed size for a single rpc message.
  *
- * Not used so far.
+ * A TCP/IP jumbo frame can be as many as 9000 bytes for modern nics.
+ *
+ * (MTU=9000)
  */
-#define SHUFFLE_SMALL_WRITE 1024
+#define MAX_RPC_MESSAGE 8192
 
 /*
- * rpc_abort: abort with a rpc error
+ * rpc_abort: abort with a mercury rpc error
  */
 static inline void rpc_abort(const char* msg, hg_return_t ret) {
     char tmp[500];
@@ -75,7 +76,7 @@ typedef struct shuffle_ctx {
 extern shuffle_ctx_t sctx;
 
 typedef struct write_in {
-    char encoding[4096];  /* encoded contents */
+    char encoding[MAX_RPC_MESSAGE];  /* buffer space for encoded contents */
 } write_in_t;
 
 typedef struct write_out {
