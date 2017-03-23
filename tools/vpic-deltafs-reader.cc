@@ -25,7 +25,7 @@
 
 struct ch_placement_instance *ch_inst;
 char *me;
-int rank, worldsz;
+int myrank, worldsz;
 
 /* Name file state */
 FILE *nf = NULL;
@@ -144,7 +144,7 @@ int deltafs_read_particles(char *indir, char *outdir)
             goto err_dir;
         }
 
-        //printf("(%d) Found %s\n", rank, pname);
+        //printf("(%d) Found %s\n", myrank, pname);
 
         /* Skip output if outdir is undefined */
         if (!outdir[0])
@@ -208,11 +208,11 @@ int init_nf_data(char *indir)
      * We assume total is divisible by worldsz.
      */
     rank_num = num / worldsz;
-    if (rank < num % worldsz)
+    if (myrank < num % worldsz)
         rank_num++;
-    rank_offt = rank * rank_num * 19;
+    rank_offt = myrank * rank_num * 19;
 
-    //printf("Rank %d: Querying %ld particles\n", rank, rank_num);
+    //printf("Rank %d: Querying %ld particles\n", myrank, rank_num);
 
     /* Go over name files until we find the one we should start with */
     while (rank_offt >= filesz) {
@@ -252,7 +252,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
     int ret = 0;
     int64_t elapsed_sum = 0, max_elapsed_avg = 0;
 
-    if (rank == 0)
+    if (myrank == 0)
         printf("Querying %ld particles (%ld retries)\n", num, retries);
 
     for (int64_t i = 1; i <= retries; i++) {
@@ -263,7 +263,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
 
         elapsed = 0;
 
-        if (rank == 0 &&
+        if (myrank == 0 &&
             !(elapsed_all = (int64_t *)malloc(sizeof(int64_t) * worldsz))) {
             perror("Error: malloc failed");
             exit(1);
@@ -275,8 +275,8 @@ int query_particles(int64_t retries, char *indir, char *outdir)
                    MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
 
         //printf("(Rank %d, %ld) %ldms / query, %ld ms / particle\n",
-        //       rank, i, elapsed, elapsed / rank_num);
-        if (rank == 0) {
+        //       myrank, i, elapsed, elapsed / rank_num);
+        if (myrank == 0) {
             elapsed = max_elapsed = 0;
             for (int j = 0; j < worldsz; j++) {
                 elapsed += elapsed_all[j];
@@ -295,7 +295,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
         clear_nf_data();
     }
 
-    if (rank == 0)
+    if (myrank == 0)
         printf("Querying results: %ld ms / query, %ld ms / particle\n\n",
                elapsed_sum / retries, elapsed_sum / num / retries);
 
@@ -346,7 +346,7 @@ int main(int argc, char **argv)
     }
 
     MPI_Comm_size(MPI_COMM_WORLD, &worldsz);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 
     me = argv[0];
     indir[0] = outdir[0] = pname[19] = '\0';
@@ -419,15 +419,15 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    if (rank == 0)
+    if (myrank == 0)
         printf("\nNumber of particles: %ld\n", total);
     /* XXX: The following is only until we figure out caching */
     if (total > 1e6) {
         total = 1e6;
-        if (rank == 0)
+        if (myrank == 0)
             printf("Warning: will stop querying at 1M particles\n");
     }
-    if (rank == 0)
+    if (myrank == 0)
         printf("\n");
 
     /*
