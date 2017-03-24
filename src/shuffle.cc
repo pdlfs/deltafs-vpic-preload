@@ -1528,7 +1528,7 @@ void shuffle_init(void)
 
     sctx.hg_id = HG_Register_name(sctx.hg_clz, "shuffle_rpc_write",
             shuffle_write_in_proc, shuffle_write_out_proc,
-            shuffle_write_rpc_handler);
+            shuffle_write_rpc_handler_wrapper);
 
     hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
     if (hret != HG_SUCCESS)
@@ -1574,10 +1574,16 @@ void shuffle_init(void)
     if (rv) msg_abort("pthread_cond_init");
     rv = pthread_cond_init(&qu_cv, NULL);
     if (rv) msg_abort("pthread_cond_init");
+    rv = pthread_cond_init(&wk_cv, NULL);
+    if (rv) msg_abort("pthread_cond_init");
 
     shutting_down = 0;
     num_bg++;
     rv = pthread_create(&pid, NULL, bg_work, NULL);
+    if (rv) msg_abort("pthread_create");
+    pthread_detach(pid);
+    num_wk++;
+    rv = pthread_create(&pid, NULL, rpc_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
 
