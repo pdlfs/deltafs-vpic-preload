@@ -1582,10 +1582,13 @@ void shuffle_init(void)
     rv = pthread_create(&pid, NULL, bg_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
-    num_wk++;
-    rv = pthread_create(&pid, NULL, rpc_work, NULL);
-    if (rv) msg_abort("pthread_create");
-    pthread_detach(pid);
+
+    if (is_envset("SHUFFLE_Use_worker_thread")) {
+        num_wk++;
+        rv = pthread_create(&pid, NULL, rpc_work, NULL);
+        if (rv) msg_abort("pthread_create");
+        pthread_detach(pid);
+    }
 
     if (pctx.rank == 0) {
         if (sctx.force_sync) {
@@ -1611,7 +1614,7 @@ void shuffle_destroy(void)
 
     pthread_mutex_lock(&mtx);
     shutting_down = 1; // start shutdown seq
-    while (num_bg != 0) pthread_cond_wait(&bg_cv, &mtx);
+    while (num_bg != 0 || num_wk != 0) pthread_cond_wait(&bg_cv, &mtx);
     pthread_mutex_unlock(&mtx);
 
     if (rpcqs != NULL) {

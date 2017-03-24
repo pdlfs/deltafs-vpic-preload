@@ -18,6 +18,7 @@
 //  SHUFFLE_Force_rpc                  Send rpc even if addr is local
 //  SHUFFLE_Force_sync_rpc             Avoid sending async rpc
 //  SHUFFLE_Num_outstanding_rpc        Max num of outstanding rpc allowed
+//  SHUFFLE_Use_worker_thread          Allocate a dedicated worker thread
 //  SHUFFLE_Subnet                     IP prefix of the subnet we prefer to use
 //  SHUFFLE_Min_port                   The min port number we can use
 //  SHUFFLE_Max_port                   The max port number we can use
