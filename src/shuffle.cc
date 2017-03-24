@@ -27,6 +27,7 @@
 #include "shuffle.h"
 
 #include <string>
+#include <vector>
 
 /* XXX: switch to margo to manage threads for us, */
 
@@ -47,11 +48,18 @@ static pthread_cond_t cb_cv;
 /* used when waiting for a busy rpc queue */
 static pthread_cond_t qu_cv;
 
+/* used when waiting for work items */
+static pthread_cond_t wk_cv;
+
 /* true iff in shutdown seq */
 static int shutting_down = 0;  /* XXX: better if this is atomic */
 
 /* number of bg threads running */
 static int num_bg = 0;
+
+/* workers */
+static std::vector<void*> wk_items;
+static int num_wk = 0; /* number of worker threads running */
 
 /* rpc queue */
 typedef struct rpcq {
@@ -629,6 +637,69 @@ hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data)
     }
 
     return(hret);
+}
+
+/* rpc_work(): dedicated thread function to process rpc */
+static void* rpc_work(void* arg)
+{
+    hg_return_t hret;
+    struct timespec abstime;
+    std::vector<void*> my_items;
+    std::vector<void*>::iterator it;
+    uint64_t timeout;
+    hg_handle_t h;
+
+    trace("worker on");
+    my_items.reserve(16);
+
+    do {
+        pthread_mutex_lock(&mtx);
+        while (wk_items.empty() && !is_shuttingdown()) {
+            timeout = now_micros() + 500 * 1000;  /* wait 0.5 seconds */
+            abstime.tv_nsec = 1000 * (timeout % 1000000);
+            abstime.tv_sec = timeout / 1000000;
+            pthread_cond_timedwait(&wk_cv, &mtx, &abstime);
+        }
+        my_items.swap(wk_items);
+        pthread_mutex_unlock(&mtx);
+
+        for (it = my_items.begin(); it != my_items.end(); ++it) {
+            h = reinterpret_cast<hg_handle_t>(*it);
+            if (h != NULL) {
+                hret = shuffle_write_rpc_handler(h);
+                if (hret != HG_SUCCESS) {
+                    rpc_abort("HG_Respond", hret);
+                }
+            }
+        }
+        my_items.clear();
+    } while (!is_shuttingdown());
+
+    pthread_mutex_lock(&mtx);
+    assert(num_wk > 0);
+    num_wk--;
+    pthread_cond_broadcast(&bg_cv);
+    pthread_mutex_unlock(&mtx);
+
+    trace("worker off");
+
+    return(NULL);
+}
+
+/* server-side rpc handler wrapper */
+hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t h)
+{
+    if (num_wk == 0) {
+        return(shuffle_write_rpc_handler(h));
+    } else {
+        pthread_mutex_lock(&mtx);
+        wk_items.push_back(static_cast<void*>(h));
+        if (wk_items.size() == 1) {
+            pthread_cond_broadcast(&wk_cv);
+        }
+        pthread_mutex_unlock(&mtx);
+        return(HG_SUCCESS);
+    }
 }
 
 /* server-side rpc handler */
