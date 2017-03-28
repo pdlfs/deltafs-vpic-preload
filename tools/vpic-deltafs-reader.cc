@@ -283,7 +283,6 @@ int query_particles(int64_t retries, char *indir, char *outdir)
                 if (max_elapsed < elapsed_all[j])
                     max_elapsed = elapsed_all[j];
             }
-            elapsed /= worldsz;
             printf("Overall: %ldms / query, %ld ms / particle\n",
                    max_elapsed, elapsed / num);
             free(elapsed_all);
