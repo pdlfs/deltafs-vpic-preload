@@ -585,11 +585,21 @@ class fake_file {
     size_t resid_;           /* residual */
 
   public:
-    explicit fake_file(const char *path) :
+    fake_file() : dptr_(data_), resid_(sizeof(data_)) {
+        path_.reserve(256);
+    }
+
+    void reset(const char* path) {
+        path_.assign(path);
+        resid_ = sizeof(data_);
+        dptr_ = data_;
+    }
+
+    explicit fake_file(const char* path) :
         path_(path), dptr_(data_), resid_(sizeof(data_)) {};
 
     /* returns the actual number of bytes added. */
-    size_t add_data(const void *toadd, size_t len) {
+    size_t add_data(const void* toadd, size_t len) {
         int n = (len > resid_) ? resid_ : len;
         if (n) {
             memcpy(dptr_, toadd, n);
@@ -605,15 +615,20 @@ class fake_file {
     }
 
     /* recover filename. */
-    const char *file_name()  {
+    const char* file_name()  {
         return path_.c_str();
     }
 
     /* get data */
-    char *data() {
+    char* data() {
         return data_;
     }
 };
+
+/* avoids repeated malloc if vpic only opens one file a time */
+static fake_file vpic_file_buffer;
+static fake_file* vpic_file = &vpic_file_buffer;
+
 } // namespace
 
 /*
@@ -1453,7 +1468,7 @@ FILE *fopen(const char *fname, const char *mode)
     FILE* rv;
 
     int ret = pthread_once(&init_once, preload_init);
-    if (ret) msg_abort("fopen:pthread_once");
+    if (ret) msg_abort("pthread_once");
 
     if (!claim_path(fname, &exact)) {
         return(nxt.fopen(fname, mode));
@@ -1469,11 +1484,18 @@ FILE *fopen(const char *fname, const char *mode)
         stripped = (exact) ? "/" : (fname + pctx.len_deltafs_root);
     }
 
-    /* allocate a fake FILE* and put it in the set */
-    fake_file *ff = new fake_file(stripped);
-    rv = reinterpret_cast<FILE*>(ff);
-
     must_maybelockmutex(&maybe_mtx);
+    /* allocate a fake FILE* and put it in the set */
+    fake_file *ff = NULL;
+    if (vpic_file != &vpic_file_buffer) {
+        ff = new fake_file(stripped);
+        warn("vpic is opening multiple particle files simultaneously");
+    } else {
+        ff = vpic_file;
+        ff->reset(stripped);
+        vpic_file = NULL;
+    }
+    rv = reinterpret_cast<FILE*>(ff);
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->insert(rv);
     must_maybeunlock(&maybe_mtx);
@@ -1554,9 +1576,12 @@ int fclose(FILE *stream)
     must_maybelockmutex(&maybe_mtx);
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->erase(stream);
+    if (ff == &vpic_file_buffer) {
+        vpic_file = &vpic_file_buffer;
+    } else {
+        delete ff;
+    }
     must_maybeunlock(&maybe_mtx);
-
-    delete ff;
 
     return(rv);
 }
