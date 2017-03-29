@@ -1403,8 +1403,13 @@ static void* bg_work(void* foo)
 {
     hg_return_t hret;
     unsigned int actual_count;
+    time_t last_progress;
+    time_t now;
 
     trace("bg on");
+
+    /* trace the last time we do mercury progress */
+    last_progress = 0;
 
     while(true) {
         do {
@@ -1412,6 +1417,11 @@ static void* bg_work(void* foo)
         } while(hret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
 
         if(!is_shuttingdown()) {
+            now = time(NULL);
+            if (last_progress != 0 && now - last_progress > 5) {
+                warn("calling mercury progress with higher interval (>5 secs)");
+            }
+            last_progress = now;
             hret = HG_Progress(sctx.hg_ctx, 100);
             if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
                 rpc_abort("HG_Progress", hret);
@@ -1567,7 +1577,7 @@ void shuffle_init(void)
         info(msg);
     }
 
-    for (int i = 0; i < 5; i++) {
+    for (i = 0; i < 5; i++) {
         rv = pthread_mutex_init(&mtx[i], NULL);
         if (rv) msg_abort("pthread_mutex_init");
         rv = pthread_cond_init(&cv[i], NULL);
