@@ -32,24 +32,26 @@
 /* XXX: switch to margo to manage threads for us, */
 
 /*
- * main mutex shared among the main thread and the bg threads.
+ * a set of mutex shared among the main thread and the bg threads.
  */
-static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mtx[5] = { 0 };
 
-/* used when waiting for an on-going rpc to finish */
-static pthread_cond_t rpc_cv;
+static pthread_cond_t cv[5] = { 0 };
 
 /* used when waiting for all bg threads to terminate */
-static pthread_cond_t bg_cv;
+static const int bg_cv = 0;
+
+/* used when waiting for an on-going rpc to finish */
+static const int rpc_cv = 1;
 
 /* used when waiting for the next available rpc callback slot */
-static pthread_cond_t cb_cv;
+static const int cb_cv = 2;
 
 /* used when waiting for a busy rpc queue */
-static pthread_cond_t qu_cv;
+static const int qu_cv = 3;
 
 /* used when waiting for work items */
-static pthread_cond_t wk_cv;
+static const int wk_cv = 4;
 
 /* true iff in shutdown seq */
 static int shutting_down = 0;  /* XXX: better if this is atomic */
@@ -653,15 +655,15 @@ static void* rpc_work(void* arg)
     my_items.reserve(16);
 
     do {
-        pthread_mutex_lock(&mtx);
+        pthread_mutex_lock(&mtx[wk_cv]);
         while (wk_items.empty() && !is_shuttingdown()) {
             timeout = now_micros() + 500 * 1000;  /* wait 0.5 seconds */
             abstime.tv_nsec = 1000 * (timeout % 1000000);
             abstime.tv_sec = timeout / 1000000;
-            pthread_cond_timedwait(&wk_cv, &mtx, &abstime);
+            pthread_cond_timedwait(&cv[wk_cv], &mtx[wk_cv], &abstime);
         }
         my_items.swap(wk_items);
-        pthread_mutex_unlock(&mtx);
+        pthread_mutex_unlock(&mtx[wk_cv]);
 
         for (it = my_items.begin(); it != my_items.end(); ++it) {
             h = reinterpret_cast<hg_handle_t>(*it);
@@ -675,14 +677,13 @@ static void* rpc_work(void* arg)
         my_items.clear();
     } while (!is_shuttingdown());
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[bg_cv]);
     assert(num_wk > 0);
     num_wk--;
-    pthread_cond_broadcast(&bg_cv);
-    pthread_mutex_unlock(&mtx);
+    pthread_cond_broadcast(&cv[bg_cv]);
+    pthread_mutex_unlock(&mtx[bg_cv]);
 
     trace("worker off");
-
     return(NULL);
 }
 
@@ -692,12 +693,12 @@ hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t h)
     if (num_wk == 0) {
         return(shuffle_write_rpc_handler(h));
     } else {
-        pthread_mutex_lock(&mtx);
+        pthread_mutex_lock(&mtx[wk_cv]);
         wk_items.push_back(static_cast<void*>(h));
         if (wk_items.size() == 1) {
-            pthread_cond_broadcast(&wk_cv);
+            pthread_cond_broadcast(&cv[wk_cv]);
         }
-        pthread_mutex_unlock(&mtx);
+        pthread_mutex_unlock(&mtx[wk_cv]);
         return(HG_SUCCESS);
     }
 }
@@ -887,14 +888,14 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info)
     }
 
     /* return rpc callback slot */
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[cb_cv]);
     cb_flags[write_cb->slot] = 0;
     assert(cb_left < cb_allowed);
     if (cb_left == 0 || cb_left == cb_allowed - 1) {
-        pthread_cond_broadcast(&cb_cv);
+        pthread_cond_broadcast(&cv[cb_cv]);
     }
     cb_left++;
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&mtx[cb_cv]);
 
     HG_Destroy(h);
 
@@ -938,10 +939,10 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
     delay = 1000; /* 1000 us */
 
     /* wait for slot */
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[cb_cv]);
     while (cb_left == 0) {  /* no slots available */
         if (pctx.testin) {
-            pthread_mutex_unlock(&mtx);
+            pthread_mutex_unlock(&mtx[cb_cv]);
             if (pctx.logfd != -1) {
                 n = snprintf(buf, sizeof(buf), "[SLOT] %d us\n", int(delay));
                 n = write(pctx.logfd, buf, n);
@@ -952,13 +953,13 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
             usleep(delay);
             delay <<= 1;
 
-            pthread_mutex_lock(&mtx);
+            pthread_mutex_lock(&mtx[cb_cv]);
         } else {
             now = time(NULL);
             abstime.tv_sec = now + sctx.timeout;
             abstime.tv_nsec = 0;
 
-            e = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
+            e = pthread_cond_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
             if (e == ETIMEDOUT) {
                 msg_abort("timeout");
             }
@@ -975,7 +976,7 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
     assert(cb_left > 0);
     cb_left--;
 
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&mtx[cb_cv]);
 
     /* go */
     peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
@@ -1014,10 +1015,10 @@ void shuffle_wait()
 
     delay = 1000; /* 1000 us */
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[cb_cv]);
     while (cb_left != cb_allowed) {
         if (pctx.testin) {
-            pthread_mutex_unlock(&mtx);
+            pthread_mutex_unlock(&mtx[cb_cv]);
             if (pctx.logfd != -1) {
                 n = snprintf(buf, sizeof(buf), "[WAIT] %d us\n", int(delay));
                 n = write(pctx.logfd, buf, n);
@@ -1028,20 +1029,20 @@ void shuffle_wait()
             usleep(delay);
             delay <<= 1;
 
-            pthread_mutex_lock(&mtx);
+            pthread_mutex_lock(&mtx[cb_cv]);
         } else {
             now = time(NULL);
             abstime.tv_sec = now + sctx.timeout;
             abstime.tv_nsec = 0;
 
-            e = pthread_cond_timedwait(&cb_cv, &mtx, &abstime);
+            e = pthread_cond_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
             if (e == ETIMEDOUT) {
                 msg_abort("timeout");
             }
         }
     }
 
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&mtx[cb_cv]);
 }
 
 /* callback associated with shuffle_write_send(...) */
@@ -1051,11 +1052,11 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info)
     write_cb = reinterpret_cast<write_cb_t*>(info->arg);
     assert(info->type == HG_CB_FORWARD);
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[rpc_cv]);
     write_cb->hret = info->ret;
     write_cb->ok = 1;
-    pthread_cond_broadcast(&rpc_cv);
-    pthread_mutex_unlock(&mtx);
+    pthread_cond_broadcast(&cv[rpc_cv]);
+    pthread_mutex_unlock(&mtx[rpc_cv]);
 
     return HG_SUCCESS;
 }
@@ -1110,10 +1111,10 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
 
     if (hret == HG_SUCCESS) {
         /* here we block until rpc completes */
-        pthread_mutex_lock(&mtx);
+        pthread_mutex_lock(&mtx[rpc_cv]);
         while(write_cb.ok == 0) {  /* rpc not completed */
             if (pctx.testin) {
-                pthread_mutex_unlock(&mtx);
+                pthread_mutex_unlock(&mtx[rpc_cv]);
                 if (pctx.logfd != -1) {
                     n = snprintf(buf, sizeof(buf), "[WAIT] r%d >> r%d %d us\n",
                             rank, peer_rank, int(delay));
@@ -1125,19 +1126,19 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank)
                 usleep(delay);
                 delay <<= 1;
 
-                pthread_mutex_lock(&mtx);
+                pthread_mutex_lock(&mtx[rpc_cv]);
             } else {
                 now = time(NULL);
                 abstime.tv_sec = now + sctx.timeout;
                 abstime.tv_nsec = 0;
 
-                e = pthread_cond_timedwait(&rpc_cv, &mtx, &abstime);
+                e = pthread_cond_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
                 if (e == ETIMEDOUT) {
                     msg_abort("timeout");
                 }
             }
         }
-        pthread_mutex_unlock(&mtx);
+        pthread_mutex_unlock(&mtx[rpc_cv]);
 
         hret = write_cb.hret;
 
@@ -1231,7 +1232,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         return(rv);
     }
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[qu_cv]);
 
     rpcq_idx = peer_rank;  /* XXX: assuming one queue per rank */
     assert(rpcq_idx < nrpcqs);
@@ -1246,7 +1247,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
     /* wait for queue */
     while (rpcq->busy != 0) {
         if (pctx.testin) {
-            pthread_mutex_unlock(&mtx);
+            pthread_mutex_unlock(&mtx[qu_cv]);
             if (pctx.logfd != -1) {
                 n = snprintf(buf, sizeof(buf), "[QUEUE] %d us\n", int(delay));
                 n = write(pctx.logfd, buf, n);
@@ -1257,13 +1258,13 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             usleep(delay);
             delay <<= 1;
 
-            pthread_mutex_lock(&mtx);
+            pthread_mutex_lock(&mtx[qu_cv]);
         } else {
             now = time(NULL);
             abstime.tv_sec = now + sctx.timeout;
             abstime.tv_nsec = 0;
 
-            e = pthread_cond_timedwait(&qu_cv, &mtx, &abstime);
+            e = pthread_cond_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
             if (e == ETIMEDOUT) {
                 msg_abort("timeout");
             }
@@ -1285,7 +1286,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             msg_abort("rpc overflow");
         } else {
             rpcq->busy = 1;  /* force other writers to block */
-            pthread_mutex_unlock(&mtx);
+            pthread_mutex_unlock(&mtx[qu_cv]);
             write_sz = rpcq->sz + 4;  /* with sender rank */
             memcpy(write_in.encoding, &write_sz, 2);
             nrank = htonl(rank);
@@ -1302,8 +1303,8 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
                     error("xxx");
                 }
             }
-            pthread_mutex_lock(&mtx);
-            pthread_cond_broadcast(&qu_cv);
+            pthread_mutex_lock(&mtx[qu_cv]);
+            pthread_cond_broadcast(&cv[qu_cv]);
             rpcq->busy = 0;
             rpcq->sz = 0;
         }
@@ -1338,7 +1339,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
         rpcq->sz += 2;
     }
 
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&mtx[qu_cv]);
 
     return(0);
 }
@@ -1358,7 +1359,7 @@ void shuffle_flush()
 
     rank = ssg_get_rank(sctx.ssg);  /* my rank */
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[qu_cv]);
 
     for (i = 0; i < nrpcqs; i++) {
         rpcq = &rpcqs[i];
@@ -1368,7 +1369,7 @@ void shuffle_flush()
             msg_abort("rpc overflow");
         } else {
             rpcq->busy = 1;  /* force other writers to block */
-            pthread_mutex_unlock(&mtx);
+            pthread_mutex_unlock(&mtx[qu_cv]);
             write_sz = rpcq->sz + 4;  /* with sender rank */
             memcpy(write_in.encoding, &write_sz, 2);
             nrank = htonl(rank);
@@ -1385,14 +1386,14 @@ void shuffle_flush()
                     error("xxx");
                 }
             }
-            pthread_mutex_lock(&mtx);
-            pthread_cond_broadcast(&qu_cv);
+            pthread_mutex_lock(&mtx[qu_cv]);
+            pthread_cond_broadcast(&cv[qu_cv]);
             rpcq->busy = 0;
             rpcq->sz = 0;
         }
     }
 
-    pthread_mutex_unlock(&mtx);
+    pthread_mutex_unlock(&mtx[qu_cv]);
 
     return;
 }
@@ -1419,11 +1420,11 @@ static void* bg_work(void* foo)
         }
     }
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[bg_cv]);
     assert(num_bg > 0);
     num_bg--;
-    pthread_cond_broadcast(&bg_cv);
-    pthread_mutex_unlock(&mtx);
+    pthread_cond_broadcast(&cv[bg_cv]);
+    pthread_mutex_unlock(&mtx[bg_cv]);
 
     trace("bg off");
 
@@ -1566,16 +1567,12 @@ void shuffle_init(void)
         info(msg);
     }
 
-    rv = pthread_cond_init(&rpc_cv, NULL);
-    if (rv) msg_abort("pthread_cond_init");
-    rv = pthread_cond_init(&bg_cv, NULL);
-    if (rv) msg_abort("pthread_cond_init");
-    rv = pthread_cond_init(&cb_cv, NULL);
-    if (rv) msg_abort("pthread_cond_init");
-    rv = pthread_cond_init(&qu_cv, NULL);
-    if (rv) msg_abort("pthread_cond_init");
-    rv = pthread_cond_init(&wk_cv, NULL);
-    if (rv) msg_abort("pthread_cond_init");
+    for (int i = 0; i < 5; i++) {
+        rv = pthread_mutex_init(&mtx[i], NULL);
+        if (rv) msg_abort("pthread_mutex_init");
+        rv = pthread_cond_init(&cv[i], NULL);
+        if (rv) msg_abort("pthread_cond_init");
+    }
 
     shutting_down = 0;
     num_bg++;
@@ -1612,10 +1609,12 @@ void shuffle_destroy(void)
 {
     int i;
 
-    pthread_mutex_lock(&mtx);
+    pthread_mutex_lock(&mtx[bg_cv]);
     shutting_down = 1; // start shutdown seq
-    while (num_bg != 0 || num_wk != 0) pthread_cond_wait(&bg_cv, &mtx);
-    pthread_mutex_unlock(&mtx);
+    while (num_bg != 0 || num_wk != 0) {
+        pthread_cond_wait(&cv[bg_cv], &mtx[bg_cv]);
+    }
+    pthread_mutex_unlock(&mtx[bg_cv]);
 
     if (rpcqs != NULL) {
         for (i = 0; i < nrpcqs; i++) {
