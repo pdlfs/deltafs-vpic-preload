@@ -255,6 +255,8 @@ int query_particles(int64_t retries, char *indir, char *outdir)
     if (myrank == 0)
         printf("Querying %ld particles (%ld retries)\n", num, retries);
 
+    if (init_nf_data(indir)) return 1;
+
     /* Allocate array for particle timings */
     if (!(ptimes = (int64_t *)malloc(sizeof(int64_t) * rank_num))) {
         perror("Error: malloc failed");
@@ -265,8 +267,6 @@ int query_particles(int64_t retries, char *indir, char *outdir)
         int64_t mean_ptime, sd_ptime, max_ptime;
         int64_t global_sum, local_sum = 0;
 
-        if (init_nf_data(indir)) return 1;
-
         ret = deltafs_read_particles(indir, outdir);
 
         /*
@@ -276,7 +276,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
          * - Reduce all local sums of squared diffs to get stdev
          */
         for (int64_t j = 0; j < rank_num; j++) {
-            printf("    Got timing: %ldms\n", ptimes[j]);
+            //printf("    Got timing: %ldms\n", ptimes[j]);
             local_sum += ptimes[j];
         }
 
@@ -310,10 +310,9 @@ int query_particles(int64_t retries, char *indir, char *outdir)
             printf("(#%ld) %ld ms/query, %ld +/- %ld ms/particle\n",
                    i, max_ptime, mean_ptime, ci95_ptime);
         }
-
-        clear_nf_data();
     }
 
+    clear_nf_data();
     free(ptimes);
     return ret;
 }
