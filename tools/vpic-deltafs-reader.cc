@@ -16,6 +16,7 @@
 #include <sys/time.h>
 #include <mpi.h>
 #include <sys/stat.h>
+#include <math.h>
 
 #include <map>
 
@@ -307,7 +308,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
             ci95_ptime = 1.96 * (sd_ptime / sqrt(num));
 
             printf("(#%ld) %ld ms/query, %ld +/- %ld ms/particle\n",
-                   max_ptime, mean_ptime, ci95_ptime);
+                   i, max_ptime, mean_ptime, ci95_ptime);
         }
 
         clear_nf_data();
