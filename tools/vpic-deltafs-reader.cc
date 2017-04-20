@@ -33,7 +33,7 @@ int core = 0;
 char pname[20];
 int64_t rank_num = 0;
 int64_t num = 0;
-int64_t elapsed;
+int64_t *ptimes;
 
 static void usage(int ret)
 {
@@ -173,7 +173,7 @@ done:
         deltafs_plfsdir_free_handle(dir);
 
         gettimeofday(&te, 0);
-        elapsed += (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
+        ptimes[i-1] = (te.tv_sec-ts.tv_sec)*1000 + (te.tv_usec-ts.tv_usec)/1000;
     }
 
     return 0;
@@ -250,54 +250,70 @@ int init_nf_data(char *indir)
 int query_particles(int64_t retries, char *indir, char *outdir)
 {
     int ret = 0;
-    int64_t elapsed_sum = 0, max_elapsed_avg = 0;
 
     if (myrank == 0)
         printf("Querying %ld particles (%ld retries)\n", num, retries);
 
+    /* Allocate array for particle timings */
+    if (!(ptimes = (int64_t *)malloc(sizeof(int64_t) * rank_num))) {
+        perror("Error: malloc failed");
+        exit(1);
+    }
+
     for (int64_t i = 1; i <= retries; i++) {
-        int64_t max_elapsed;
-        int64_t *elapsed_all;
+        int64_t mean_ptime, sd_ptime, max_ptime;
+        int64_t global_sum, local_sum = 0;
 
         if (init_nf_data(indir)) return 1;
 
-        elapsed = 0;
-
-        if (myrank == 0 &&
-            !(elapsed_all = (int64_t *)malloc(sizeof(int64_t) * worldsz))) {
-            perror("Error: malloc failed");
-            exit(1);
-        }
-
         ret = deltafs_read_particles(indir, outdir);
 
-        MPI_Gather(&elapsed, 1, MPI_LONG_LONG_INT, elapsed_all, 1,
-                   MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
-
-        //printf("(Rank %d, %ld) %ldms / query, %ld ms / particle\n",
-        //       myrank, i, elapsed, elapsed / rank_num);
-        if (myrank == 0) {
-            elapsed = max_elapsed = 0;
-            for (int j = 0; j < worldsz; j++) {
-                elapsed += elapsed_all[j];
-                if (max_elapsed < elapsed_all[j])
-                    max_elapsed = elapsed_all[j];
-            }
-            printf("Overall: %ldms / query, %ld ms / particle\n",
-                   max_elapsed, elapsed / num);
-            free(elapsed_all);
+        /*
+         * Calculate the standard deviation, mean, max globally:
+         * - Reduce all local sums into global sum to get mean
+         * - Reduce all local maxima into the global maximum
+         * - Reduce all local sums of squared diffs to get stdev
+         */
+        for (int64_t j = 0; j < rank_num; j++) {
+            printf("    Got timing: %ldms\n", ptimes[j]);
+            local_sum += ptimes[j];
         }
 
-        elapsed_sum += elapsed;
-        max_elapsed_avg += max_elapsed;
+        MPI_Allreduce(&local_sum, &global_sum, 1, MPI_LONG_LONG_INT, MPI_SUM,
+                      MPI_COMM_WORLD);
+        mean_ptime = global_sum / num;
+
+        local_sum = 0;
+        for (int64_t j = 0; j < rank_num; j++) {
+            if (ptimes[j] > local_sum)
+                local_sum = ptimes[j];
+        }
+
+        MPI_Reduce(&local_sum, &max_ptime, 1, MPI_LONG_LONG_INT, MPI_MAX, 0,
+                   MPI_COMM_WORLD);
+
+        local_sum = 0;
+        for (int64_t j = 0; j < rank_num; j++) {
+            local_sum += (ptimes[j] - mean_ptime) * (ptimes[j] - mean_ptime);
+        }
+
+        MPI_Reduce(&local_sum, &global_sum, 1, MPI_LONG_LONG_INT, MPI_SUM, 0,
+                   MPI_COMM_WORLD);
+
+        if (myrank == 0) {
+            int64_t ci95_ptime = 0;
+
+            sd_ptime = sqrt(global_sum / num);
+            ci95_ptime = 1.96 * (sd_ptime / sqrt(num));
+
+            printf("(#%ld) %ld ms/query, %ld +/- %ld ms/particle\n",
+                   max_ptime, mean_ptime, ci95_ptime);
+        }
 
         clear_nf_data();
     }
 
-    if (myrank == 0)
-        printf("Querying results: %ld ms / query, %ld ms / particle\n\n",
-               elapsed_sum / retries, elapsed_sum / num / retries);
-
+    free(ptimes);
     return ret;
 }
 
@@ -421,12 +437,14 @@ int main(int argc, char **argv)
 
     if (myrank == 0)
         printf("\nNumber of particles: %ld\n", total);
-    /* XXX: The following is only until we figure out caching */
+
+    /* The following is to limit how long this will take */
     if (total > 1e6) {
         total = 1e6;
         if (myrank == 0)
             printf("Warning: will stop querying at 1M particles\n");
     }
+
     if (myrank == 0)
         printf("\n");
 
