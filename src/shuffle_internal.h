@@ -102,6 +102,10 @@ hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t handle);
 hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
 hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
 
+/* get current hg class and context instances */
+inline void* shuffle_hg_class(void) { return sctx.hg_clz; }
+inline void* shuffle_hg_ctx(void) { return sctx.hg_ctx; }
+
 /* wait for outstanding rpc */
 void shuffle_wait(void);
 /* flush rpc queue */
