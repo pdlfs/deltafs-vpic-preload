@@ -37,7 +37,7 @@ extern "C" {
  *
  * (MTU=9000)
  */
-#define MAX_RPC_MESSAGE 8192
+#define MAX_RPC_MESSAGE 65536
 
 /*
  * rpc_abort: abort with a mercury rpc error
