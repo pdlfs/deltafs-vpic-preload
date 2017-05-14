@@ -264,8 +264,8 @@ int query_particles(int64_t retries, char *indir, char *outdir)
     }
 
     for (int64_t i = 1; i <= retries; i++) {
-        int64_t mean_ptime, sd_ptime, max_ptime;
-        int64_t global_sum, local_sum = 0;
+        int64_t max_ptime, global_sum, local_sum = 0;
+        double mean_ptime, sd_ptime;
 
         ret = deltafs_read_particles(indir, outdir);
 
@@ -282,7 +282,7 @@ int query_particles(int64_t retries, char *indir, char *outdir)
 
         MPI_Allreduce(&local_sum, &global_sum, 1, MPI_LONG_LONG_INT, MPI_SUM,
                       MPI_COMM_WORLD);
-        mean_ptime = global_sum / num;
+        mean_ptime = (double) global_sum / num;
 
         local_sum = 0;
         for (int64_t j = 0; j < rank_num; j++) {
@@ -302,12 +302,12 @@ int query_particles(int64_t retries, char *indir, char *outdir)
                    MPI_COMM_WORLD);
 
         if (myrank == 0) {
-            int64_t ci95_ptime = 0;
+            double ci95_ptime = 0;
 
             sd_ptime = sqrt(global_sum / num);
             ci95_ptime = 1.96 * (sd_ptime / sqrt(num));
 
-            printf("(#%ld) %ld ms/query, %ld +/- %ld ms/particle\n",
+            printf("(#%ld) %ld ms/query, %.2f +/- %.2f ms/particle\n",
                    i, max_ptime, mean_ptime, ci95_ptime);
         }
     }
