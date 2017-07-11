@@ -126,7 +126,7 @@ int deltafs_read_particles(char *indir, char *outdir)
         ch_placement_find_closest(ch_inst, pdlfs::xxhash64(pname, 19, 0),
                                   1, &chrank);
 
-        dir = deltafs_plfsdir_create_handle(O_RDONLY);
+        dir = deltafs_plfsdir_create_handle(NULL, O_RDONLY);
 
         if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=true",
                      chrank) <= 0) {
@@ -134,7 +134,7 @@ int deltafs_read_particles(char *indir, char *outdir)
             goto err_dir;
         }
 
-        if (deltafs_plfsdir_open(dir, rpath, conf)) {
+        if (deltafs_plfsdir_open(dir, rpath)) {
             perror("Error: cannot open DeltaFS input directory");
             goto err_dir;
         }

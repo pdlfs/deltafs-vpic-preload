@@ -24,7 +24,9 @@
 
 #include "preload.h"
 
-/* particle size */
+/* particle id bytes */
+#define PRELOAD_PARTICLE_ID_SIZE 8
+/* particle bytes */
 #define PRELOAD_PARTICLE_SIZE 40
 /* filter bits per particle per epoch */
 #define PRELOAD_FILTER_BITS 10
@@ -830,15 +832,19 @@ int MPI_Init(int *argc, char ***argv)
         /* everyone opens it */
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
             snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-            snprintf(conf, sizeof(conf), "rank=%d&value_size=%d&"
+            snprintf(conf, sizeof(conf), "rank=%d&key_size=%d&value_size=%d&"
                     "filter_bits_per_key=%d&%s", rank,
+                    PRELOAD_PARTICLE_ID_SIZE,
                     PRELOAD_PARTICLE_SIZE,
                     PRELOAD_FILTER_BITS,
                     gen_plfsdir_conf().c_str());
 
-            pctx.plfsh = deltafs_plfsdir_create_handle(O_WRONLY);
+            pctx.plfstp = deltafs_tp_init(4); // FIXME
+            pctx.plfsh = deltafs_plfsdir_create_handle(conf, O_WRONLY);
+            deltafs_plfsdir_set_thread_pool(pctx.plfsh, pctx.plfstp);
+
             if (pctx.plfsh != NULL) {
-                rv = deltafs_plfsdir_open(pctx.plfsh, path, conf);
+                rv = deltafs_plfsdir_open(pctx.plfsh, path);
             }
             if (pctx.plfsh == NULL || rv != 0) {
                 msg_abort("cannot open plfsdir");
