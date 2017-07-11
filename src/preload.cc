@@ -29,7 +29,7 @@
 /* particle bytes */
 #define PRELOAD_PARTICLE_SIZE 40
 /* filter bits per particle per epoch */
-#define PRELOAD_FILTER_BITS 10
+#define PRELOAD_FILTER_BITS 14
 
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
@@ -516,10 +516,13 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
 }
 
 static std::string gen_plfsdir_conf() {
-    const char* lg_parts;
+    const char* comp_buf;
+    const char* min_index_write;
     const char* index_buf;
+    const char* min_data_write;
     const char* data_buf;
     const char* memtable_size;
+    const char* lg_parts;
     char tmp[500];
 
     memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
@@ -527,8 +530,28 @@ static std::string gen_plfsdir_conf() {
         memtable_size = DEFAULT_MEMTABLE_SIZE;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " & set memtable_size -> %s",
-                memtable_size);
+        snprintf(tmp, sizeof(tmp), "plfsdir total memtable size: %s",
+                 memtable_size);
+        info(tmp);
+    }
+
+    comp_buf = maybe_getenv("PLFSDIR_Compaction_buf_size");
+    if (comp_buf == NULL) {
+        comp_buf = DEFAULT_COMPACTION_BUF;
+    }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "plfsdir compaction buf: %s",
+                 comp_buf);
+        info(tmp);
+    }
+
+    min_index_write = maybe_getenv("PLFSDIR_Index_min_write_size");
+    if (min_index_write == NULL) {
+        min_index_write =  DEFAULT_INDEX_MIN_WRITE_SIZE;
+    }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "plfsdir min index write size: %s",
+                 min_index_write);
         info(tmp);
     }
 
@@ -537,8 +560,18 @@ static std::string gen_plfsdir_conf() {
         index_buf = DEFAULT_INDEX_BUF;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " & set index_buf -> %s",
-                index_buf);
+        snprintf(tmp, sizeof(tmp), "plfsdir index buf: %s",
+                 index_buf);
+        info(tmp);
+    }
+
+    min_data_write = maybe_getenv("PLFSDIR_Data_min_write_size");
+    if (min_data_write == NULL) {
+        min_data_write = DEFAULT_DATA_MIN_WRITE_SIZE;
+    }
+    if (pctx.rank == 0) {
+        snprintf(tmp, sizeof(tmp), "plfsdir min data write size: %s",
+                 min_data_write);
         info(tmp);
     }
 
@@ -547,8 +580,8 @@ static std::string gen_plfsdir_conf() {
         data_buf = DEFAULT_DATA_BUF;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " & set data_buf -> %s",
-                data_buf);
+        snprintf(tmp, sizeof(tmp), "plfsdir data buf: %s",
+                 data_buf);
         info(tmp);
     }
 
@@ -557,14 +590,16 @@ static std::string gen_plfsdir_conf() {
         lg_parts = DEFAULT_LG_PARTS;
     }
     if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), " & set lg_parts -> %s",
-                lg_parts);
+        snprintf(tmp, sizeof(tmp), "plfsdir num mem parts: 1<<%s",
+                 lg_parts);
         info(tmp);
     }
 
-    snprintf(tmp, sizeof(tmp), "memtable_size=%s&index_buffer=%s&"
-            "data_buffer=%s&lg_parts=%s", memtable_size,
-            index_buf, data_buf, lg_parts);
+    snprintf(tmp, sizeof(tmp), "lg_parts=%s&memtable_size=%s&"
+                 "compaction_buffer=%s&index_buffer=%s&min_index_buffer=%s&"
+                 "data_buffer=%s&min_data_buffer=%s",
+             lg_parts, memtable_size, comp_buf, index_buf, min_index_write,
+             data_buf, min_data_write);
 
     return tmp;
 }
@@ -839,8 +874,9 @@ int MPI_Init(int *argc, char ***argv)
                     PRELOAD_FILTER_BITS,
                     gen_plfsdir_conf().c_str());
 
-            pctx.plfstp = deltafs_tp_init(4); // FIXME
             pctx.plfsh = deltafs_plfsdir_create_handle(conf, O_WRONLY);
+            deltafs_plfsdir_enable_io_measurement(pctx.plfsh, 0);
+            pctx.plfstp = deltafs_tp_init(deltafs_plfsdir_get_memparts(pctx.plfsh));
             deltafs_plfsdir_set_thread_pool(pctx.plfsh, pctx.plfstp);
 
             if (pctx.plfsh != NULL) {
@@ -850,7 +886,7 @@ int MPI_Init(int *argc, char ***argv)
                 msg_abort("cannot open plfsdir");
             } else if (rank == 0) {
                 info("plfs dir (lightweight) opened (rank 0)");
-                /* info(conf); */
+                info(conf);
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
@@ -964,6 +1000,10 @@ int MPI_Finalize(void)
         if (num_epochs != 0)
             dump_mon(&mctx, &tmp_stat);
         deltafs_plfsdir_free_handle(pctx.plfsh);
+        if (pctx.plfstp != NULL) {
+            deltafs_tp_close(pctx.plfstp);
+            pctx.plfstp = NULL;
+        }
         pctx.plfsh = NULL;
 
         if (pctx.rank == 0) {

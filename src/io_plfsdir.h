@@ -14,10 +14,13 @@
 //
 //  Env                                Description
 // ----------------------------------|----------------------------------
-//  PLFSDIR_Memtable_size              Size of in-memory write buf
-//  PLFSDIR_Index_buf_size             Write buf size for the physical index log
-//  PLFSDIR_Data_buf_size              Write buf size for the physical data log
-//  PLFSDIR_Lg_parts                   Logarithmic number of partitions
+//  PLFSDIR_Compaction_buf_size        Size of the compaction buffer per memtable partition
+//  PLFSDIR_Memtable_size              Total size of the memtable
+//  PLFSDIR_Data_buf_size              Write buf size for the shared data log
+//  PLFSDIR_Data_min_write_size        Min write size for the shared data log
+//  PLFSDIR_Index_buf_size             Write buf size for each index log
+//  PLFSDIR_Index_min_write_size       Min write size for each index log
+//  PLFSDIR_Lg_parts                   Logarithmic number of memtable partitions
 // ----------------------------------|----------------------------------
 //
 
@@ -26,27 +29,48 @@
  *
  * Specified as a string.
  */
-#define DEFAULT_MEMTABLE_SIZE "128m"
+#define DEFAULT_MEMTABLE_SIZE "48m"
+
+/*
+ * Default size of the compaction buffer for each memtable partition.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_COMPACTION_BUF "4m"
 
 /*
  * Default size of the index write buffer.
  *
  * Specified as a string.
  */
-#define DEFAULT_INDEX_BUF "4m"
+#define DEFAULT_INDEX_BUF "2m"
+
+/*
+ * Default min write size for the index log.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_INDEX_MIN_WRITE_SIZE "2m"
 
 /*
  * Default size of the data write buffer.
  *
  * Specified as a string.
  */
-#define DEFAULT_DATA_BUF "4m"
+#define DEFAULT_DATA_BUF "8m"
+
+/*
+ * Default min write size for the data log.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_DATA_MIN_WRITE_SIZE "6m"
 
 /*
  * Default logarithmic number of partitions.
  *
  * Specified as a string.
  */
-#define DEFAULT_LG_PARTS "0"
+#define DEFAULT_LG_PARTS "2"
 
 // END
