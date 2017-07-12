@@ -1431,7 +1431,7 @@ int closedir(DIR *dirp)
                         flush_start = now_micros();
                         info("pre-flushing plfs dir ... (rank 0)");
                     }
-                    deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs - 1);
+                    deltafs_plfsdir_flush(pctx.plfsh, num_epochs - 1);
                     if (pctx.rank == 0) {
                         flush_end = now_micros();
                         snprintf(msg, sizeof(msg), "pre-flushing done %s",
