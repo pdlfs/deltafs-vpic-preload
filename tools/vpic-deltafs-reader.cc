@@ -370,7 +370,7 @@ int main(int argc, char **argv)
 
     me = argv[0];
     indir[0] = outdir[0] = pname[19] = '\0';
-    lgparts = 0;
+    lgparts = 2;
     cksum = 0;
 
     while ((c = getopt(argc, argv, "hi:n:r:o:s:v:m:c:")) != -1) {
