@@ -144,7 +144,7 @@ int deltafs_read_particles(char *indir, char *outdir)
         }
 
         file_data = (char*) deltafs_plfsdir_readall(dir, pname, &file_len);
-        if (!file_data) {
+        if (!file_data || file_len == 0) {
             fprintf(stderr, "Error: file_data is NULL\n");
             goto err_dir;
         }
