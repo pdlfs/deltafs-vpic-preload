@@ -21,6 +21,7 @@
 //  PLFSDIR_Index_buf_size             Write buf size for each index log
 //  PLFSDIR_Index_min_write_size       Min write size for each index log
 //  PLFSDIR_Lg_parts                   Logarithmic number of memtable partitions
+//  PLFSDIR_Skip_checksums             Skip generating checksums
 // ----------------------------------|----------------------------------
 //
 

@@ -523,6 +523,7 @@ static std::string gen_plfsdir_conf() {
     const char* data_buf;
     const char* memtable_size;
     const char* lg_parts;
+    int skip_checksums = 0;
     char tmp[500];
 
     memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
@@ -560,11 +561,15 @@ static std::string gen_plfsdir_conf() {
         lg_parts = DEFAULT_LG_PARTS;
     }
 
+    if (is_envset("PLFSDIR_Skip_checksums")) {
+        skip_checksums = 1;
+    }
+
     snprintf(tmp, sizeof(tmp), "lg_parts=%s&memtable_size=%s&"
                  "compaction_buffer=%s&index_buffer=%s&min_index_buffer=%s&"
-                 "data_buffer=%s&min_data_buffer=%s",
+                 "data_buffer=%s&min_data_buffer=%s&skip_checksums=%d",
              lg_parts, memtable_size, comp_buf, index_buf, min_index_write,
-             data_buf, min_data_write);
+             data_buf, min_data_write, skip_checksums);
 
     return tmp;
 }
