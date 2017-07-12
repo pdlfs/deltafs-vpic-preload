@@ -130,14 +130,15 @@ int deltafs_read_particles(char *indir, char *outdir)
         ch_placement_find_closest(ch_inst, pdlfs::xxhash64(pname, 19, 0),
                                   1, &chrank);
 
-        dir = deltafs_plfsdir_create_handle(NULL, O_RDONLY);
-
         if (snprintf(conf, sizeof(conf),
                      "rank=%lu&skip_checksums=%d&verify_checksums=%d&lg_parts=%d",
                      chrank, cksum ? 0 : 1, cksum, lgparts) <= 0) {
             fprintf(stderr, "Error: snprintf for conf failed\n");
             goto err_dir;
         }
+
+        dir = deltafs_plfsdir_create_handle(conf, O_RDONLY);
+        deltafs_plfsdir_enable_io_measurement(dir, 0);
 
         if (deltafs_plfsdir_open(dir, rpath)) {
             perror("Error: cannot open DeltaFS input directory");
