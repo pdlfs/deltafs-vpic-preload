@@ -132,8 +132,9 @@ int deltafs_read_particles(char *indir, char *outdir)
 
         dir = deltafs_plfsdir_create_handle(NULL, O_RDONLY);
 
-        if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=%d&lg_parts=%d",
-                     chrank, cksum, lgparts) <= 0) {
+        if (snprintf(conf, sizeof(conf),
+                     "rank=%lu&skip_checksums=%d&verify_checksums=%d&lg_parts=%d",
+                     chrank, cksum, cksum, lgparts) <= 0) {
             fprintf(stderr, "Error: snprintf for conf failed\n");
             goto err_dir;
         }
