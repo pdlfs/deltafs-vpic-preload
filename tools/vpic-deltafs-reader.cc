@@ -27,6 +27,8 @@
 struct ch_placement_instance *ch_inst;
 char *me;
 int myrank, worldsz;
+int lgparts;
+int cksum;
 
 /* Name file state */
 FILE *nf = NULL;
@@ -47,6 +49,8 @@ static void usage(int ret)
            "    -r num    Number of query retries (before averaging, def. 3)\n"
            "    -s size   Consistent-hash ring size\n"
            "    -v factor Consistent-hash virtual factor\n"
+           "    -m num    Number of memtable partitions (in lg num)\n"
+           "    -c cksum  If the reader code should verify checksums (1 or 0)\n"
            "    -h        Print this usage info\n"
            "\n",
            me);
@@ -128,8 +132,8 @@ int deltafs_read_particles(char *indir, char *outdir)
 
         dir = deltafs_plfsdir_create_handle(NULL, O_RDONLY);
 
-        if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=true",
-                     chrank) <= 0) {
+        if (snprintf(conf, sizeof(conf), "rank=%lu&verify_checksums=%d&lg_parts=%d",
+                     chrank, cksum, lgparts) <= 0) {
             fprintf(stderr, "Error: snprintf for conf failed\n");
             goto err_dir;
         }
@@ -365,8 +369,10 @@ int main(int argc, char **argv)
 
     me = argv[0];
     indir[0] = outdir[0] = pname[19] = '\0';
+    lgparts = 0;
+    cksum = 0;
 
-    while ((c = getopt(argc, argv, "hi:n:r:o:s:v:p:")) != -1) {
+    while ((c = getopt(argc, argv, "hi:n:r:o:s:v:m:c:")) != -1) {
         switch(c) {
         case 'h': /* print help */
             usage(0);
@@ -409,6 +415,22 @@ int main(int argc, char **argv)
             ch_vf = strtol(optarg, &end, 10);
             if (end[0] != 0) {
                 fprintf(stderr, "%s: invalid virtual factor -- '%s'\n",
+                        me, optarg);
+                usage(1);
+            }
+            break;
+        case 'm': /* memtable partitions */
+            lgparts = strtol(optarg, &end, 10);
+            if (end[0] != 0) {
+                fprintf(stderr, "%s: invalid memtable partitions -- '%s'\n",
+                        me, optarg);
+                usage(1);
+            }
+            break;
+        case 'c': /* checksums */
+            cksum = strtol(optarg, &end, 10);
+            if (end[0] != 0) {
+                fprintf(stderr, "%s: invalid checksum option -- '%s'\n",
                         me, optarg);
                 usage(1);
             }
