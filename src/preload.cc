@@ -529,70 +529,35 @@ static std::string gen_plfsdir_conf() {
     if (memtable_size == NULL) {
         memtable_size = DEFAULT_MEMTABLE_SIZE;
     }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir total memtable size: %s",
-                 memtable_size);
-        info(tmp);
-    }
 
     comp_buf = maybe_getenv("PLFSDIR_Compaction_buf_size");
     if (comp_buf == NULL) {
         comp_buf = DEFAULT_COMPACTION_BUF;
-    }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir compaction buf: %s",
-                 comp_buf);
-        info(tmp);
     }
 
     min_index_write = maybe_getenv("PLFSDIR_Index_min_write_size");
     if (min_index_write == NULL) {
         min_index_write =  DEFAULT_INDEX_MIN_WRITE_SIZE;
     }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir min index write size: %s",
-                 min_index_write);
-        info(tmp);
-    }
 
     index_buf = maybe_getenv("PLFSDIR_Index_buf_size");
     if (index_buf == NULL) {
         index_buf = DEFAULT_INDEX_BUF;
-    }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir index buf: %s",
-                 index_buf);
-        info(tmp);
     }
 
     min_data_write = maybe_getenv("PLFSDIR_Data_min_write_size");
     if (min_data_write == NULL) {
         min_data_write = DEFAULT_DATA_MIN_WRITE_SIZE;
     }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir min data write size: %s",
-                 min_data_write);
-        info(tmp);
-    }
 
     data_buf = maybe_getenv("PLFSDIR_Data_buf_size");
     if (data_buf == NULL) {
         data_buf = DEFAULT_DATA_BUF;
     }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir data buf: %s",
-                 data_buf);
-        info(tmp);
-    }
 
     lg_parts = maybe_getenv("PLFSDIR_Lg_parts");
     if (lg_parts == NULL) {
         lg_parts = DEFAULT_LG_PARTS;
-    }
-    if (pctx.rank == 0) {
-        snprintf(tmp, sizeof(tmp), "plfsdir num mem parts: 1<<%s",
-                 lg_parts);
-        info(tmp);
     }
 
     snprintf(tmp, sizeof(tmp), "lg_parts=%s&memtable_size=%s&"
@@ -885,8 +850,8 @@ int MPI_Init(int *argc, char ***argv)
             if (pctx.plfsh == NULL || rv != 0) {
                 msg_abort("cannot open plfsdir");
             } else if (rank == 0) {
-                info("plfs dir (lightweight) opened (rank 0)");
                 info(conf);
+                info("plfs dir (via deltafs-LT) opened (rank 0)");
             }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                 !IS_BYPASS_DELTAFS(pctx.mode)) {
@@ -1007,7 +972,7 @@ int MPI_Finalize(void)
         pctx.plfsh = NULL;
 
         if (pctx.rank == 0) {
-            info("plfs dir (lightweight) closed (rank 0)");
+            info("plfs dir (via deltafs-LT) closed (rank 0)");
         }
     } else if (pctx.plfsfd != -1) {
         if (num_epochs != 0) dump_mon(&mctx, &tmp_stat);
