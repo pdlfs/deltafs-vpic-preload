@@ -134,7 +134,7 @@ int deltafs_read_particles(char *indir, char *outdir)
 
         if (snprintf(conf, sizeof(conf),
                      "rank=%lu&skip_checksums=%d&verify_checksums=%d&lg_parts=%d",
-                     chrank, cksum, cksum, lgparts) <= 0) {
+                     chrank, cksum ? 0 : 1, cksum, lgparts) <= 0) {
             fprintf(stderr, "Error: snprintf for conf failed\n");
             goto err_dir;
         }
