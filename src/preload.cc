@@ -1323,7 +1323,7 @@ DIR *opendir(const char *dir)
                     flush_start = now_micros();
                     info("flushing plfs dir ... (rank 0)");
                 }
-                deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
+                deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs - 1);
                 if (pctx.rank == 0) {
                     flush_end = now_micros();
                     snprintf(msg, sizeof(msg), "flushing done %s",
@@ -1466,7 +1466,7 @@ int closedir(DIR *dirp)
                         flush_start = now_micros();
                         info("pre-flushing plfs dir ... (rank 0)");
                     }
-                    deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs);
+                    deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs - 1);
                     if (pctx.rank == 0) {
                         flush_end = now_micros();
                         snprintf(msg, sizeof(msg), "pre-flushing done %s",
@@ -1597,7 +1597,7 @@ int fclose(FILE *stream)
          *   - BYPASS_DELTAFS
          */
         rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                num_epochs, NULL);
+                num_epochs - 1, NULL);
         if (rv != 0) {
             /* XXX: set errno */
             if (pctx.verr) {
@@ -1610,7 +1610,7 @@ int fclose(FILE *stream)
          *   - BYPASS_PLACEMENT
          */
         rv = shuffle_write(ff->file_name(), ff->data(), ff->size(),
-                num_epochs);
+                num_epochs - 1);
         if (rv != 0) {
             /* XXX: set errno */
             if (pctx.verr) {
