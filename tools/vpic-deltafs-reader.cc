@@ -141,13 +141,13 @@ int deltafs_read_particles(char *indir, char *outdir)
         deltafs_plfsdir_enable_io_measurement(dir, 0);
 
         if (deltafs_plfsdir_open(dir, rpath)) {
-            perror("Error: cannot open DeltaFS input directory");
+            perror("Error: cannot open deltafs particle directory");
             goto err_dir;
         }
 
         file_data = (char*) deltafs_plfsdir_readall(dir, pname, &file_len);
-        if (!file_data || file_len == 0) {
-            fprintf(stderr, "Error: file_data is NULL\n");
+        if (!file_data) {
+            perror("Error: cannot read from deltafs");
             goto err_dir;
         }
 
