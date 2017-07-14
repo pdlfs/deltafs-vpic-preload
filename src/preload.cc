@@ -18,7 +18,6 @@
 
 #include <pdlfs-common/xxhash.h>
 
-#include "io_plfsdir.h"
 #include "shuffle_internal.h"
 #include "preload_internal.h"
 
@@ -904,7 +903,6 @@ int MPI_Init(int *argc, char ***argv)
         }
     }
 
-    trace(__func__);
     return(rv);
 }
 
@@ -1159,7 +1157,6 @@ int MPI_Finalize(void)
     rv = nxt.MPI_Finalize();
     if (pctx.rank == 0) info("all done");
     if (pctx.rank == 0) info("bye");
-    trace(__func__);
     return(rv);
 }
 
@@ -1371,7 +1368,6 @@ DIR *opendir(const char *dir)
         }
     }
 
-    trace(__func__);
     return(rv);
 }
 
@@ -1469,7 +1465,6 @@ int closedir(DIR *dirp)
                 info("epoch ends");
         }
 
-        trace(__func__);
         return(0);
     }
 }
@@ -1603,80 +1598,6 @@ int fclose(FILE *stream)
 }
 
 /*
- * preload_write
- */
-int preload_write(const char* fn, char* data, size_t len, int epoch)
-{
-    int rv;
-    char buf[PRELOAD_PARTICLE_SIZE];
-    char path[PATH_MAX];
-    const char* fname;
-    ssize_t n;
-    int fd;
-    int k;
-
-    assert(pctx.plfsdir != NULL);
-    /* remove parent directory path */
-    fname = fn + pctx.len_plfsdir + 1;
-
-    if (pctx.fake_data) {
-        memset(buf, 0, sizeof(buf));
-        k = pdlfs::xxhash32(fname, strlen(fname), 0);
-        snprintf(buf, sizeof(buf), "key=%08x, epoch=%d\n", k, epoch);
-        len = sizeof(buf);
-        data = buf;
-    }
-
-    /* Return 0 on success, or EOF on errors */
-
-    rv = EOF;
-
-    if (IS_BYPASS_WRITE(pctx.mode)) {
-        rv = 0; /* noop */
-
-    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-        if (pctx.plfsh == NULL) {
-            msg_abort("plfsdir not opened");
-        }
-
-        rv = deltafs_plfsdir_append(pctx.plfsh, fname, epoch, data, len);
-
-        if (rv != 0) {
-            rv = EOF;
-        }
-
-    } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
-        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
-        fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
-
-        if (fd != -1) {
-            n = write(fd, data, len);
-            if (n == len) {
-                rv = 0;
-            }
-            close(fd);
-        }
-    } else {
-        if (pctx.plfsfd == -1) {
-            msg_abort("plfsdir not opened");
-        }
-
-        fd = deltafs_openat(pctx.plfsfd, fname, O_WRONLY | O_CREAT | O_APPEND,
-                0666);
-
-        if (fd != -1) {
-            n = deltafs_write(fd, data, len);
-            if (n == len) {
-                rv = 0;
-            }
-            deltafs_close(fd);
-        }
-    }
-
-    return(rv);
-}
-
-/*
  * the rest of these we do not override for deltafs.   if we get a
  * deltafs FILE*, we've got a serious problem and we abort...
  */
@@ -1790,3 +1711,78 @@ long ftell(FILE *stream)
 }
 
 }   /* extern "C" */
+
+
+/*
+ * preload_write
+ */
+int preload_write(const char* fn, char* data, size_t len, int epoch)
+{
+    int rv;
+    char buf[PRELOAD_PARTICLE_SIZE];
+    char path[PATH_MAX];
+    const char* fname;
+    ssize_t n;
+    int fd;
+    int k;
+
+    assert(pctx.plfsdir != NULL);
+    /* remove parent directory path */
+    fname = fn + pctx.len_plfsdir + 1;
+
+    if (pctx.fake_data) {
+        memset(buf, 0, sizeof(buf));
+        k = pdlfs::xxhash32(fname, strlen(fname), 0);
+        snprintf(buf, sizeof(buf), "key=%08x, epoch=%d\n", k, epoch);
+        len = sizeof(buf);
+        data = buf;
+    }
+
+    /* Return 0 on success, or EOF on errors */
+
+    rv = EOF;
+
+    if (IS_BYPASS_WRITE(pctx.mode)) {
+        rv = 0; /* noop */
+
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+        if (pctx.plfsh == NULL) {
+            msg_abort("plfsdir not opened");
+        }
+
+        rv = deltafs_plfsdir_append(pctx.plfsh, fname, epoch, data, len);
+
+        if (rv != 0) {
+            rv = EOF;
+        }
+
+    } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
+        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
+        fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+
+        if (fd != -1) {
+            n = write(fd, data, len);
+            if (n == len) {
+                rv = 0;
+            }
+            close(fd);
+        }
+    } else {
+        if (pctx.plfsfd == -1) {
+            msg_abort("plfsdir not opened");
+        }
+
+        fd = deltafs_openat(pctx.plfsfd, fname, O_WRONLY | O_CREAT | O_APPEND,
+                            0666);
+
+        if (fd != -1) {
+            n = deltafs_write(fd, data, len);
+            if (n == len) {
+                rv = 0;
+            }
+            deltafs_close(fd);
+        }
+    }
+
+    return(rv);
+}

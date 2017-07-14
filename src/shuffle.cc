@@ -651,7 +651,6 @@ static void* rpc_work(void* arg)
     uint64_t timeout;
     hg_handle_t h;
 
-    trace("worker on");
     my_items.reserve(16);
 
     do {
@@ -683,7 +682,6 @@ static void* rpc_work(void* arg)
     pthread_cond_broadcast(&cv[bg_cv]);
     pthread_mutex_unlock(&mtx[bg_cv]);
 
-    trace("worker off");
     return(NULL);
 }
 
@@ -1406,8 +1404,6 @@ static void* bg_work(void* foo)
     time_t last_progress;
     time_t now;
 
-    trace("bg on");
-
     /* trace the last time we do mercury progress */
     last_progress = 0;
 
@@ -1435,8 +1431,6 @@ static void* bg_work(void* foo)
     num_bg--;
     pthread_cond_broadcast(&cv[bg_cv]);
     pthread_mutex_unlock(&mtx[bg_cv]);
-
-    trace("bg off");
 
     return(NULL);
 }
@@ -1610,7 +1604,6 @@ void shuffle_init(void)
         }
     }
 
-    trace(__func__);
     return;
 }
 
@@ -1647,7 +1640,6 @@ void shuffle_destroy(void)
     if (sctx.hg_clz != NULL)
         HG_Finalize(sctx.hg_clz);
 
-    trace(__func__);
     return;
 }
 

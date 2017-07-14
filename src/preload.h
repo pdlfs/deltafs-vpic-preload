@@ -1,59 +1,91 @@
 /*
- * Copyright (c) 2016-2017 Carnegie Mellon University.
- *
+ * Copyright (c) 2017, Carnegie Mellon University.
  * All rights reserved.
  *
- * Use of this source code is governed by a BSD-style license that can be
- * found in the LICENSE file. See the AUTHORS file for names of contributors.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+ * WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/*
+ * preload.h  redirect related vpic i/o calls to deltafs plfsdir.
+ *
+ * A list of all environmental variables used by us:
+ *
+ *  PRELOAD_Deltafs_root
+ *    Deltafs root
+ *  PRELOAD_Plfsdir
+ *    Path to the plfsdir (XXX: allows multi)
+ *  PRELOAD_Bypass_shuffle
+ *    Do not shuffle writes at all
+ *  PRELOAD_Bypass_placement
+ *    Shuffle without ch-placement
+ *  PRELOAD_Bypass_deltafs_plfsdir
+ *    Call deltafs without the plfsdir feature
+ *  PRELOAD_Bypass_deltafs_namespace
+ *    Use deltafs light-wright plfsdir api
+ *  PRELOAD_Bypass_deltafs
+ *    Write to local file system
+ *  PRELOAD_Bypass_write
+ *    Make every write and mkdir an noop
+ *  PRELOAD_Skip_mon
+ *    Skip perf monitoring
+ *  PRELOAD_Skip_mon_dist
+ *    Skip copying mon files out
+ *  PRELOAD_Enable_verbose_mon
+ *    Print mon info at the end of each epoch
+ *  PRELOAD_Enable_verbose_error
+ *    Print error info when write op fails
+ *  PRELOAD_No_epoch_pre_flushing
+ *    Do not perform epoch pre-flushing
+ *  PRELOAD_No_paranoid_barrier
+ *    Do not do paranoid barriers
+ *  PRELOAD_Local_root
+ *    Local file system root
+ *  PRELOAD_Testing
+ *    Used by developers to debug code
+ *  PRELOAD_Inject_fake_data
+ *    Replace particle data with fake data
+ *  PLFSDIR_Compaction_buf_size
+ *    Size of the compaction buffer per memtable partition
+ *  PLFSDIR_Memtable_size
+ *    Total size of the memtable
+ *  PLFSDIR_Data_buf_size
+ *    Write buf size for the shared data log
+ *  PLFSDIR_Data_min_write_size
+ *    Min write size for the shared data log
+ *  PLFSDIR_Index_buf_size
+ *    Write buf size for each index log
+ *  PLFSDIR_Index_min_write_size
+ *    Min write size for each index log
+ *  PLFSDIR_Lg_parts
+ *    Logarithmic number of memtable partitions
+ *  PLFSDIR_Skip_checksums
+ *    Skip generating checksums
  */
 
 #pragma once
-
-/* !!! A list of all environmental variables used by us !!! */
-
-//
-//  Env                                Description
-// ----------------------------------|----------------------------------
-//  PRELOAD_Deltafs_root               Deltafs root
-//  PRELOAD_Plfsdir                    Path to the plfsdir (XXX: allows multi)
-//  PRELOAD_Bypass_shuffle             Do not shuffle writes at all
-//  PRELOAD_Bypass_placement           Shuffle without ch-placement
-//  PRELOAD_Bypass_deltafs_plfsdir     Call deltafs without the plfsdir feature
-//  PRELOAD_Bypass_deltafs_namespace   Use deltafs light-wright plfsdir api
-//  PRELOAD_Bypass_deltafs             Write to local file system
-//  PRELOAD_Bypass_write               Make every write and mkdir an noop
-//  PRELOAD_Skip_mon                   Skip perf monitoring
-//  PRELOAD_Skip_mon_dist              Skip copying mon files out
-//  PRELOAD_Enable_verbose_mon         Print mon info at the end of each epoch
-//  PRELOAD_Enable_verbose_error       Print error info when write op fails
-//  PRELOAD_No_epoch_pre_flushing      Do not perform epoch pre-flushing
-//  PRELOAD_No_paranoid_barrier        Do not do paranoid barriers
-//  PRELOAD_Local_root                 Local file system root
-//  PRELOAD_Testing                    Used by developers to debug code
-//  PRELOAD_Inject_fake_data           Replace particle data with fake data
-// ----------------------------------|----------------------------------
-//
-
-/*
- * Preload mode bits
- */
-#define BYPASS_SHUFFLE (1 << 0)
-#define BYPASS_PLACEMENT (1 << 1)
-#define BYPASS_DELTAFS_PLFSDIR (1 << 2)
-#define BYPASS_DELTAFS_NAMESPACE (1 << 3)
-#define BYPASS_DELTAFS (1 << 4)
-#define BYPASS_WRITE (1 << 5)
-#define BYPASS_MASK 0xFF
-
-/*
- * Preload mode query interface
- */
-#define IS_BYPASS_SHUFFLE(m) (((m) & BYPASS_SHUFFLE) == BYPASS_SHUFFLE)
-#define IS_BYPASS_PLACEMENT(m) (((m) & BYPASS_PLACEMENT) == BYPASS_PLACEMENT)
-#define IS_BYPASS_DELTAFS_PLFSDIR(m) (((m) & BYPASS_DELTAFS_PLFSDIR) == BYPASS_DELTAFS_PLFSDIR)
-#define IS_BYPASS_DELTAFS_NAMESPACE(m) (((m) & BYPASS_DELTAFS_NAMESPACE) == BYPASS_DELTAFS_NAMESPACE)
-#define IS_BYPASS_DELTAFS(m) (((m) & BYPASS_DELTAFS) == BYPASS_DELTAFS)
-#define IS_BYPASS_WRITE(m) (((m) & BYPASS_WRITE) == BYPASS_WRITE)
 
 /*
  * If "deltafs_root" is not specified, we set it to the following path.
@@ -76,4 +108,79 @@
  */
 #define DEFAULT_LOCAL_ROOT "/tmp/vpic-deltafs-test"
 
-// END
+/*
+ * Preload mode bits
+ */
+#define BYPASS_SHUFFLE (1 << 0)
+#define BYPASS_PLACEMENT (1 << 1)
+#define BYPASS_DELTAFS_PLFSDIR (1 << 2)
+#define BYPASS_DELTAFS_NAMESPACE (1 << 3)
+#define BYPASS_DELTAFS (1 << 4)
+#define BYPASS_WRITE (1 << 5)
+
+/*
+ * Preload mode query interface
+ */
+#define IS_BYPASS_SHUFFLE(m) (((m)&BYPASS_SHUFFLE) == BYPASS_SHUFFLE)
+#define IS_BYPASS_PLACEMENT(m) (((m)&BYPASS_PLACEMENT) == BYPASS_PLACEMENT)
+#define IS_BYPASS_DELTAFS_PLFSDIR(m) \
+  (((m)&BYPASS_DELTAFS_PLFSDIR) == BYPASS_DELTAFS_PLFSDIR)
+#define IS_BYPASS_DELTAFS_NAMESPACE(m) \
+  (((m)&BYPASS_DELTAFS_NAMESPACE) == BYPASS_DELTAFS_NAMESPACE)
+#define IS_BYPASS_DELTAFS(m) (((m)&BYPASS_DELTAFS) == BYPASS_DELTAFS)
+#define IS_BYPASS_WRITE(m) (((m)&BYPASS_WRITE) == BYPASS_WRITE)
+
+/*
+ * preload_write(fn, data, n):
+ *   - ship data to deltafs
+ */
+extern int preload_write(const char* fn, char* data, size_t n, int epoch);
+
+/*
+ * Default size of the in-memory write buffer.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_MEMTABLE_SIZE "48MB"
+
+/*
+ * Default size of the compaction buffer for each memtable partition.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_COMPACTION_BUF "4MB"
+
+/*
+ * Default size of the index write buffer.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_INDEX_BUF "2MB"
+
+/*
+ * Default min write size for the index log.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_INDEX_MIN_WRITE_SIZE "2MB"
+
+/*
+ * Default size of the data write buffer.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_DATA_BUF "8MB"
+
+/*
+ * Default min write size for the data log.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_DATA_MIN_WRITE_SIZE "6MB"
+
+/*
+ * Default logarithmic number of partitions.
+ *
+ * Specified as a string.
+ */
+#define DEFAULT_LG_PARTS "2"
