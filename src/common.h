@@ -39,9 +39,12 @@
 #include <string.h>
 #include <unistd.h>
 
-/*
- * log: write message into a given file using unbuffered io.
- */
+/* a set of utilities for probing important system configurations. */
+void misc_checks(int myrank, int worldsz);
+void try_scan_procfs();
+void try_scan_sysfs();
+
+/* log message into a given file using unbuffered io. */
 inline void log(int fd, const char* fmt, ...) {
   char tmp[500];
   va_list va;
