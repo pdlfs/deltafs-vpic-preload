@@ -32,8 +32,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/time.h>
-#include <time.h>
 
 #include <deltafs/deltafs_api.h>
 
@@ -42,32 +40,6 @@
 #define MON_NUM_BUCKETS 142
 typedef double(hstg_t)[MON_NUM_BUCKETS + 4];
 #endif
-
-/* get the current timestamp in microseconds. */
-inline uint64_t now_micros() {
-  uint64_t t;
-
-#if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
-  struct timespec tp;
-
-#if defined(CLOCK_MONOTONIC_RAW)
-  clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-#else
-  clock_gettime(CLOCK_MONOTONIC, &tp);
-#endif
-
-  t = static_cast<uint64_t>(tp.tv_sec) * 1000000;
-  t += tp.tv_nsec / 1000;
-#else
-  struct timeval tv;
-
-  gettimeofday(&tv, NULL);
-  t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
-  t += tv.tv_usec;
-#endif
-
-  return (t);
-}
 
 /* important statistics for an opened plfsdir */
 typedef struct dir_stat {

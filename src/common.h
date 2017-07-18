@@ -34,6 +34,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,9 @@
 void misc_checks(int myrank, int worldsz);
 void try_scan_procfs();
 void try_scan_sysfs();
+
+/* get the current time in us. */
+uint64_t now_micros();
 
 /* log message into a given file using unbuffered io. */
 inline void log(int fd, const char* fmt, ...) {
@@ -236,7 +240,7 @@ inline std::string pretty_tput(double ops, double us) {
 }
 
 /* print a human-readable I/O size. */
-static std::string pretty_size(double size) {
+inline std::string pretty_size(double size) {
   char tmp[100];
 #if defined(PRELOAD_PRETTY_USE_BINARY)
   if (size >= 1099511627776.0) {
@@ -276,7 +280,7 @@ static std::string pretty_size(double size) {
 }
 
 /* print a human-readable data bandwidth number. */
-static std::string pretty_bw(double bytes, double us) {
+inline std::string pretty_bw(double bytes, double us) {
   char tmp[100];
   double bytes_per_s = bytes / us * 1000000;
 #if defined(PRELOAD_PRETTY_USE_BINARY)

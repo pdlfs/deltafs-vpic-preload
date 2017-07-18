@@ -30,17 +30,38 @@
 
 #include <assert.h>
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <pthread.h>
 #include <sched.h>
-#include <stdlib.h>
 #include <sys/resource.h>
-#include <unistd.h>
+#include <sys/time.h>
+#include <time.h>
 
 #include "common.h"
 
-#include <string>
+uint64_t now_micros() {
+  uint64_t t;
+
+#if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
+  struct timespec tp;
+
+#if defined(CLOCK_MONOTONIC_RAW)
+  clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
+#else
+  clock_gettime(CLOCK_MONOTONIC, &tp);
+#endif
+
+  t = static_cast<uint64_t>(tp.tv_sec) * 1000000;
+  t += tp.tv_nsec / 1000;
+#else
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
+  t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
+  t += tv.tv_usec;
+#endif
+
+  return (t);
+}
 
 /* read a line from file */
 static std::string readline(const char* fname) {
