@@ -84,9 +84,8 @@ typedef struct dir_stat {
 typedef struct mon_ctx {
   /* !!! auxiliary state !!! */
   dir_stat_t last_dir_stat;
-  uint64_t last_write_micros; /* timestamp of the previous write */
-  uint64_t epoch_start;       /* the start time of an epoch */
-  int epoch_seq;              /* epoch seq num */
+  uint64_t epoch_start; /* the start time of an epoch */
+  int epoch_seq;        /* epoch seq num */
 
   int global; /* is stats global or local (per-rank) */
 
