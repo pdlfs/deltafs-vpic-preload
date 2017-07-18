@@ -31,7 +31,6 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "shuffle_internal.h"
@@ -43,6 +42,7 @@ static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
 mon_ctx_t mctx = {0};
 
+#ifdef PRELOAD_NEED_HISTO
 /* clang-format off */
 static const double BUCKET_LIMITS[MON_NUM_BUCKETS] = {
   1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 25, 30, 35, 40, 45,
@@ -123,27 +123,12 @@ static void hstg_reduce(const hstg_t& src, hstg_t& sum) {
   MPI_Reduce(const_cast<double*>(&src[4]), &sum[4], MON_NUM_BUCKETS, MPI_DOUBLE,
              MPI_SUM, 0, MPI_COMM_WORLD);
 }
-
-static unsigned long long mon_get_long_property(deltafs_plfsdir_t* dir,
-                                                const char* key) {
-  unsigned long long rv;
-
-  char* val = deltafs_plfsdir_get_property(dir, key);
-  if (val != NULL) {
-    rv = atoll(val);
-    free(val);
-  } else {
-    rv = 0;
-  }
-
-  return rv;
-}
+#endif
 
 int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   if (dir != NULL && buf != NULL) {
-    buf->total_index_size = mon_get_long_property(dir, "index_size");
-    buf->total_data_size = mon_get_long_property(dir, "data_size");
-    buf->total_compaction_time = mon_get_long_property(dir, "compaction_time");
+    buf->total_iblksz = deltafs_plfsdir_get_integer_property(dir, "index_size");
+    buf->total_dblksz = deltafs_plfsdir_get_integer_property(dir, "data_size");
   }
 
   return 0;
@@ -151,8 +136,6 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
 
 int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
                       mon_ctx_t* ctx) {
-  uint64_t start;
-  uint64_t end;
   size_t l;
   int rv;
 
@@ -163,31 +146,20 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
   if (!pctx.nomon) {
     if (ctx == NULL) ctx = &mctx;
     pthread_mutex_lock(&mtx);
-    start = now_micros();
-
-    if (ctx->last_write_micros != 0)
-      hstg_add(ctx->hstgarr, start - ctx->last_write_micros);
-    ctx->last_write_micros = start;
   }
 
   rv = preload_write(fn, data, n, epoch);
 
-  if (!pctx.nomon) {
-    if (rv == 0) {
-      end = now_micros();
-      hstg_add(ctx->hstgw, end - start);
+  if (rv == 0 && !pctx.nomon) {
+    l = strlen(fn) - pctx.len_plfsdir - 1;
 
-      l = strlen(fn) - pctx.len_plfsdir - 1;
+    if (l > ctx->max_fnl) ctx->max_fnl = l;
+    if (l < ctx->min_fnl) ctx->min_fnl = l;
+    if (n > ctx->max_wsz) ctx->max_wsz = n;
+    if (n < ctx->min_wsz) ctx->min_wsz = n;
 
-      if (l > ctx->max_fnl) ctx->max_fnl = l;
-      if (l < ctx->min_fnl) ctx->min_fnl = l;
-      if (n > ctx->max_wsz) ctx->max_wsz = n;
-      if (n < ctx->min_wsz) ctx->min_wsz = n;
-
-      ctx->sum_fnl += l;
-      ctx->sum_wsz += n;
-      ctx->nwok++;
-    }
+    ctx->sum_fnl += l;
+    ctx->sum_wsz += n;
 
     ctx->min_nw++;
     ctx->max_nw++;
@@ -201,67 +173,35 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
 
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
   mon_ctx_t* ctx;
-  uint64_t start;
-  uint64_t end;
 
-  if (!pctx.nomon) {
+  if (rv == 0 && !pctx.nomon) {
     ctx = static_cast<mon_ctx_t*>(arg2);
-    if (ctx != NULL) {
-      pthread_mutex_lock(&mtx);
-      start = reinterpret_cast<uintptr_t>(arg1);
-      if (rv == 0) {
-        end = now_micros();
-        hstg_add(ctx->hstgrpcw, end - start);
-        ctx->nwsok++;
-      }
+    if (ctx == NULL) ctx = &mctx;
+    pthread_mutex_lock(&mtx);
+    ctx->min_nws++;
+    ctx->max_nws++;
+    ctx->nws++;
 
-      ctx->min_nws++;
-      ctx->max_nws++;
-      ctx->nws++;
-
-      pthread_mutex_unlock(&mtx);
-    }
+    pthread_mutex_unlock(&mtx);
   }
 }
 
 int mon_shuffle_write_send_async(void* write_in, int peer_rank,
                                  mon_ctx_t* ctx) {
-  void* start;
   int rv;
 
-  if (!pctx.nomon) { /* skip if disable */
-    if (ctx == NULL) ctx = &mctx;
-    start = reinterpret_cast<void*>(now_micros());
-  } else {
-    start = NULL;
-  }
-
   rv = shuffle_write_send_async(static_cast<write_in_t*>(write_in), peer_rank,
-                                mon_shuffle_cb, start, ctx);
-
+                                mon_shuffle_cb, NULL, ctx);
   return (rv);
 }
 
 int mon_shuffle_write_send(void* write_in, int peer_rank, mon_ctx_t* ctx) {
-  uint64_t start;
-  uint64_t end;
   int rv;
 
-  if (!pctx.nomon) { /* skip if disabled */
-    if (ctx == NULL) ctx = &mctx;
-    start = now_micros();
-  }
-
   rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
-
-  if (!pctx.nomon) {
+  if (rv == 0 && !pctx.nomon) {
+    if (ctx == NULL) ctx = &mctx;
     pthread_mutex_lock(&mtx);
-    if (rv == 0) {
-      end = now_micros();
-      hstg_add(ctx->hstgrpcw, end - start);
-      ctx->nwsok++;
-    }
-
     ctx->min_nws++;
     ctx->max_nws++;
     ctx->nws++;
@@ -276,7 +216,6 @@ int mon_shuffle_write_received(mon_ctx_t* ctx) {
   if (!pctx.nomon) {
     if (ctx == NULL) ctx = &mctx;
     pthread_mutex_lock(&mtx);
-    ctx->nwrok++;
     ctx->min_nwr++;
     ctx->max_nwr++;
     ctx->nwr++;
@@ -300,8 +239,6 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->sum_wsz), &sum->sum_wsz, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<unsigned long long*>(&src->nwsok), &sum->nwsok, 1,
-             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->nws), &sum->nws, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->min_nws), &sum->min_nws, 1,
@@ -309,8 +246,6 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nws), &sum->max_nws, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<unsigned long long*>(&src->nwrok), &sum->nwrok, 1,
-             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->nwr), &sum->nwr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->min_nwr), &sum->min_nwr, 1,
@@ -318,10 +253,6 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nwr), &sum->max_nwr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  hstg_reduce(src->hstgrpcw, sum->hstgrpcw);
-
-  MPI_Reduce(const_cast<unsigned long long*>(&src->nwok), &sum->nwok, 1,
-             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->nw), &sum->nw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->min_nw), &sum->min_nw, 1,
@@ -329,21 +260,14 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nw), &sum->max_nw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  hstg_reduce(src->hstgarr, sum->hstgarr);
-  hstg_reduce(src->hstgw, sum->hstgw);
-
   MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(
-      const_cast<unsigned long long*>(&src->dir_stat.total_compaction_time),
-      &sum->dir_stat.total_compaction_time, 1, MPI_UNSIGNED_LONG_LONG, MPI_MAX,
-      0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->dir_stat.total_data_size),
-             &sum->dir_stat.total_data_size, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
-             0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->dir_stat.total_index_size),
-             &sum->dir_stat.total_index_size, 1, MPI_UNSIGNED_LONG_LONG,
-             MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_dblksz),
+             &sum->dir_stat.total_dblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_iblksz),
+             &sum->dir_stat.total_iblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
 }
 
 #define DUMP(fd, buf, fmt, ...)                             \
@@ -364,52 +288,25 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   DUMP(fd, buf, "[M] epoch dura: %llu us", ctx->dura);
   DUMP(fd, buf, "[M] observed epoch tput: %.2f bytes/s",
        double(ctx->sum_wsz) / ctx->dura * 1000000);
-  DUMP(fd, buf, "[M] total compaction time: %llu us",
-       ctx->dir_stat.total_compaction_time);
-  DUMP(fd, buf, "[M] total index log size: %llu bytes",
-       ctx->dir_stat.total_index_size);
-  DUMP(fd, buf, "[M] total data log size: %llu bytes",
-       ctx->dir_stat.total_data_size);
+  DUMP(fd, buf, "[M] total sst index block size: %lld bytes",
+       ctx->dir_stat.total_iblksz);
+  DUMP(fd, buf, "[M] total data block size: %lld bytes",
+       ctx->dir_stat.total_dblksz);
   DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
   DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
   DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);
   DUMP(fd, buf, "[M] max write size: %u bytes", ctx->max_wsz);
   DUMP(fd, buf, "[M] min write size: %u bytes", ctx->min_wsz);
   DUMP(fd, buf, "[M] total write size: %llu bytes", ctx->sum_wsz);
-  DUMP(fd, buf, "[M] total rpc sent ok: %llu", ctx->nwsok);
   DUMP(fd, buf, "[M] total rpc sent: %llu", ctx->nws);
   DUMP(fd, buf, "[M] min rpc sent per rank: %llu", ctx->min_nws);
   DUMP(fd, buf, "[M] max rpc sent per rank: %llu", ctx->max_nws);
-  DUMP(fd, buf, "[M] total rpc received ok: %llu", ctx->nwrok);
   DUMP(fd, buf, "[M] total rpc received: %llu", ctx->nwr);
   DUMP(fd, buf, "[M] min rpc received per rank: %llu", ctx->min_nwr);
   DUMP(fd, buf, "[M] max rpc received per rank: %llu", ctx->max_nwr);
-  DUMP(fd, buf, "[M] rpc min lat: %.0f us", hstg_min(ctx->hstgrpcw));
-  DUMP(fd, buf, "[M] rpc 70t lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 70));
-  DUMP(fd, buf, "[M] rpc 90t lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 90));
-  DUMP(fd, buf, "[M] rpc 99t lat: %.0f us", hstg_ptile(ctx->hstgrpcw, 99));
-  DUMP(fd, buf, "[M] rpc max lat: %.0f us", hstg_max(ctx->hstgrpcw));
-  DUMP(fd, buf, "[M] rpc avg lat: %.0f us", hstg_avg(ctx->hstgrpcw));
-  DUMP(fd, buf, "[M] total writes ok: %llu", ctx->nwok);
   DUMP(fd, buf, "[M] total writes: %llu", ctx->nw);
   DUMP(fd, buf, "[M] min writes per rank: %llu", ctx->min_nw);
   DUMP(fd, buf, "[M] max writes per rank: %llu", ctx->max_nw);
-  DUMP(fd, buf, "[M] write min lat: %.0f us", hstg_min(ctx->hstgw));
-  DUMP(fd, buf, "[M] write 70t lat: %.0f us", hstg_ptile(ctx->hstgw, 70));
-  DUMP(fd, buf, "[M] write 90t lat: %.0f us", hstg_ptile(ctx->hstgw, 90));
-  DUMP(fd, buf, "[M] write 99t lat: %.0f us", hstg_ptile(ctx->hstgw, 99));
-  DUMP(fd, buf, "[M] write max lat: %.0f us", hstg_max(ctx->hstgw));
-  DUMP(fd, buf, "[M] write avg lat: %.0f us", hstg_avg(ctx->hstgw));
-  DUMP(fd, buf, "[M] min btw arr: %.0f us", hstg_min(ctx->hstgarr));
-  DUMP(fd, buf, "[M] 10t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 10));
-  DUMP(fd, buf, "[M] 20t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 20));
-  DUMP(fd, buf, "[M] 30t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 30));
-  DUMP(fd, buf, "[M] 50t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 50));
-  DUMP(fd, buf, "[M] 70t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 70));
-  DUMP(fd, buf, "[M] 90t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 90));
-  DUMP(fd, buf, "[M] 99t btw arr: %.0f us", hstg_ptile(ctx->hstgarr, 99));
-  DUMP(fd, buf, "[M] max btw arr: %.0f us", hstg_max(ctx->hstgarr));
-  DUMP(fd, buf, "[M] avg btw arr: %.0f us", hstg_avg(ctx->hstgarr));
   if (!ctx->global) DUMP(fd, buf, "!!! NON GLOBAL !!!");
   DUMP(fd, buf, "--- end ---\n");
 
@@ -420,10 +317,6 @@ void mon_reinit(mon_ctx_t* ctx) {
   mon_ctx_t tmp = {0};
   tmp.min_fnl = 0xffffffff;
   tmp.min_wsz = 0xffffffff;
-  hstg_reset_min(tmp.hstgrpcw);
-  hstg_reset_min(tmp.hstgarr);
-  hstg_reset_min(tmp.hstgw);
-
   *ctx = tmp;
 
   return;

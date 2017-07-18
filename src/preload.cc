@@ -466,15 +466,10 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat)
         /* collect stats from deltafs */
         if (pctx.plfsh != NULL) {
             mon_fetch_plfsdir_stat(pctx.plfsh, tmp_stat);
-            mon->dir_stat.total_compaction_time =
-                    tmp_stat->total_compaction_time -
-                    mon->last_dir_stat.total_compaction_time;
-            mon->dir_stat.total_index_size =
-                    tmp_stat->total_index_size -
-                    mon->last_dir_stat.total_index_size;
-            mon->dir_stat.total_data_size =
-                    tmp_stat->total_data_size -
-                    mon->last_dir_stat.total_data_size;
+            mon->dir_stat.total_iblksz = tmp_stat->total_iblksz -
+                    mon->last_dir_stat.total_iblksz;
+            mon->dir_stat.total_dblksz = tmp_stat->total_dblksz -
+                    mon->last_dir_stat.total_dblksz;
         } else if (pctx.plfsfd != -1) {
             // XXX: TODO
         }

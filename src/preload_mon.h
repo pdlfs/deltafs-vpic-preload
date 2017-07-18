@@ -37,18 +37,14 @@
 
 #include <deltafs/deltafs_api.h>
 
-/*
- * Histogram.
- *
- * The first four are num. max, min, and sum.
- */
+#ifdef PRELOAD_NEED_HISTO
+/* compact histogram: the first four are num. max, min, and sum. */
 #define MON_NUM_BUCKETS 142
 typedef double(hstg_t)[MON_NUM_BUCKETS + 4];
+#endif
 
-/*
- * the current timestamp in microseconds.
- */
-static inline uint64_t now_micros() {
+/* get the current timestamp in microseconds. */
+inline uint64_t now_micros() {
   uint64_t t;
 
 #if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
@@ -73,24 +69,17 @@ static inline uint64_t now_micros() {
   return (t);
 }
 
-/*
- * statistics maintained by deltafs
- */
+/* important statistics for an opened plfsdir */
 typedef struct dir_stat {
-  /* total time spent on compaction */
-  unsigned long long total_compaction_time;
-
-  /* bytes of data pushed to index log */
-  unsigned long long total_index_size;
-  /* bytes of data pushed to data log */
-  unsigned long long total_data_size;
+  /* total size of all sst index blocks */
+  long long total_iblksz;
+  /* total size of all data blocks */
+  long long total_dblksz;
 
 } dir_stat_t;
 
 /*
- * XXX: we could use atomic counters in future
- * when VPIC goes openmp.
- *
+ * XXX: need to use atomic counters in future when VPIC goes openmp.
  */
 typedef struct mon_ctx {
   /* !!! auxiliary state !!! */
@@ -105,50 +94,33 @@ typedef struct mon_ctx {
 
   unsigned min_fnl; /* min file name length */
   unsigned max_fnl; /* max file name length */
-
   /* total file name length */
   unsigned long long sum_fnl;
 
   unsigned min_wsz; /* min app write size */
   unsigned max_wsz; /* max app write size */
-
   /* total app write size */
   unsigned long long sum_wsz;
-
-  /* writes being shuffled out with remote write successful */
-  unsigned long long nwsok;
-  /* total num of writes being shuffled out */
-  unsigned long long nws;
 
   /* num of writes sent per rank */
   unsigned long long max_nws;
   unsigned long long min_nws;
-
-  /* writes being shuffled in with local write successful */
-  unsigned long long nwrok;
-  /* total num of writes being shuffled in */
-  unsigned long long nwr;
+  /* total num of writes being shuffled out */
+  unsigned long long nws;
 
   /* num of writes received per rank */
   unsigned long long max_nwr;
   unsigned long long min_nwr;
-
-  hstg_t hstgrpcw; /* rpc write latency distribution */
-
-  /* num of writes to deltafs with rv != EOF */
-  unsigned long long nwok;
-  /* total num of writes to deltafs */
-  unsigned long long nw;
+  /* total num of writes being shuffled in */
+  unsigned long long nwr;
 
   /* num of writes executed per rank */
   unsigned long long max_nw;
   unsigned long long min_nw;
-
-  hstg_t hstgarr; /* write interval distribution (mean time to arrive) */
-  hstg_t hstgw;   /* deltafs write latency distribution */
+  /* total num of writes to deltafs */
+  unsigned long long nw;
 
   unsigned long long dura; /* epoch duration */
-
   /* !!! collected by deltafs !!! */
   dir_stat_t dir_stat;
 
