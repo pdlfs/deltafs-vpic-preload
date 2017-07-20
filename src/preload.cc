@@ -1,10 +1,31 @@
 /*
- * Copyright (c) 2016-2017 Carnegie Mellon University.
- *
+ * Copyright (c) 2017, Carnegie Mellon University.
  * All rights reserved.
  *
- * Use of this source code is governed by a BSD-style license that can be
- * found in the LICENSE file. See the AUTHORS file for names of contributors.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY
+ * WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <assert.h>
@@ -23,12 +44,8 @@
 
 #include "preload.h"
 
-/* particle id bytes */
-#define PRELOAD_PARTICLE_ID_SIZE 8
 /* particle bytes */
 #define PRELOAD_PARTICLE_SIZE 40
-/* filter bits per particle per epoch */
-#define PRELOAD_FILTER_BITS 14
 
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
@@ -295,7 +312,9 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
   }
 }
 
-static std::string gen_plfsdir_conf() {
+static std::string gen_plfsdir_conf(int rank) {
+  const char* key_size;
+  const char* bits_per_key;
   const char* comp_buf;
   const char* min_index_write;
   const char* index_buf;
@@ -303,8 +322,21 @@ static std::string gen_plfsdir_conf() {
   const char* data_buf;
   const char* memtable_size;
   const char* lg_parts;
-  int skip_checksums = 0;
+  int skip_checksums;
   char tmp[500];
+  int n;
+
+  n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
+
+  key_size = maybe_getenv("PLFSDIR_Key_size");
+  if (key_size == NULL) {
+    key_size = DEFAULT_KEY_SIZE;
+  }
+
+  bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
+  if (bits_per_key == NULL) {
+    bits_per_key = DEFAULT_BITS_PER_KEY;
+  }
 
   memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
   if (memtable_size == NULL) {
@@ -343,16 +375,26 @@ static std::string gen_plfsdir_conf() {
 
   if (is_envset("PLFSDIR_Skip_checksums")) {
     skip_checksums = 1;
+  } else {
+    skip_checksums = 0;
   }
 
-  snprintf(tmp, sizeof(tmp),
-           "lg_parts=%s&memtable_size=%s&"
-           "compaction_buffer=%s&index_buffer=%s&min_index_buffer=%s&"
-           "data_buffer=%s&min_data_buffer=%s&skip_checksums=%d",
-           lg_parts, memtable_size, comp_buf, index_buf, min_index_write,
-           data_buf, min_data_write, skip_checksums);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", lg_parts);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s", memtable_size);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&compaction_buffer=%s", comp_buf);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&index_buffer=%s", index_buf);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&min_index_buffer=%s",
+               min_index_write);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&data_buffer=%s", data_buf);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&min_data_buffer=%s", min_data_write);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&skip_checksums=%d", skip_checksums);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
+               bits_per_key);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
+               PRELOAD_PARTICLE_SIZE);
+  n = snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", key_size);
 
-  return tmp;
+  return (tmp);
 }
 
 namespace {
@@ -428,7 +470,7 @@ int MPI_Init(int* argc, char*** argv) {
   char msg[100];  // snprintf
   char dirpath[PATH_MAX];
   char path[PATH_MAX];
-  char conf[500];
+  std::string conf;
 #if MPI_VERSION >= 3
   size_t l;
   char mpi_info[MPI_MAX_LIBRARY_VERSION_STRING];
@@ -602,7 +644,7 @@ int MPI_Init(int* argc, char*** argv) {
       if (rv != 0) {
         msg_abort("cannot make plfsdir");
       } else {
-        info("plfs dir created (rank 0)");
+        info("plfsdir created (rank 0)");
       }
     }
 
@@ -612,13 +654,9 @@ int MPI_Init(int* argc, char*** argv) {
     /* everyone opens it */
     if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
       snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-      snprintf(conf, sizeof(conf),
-               "rank=%d&key_size=%d&value_size=%d&"
-               "filter_bits_per_key=%d&%s",
-               rank, PRELOAD_PARTICLE_ID_SIZE, PRELOAD_PARTICLE_SIZE,
-               PRELOAD_FILTER_BITS, gen_plfsdir_conf().c_str());
+      conf = gen_plfsdir_conf(rank);
 
-      pctx.plfsh = deltafs_plfsdir_create_handle(conf, O_WRONLY);
+      pctx.plfsh = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
       deltafs_plfsdir_enable_io_measurement(pctx.plfsh, 0);
       pctx.plfstp = deltafs_tp_init(deltafs_plfsdir_get_memparts(pctx.plfsh));
       deltafs_plfsdir_set_thread_pool(pctx.plfsh, pctx.plfstp);
@@ -629,8 +667,8 @@ int MPI_Init(int* argc, char*** argv) {
       if (pctx.plfsh == NULL || rv != 0) {
         msg_abort("cannot open plfsdir");
       } else if (rank == 0) {
-        info(conf);
-        info("plfs dir (via deltafs-LT) opened (rank 0)");
+        info(conf.c_str());
+        info("plfsdir (via deltafs-LT) opened (rank 0)");
       }
     } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                !IS_BYPASS_DELTAFS(pctx.mode)) {
@@ -638,7 +676,7 @@ int MPI_Init(int* argc, char*** argv) {
       if (pctx.plfsfd == -1) {
         msg_abort("cannot open plfsdir");
       } else if (rank == 0) {
-        info("plfs dir opened (rank 0)");
+        info("plfsdir opened (rank 0)");
       }
     }
   }
@@ -745,7 +783,7 @@ int MPI_Finalize(void) {
     pctx.plfsh = NULL;
 
     if (pctx.rank == 0) {
-      info("plfs dir (via deltafs-LT) closed (rank 0)");
+      info("plfsdir (via deltafs-LT) closed (rank 0)");
     }
   } else if (pctx.plfsfd != -1) {
     if (num_epochs != 0) dump_mon(&mctx, &tmp_stat);
@@ -753,7 +791,7 @@ int MPI_Finalize(void) {
     pctx.plfsfd = -1;
 
     if (pctx.rank == 0) {
-      info("plfs dir closed (rank 0)");
+      info("plfsdir closed (rank 0)");
     }
   } else {
     if (num_epochs != 0) {

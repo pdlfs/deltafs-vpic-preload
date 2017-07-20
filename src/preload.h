@@ -67,6 +67,10 @@
  *    Used by developers to debug code
  *  PRELOAD_Inject_fake_data
  *    Replace particle data with fake data
+ *  PLFSDIR_Key_size
+ *    Hash key size for encoding file names
+ *  PLFSDIR_Filter_bits_per_key
+ *    Number of filter bits allocated for each key
  *  PLFSDIR_Compaction_buf_size
  *    Size of the compaction buffer per memtable partition
  *  PLFSDIR_Memtable_size
@@ -137,50 +141,55 @@
 extern int preload_write(const char* fn, char* data, size_t n, int epoch);
 
 /*
+ * Default hash key size for encoding file names.
+ * Specified as a string.
+ */
+#define DEFAULT_KEY_SIZE "8"
+
+/*
+ * Default bloom filter bits per key.
+ * Specified as a string.
+ */
+#define DEFAULT_BITS_PER_KEY "14"
+
+/*
  * Default size of the in-memory write buffer.
- *
  * Specified as a string.
  */
 #define DEFAULT_MEMTABLE_SIZE "48MB"
 
 /*
  * Default size of the compaction buffer for each memtable partition.
- *
  * Specified as a string.
  */
 #define DEFAULT_COMPACTION_BUF "4MB"
 
 /*
  * Default size of the index write buffer.
- *
  * Specified as a string.
  */
 #define DEFAULT_INDEX_BUF "2MB"
 
 /*
  * Default min write size for the index log.
- *
  * Specified as a string.
  */
 #define DEFAULT_INDEX_MIN_WRITE_SIZE "2MB"
 
 /*
  * Default size of the data write buffer.
- *
  * Specified as a string.
  */
 #define DEFAULT_DATA_BUF "8MB"
 
 /*
  * Default min write size for the data log.
- *
  * Specified as a string.
  */
 #define DEFAULT_DATA_MIN_WRITE_SIZE "6MB"
 
 /*
  * Default logarithmic number of partitions.
- *
  * Specified as a string.
  */
 #define DEFAULT_LG_PARTS "2"
