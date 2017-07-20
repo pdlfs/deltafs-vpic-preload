@@ -62,7 +62,7 @@ inline void log(int fd, const char* fmt, ...) {
 
 inline void info(const char* msg) { log(fileno(stderr), "-INFO- %s\n", msg); }
 inline void warn(const char* msg) {
-  log(fileno(stderr), "== WARN == %s\n", msg);
+  log(fileno(stderr), "!! WARN !! %s\n", msg);
 }
 
 inline void error(const char* msg) {

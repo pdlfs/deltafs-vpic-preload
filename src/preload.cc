@@ -293,7 +293,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
 
     if (pctx.monfd != -1) {
       if (pctx.rank == 0) {
-        info("chkpting epoch statistics ... (rank 0)");
+        info("saving epoch statistics ... (rank 0)");
         ts = now_micros();
       }
       memset(buf, 0, sizeof(buf));
@@ -302,7 +302,7 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
       n = write(pctx.monfd, buf, sizeof(buf));
       if (pctx.rank == 0) {
         diff = now_micros() - ts;
-        snprintf(msg, sizeof(msg), "chkpting ok %s (rank 0)",
+        snprintf(msg, sizeof(msg), "saving ok %s (rank 0)",
                  pretty_dura(diff).c_str());
         info(msg);
       }

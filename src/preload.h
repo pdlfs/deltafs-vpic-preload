@@ -156,37 +156,37 @@ extern int preload_write(const char* fn, char* data, size_t n, int epoch);
  * Default size of the in-memory write buffer.
  * Specified as a string.
  */
-#define DEFAULT_MEMTABLE_SIZE "48MB"
+#define DEFAULT_MEMTABLE_SIZE "48MiB"
 
 /*
  * Default size of the compaction buffer for each memtable partition.
  * Specified as a string.
  */
-#define DEFAULT_COMPACTION_BUF "4MB"
+#define DEFAULT_COMPACTION_BUF "4MiB"
 
 /*
  * Default size of the index write buffer.
  * Specified as a string.
  */
-#define DEFAULT_INDEX_BUF "2MB"
+#define DEFAULT_INDEX_BUF "2MiB"
 
 /*
  * Default min write size for the index log.
  * Specified as a string.
  */
-#define DEFAULT_INDEX_MIN_WRITE_SIZE "2MB"
+#define DEFAULT_INDEX_MIN_WRITE_SIZE "2MiB"
 
 /*
  * Default size of the data write buffer.
  * Specified as a string.
  */
-#define DEFAULT_DATA_BUF "8MB"
+#define DEFAULT_DATA_BUF "8MiB"
 
 /*
  * Default min write size for the data log.
  * Specified as a string.
  */
-#define DEFAULT_DATA_MIN_WRITE_SIZE "6MB"
+#define DEFAULT_DATA_MIN_WRITE_SIZE "6MiB"
 
 /*
  * Default logarithmic number of partitions.
