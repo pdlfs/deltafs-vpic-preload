@@ -316,9 +316,9 @@ static std::string gen_plfsdir_conf(int rank) {
   const char* key_size;
   const char* bits_per_key;
   const char* comp_buf;
-  const char* min_index_write;
+  const char* min_index_write_size;
   const char* index_buf;
-  const char* min_data_write;
+  const char* min_data_write_size;
   const char* data_buf;
   const char* memtable_size;
   const char* lg_parts;
@@ -348,9 +348,9 @@ static std::string gen_plfsdir_conf(int rank) {
     comp_buf = DEFAULT_COMPACTION_BUF;
   }
 
-  min_index_write = maybe_getenv("PLFSDIR_Index_min_write_size");
-  if (min_index_write == NULL) {
-    min_index_write = DEFAULT_INDEX_MIN_WRITE_SIZE;
+  min_index_write_size = maybe_getenv("PLFSDIR_Index_min_write_size");
+  if (min_index_write_size == NULL) {
+    min_index_write_size = DEFAULT_INDEX_MIN_WRITE_SIZE;
   }
 
   index_buf = maybe_getenv("PLFSDIR_Index_buf_size");
@@ -358,9 +358,9 @@ static std::string gen_plfsdir_conf(int rank) {
     index_buf = DEFAULT_INDEX_BUF;
   }
 
-  min_data_write = maybe_getenv("PLFSDIR_Data_min_write_size");
-  if (min_data_write == NULL) {
-    min_data_write = DEFAULT_DATA_MIN_WRITE_SIZE;
+  min_data_write_size = maybe_getenv("PLFSDIR_Data_min_write_size");
+  if (min_data_write_size == NULL) {
+    min_data_write_size = DEFAULT_DATA_MIN_WRITE_SIZE;
   }
 
   data_buf = maybe_getenv("PLFSDIR_Data_buf_size");
@@ -379,20 +379,21 @@ static std::string gen_plfsdir_conf(int rank) {
     skip_checksums = 0;
   }
 
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", lg_parts);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s", memtable_size);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&compaction_buffer=%s", comp_buf);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&index_buffer=%s", index_buf);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&min_index_buffer=%s",
-               min_index_write);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&data_buffer=%s", data_buf);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&min_data_buffer=%s", min_data_write);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&skip_checksums=%d", skip_checksums);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
-               bits_per_key);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
-               PRELOAD_PARTICLE_SIZE);
-  n = snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", key_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", lg_parts);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s", memtable_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&compaction_buffer=%s", comp_buf);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&index_buffer=%s", index_buf);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&min_index_buffer=%s",
+                min_index_write_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&data_buffer=%s", data_buf);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&min_data_buffer=%s",
+                min_data_write_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&skip_checksums=%d", skip_checksums);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
+                bits_per_key);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
+                PRELOAD_PARTICLE_SIZE);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", key_size);
 
   return (tmp);
 }
