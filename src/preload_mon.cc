@@ -40,8 +40,6 @@
 
 static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
-mon_ctx_t mctx = {0};
-
 #ifdef PRELOAD_NEED_HISTO
 /* clang-format off */
 static const double BUCKET_LIMITS[MON_NUM_BUCKETS] = {
@@ -142,17 +140,14 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
   assert(fn != NULL && pctx.plfsdir != NULL);
   assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
   assert(strlen(fn) > pctx.len_plfsdir + 1);
-
-  if (!pctx.nomon) {
-    if (ctx == NULL) ctx = &mctx;
-    pthread_mutex_lock(&mtx);
-  }
+  ctx = &pctx.mctx;
 
   rv = preload_write(fn, data, n, epoch);
 
   if (rv == 0 && !pctx.nomon) {
     l = strlen(fn) - pctx.len_plfsdir - 1;
 
+    pthread_mutex_lock(&mtx);
     if (l > ctx->max_fnl) ctx->max_fnl = l;
     if (l < ctx->min_fnl) ctx->min_fnl = l;
     if (n > ctx->max_wsz) ctx->max_wsz = n;
@@ -172,11 +167,9 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
 }
 
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
-  mon_ctx_t* ctx;
+  mon_ctx_t* const ctx = &pctx.mctx;
 
   if (rv == 0 && !pctx.nomon) {
-    ctx = static_cast<mon_ctx_t*>(arg2);
-    if (ctx == NULL) ctx = &mctx;
     pthread_mutex_lock(&mtx);
     ctx->min_nws++;
     ctx->max_nws++;
@@ -191,16 +184,16 @@ int mon_shuffle_write_send_async(void* write_in, int peer_rank,
   int rv;
 
   rv = shuffle_write_send_async(static_cast<write_in_t*>(write_in), peer_rank,
-                                mon_shuffle_cb, NULL, ctx);
+                                mon_shuffle_cb, NULL, NULL);
   return (rv);
 }
 
 int mon_shuffle_write_send(void* write_in, int peer_rank, mon_ctx_t* ctx) {
   int rv;
 
+  ctx = &pctx.mctx;
   rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
   if (rv == 0 && !pctx.nomon) {
-    if (ctx == NULL) ctx = &mctx;
     pthread_mutex_lock(&mtx);
     ctx->min_nws++;
     ctx->max_nws++;
@@ -213,8 +206,9 @@ int mon_shuffle_write_send(void* write_in, int peer_rank, mon_ctx_t* ctx) {
 }
 
 int mon_shuffle_write_received(mon_ctx_t* ctx) {
+  ctx = &pctx.mctx;
+
   if (!pctx.nomon) {
-    if (ctx == NULL) ctx = &mctx;
     pthread_mutex_lock(&mtx);
     ctx->min_nwr++;
     ctx->max_nwr++;

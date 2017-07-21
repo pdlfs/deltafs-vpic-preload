@@ -695,7 +695,7 @@ int MPI_Init(int* argc, char*** argv) {
       msg_abort("cannot create statistics file");
     } else if (rank == 0) {
       snprintf(msg, sizeof(msg), "in-mem epoch statistics %d bytes",
-               int(sizeof(mctx)));
+               int(sizeof(mon_ctx_t)));
       info(msg);
     }
   }
@@ -775,7 +775,7 @@ int MPI_Finalize(void) {
   /* all writes done, time to close all plfsdirs */
   if (pctx.plfsh != NULL) {
     deltafs_plfsdir_finish(pctx.plfsh);
-    if (num_epochs != 0) dump_mon(&mctx, &tmp_stat);
+    if (num_epochs != 0) dump_mon(&pctx.mctx, &tmp_stat);
     deltafs_plfsdir_free_handle(pctx.plfsh);
     if (pctx.plfstp != NULL) {
       deltafs_tp_close(pctx.plfstp);
@@ -787,7 +787,7 @@ int MPI_Finalize(void) {
       info("plfsdir (via deltafs-LT) closed (rank 0)");
     }
   } else if (pctx.plfsfd != -1) {
-    if (num_epochs != 0) dump_mon(&mctx, &tmp_stat);
+    if (num_epochs != 0) dump_mon(&pctx.mctx, &tmp_stat);
     deltafs_close(pctx.plfsfd);
     pctx.plfsfd = -1;
 
@@ -796,7 +796,7 @@ int MPI_Finalize(void) {
     }
   } else {
     if (num_epochs != 0) {
-      dump_mon(&mctx, &tmp_stat);
+      dump_mon(&pctx.mctx, &tmp_stat);
     }
   }
 
@@ -1131,7 +1131,7 @@ DIR* opendir(const char* dir) {
      * compaction work.
      *
      */
-    dump_mon(&mctx, &tmp_stat);
+    dump_mon(&pctx.mctx, &tmp_stat);
   }
 
   /* increase epoch seq */
@@ -1143,11 +1143,11 @@ DIR* opendir(const char* dir) {
   }
 
   if (!pctx.nomon) {
-    mon_reinit(&mctx); /* reset mon stats */
+    mon_reinit(&pctx.mctx); /* reset mon stats */
 
-    mctx.last_dir_stat = tmp_stat;
-    mctx.epoch_start = epoch_start;
-    mctx.epoch_seq = num_epochs;
+    pctx.mctx.last_dir_stat = tmp_stat;
+    pctx.mctx.epoch_start = epoch_start;
+    pctx.mctx.epoch_seq = num_epochs;
   }
 
   if (!pctx.paranoid_barrier) {
@@ -1255,10 +1255,10 @@ int closedir(DIR* dirp) {
 
     /* record epoch duration */
     if (!pctx.nomon) {
-      mctx.dura = now_micros() - mctx.epoch_start;
+      pctx.mctx.dura = now_micros() - pctx.mctx.epoch_start;
       if (pctx.rank == 0) {
         snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
-                 pretty_dura(mctx.dura).c_str());
+                 pretty_dura(pctx.mctx.dura).c_str());
         info(msg);
       }
     }

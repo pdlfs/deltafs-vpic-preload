@@ -62,6 +62,8 @@ typedef struct preload_ctx {
 
   std::set<FILE*>* isdeltafs; /* open files owned by deltafs */
 
+  mon_ctx_t mctx; /* mon stats */
+
   int testin;    /* developer mode - for debug use only */
   int fake_data; /* replace vpic output with fake data - for debug only */
   int nomon;     /* skip monitoring */
