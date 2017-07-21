@@ -1364,7 +1364,7 @@ int fclose(FILE* stream) {
      *   - BYPASS_DELTAFS
      */
     rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
-                           num_epochs - 1, NULL);
+                           num_epochs - 1);
     if (rv != 0) {
       /* XXX: set errno */
       if (pctx.verr) {

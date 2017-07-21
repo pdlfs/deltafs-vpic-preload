@@ -434,7 +434,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
     hret = HG_Get_input(h, &write_in);
 
     if (hret == HG_SUCCESS) {
-        mon_shuffle_write_received(NULL);
+        mon_shuffle_write_received();
         memcpy(&input_left, write_in.encoding, 2);
 
         /* sender rank */
@@ -525,8 +525,7 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h)
             }
 
             snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
-            write_out.rv = mon_preload_write(path, data, len,
-                    epoch, NULL);
+            write_out.rv = mon_preload_write(path, data, len, epoch);
 
             /* write trace if we are in testing mode */
             if (pctx.testin && pctx.logfd != -1) {
@@ -927,7 +926,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
 
     /* bypass rpc if target is local */
     if (peer_rank == rank && !sctx.force_rpc) {
-        rv = mon_preload_write(path, data, len, epoch, NULL);
+        rv = mon_preload_write(path, data, len, epoch);
         return(rv);
     }
 
@@ -992,9 +991,9 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             memcpy(write_in.encoding + 2, &nrank, 4);
             memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
             if (!sctx.force_sync) {
-                rv = mon_shuffle_write_send_async(&write_in, peer_rank, NULL);
+                rv = mon_shuffle_write_send_async(&write_in, peer_rank);
             } else {
-                rv = mon_shuffle_write_send(&write_in, peer_rank, NULL);
+                rv = mon_shuffle_write_send(&write_in, peer_rank);
             }
             if (rv != 0) {
                 if (pctx.verr) {
@@ -1075,9 +1074,9 @@ void shuffle_flush()
             memcpy(write_in.encoding + 2, &nrank, 4);
             memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
             if (!sctx.force_sync) {
-                rv = mon_shuffle_write_send_async(&write_in, i, NULL);
+                rv = mon_shuffle_write_send_async(&write_in, i);
             } else {
-                rv = mon_shuffle_write_send(&write_in, i, NULL);
+                rv = mon_shuffle_write_send(&write_in, i);
             }
             if (rv != 0) {
                 if (pctx.verr) {

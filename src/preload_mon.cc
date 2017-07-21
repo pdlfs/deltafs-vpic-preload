@@ -132,33 +132,31 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   return 0;
 }
 
-int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
-                      mon_ctx_t* ctx) {
+int mon_preload_write(const char* fn, char* data, size_t n, int epoch) {
   size_t l;
   int rv;
-
-  assert(fn != NULL && pctx.plfsdir != NULL);
-  assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
-  assert(strlen(fn) > pctx.len_plfsdir + 1);
-  ctx = &pctx.mctx;
 
   rv = preload_write(fn, data, n, epoch);
 
   if (rv == 0 && !pctx.nomon) {
+    assert(fn != NULL && pctx.plfsdir != NULL);
+    assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
+    assert(strlen(fn) > pctx.len_plfsdir + 1);
+
     l = strlen(fn) - pctx.len_plfsdir - 1;
 
     pthread_mutex_lock(&mtx);
-    if (l > ctx->max_fnl) ctx->max_fnl = l;
-    if (l < ctx->min_fnl) ctx->min_fnl = l;
-    if (n > ctx->max_wsz) ctx->max_wsz = n;
-    if (n < ctx->min_wsz) ctx->min_wsz = n;
+    if (l > pctx.mctx.max_fnl) pctx.mctx.max_fnl = l;
+    if (l < pctx.mctx.min_fnl) pctx.mctx.min_fnl = l;
+    if (n > pctx.mctx.max_wsz) pctx.mctx.max_wsz = n;
+    if (n < pctx.mctx.min_wsz) pctx.mctx.min_wsz = n;
 
-    ctx->sum_fnl += l;
-    ctx->sum_wsz += n;
+    pctx.mctx.sum_fnl += l;
+    pctx.mctx.sum_wsz += n;
 
-    ctx->min_nw++;
-    ctx->max_nw++;
-    ctx->nw++;
+    pctx.mctx.min_nw++;
+    pctx.mctx.max_nw++;
+    pctx.mctx.nw++;
 
     pthread_mutex_unlock(&mtx);
   }
@@ -167,20 +165,17 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch,
 }
 
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
-  mon_ctx_t* const ctx = &pctx.mctx;
-
   if (rv == 0 && !pctx.nomon) {
     pthread_mutex_lock(&mtx);
-    ctx->min_nws++;
-    ctx->max_nws++;
-    ctx->nws++;
+    pctx.mctx.min_nws++;
+    pctx.mctx.max_nws++;
+    pctx.mctx.nws++;
 
     pthread_mutex_unlock(&mtx);
   }
 }
 
-int mon_shuffle_write_send_async(void* write_in, int peer_rank,
-                                 mon_ctx_t* ctx) {
+int mon_shuffle_write_send_async(void* write_in, int peer_rank) {
   int rv;
 
   rv = shuffle_write_send_async(static_cast<write_in_t*>(write_in), peer_rank,
@@ -188,16 +183,15 @@ int mon_shuffle_write_send_async(void* write_in, int peer_rank,
   return (rv);
 }
 
-int mon_shuffle_write_send(void* write_in, int peer_rank, mon_ctx_t* ctx) {
+int mon_shuffle_write_send(void* write_in, int peer_rank) {
   int rv;
 
-  ctx = &pctx.mctx;
   rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
   if (rv == 0 && !pctx.nomon) {
     pthread_mutex_lock(&mtx);
-    ctx->min_nws++;
-    ctx->max_nws++;
-    ctx->nws++;
+    pctx.mctx.min_nws++;
+    pctx.mctx.max_nws++;
+    pctx.mctx.nws++;
 
     pthread_mutex_unlock(&mtx);
   }
@@ -205,14 +199,12 @@ int mon_shuffle_write_send(void* write_in, int peer_rank, mon_ctx_t* ctx) {
   return (rv);
 }
 
-int mon_shuffle_write_received(mon_ctx_t* ctx) {
-  ctx = &pctx.mctx;
-
+int mon_shuffle_write_received() {
   if (!pctx.nomon) {
     pthread_mutex_lock(&mtx);
-    ctx->min_nwr++;
-    ctx->max_nwr++;
-    ctx->nwr++;
+    pctx.mctx.min_nwr++;
+    pctx.mctx.max_nwr++;
+    pctx.mctx.nwr++;
 
     pthread_mutex_unlock(&mtx);
   }
