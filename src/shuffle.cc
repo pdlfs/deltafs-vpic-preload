@@ -121,7 +121,7 @@ static const char* prepare_addr(char* buf)
         subnet = DEFAULT_SUBNET;
     }
 
-    if (pctx.rank == 0) {
+    if (pctx.myrank == 0) {
         snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
         if (strcmp(subnet, "127.0.0.1") == 0) {
             warn(msg);
@@ -182,7 +182,7 @@ static const char* prepare_addr(char* buf)
     if (max_port > 65535)
         msg_abort("bad max port");
 
-    if (pctx.rank == 0) {
+    if (pctx.myrank == 0) {
         snprintf(msg, sizeof(msg), "using port range [%d,%d]",
                 min_port, max_port);
         info(msg);
@@ -254,7 +254,7 @@ static const char* prepare_addr(char* buf)
     env = maybe_getenv("SHUFFLE_Mercury_proto");
     if (env == NULL) env = DEFAULT_PROTO;
     sprintf(buf, "%s://%s:%d", env, ip, port);
-    if (pctx.rank == 0) {
+    if (pctx.myrank == 0) {
         snprintf(msg, sizeof(msg), "using %s", env);
         if (strstr(env, "tcp") != NULL) {
             warn(msg);
@@ -1262,7 +1262,7 @@ void shuffle_init(void)
         rpcqs[i].busy = 0;
         rpcqs[i].sz = 0;
     }
-    if (pctx.rank == 0) {
+    if (pctx.myrank == 0) {
         snprintf(msg, sizeof(msg), "in-mem rpc queue: %d x %d bytes", nrpcqs,
                 int(max_rpcq_sz));
         info(msg);
@@ -1288,7 +1288,7 @@ void shuffle_init(void)
         pthread_detach(pid);
     }
 
-    if (pctx.rank == 0) {
+    if (pctx.myrank == 0) {
         if (sctx.force_sync) {
             warn("async rpc disabled");
         } else {
