@@ -51,13 +51,13 @@ typedef struct preload_ctx {
   int mode; /* operating mode */
 
   /* MPI barriers at the beginning of an epoch */
-  int paranoid_barrier;      /* before an epoch flush */
+  int paranoid_barrier;      /* right before an epoch flush */
   int paranoid_post_barrier; /* after an epoch flush */
 
   /* MPI barriers at the end of an epoch */
-  int paranoid_pre_barrier; /* before a soft epoch flush */
+  int paranoid_pre_barrier; /* right before a soft epoch flush */
 
-  int pre_flushing; /* do a soft flush at the end of an epoch */
+  int pre_flushing; /* force a soft flush at the end of an epoch */
 
   int myrank; /* my MPI world rank */
   int commsz; /* my MPI world size */
@@ -66,16 +66,18 @@ typedef struct preload_ctx {
   size_t len_plfsdir;   /* strlen */
   deltafs_tp_t* plfstp; /* opaque handle to a dedicated bg compaction pool */
   deltafs_plfsdir_t* plfsh; /* opaque handle to an opened plfsdir */
-  int plfsfd;               /* fd for the plfsdir */
+
+  int plfsfd; /* fd for the plfsdir */
 
   std::set<FILE*>* isdeltafs; /* open files owned by deltafs */
 
-  mon_ctx_t mctx; /* mon stats */
-
   int testin;    /* developer mode - for debug use only */
   int fake_data; /* replace vpic output with fake data - for debug only */
-  int nomon;     /* skip monitoring */
-  int nodist;    /* skip copying mon files out */
+
+  mon_ctx_t mctx; /* mon stats */
+
+  int nomon;  /* skip monitoring */
+  int nodist; /* skip copying mon files out */
 
   int logfd; /* descriptor for the testing log file */
   int monfd; /* descriptor for the mon dump file */

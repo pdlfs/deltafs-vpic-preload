@@ -34,7 +34,7 @@
  * A list of all environmental variables used by us:
  *
  *  PRELOAD_Deltafs_root
- *    Deltafs root
+ *    Deltafs root (details below)
  *  PRELOAD_Plfsdir
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Bypass_shuffle
@@ -59,13 +59,13 @@
  *    Print error info when write op fails
  *  PRELOAD_No_paranoid_barrier
  *    Disable MPI barriers at the beginning of an epoch
- *      and before an epoch flush
+ *      and right before an epoch flush
  *  PRELOAD_No_paranoid_post_barrier
  *    Disable MPI barriers at the beginning of an epoch
- *      and after an epoch flush
+ *      and right after an epoch flush
  *  PRELOAD_No_paranoid_pre_barrier
  *    Disable MPI barriers at the end of an epoch
- *      and before a soft epoch flush
+ *      and right before a soft epoch flush
  *  PRELOAD_No_epoch_pre_flushing
  *    No soft epoch flush at the end of an epoch
  *  PRELOAD_Local_root
@@ -73,7 +73,7 @@
  *  PRELOAD_Testing
  *    Used by developers to debug code
  *  PRELOAD_Inject_fake_data
- *    Replace particle data with fake data
+ *    Replace particle data with artificial data
  *  PLFSDIR_Key_size
  *    Hash key size for encoding file names
  *  PLFSDIR_Filter_bits_per_key
@@ -83,11 +83,11 @@
  *  PLFSDIR_Memtable_size
  *    Total size of the memtable
  *  PLFSDIR_Data_buf_size
- *    Write buf size for the shared data log
+ *    Max write buf size for the shared data log
  *  PLFSDIR_Data_min_write_size
  *    Min write size for the shared data log
  *  PLFSDIR_Index_buf_size
- *    Write buf size for each index log
+ *    Max write buf size for each index log
  *  PLFSDIR_Index_min_write_size
  *    Min write size for each index log
  *  PLFSDIR_Lg_parts

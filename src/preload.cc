@@ -1298,10 +1298,7 @@ int closedir(DIR* dirp) {
     }
 
     if (pctx.myrank == 0) {
-      if (!pctx.paranoid_pre_barrier)
-        info("epoch ends (rank 0)");
-      else
-        info("epoch ends");
+      info("epoch ends (rank 0)");
     }
 
     return (0);
