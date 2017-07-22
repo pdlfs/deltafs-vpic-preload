@@ -52,9 +52,6 @@
  */
 static maybe_mutex_t maybe_mtx = MAYBE_MUTEX_INITIALIZER;
 
-/* global context */
-preload_ctx_t pctx = {0};
-
 /* number of MPI barriers invoked by app */
 static int num_barriers = 0;
 
