@@ -995,12 +995,7 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch)
             } else {
                 rv = mon_shuffle_write_send(&write_in, peer_rank);
             }
-            if (rv != 0) {
-                if (pctx.verr) {
-                    /* XXX: set errno */
-                    error("xxx");
-                }
-            }
+            if (rv) msg_abort("xxsend");
             pthread_mutex_lock(&mtx[qu_cv]);
             pthread_cond_broadcast(&cv[qu_cv]);
             rpcq->busy = 0;
@@ -1078,12 +1073,7 @@ void shuffle_flush()
             } else {
                 rv = mon_shuffle_write_send(&write_in, i);
             }
-            if (rv != 0) {
-                if (pctx.verr) {
-                    /* XXX: set errno */
-                    error("xxx");
-                }
-            }
+            if (rv) msg_abort("xxsend");
             pthread_mutex_lock(&mtx[qu_cv]);
             pthread_cond_broadcast(&cv[qu_cv]);
             rpcq->busy = 0;

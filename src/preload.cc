@@ -1040,11 +1040,7 @@ int mkdir(const char* dir, mode_t mode) {
     rv = deltafs_mkdir(stripped, mode);
   }
 
-  if (rv != 0) {
-    if (pctx.verr) {
-      error("xxmkdir");
-    }
-  }
+  if (rv) msg_abort("xxmkdir");
 
   return (rv);
 }
@@ -1358,7 +1354,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nitems, FILE* stream) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("fwrite:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.fwrite(ptr, size, nitems, stream));
@@ -1382,7 +1378,7 @@ int fclose(FILE* stream) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("fclose:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.fclose(stream));
@@ -1398,11 +1394,8 @@ int fclose(FILE* stream) {
      */
     rv = mon_preload_write(ff->file_name(), ff->data(), ff->size(),
                            num_epochs - 1);
-    if (rv != 0) {
-      /* XXX: set errno */
-      if (pctx.verr) {
-        error("xxx");
-      }
+    if (rv) {
+      msg_abort("xxwrite");
     }
   } else {
     /*
@@ -1410,11 +1403,8 @@ int fclose(FILE* stream) {
      *   - BYPASS_PLACEMENT
      */
     rv = shuffle_write(ff->file_name(), ff->data(), ff->size(), num_epochs - 1);
-    if (rv != 0) {
-      /* XXX: set errno */
-      if (pctx.verr) {
-        error("xxx");
-      }
+    if (rv) {
+      msg_abort("xxshuffle");
     }
   }
 
@@ -1442,7 +1432,7 @@ int fclose(FILE* stream) {
 int feof(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("feof:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.feof(stream));
@@ -1459,7 +1449,7 @@ int feof(FILE* stream) {
 int ferror(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("ferror:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.ferror(stream));
@@ -1476,7 +1466,7 @@ int ferror(FILE* stream) {
 void clearerr(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("clearerr:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     nxt.clearerr(stream);
@@ -1493,7 +1483,7 @@ void clearerr(FILE* stream) {
 size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("fread:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.fread(ptr, size, nitems, stream));
@@ -1510,7 +1500,7 @@ size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream) {
 int fseek(FILE* stream, long offset, int whence) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("fseek:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.fseek(stream, offset, whence));
@@ -1527,7 +1517,7 @@ int fseek(FILE* stream, long offset, int whence) {
 long ftell(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("ftell:pthread_once");
+  if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
     return (nxt.ftell(stream));
