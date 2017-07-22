@@ -50,6 +50,8 @@ typedef struct preload_ctx {
 
   int mode; /* operating mode */
 
+  int paranoid_checks; /* various checks on vpic writes */
+
   /* MPI barriers at the beginning of an epoch */
   int paranoid_barrier;      /* right before an epoch flush */
   int paranoid_post_barrier; /* after an epoch flush */

@@ -129,6 +129,7 @@ static void preload_init() {
   pctx.monfd = -1;
 
   pctx.isdeltafs = new std::set<FILE*>;
+  pctx.paranoid_checks = 1;
   pctx.paranoid_barrier = 1;
   pctx.paranoid_post_barrier = 1;
   pctx.paranoid_pre_barrier = 1;
@@ -199,6 +200,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_mon")) pctx.vmon = 1;
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
 
+  if (is_envset("PRELOAD_No_paranoid_checks")) pctx.paranoid_checks = 0;
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
     pctx.paranoid_pre_barrier = 0;
   if (is_envset("PRELOAD_No_epoch_pre_flushing")) pctx.pre_flushing = 0;
@@ -1562,9 +1564,16 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     data = buf;
   }
 
-  /* Return 0 on success, or EOF on errors */
+  if (pctx.paranoid_checks) {
+    if (len != PRELOAD_PARTICLE_SIZE) {
+      msg_abort("write size!");
+    }
+    if (epoch != num_epochs) {
+      msg_abort("epoch!");
+    }
+  }
 
-  rv = EOF;
+  rv = EOF; /* Return 0 on success, or EOF on errors */
 
   if (IS_BYPASS_WRITE(pctx.mode)) {
     rv = 0; /* noop */

@@ -57,6 +57,8 @@
  *    Print mon info at the end of each epoch
  *  PRELOAD_Enable_verbose_error
  *    Print error info when write op fails
+ *  PRELOAD_No_paranoid_checks
+ *    Disable misc checks on vpic writes
  *  PRELOAD_No_paranoid_barrier
  *    Disable MPI barriers at the beginning of an epoch
  *      and right before an epoch flush
