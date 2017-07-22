@@ -48,10 +48,16 @@ typedef struct preload_ctx {
   const char* local_root; /* localfs root */
   size_t len_local_root;  /* strlen */
 
-  int mode;             /* operating mode */
-  int paranoid_barrier; /* do a global barrier at the beginning of an epoch */
-  int paranoid_pre_barrier; /* do a global barrier at the end of an epoch */
-  int pre_flushing;         /* do a soft flush at the end of an epoch */
+  int mode; /* operating mode */
+
+  /* MPI barriers at the beginning of an epoch */
+  int paranoid_barrier;      /* before an epoch flush */
+  int paranoid_post_barrier; /* after an epoch flush */
+
+  /* MPI barriers at the end of an epoch */
+  int paranoid_pre_barrier; /* before a soft epoch flush */
+
+  int pre_flushing; /* do a soft flush at the end of an epoch */
 
   int myrank; /* my MPI world rank */
   int commsz; /* my MPI world size */

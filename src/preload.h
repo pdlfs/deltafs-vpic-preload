@@ -59,8 +59,13 @@
  *    Print error info when write op fails
  *  PRELOAD_No_paranoid_barrier
  *    Disable MPI barriers at the beginning of an epoch
+ *      and before an epoch flush
+ *  PRELOAD_No_paranoid_post_barrier
+ *    Disable MPI barriers at the beginning of an epoch
+ *      and after an epoch flush
  *  PRELOAD_No_paranoid_pre_barrier
  *    Disable MPI barriers at the end of an epoch
+ *      and before a soft epoch flush
  *  PRELOAD_No_epoch_pre_flushing
  *    No soft epoch flush at the end of an epoch
  *  PRELOAD_Local_root

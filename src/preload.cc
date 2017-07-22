@@ -130,6 +130,7 @@ static void preload_init() {
 
   pctx.isdeltafs = new std::set<FILE*>;
   pctx.paranoid_barrier = 1;
+  pctx.paranoid_post_barrier = 1;
   pctx.paranoid_pre_barrier = 1;
   pctx.pre_flushing = 1;
   pctx.myrank = 0;
@@ -198,10 +199,12 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_mon")) pctx.vmon = 1;
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
 
-  if (is_envset("PRELOAD_No_paranoid_barrier")) pctx.paranoid_barrier = 0;
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
     pctx.paranoid_pre_barrier = 0;
   if (is_envset("PRELOAD_No_epoch_pre_flushing")) pctx.pre_flushing = 0;
+  if (is_envset("PRELOAD_No_paranoid_barrier")) pctx.paranoid_barrier = 0;
+  if (is_envset("PRELOAD_No_paranoid_post_barrier"))
+    pctx.paranoid_post_barrier = 0;
   if (is_envset("PRELOAD_Inject_fake_data")) pctx.fake_data = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
@@ -1077,10 +1080,27 @@ DIR* opendir(const char* dir) {
     epoch_start = now_micros();
   }
 
-  if (pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "epoch %d bootstrapping ... (rank 0)",
-             num_epochs + 1);
-    info(msg);
+  if (!pctx.paranoid_barrier) {
+    if (pctx.myrank == 0) {
+      snprintf(msg, sizeof(msg), "epoch %d bootstrapping ... (rank 0)",
+               num_epochs + 1);
+      info(msg);
+    }
+  } else {
+    if (pctx.myrank == 0) {
+      info("barrier ...");
+    }
+    start = MPI_Wtime();
+    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      dura = MPI_Wtime() - min;
+      snprintf(msg, sizeof(msg), "barrier %s",
+               pretty_dura(dura * 1000000).c_str());
+      info(msg);
+
+      snprintf(msg, sizeof(msg), "epoch %d bootstrapping ...", num_epochs + 1);
+      info(msg);
+    }
   }
 
   /* epoch flush */
@@ -1164,7 +1184,7 @@ DIR* opendir(const char* dir) {
     pctx.mctx.epoch_seq = num_epochs;
   }
 
-  if (!pctx.paranoid_barrier) {
+  if (!pctx.paranoid_post_barrier) {
     if (pctx.myrank == 0) {
       info("dumping particles ... (rank 0)");
     }
