@@ -207,6 +207,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_paranoid_barrier")) pctx.paranoid_barrier = 0;
   if (is_envset("PRELOAD_No_paranoid_post_barrier"))
     pctx.paranoid_post_barrier = 0;
+  if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Inject_fake_data")) pctx.fake_data = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
@@ -613,11 +614,16 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  if (rank == 0) {
-    maybe_warn_rlimit(pctx.myrank, pctx.commsz);
-    maybe_warn_cpuaffinity();
-    try_scan_procfs();
-    try_scan_sysfs();
+  /* probe system info, will skip if we have no access */
+  if (!pctx.noscan) {
+    if (rank == 0) {
+      maybe_warn_rlimit(pctx.myrank, pctx.commsz);
+      maybe_warn_cpuaffinity();
+      /* cpu info and os version */
+      try_scan_procfs();
+      /* numa topo and nic */
+      try_scan_sysfs();
+    }
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {

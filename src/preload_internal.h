@@ -75,6 +75,7 @@ typedef struct preload_ctx {
 
   int testin;    /* developer mode - for debug use only */
   int fake_data; /* replace vpic output with fake data - for debug only */
+  int noscan;    /* do not probe sys info */
 
   mon_ctx_t mctx; /* mon stats */
 
