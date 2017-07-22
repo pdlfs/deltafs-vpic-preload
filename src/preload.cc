@@ -269,10 +269,17 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
     /* collect stats from deltafs */
     if (pctx.plfsh != NULL) {
       mon_fetch_plfsdir_stat(pctx.plfsh, tmp_stat);
+      mon->dir_stat.num_keys = tmp_stat->num_keys - mon->last_dir_stat.num_keys;
+      mon->dir_stat.num_dropped_keys =
+          tmp_stat->num_dropped_keys - mon->last_dir_stat.num_dropped_keys;
+      mon->dir_stat.total_fblksz =
+          tmp_stat->total_fblksz - mon->last_dir_stat.total_fblksz;
       mon->dir_stat.total_iblksz =
           tmp_stat->total_iblksz - mon->last_dir_stat.total_iblksz;
       mon->dir_stat.total_dblksz =
           tmp_stat->total_dblksz - mon->last_dir_stat.total_dblksz;
+      mon->dir_stat.num_sstables =
+          tmp_stat->num_sstables - mon->last_dir_stat.num_sstables;
     } else if (pctx.plfsfd != -1) {
       // XXX: TODO
     }

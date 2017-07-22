@@ -124,11 +124,18 @@ static void hstg_reduce(const hstg_t& src, hstg_t& sum) {
 #endif
 
 int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
-  if (dir != NULL && buf != NULL) {
-    buf->total_iblksz = deltafs_plfsdir_get_integer_property(dir, "index_size");
-    buf->total_dblksz = deltafs_plfsdir_get_integer_property(dir, "data_size");
-  }
+  assert(dir != NULL);
+  assert(buf != NULL);
+#define get_property deltafs_plfsdir_get_integer_property
 
+  buf->total_dblksz = get_property(dir, "sstable_filter_bytes");
+  buf->total_iblksz = get_property(dir, "sstable_index_bytes");
+  buf->total_dblksz = get_property(dir, "sstable_data_bytes");
+  buf->num_sstables = get_property(dir, "num_sstables");
+  buf->num_dropped_keys = get_property(dir, "num_dropped_keys");
+  buf->num_keys = get_property(dir, "num_keys");
+
+#undef get_property
   return 0;
 }
 
@@ -248,11 +255,24 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
 
   MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_dblksz),
-             &sum->dir_stat.total_dblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_keys),
+             &sum->dir_stat.num_keys, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_dropped_keys),
+             &sum->dir_stat.num_dropped_keys, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_sstables),
+             &sum->dir_stat.num_sstables, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_fblksz),
+             &sum->dir_stat.total_fblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);
   MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_iblksz),
              &sum->dir_stat.total_iblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_dblksz),
+             &sum->dir_stat.total_dblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);
 }
 
@@ -274,10 +294,12 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   DUMP(fd, buf, "[M] epoch dura: %llu us", ctx->dura);
   DUMP(fd, buf, "[M] observed epoch tput: %.2f bytes/s",
        double(ctx->sum_wsz) / ctx->dura * 1000000);
-  DUMP(fd, buf, "[M] total sst index block size: %lld bytes",
+  DUMP(fd, buf, "[M] total sst filter bytes: %lld bytes",
+       ctx->dir_stat.total_fblksz);
+  DUMP(fd, buf, "[M] total sst indexes: %lld bytes",
        ctx->dir_stat.total_iblksz);
-  DUMP(fd, buf, "[M] total data block size: %lld bytes",
-       ctx->dir_stat.total_dblksz);
+  DUMP(fd, buf, "[M] total sst data: %lld bytes", ctx->dir_stat.total_dblksz);
+  DUMP(fd, buf, "[M] total num sst: %lld", ctx->dir_stat.num_sstables);
   DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
   DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
   DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);
