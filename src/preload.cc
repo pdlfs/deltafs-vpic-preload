@@ -916,7 +916,7 @@ int MPI_Finalize(void) {
             if (n == sizeof(buf)) {
               snprintf(
                   msg, sizeof(msg),
-                  " > epoch #%-2d %s OK!  @plfsdir: %s keys (%lld dropped)",
+                  " > epoch #%-2d %s OK!   @@plfsdir: %s keys (%lld dropped)",
                   epoch + 1, pretty_dura(glob.dura).c_str(),
                   pretty_num(glob.dir_stat.num_keys).c_str(),
                   glob.dir_stat.num_dropped_keys);
@@ -932,9 +932,7 @@ int MPI_Finalize(void) {
                        pretty_tput(double(glob.nw) / pctx.commsz, glob.dura)
                            .c_str());
               info(msg);
-              snprintf(msg, sizeof(msg),
-                       "     > %s, "
-                       "%s, %s per rank",
+              snprintf(msg, sizeof(msg), "     > %s, %s, %s per rank",
                        pretty_size(glob.sum_wsz).c_str(),
                        pretty_bw(glob.sum_wsz, glob.dura).c_str(),
                        pretty_bw(double(glob.sum_wsz) / pctx.commsz, glob.dura)
