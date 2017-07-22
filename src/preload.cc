@@ -267,7 +267,7 @@ static bool claim_FILE(FILE* stream) {
 static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
   uint64_t ts;
   uint64_t diff;
-  char buf[4096];
+  char buf[MON_BUF_SIZE];
   char msg[100];
   int n;
 
@@ -763,7 +763,7 @@ int MPI_Finalize(void) {
   mon_ctx_t local;
   mon_ctx_t glob;
   dir_stat_t tmp_stat;
-  char buf[4096];
+  char buf[MON_BUF_SIZE];
   char path1[PATH_MAX];
   char path2[PATH_MAX];
   char suffix[100];
@@ -889,6 +889,7 @@ int MPI_Finalize(void) {
         if (ok) {
           n = read(pctx.monfd, buf, sizeof(buf));
           if (n == sizeof(buf)) {
+            assert(sizeof(mon_ctx_t) < sizeof(buf));
             memcpy(&local, buf, sizeof(mon_ctx_t));
           } else {
             warn("cannot read statistics");

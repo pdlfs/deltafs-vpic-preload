@@ -100,7 +100,7 @@ typedef struct mon_ctx {
   unsigned long long dura; /* epoch duration */
   /* !!! collected by deltafs !!! */
   dir_stat_t dir_stat;
-
+#define MON_BUF_SIZE 512
 } mon_ctx_t;
 
 extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
