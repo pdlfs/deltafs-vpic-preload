@@ -41,9 +41,14 @@
 #include <unistd.h>
 
 /* a set of utilities for probing important system configurations. */
-void misc_checks(int myrank, int worldsz);
+
+void maybe_warn_rlimit(int myrank, int worldsz);
+void maybe_warn_cpuaffinity();
 void try_scan_procfs();
 void try_scan_sysfs();
+
+/* get the number of cpu cores that we may use */
+int my_cpu_cores();
 
 /* get the current time in us. */
 uint64_t now_micros();
@@ -62,7 +67,7 @@ inline void log(int fd, const char* fmt, ...) {
 
 inline void info(const char* msg) { log(fileno(stderr), "-INFO- %s\n", msg); }
 inline void warn(const char* msg) {
-  log(fileno(stderr), "!! WARN !! %s\n", msg);
+  log(fileno(stderr), "++ WARN ++ %s\n", msg);
 }
 
 inline void error(const char* msg) {
@@ -75,9 +80,9 @@ inline void error(const char* msg) {
 
 inline void msg_abort(const char* msg) {
   if (errno != 0) {
-    log(fileno(stderr), "!!! ABORT !!! %s: %s\n", msg, strerror(errno));
+    log(fileno(stderr), "*** ABORT *** %s: %s\n", msg, strerror(errno));
   } else {
-    log(fileno(stderr), "!!! ABORT !!! %s\n", msg);
+    log(fileno(stderr), "*** ABORT *** %s\n", msg);
   }
 
   abort();

@@ -605,6 +605,13 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  if (rank == 0) {
+    maybe_warn_rlimit(pctx.rank, pctx.size);
+    maybe_warn_cpuaffinity();
+    try_scan_procfs();
+    try_scan_sysfs();
+  }
+
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     shuffle_init();
     nxt.MPI_Barrier(MPI_COMM_WORLD);

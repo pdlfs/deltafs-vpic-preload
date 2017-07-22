@@ -112,7 +112,7 @@ static std::string trim(const char* str, size_t limit) {
 }
 
 /*
- * try_scan_sysfs(): scan sysfs for important information ^_%
+ * try_scan_sysfs(): scan sysfs for important system information.
  */
 void try_scan_sysfs() {
   DIR* d;
@@ -220,7 +220,7 @@ void try_scan_sysfs() {
 }
 
 /*
- * try_scan_procfs(): scan procfs for important information ^_%
+ * try_scan_procfs(): scan procfs for important device information.
  */
 void try_scan_procfs() {
   int num_cpus;
@@ -273,19 +273,13 @@ void try_scan_procfs() {
   errno = 0;
 }
 
-/*
- * misc_checks(): check cpu affinity and rlimits.
- */
-void misc_checks(int myrank, int worldsz) {
+void maybe_warn_rlimit(int myrank, int worldsz) {
   struct rlimit rl;
   long long softnofile;
   long long hardnofile;
   long long oknofile;
   long long softmemlock;
   long long hardmemlock;
-  cpu_set_t cpuset;
-  int ncputset;
-  int cpus;
   char msg[200];
   int n;
 
@@ -328,22 +322,41 @@ void misc_checks(int myrank, int worldsz) {
     info(msg);
   }
 
+  errno = 0;
+}
+
+void maybe_warn_cpuaffinity() {
+  char msg[200];
+  int os;
+  int my;
+
 #if defined(_SC_NPROCESSORS_CONF)
-  cpus = sysconf(_SC_NPROCESSORS_CONF);
-  if (cpus != -1) {
-    n = sched_getaffinity(0, sizeof(cpuset), &cpuset);
-    if (n == 0) {
-      ncputset = CPU_COUNT(&cpuset);
-      snprintf(msg, sizeof(msg), "[numa] cpu affinity: %d/%d cores", ncputset,
-               cpus);
-      if (ncputset == cpus) {
-        warn(msg);
-      } else {
-        info(msg);
-      }
+  os = sysconf(_SC_NPROCESSORS_CONF);
+  if (os != -1) {
+    my = my_cpu_cores();
+    snprintf(msg, sizeof(msg), "[numa] cpu affinity: %d/%d cores", my, os);
+    if (my == os) {
+      warn(msg);
+    } else {
+      info(msg);
     }
   }
 #endif
 
   errno = 0;
+}
+
+int my_cpu_cores() {
+  cpu_set_t cpuset;
+  int ncpus;
+  int n;
+
+  CPU_ZERO(&cpuset);
+  ncpus = 0;
+  n = sched_getaffinity(0, sizeof(cpuset), &cpuset);
+  if (n == 0) {
+    ncpus = CPU_COUNT(&cpuset);
+  }
+
+  return (ncpus);
 }

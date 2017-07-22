@@ -1192,10 +1192,7 @@ void shuffle_init(void)
     int rv;
     int i;
 
-    try_scan_sysfs();
-    try_scan_procfs();
     prepare_addr(sctx.my_addr);
-    misc_checks(pctx.rank, pctx.size);
 
     env = maybe_getenv("SHUFFLE_Timeout");
     if (env == NULL) {
