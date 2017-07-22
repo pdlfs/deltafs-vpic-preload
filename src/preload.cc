@@ -1559,7 +1559,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     if (len != PRELOAD_PARTICLE_SIZE) {
       msg_abort("write size!");
     }
-    if (epoch != num_epochs) {
+    if (epoch != num_epochs - 1) {
       msg_abort("epoch!");
     }
   }

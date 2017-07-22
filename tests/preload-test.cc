@@ -71,6 +71,7 @@ int main(int argc, char **argv) {
         fwrite("0", 1, 1, fp);
         fwrite("abcdefghijk", 1, 11, fp);
         fwrite("lmnopqrstuv", 1, 11, fp);
+        fwrite("~!@#$%^&", 8, 1, fp);
         r = fclose(fp);
         if (r != 0) {
             msg_abort("fclose");
