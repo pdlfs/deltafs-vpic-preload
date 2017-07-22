@@ -57,10 +57,12 @@
  *    Print mon info at the end of each epoch
  *  PRELOAD_Enable_verbose_error
  *    Print error info when write op fails
- *  PRELOAD_No_epoch_pre_flushing
- *    Do not perform epoch pre-flushing
  *  PRELOAD_No_paranoid_barrier
- *    Do not do paranoid barriers
+ *    Disable MPI barriers at the beginning of an epoch
+ *  PRELOAD_No_paranoid_pre_barrier
+ *    Disable MPI barriers at the end of an epoch
+ *  PRELOAD_No_epoch_pre_flushing
+ *    No soft epoch flush at the end of an epoch
  *  PRELOAD_Local_root
  *    Local file system root
  *  PRELOAD_Testing
