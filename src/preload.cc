@@ -217,45 +217,39 @@ static void preload_init() {
 /*
  * claim_path: look at path to see if we can claim it
  */
-static bool claim_path(const char* path, bool* exact) {
-  if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0) {
-    return (false);
-  } else if (path[pctx.len_deltafs_root] != '/' &&
-             path[pctx.len_deltafs_root] != '\0') {
-    return (false);
+static int claim_path(const char* path, int* exact) {
+  if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0) return (0);
+  if (path[pctx.len_deltafs_root] != '/' &&
+      path[pctx.len_deltafs_root] != '\0') {
+    return (0);
   }
-
   /* if we've just got pctx.root, caller may convert it to a "/" */
-  *exact = (path[pctx.len_deltafs_root] == '\0');
-  return (true);
+  *exact = int(path[pctx.len_deltafs_root] == '\0');
+  return (1);
 }
 
 /*
  * under_plfsdir: if a given path is a plfsdir or plfsdir files
  */
-static bool under_plfsdir(const char* path) {
-  if (pctx.plfsdir == NULL) {
-    return (false);
-  } else if (strncmp(pctx.plfsdir, path, pctx.len_plfsdir) != 0) {
-    return (false);
-  } else if (path[pctx.len_plfsdir] != '/' && path[pctx.len_plfsdir] != '\0') {
-    return (false);
-  } else {
-    return (true);
-  }
+static int under_plfsdir(const char* path) {
+  if (pctx.plfsdir == NULL) return (0);
+  if (strncmp(pctx.plfsdir, path, pctx.len_plfsdir) != 0) return (0);
+  if (path[pctx.len_plfsdir] == '\0') return (1);
+  if (path[pctx.len_plfsdir] == '/') return (1);
+  return (0);
 }
 
 /*
  * claim_FILE: look at FILE* and see if we claim it
  */
-static bool claim_FILE(FILE* stream) {
+static int claim_FILE(FILE* stream) {
   std::set<FILE*>::iterator it;
-  bool rv;
+  int rv;
 
   must_maybelockmutex(&maybe_mtx);
   assert(pctx.isdeltafs != NULL);
   it = pctx.isdeltafs->find(stream);
-  rv = (it != pctx.isdeltafs->end());
+  rv = int(it != pctx.isdeltafs->end());
   must_maybeunlock(&maybe_mtx);
 
   return (rv);
@@ -476,7 +470,7 @@ extern "C" {
  * MPI_Init
  */
 int MPI_Init(int* argc, char*** argv) {
-  bool exact;
+  int exact;
   const char* stripped;
   const char* cwd;
   time_t now;
@@ -1014,7 +1008,7 @@ int chdir(const char* dir) {
  * mkdir
  */
 int mkdir(const char* dir, mode_t mode) {
-  bool exact;
+  int exact;
   const char* stripped;
   char path[PATH_MAX];
   int rv;
@@ -1056,7 +1050,7 @@ int mkdir(const char* dir, mode_t mode) {
  * opendir
  */
 DIR* opendir(const char* dir) {
-  bool ignored_exact;
+  int ignored_exact;
   char msg[100];
   dir_stat_t tmp_stat;
   uint64_t epoch_start;
@@ -1314,7 +1308,7 @@ int closedir(DIR* dirp) {
  * fopen
  */
 FILE* fopen(const char* fname, const char* mode) {
-  bool exact;
+  int exact;
   const char* stripped;
   FILE* rv;
 
