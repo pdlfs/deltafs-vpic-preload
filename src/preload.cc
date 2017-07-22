@@ -914,21 +914,27 @@ int MPI_Finalize(void) {
             memcpy(buf, &glob, sizeof(mon_ctx_t));
             n = write(fd1, buf, sizeof(buf));
             if (n == sizeof(buf)) {
-              snprintf(msg, sizeof(msg), " > epoch #%-2d %s ok", epoch + 1,
-                       pretty_dura(glob.dura).c_str());
+              snprintf(
+                  msg, sizeof(msg),
+                  " > epoch #%-2d %s OK!  @plfsdir: %s keys (%lld dropped)",
+                  epoch + 1, pretty_dura(glob.dura).c_str(),
+                  pretty_num(glob.dir_stat.num_keys).c_str(),
+                  glob.dir_stat.num_dropped_keys);
               info(msg);
               snprintf(msg, sizeof(msg),
                        "   > %s particles, "
-                       "%s per core, %s, %s per core",
+                       "%s per rank (min: %s, max: %s), %s, %s per rank",
                        pretty_num(glob.nw).c_str(),
-                       pretty_num(glob.nw / pctx.commsz).c_str(),
+                       pretty_num(double(glob.nw) / pctx.commsz).c_str(),
+                       pretty_num(glob.min_nw).c_str(),
+                       pretty_num(glob.max_nw).c_str(),
                        pretty_tput(glob.nw, glob.dura).c_str(),
                        pretty_tput(double(glob.nw) / pctx.commsz, glob.dura)
                            .c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
                        "     > %s, "
-                       "%s, %s per core",
+                       "%s, %s per rank",
                        pretty_size(glob.sum_wsz).c_str(),
                        pretty_bw(glob.sum_wsz, glob.dura).c_str(),
                        pretty_bw(double(glob.sum_wsz) / pctx.commsz, glob.dura)
@@ -939,12 +945,28 @@ int MPI_Finalize(void) {
                            .c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
-                       "   > %s rpc out, "
-                       "%s rpc in, %s per rpc",
+                       "   > %s rpc sent, %s per rank (min: %s, max: %s)",
                        pretty_num(glob.nws).c_str(),
+                       pretty_num(double(glob.nws) / pctx.commsz).c_str(),
+                       pretty_num(glob.min_nws).c_str(),
+                       pretty_num(glob.max_nws).c_str());
+              info(msg);
+              snprintf(msg, sizeof(msg),
+                       "   > %s rpc recv, %s per rank (min: %s, max: %s)",
                        pretty_num(glob.nwr).c_str(),
-                       pretty_dura(double(glob.dura) / glob.nws * pctx.commsz)
+                       pretty_num(double(glob.nwr) / pctx.commsz).c_str(),
+                       pretty_num(glob.min_nwr).c_str(),
+                       pretty_num(glob.max_nwr).c_str());
+              info(msg);
+              snprintf(msg, sizeof(msg), "       > %s per rpc",
+                       pretty_dura(double(glob.dura) / glob.nwr * pctx.commsz)
                            .c_str());
+              info(msg);
+              snprintf(
+                  msg, sizeof(msg), "   > %s sst, %s per rank",
+                  pretty_num(glob.dir_stat.num_sstables).c_str(),
+                  pretty_num(double(glob.dir_stat.num_sstables) / pctx.commsz)
+                      .c_str());
               info(msg);
             }
 
