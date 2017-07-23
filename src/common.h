@@ -150,6 +150,7 @@ inline void must_maybeunlock(maybe_mutex_t* __mut) {
 }
 
 #include <string>
+#define PRELOAD_PRETTY_SIZE_USE_BINARY
 
 /* print a human-readable time duration. */
 inline std::string pretty_dura(double us) {
@@ -247,7 +248,7 @@ inline std::string pretty_tput(double ops, double us) {
 /* print a human-readable I/O size. */
 inline std::string pretty_size(double size) {
   char tmp[100];
-#if defined(PRELOAD_PRETTY_USE_BINARY)
+#if defined(PRELOAD_PRETTY_SIZE_USE_BINARY)
   if (size >= 1099511627776.0) {
     size /= 1099511627776.0;
     snprintf(tmp, sizeof(tmp), "%.1f TiB", size);
@@ -288,7 +289,7 @@ inline std::string pretty_size(double size) {
 inline std::string pretty_bw(double bytes, double us) {
   char tmp[100];
   double bytes_per_s = bytes / us * 1000000;
-#if defined(PRELOAD_PRETTY_USE_BINARY)
+#if defined(PRELOAD_PRETTY_SIZE_USE_BINARY)
   if (bytes_per_s >= 1099511627776.0) {
     bytes_per_s /= 1099511627776.0;
     snprintf(tmp, sizeof(tmp), "%.3f TiB/s", bytes_per_s);
@@ -324,3 +325,5 @@ inline std::string pretty_bw(double bytes, double us) {
 
   return (tmp);
 }
+
+#undef PRELOAD_PRETTY_SIZE_USE_BINARY
