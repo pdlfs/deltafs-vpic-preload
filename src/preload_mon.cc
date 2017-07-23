@@ -126,12 +126,15 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   assert(buf != NULL);
 #define get_property deltafs_plfsdir_get_integer_property
 
-  buf->total_dblksz = get_property(dir, "sstable_filter_bytes");
+  buf->total_datasz = get_property(dir, "total_user_data");
+  buf->total_fblksz = get_property(dir, "sstable_filter_bytes");
   buf->total_iblksz = get_property(dir, "sstable_index_bytes");
   buf->total_dblksz = get_property(dir, "sstable_data_bytes");
   buf->num_sstables = get_property(dir, "num_sstables");
   buf->num_dropped_keys = get_property(dir, "num_dropped_keys");
   buf->num_keys = get_property(dir, "num_keys");
+  buf->min_num_keys = buf->num_keys;
+  buf->max_num_keys = buf->num_keys;
 
 #undef get_property
   return 0;
@@ -186,6 +189,30 @@ int mon_shuffle_write_received() {
   pctx.mctx.nbr++;
 }
 
+static void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
+  MPI_Reduce(const_cast<long long*>(&src->num_keys), &sum->num_keys, 1,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->min_num_keys), &sum->min_num_keys, 1,
+             MPI_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->max_num_keys), &sum->max_num_keys, 1,
+             MPI_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  MPI_Reduce(const_cast<long long*>(&src->total_fblksz), &sum->total_fblksz, 1,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->total_iblksz), &sum->total_iblksz, 1,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->total_dblksz), &sum->total_dblksz, 1,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  MPI_Reduce(const_cast<long long*>(&src->total_datasz), &sum->total_datasz, 1,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->num_dropped_keys),
+             &sum->num_dropped_keys, 1, MPI_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(&src->num_sstables), &sum->num_sstables, 1,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+}
+
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
@@ -216,25 +243,7 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nw), &sum->max_nw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_keys),
-             &sum->dir_stat.num_keys, 1, MPI_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_dropped_keys),
-             &sum->dir_stat.num_dropped_keys, 1, MPI_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_sstables),
-             &sum->dir_stat.num_sstables, 1, MPI_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
-
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_fblksz),
-             &sum->dir_stat.total_fblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_iblksz),
-             &sum->dir_stat.total_iblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<long long*>(&src->dir_stat.total_dblksz),
-             &sum->dir_stat.total_dblksz, 1, MPI_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD);
+  dir_stat_reduce(&src->dir_stat, &sum->dir_stat);
 }
 
 #define DUMP(fd, buf, fmt, ...)                             \

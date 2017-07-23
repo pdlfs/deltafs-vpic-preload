@@ -43,7 +43,11 @@ typedef double(hstg_t)[MON_NUM_BUCKETS + 4];
 
 /* accumulated statistics for an opened plfsdir */
 typedef struct dir_stat {
-  long long num_keys;         /* total number of keys inserted */
+  long long min_num_keys; /* min number of keys inserted per rank */
+  long long max_num_keys; /* max number of keys inserted per rank */
+
+  long long num_keys; /* total number of keys inserted */
+
   long long num_dropped_keys; /* total number of keys rejected by fs code */
   long long num_sstables;     /* total number of sst generated */
 
@@ -53,6 +57,9 @@ typedef struct dir_stat {
   long long total_iblksz;
   /* total size of all data blocks */
   long long total_dblksz;
+
+  /* total size of all user data */
+  long long total_datasz;
 
 } dir_stat_t;
 
