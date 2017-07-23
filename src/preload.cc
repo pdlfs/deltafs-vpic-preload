@@ -211,7 +211,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Inject_fake_data")) pctx.fake_data = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
-  /* XXXCDC: additional init can go here or MPI_Init() */
+  /* additional init can go here or MPI_Init() */
 }
 
 /*
@@ -614,6 +614,9 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  /* obtain number of logic cpu cores */
+  pctx.mycpus = my_cpu_cores();
+
   /* probe system info, will skip if we have no access */
   if (!pctx.noscan) {
     if (rank == 0) {
@@ -684,7 +687,8 @@ int MPI_Init(int* argc, char*** argv) {
 
       pctx.plfsh = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
       deltafs_plfsdir_enable_io_measurement(pctx.plfsh, 0);
-      pctx.plfstp = deltafs_tp_init(deltafs_plfsdir_get_memparts(pctx.plfsh));
+      pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfsh);
+      pctx.plfstp = deltafs_tp_init(pctx.plfsparts);
       deltafs_plfsdir_set_thread_pool(pctx.plfsh, pctx.plfstp);
 
       if (pctx.plfsh != NULL) {
