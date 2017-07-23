@@ -484,6 +484,9 @@ int MPI_Init(int* argc, char*** argv) {
   char msg[100];  // snprintf
   char dirpath[PATH_MAX];
   char path[PATH_MAX];
+  double start;
+  double min;
+  double dura;
   std::string conf;
 #if MPI_VERSION >= 3
   size_t l;
@@ -630,10 +633,24 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    shuffle_init();
-    nxt.MPI_Barrier(MPI_COMM_WORLD);
     if (rank == 0) {
-      info("shuffle layer ready");
+      info("shuffle starting ...");
+    }
+    shuffle_init();
+    /* ensures all peers have the shuffle ready */
+    if (pctx.myrank == 0) {
+      info("barrier ...");
+    }
+    start = MPI_Wtime();
+    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      dura = MPI_Wtime() - min;
+      snprintf(msg, sizeof(msg), "barrier %s+",
+               pretty_dura(dura * 1000000).c_str());
+      info(msg);
+    }
+    if (rank == 0) {
+      info("shuffle started");
     }
   } else {
     if (rank == 0) {
@@ -797,6 +814,9 @@ int MPI_Finalize(void) {
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+    if (pctx.myrank == 0) {
+      info("shuffle shutting down ...");
+    }
     /* ensures all peer messages are handled */
     if (pctx.myrank == 0) {
       info("barrier ...");
@@ -805,14 +825,14 @@ int MPI_Finalize(void) {
     MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     if (pctx.myrank == 0) {
       dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s",
+      snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
       info(msg);
     }
     shuffle_destroy();
 
     if (pctx.myrank == 0) {
-      info("shuffle layer closed");
+      info("shuffle closed");
     }
   }
 
@@ -955,12 +975,13 @@ int MPI_Finalize(void) {
               snprintf(msg, sizeof(msg), " @ epoch #%-3d %s", epoch + 1,
                        pretty_dura(glob.dura).c_str());
               info(msg);
-              snprintf(msg, sizeof(msg),
-                       "   > %s particle writes,%s per rank (min: %s, max: %s)",
-                       pretty_num(glob.nw).c_str(),
-                       pretty_num(double(glob.nw) / pctx.commsz).c_str(),
-                       pretty_num(glob.min_nw).c_str(),
-                       pretty_num(glob.max_nw).c_str());
+              snprintf(
+                  msg, sizeof(msg),
+                  "   > %s particle writes, %s per rank (min: %s, max: %s)",
+                  pretty_num(glob.nw).c_str(),
+                  pretty_num(double(glob.nw) / pctx.commsz).c_str(),
+                  pretty_num(glob.min_nw).c_str(),
+                  pretty_num(glob.max_nw).c_str());
               info(msg);
               snprintf(
                   msg, sizeof(msg), "         > %s remote + %s direct writes",
@@ -1000,7 +1021,8 @@ int MPI_Finalize(void) {
                        pretty_num(glob.dir_stat.max_num_keys).c_str());
               info(msg);
               snprintf(
-                  msg, sizeof(msg), "         > %s, %s, %s per rank",
+                  msg, sizeof(msg),
+                  "         > %s particle data, %s, %s per rank",
                   pretty_size(glob.dir_stat.total_datasz).c_str(),
                   pretty_bw(glob.dir_stat.total_datasz, glob.dura).c_str(),
                   pretty_bw(double(glob.dir_stat.total_datasz) / pctx.commsz,
@@ -1186,7 +1208,7 @@ DIR* opendir(const char* dir) {
     MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     if (pctx.myrank == 0) {
       dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s",
+      snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
       info(msg);
 
@@ -1292,7 +1314,7 @@ DIR* opendir(const char* dir) {
     MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     if (pctx.myrank == 0) {
       dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s",
+      snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
       info(msg);
 
@@ -1344,7 +1366,7 @@ int closedir(DIR* dirp) {
       MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
       if (pctx.myrank == 0) {
         dura = MPI_Wtime() - min;
-        snprintf(msg, sizeof(msg), "barrier %s",
+        snprintf(msg, sizeof(msg), "barrier %s+",
                  pretty_dura(dura * 1000000).c_str());
         info(msg);
 
