@@ -768,6 +768,11 @@ int MPI_Finalize(void) {
   char path2[PATH_MAX];
   char suffix[100];
   char msg[200];
+  uint64_t finish_start;
+  uint64_t finish_end;
+  double start;
+  double min;
+  double dura;
   time_t now;
   struct tm timeinfo;
   uint64_t ts;
@@ -789,7 +794,17 @@ int MPI_Finalize(void) {
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     /* ensures all peer messages are handled */
-    nxt.MPI_Barrier(MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      info("barrier ...");
+    }
+    start = MPI_Wtime();
+    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      dura = MPI_Wtime() - min;
+      snprintf(msg, sizeof(msg), "barrier %s",
+               pretty_dura(dura * 1000000).c_str());
+      info(msg);
+    }
     shuffle_destroy();
 
     if (pctx.myrank == 0) {
@@ -799,8 +814,21 @@ int MPI_Finalize(void) {
 
   /* all writes done, time to close all plfsdirs */
   if (pctx.plfsh != NULL) {
+    if (pctx.myrank == 0) {
+      finish_start = now_micros();
+      info("finalizing plfsdir ... (rank 0)");
+    }
     deltafs_plfsdir_finish(pctx.plfsh);
-    if (num_epochs != 0) dump_mon(&pctx.mctx, &tmp_stat);
+    if (pctx.myrank == 0) {
+      finish_end = now_micros();
+      snprintf(msg, sizeof(msg), "finalizing done %s",
+               pretty_dura(finish_end - finish_start).c_str());
+      info(msg);
+    }
+    if (num_epochs != 0) {
+      dump_mon(&pctx.mctx, &tmp_stat);
+    }
+
     deltafs_plfsdir_free_handle(pctx.plfsh);
     if (pctx.plfstp != NULL) {
       deltafs_tp_close(pctx.plfstp);
@@ -1188,7 +1216,7 @@ DIR* opendir(const char* dir) {
       if (pctx.plfsh != NULL) {
         if (pctx.myrank == 0) {
           flush_start = now_micros();
-          info("flushing plfs dir ... (rank 0)");
+          info("flushing plfsdir ... (rank 0)");
         }
         deltafs_plfsdir_epoch_flush(pctx.plfsh, num_epochs - 1);
         if (pctx.myrank == 0) {
@@ -1198,7 +1226,7 @@ DIR* opendir(const char* dir) {
           info(msg);
         }
       } else {
-        msg_abort("plfs not opened");
+        msg_abort("plfsdir not opened");
       }
 
     } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
@@ -1206,10 +1234,10 @@ DIR* opendir(const char* dir) {
       if (pctx.plfsfd != -1) {
         deltafs_epoch_flush(pctx.plfsfd, NULL); /* XXX */
         if (pctx.myrank == 0) {
-          info("plfs dir flushed (rank 0)");
+          info("plfsdir flushed (rank 0)");
         }
       } else {
-        msg_abort("plfs not opened");
+        msg_abort("plfsdir not opened");
       }
 
     } else {
@@ -1329,7 +1357,7 @@ int closedir(DIR* dirp) {
         if (pctx.plfsh != NULL) {
           if (pctx.myrank == 0) {
             flush_start = now_micros();
-            info("pre-flushing plfs dir ... (rank 0)");
+            info("pre-flushing plfsdir ... (rank 0)");
           }
           deltafs_plfsdir_flush(pctx.plfsh, num_epochs - 1);
           if (pctx.myrank == 0) {
@@ -1339,7 +1367,7 @@ int closedir(DIR* dirp) {
             info(msg);
           }
         } else {
-          msg_abort("plfs not opened");
+          msg_abort("plfsdir not opened");
         }
 
       } else {
