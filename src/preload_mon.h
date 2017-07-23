@@ -104,10 +104,8 @@ typedef struct mon_ctx {
 
 extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
 
-extern int mon_preload_remote_write(const char* fn, char* data, size_t n,
-                                    int epoch);
-extern int mon_preload_local_write(const char* fn, char* data, size_t n,
-                                   int epoch);
+extern int mon_remote_write(const char* fn, char* data, size_t n, int epoch);
+extern int mon_local_write(const char* fn, char* data, size_t n, int epoch);
 
 extern int mon_shuffle_write_received();
 extern int mon_shuffle_write_send_async(void* write_in, int peer_rank);

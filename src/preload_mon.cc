@@ -137,30 +137,28 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   return 0;
 }
 
-int mon_preload_remote_write(const char* fn, char* data, size_t n, int epoch) {
+int mon_remote_write(const char* fn, char* data, size_t n, int epoch) {
   int rv;
 
   rv = preload_write(fn, data, n, epoch);
-  if (rv == 0 && !pctx.nomon) pctx.mctx.nrw++;
+  pctx.mctx.nrw++;
 
   return (rv);
 }
 
-int mon_preload_local_write(const char* fn, char* data, size_t n, int epoch) {
+int mon_local_write(const char* fn, char* data, size_t n, int epoch) {
   int rv;
 
   rv = preload_write(fn, data, n, epoch);
-  if (rv == 0 && !pctx.nomon) pctx.mctx.nlw++;
+  pctx.mctx.nlw++;
 
   return (rv);
 }
 
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
-  if (rv == 0 && !pctx.nomon) {
-    pctx.mctx.min_nbs++;
-    pctx.mctx.max_nbs++;
-    pctx.mctx.nbs++;
-  }
+  pctx.mctx.min_nbs++;
+  pctx.mctx.max_nbs++;
+  pctx.mctx.nbs++;
 }
 
 int mon_shuffle_write_send_async(void* write_in, int peer_rank) {
@@ -175,21 +173,17 @@ int mon_shuffle_write_send(void* write_in, int peer_rank) {
   int rv;
 
   rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
-  if (rv == 0 && !pctx.nomon) {
-    pctx.mctx.min_nbs++;
-    pctx.mctx.max_nbs++;
-    pctx.mctx.nbs++;
-  }
+  pctx.mctx.min_nbs++;
+  pctx.mctx.max_nbs++;
+  pctx.mctx.nbs++;
 
   return (rv);
 }
 
 int mon_shuffle_write_received() {
-  if (!pctx.nomon) {
-    pctx.mctx.min_nbr++;
-    pctx.mctx.max_nbr++;
-    pctx.mctx.nbr++;
-  }
+  pctx.mctx.min_nbr++;
+  pctx.mctx.max_nbr++;
+  pctx.mctx.nbr++;
 }
 
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {

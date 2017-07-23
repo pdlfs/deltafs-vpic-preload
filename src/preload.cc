@@ -1398,8 +1398,8 @@ int fclose(FILE* stream) {
      *   - BYPASS_DELTAFS_PLFSDIR
      *   - BYPASS_DELTAFS
      */
-    rv = mon_preload_local_write(ff->file_name(), ff->data(), ff->size(),
-                                 num_epochs - 1);
+    rv = mon_local_write(ff->file_name(), ff->data(), ff->size(),
+                         num_epochs - 1);
     if (rv) {
       msg_abort("xxwrite");
     }
@@ -1422,6 +1422,9 @@ int fclose(FILE* stream) {
   } else {
     delete ff;
   }
+  pctx.mctx.min_nw++;
+  pctx.mctx.max_nw++;
+  pctx.mctx.nw++;
   must_maybeunlock(&maybe_mtx);
 
   return (rv);
@@ -1611,12 +1614,6 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
       }
       deltafs_close(fd);
     }
-  }
-
-  if (rv == 0 && !pctx.nomon) {
-    pctx.mctx.min_nw++;
-    pctx.mctx.max_nw++;
-    pctx.mctx.nw++;
   }
 
   return (rv);
