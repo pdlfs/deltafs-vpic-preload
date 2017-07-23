@@ -153,14 +153,7 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch) {
     l = strlen(fn) - pctx.len_plfsdir - 1;
 
     pthread_mutex_lock(&mtx);
-    if (l > pctx.mctx.max_fnl) pctx.mctx.max_fnl = l;
-    if (l < pctx.mctx.min_fnl) pctx.mctx.min_fnl = l;
-    if (n > pctx.mctx.max_wsz) pctx.mctx.max_wsz = n;
-    if (n < pctx.mctx.min_wsz) pctx.mctx.min_wsz = n;
-
-    pctx.mctx.sum_fnl += l;
     pctx.mctx.sum_wsz += n;
-
     pctx.mctx.min_nw++;
     pctx.mctx.max_nw++;
     pctx.mctx.nw++;
@@ -218,17 +211,8 @@ int mon_shuffle_write_received() {
 }
 
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
-  MPI_Reduce(const_cast<unsigned*>(&src->min_fnl), &sum->min_fnl, 1,
-             MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned*>(&src->max_fnl), &sum->max_fnl, 1,
-             MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->sum_fnl), &sum->sum_fnl, 1,
-             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-
-  MPI_Reduce(const_cast<unsigned*>(&src->min_wsz), &sum->min_wsz, 1,
-             MPI_UNSIGNED, MPI_MIN, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned*>(&src->max_wsz), &sum->max_wsz, 1,
-             MPI_UNSIGNED, MPI_MAX, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->sum_wsz), &sum->sum_wsz, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
@@ -253,8 +237,6 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nw), &sum->max_nw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
-             MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<long long*>(&src->dir_stat.num_keys),
              &sum->dir_stat.num_keys, 1, MPI_LONG_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);
@@ -301,11 +283,6 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
        ctx->dir_stat.total_iblksz);
   DUMP(fd, buf, "[M] total sst data: %lld bytes", ctx->dir_stat.total_dblksz);
   DUMP(fd, buf, "[M] total num sst: %lld", ctx->dir_stat.num_sstables);
-  DUMP(fd, buf, "[M] max fname len: %u chars", ctx->max_fnl);
-  DUMP(fd, buf, "[M] min fname len: %u chars", ctx->min_fnl);
-  DUMP(fd, buf, "[M] total fname len: %llu chars", ctx->sum_fnl);
-  DUMP(fd, buf, "[M] max write size: %u bytes", ctx->max_wsz);
-  DUMP(fd, buf, "[M] min write size: %u bytes", ctx->min_wsz);
   DUMP(fd, buf, "[M] total write size: %llu bytes", ctx->sum_wsz);
   DUMP(fd, buf, "[M] total rpc sent: %llu", ctx->nws);
   DUMP(fd, buf, "[M] min rpc sent per rank: %llu", ctx->min_nws);
@@ -324,8 +301,6 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
 
 void mon_reinit(mon_ctx_t* ctx) {
   mon_ctx_t tmp = {0};
-  tmp.min_fnl = 0xffffffff;
-  tmp.min_wsz = 0xffffffff;
   *ctx = tmp;
 
   return;

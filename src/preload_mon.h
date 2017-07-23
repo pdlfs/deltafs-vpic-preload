@@ -68,14 +68,7 @@ typedef struct mon_ctx {
   int global; /* is stats global or local (per-rank) */
 
   /* !!! main monitoring state !!! */
-
-  unsigned min_fnl; /* min file name length */
-  unsigned max_fnl; /* max file name length */
-  /* total file name length */
-  unsigned long long sum_fnl;
-
-  unsigned min_wsz; /* min app write size */
-  unsigned max_wsz; /* max app write size */
+  unsigned long long dura; /* epoch duration */
   /* total app write size */
   unsigned long long sum_wsz;
 
@@ -97,7 +90,6 @@ typedef struct mon_ctx {
   /* total num of writes to deltafs */
   unsigned long long nw;
 
-  unsigned long long dura; /* epoch duration */
   /* !!! collected by deltafs !!! */
   dir_stat_t dir_stat;
 #define MON_BUF_SIZE 512
