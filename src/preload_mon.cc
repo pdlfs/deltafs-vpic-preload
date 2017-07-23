@@ -38,8 +38,6 @@
 #include "preload_internal.h"
 #include "preload_mon.h"
 
-static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
-
 #ifdef PRELOAD_NEED_HISTO
 /* clang-format off */
 static const double BUCKET_LIMITS[MON_NUM_BUCKETS] = {
@@ -143,12 +141,7 @@ int mon_preload_remote_write(const char* fn, char* data, size_t n, int epoch) {
   int rv;
 
   rv = preload_write(fn, data, n, epoch);
-
-  if (rv == 0 && !pctx.nomon) {
-    pthread_mutex_lock(&mtx);
-    pctx.mctx.nrw++;
-    pthread_mutex_unlock(&mtx);
-  }
+  if (rv == 0 && !pctx.nomon) pctx.mctx.nrw++;
 
   return (rv);
 }
@@ -157,24 +150,16 @@ int mon_preload_local_write(const char* fn, char* data, size_t n, int epoch) {
   int rv;
 
   rv = preload_write(fn, data, n, epoch);
-
-  if (rv == 0 && !pctx.nomon) {
-    pthread_mutex_lock(&mtx);
-    pctx.mctx.nlw++;
-    pthread_mutex_unlock(&mtx);
-  }
+  if (rv == 0 && !pctx.nomon) pctx.mctx.nlw++;
 
   return (rv);
 }
 
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
   if (rv == 0 && !pctx.nomon) {
-    pthread_mutex_lock(&mtx);
     pctx.mctx.min_nbs++;
     pctx.mctx.max_nbs++;
     pctx.mctx.nbs++;
-
-    pthread_mutex_unlock(&mtx);
   }
 }
 
@@ -191,12 +176,9 @@ int mon_shuffle_write_send(void* write_in, int peer_rank) {
 
   rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
   if (rv == 0 && !pctx.nomon) {
-    pthread_mutex_lock(&mtx);
     pctx.mctx.min_nbs++;
     pctx.mctx.max_nbs++;
     pctx.mctx.nbs++;
-
-    pthread_mutex_unlock(&mtx);
   }
 
   return (rv);
@@ -204,12 +186,9 @@ int mon_shuffle_write_send(void* write_in, int peer_rank) {
 
 int mon_shuffle_write_received() {
   if (!pctx.nomon) {
-    pthread_mutex_lock(&mtx);
     pctx.mctx.min_nbr++;
     pctx.mctx.max_nbr++;
     pctx.mctx.nbr++;
-
-    pthread_mutex_unlock(&mtx);
   }
 }
 
