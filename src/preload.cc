@@ -831,7 +831,7 @@ int MPI_Finalize(void) {
       ok = 1; /* ready to go */
 
       if (pctx.myrank == 0) {
-        info("merging and copying epoch statistics to ...");
+        info("merging and saving epoch statistics to ...");
         ts = now_micros();
         now = time(NULL);
         localtime_r(&now, &timeinfo);
@@ -920,21 +920,22 @@ int MPI_Finalize(void) {
             memcpy(buf, &glob, sizeof(mon_ctx_t));
             n = write(fd1, buf, sizeof(buf));
             if (n == sizeof(buf)) {
+              snprintf(msg, sizeof(msg), " @ epoch #%-3d %s", epoch + 1,
+                       pretty_dura(glob.dura).c_str());
+              info(msg);
               snprintf(msg, sizeof(msg),
-                       " @ epoch #%-2d %s: %s particle writes,"
-                       " %s per rank (min: %s, max: %s)",
-                       epoch + 1, pretty_dura(glob.dura).c_str(),
+                       "   > %s particle writes,%s per rank (min: %s, max: %s)",
                        pretty_num(glob.nw).c_str(),
                        pretty_num(double(glob.nw) / pctx.commsz).c_str(),
                        pretty_num(glob.min_nw).c_str(),
                        pretty_num(glob.max_nw).c_str());
               info(msg);
               snprintf(
-                  msg, sizeof(msg), "       > %s remote + %s direct writes",
+                  msg, sizeof(msg), "         > %s remote + %s direct writes",
                   pretty_num(glob.nrw).c_str(), pretty_num(glob.nlw).c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
-                       "   > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
+                       "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
                        " %s bloom filter (+%.3f%%)",
                        pretty_size(glob.dir_stat.total_dblksz).c_str(),
                        (1.0 * glob.dir_stat.total_dblksz /
@@ -957,7 +958,7 @@ int MPI_Finalize(void) {
                       .c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
-                       "   > %s keys (%s dropped),"
+                       "     > %s keys (%s dropped),"
                        " %s per rank (min: %s, max %s)",
                        pretty_num(glob.dir_stat.num_keys).c_str(),
                        pretty_num(glob.dir_stat.num_dropped_keys).c_str(),
@@ -967,14 +968,14 @@ int MPI_Finalize(void) {
                        pretty_num(glob.dir_stat.max_num_keys).c_str());
               info(msg);
               snprintf(
-                  msg, sizeof(msg), "       > %s, %s, %s per rank",
+                  msg, sizeof(msg), "         > %s, %s, %s per rank",
                   pretty_size(glob.dir_stat.total_datasz).c_str(),
                   pretty_bw(glob.dir_stat.total_datasz, glob.dura).c_str(),
                   pretty_bw(double(glob.dir_stat.total_datasz) / pctx.commsz,
                             glob.dura)
                       .c_str());
               info(msg);
-              snprintf(msg, sizeof(msg), "           > %s per write op",
+              snprintf(msg, sizeof(msg), "             > %s per write op",
                        pretty_dura(double(glob.dura) / glob.nw * pctx.commsz)
                            .c_str());
               info(msg);
