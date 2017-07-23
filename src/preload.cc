@@ -944,20 +944,20 @@ int MPI_Finalize(void) {
               info(msg);
               snprintf(msg, sizeof(msg),
                        "   > %s rpc sent, %s per rank (min: %s, max: %s)",
-                       pretty_num(glob.nws).c_str(),
-                       pretty_num(double(glob.nws) / pctx.commsz).c_str(),
-                       pretty_num(glob.min_nws).c_str(),
-                       pretty_num(glob.max_nws).c_str());
+                       pretty_num(glob.nbs).c_str(),
+                       pretty_num(double(glob.nbs) / pctx.commsz).c_str(),
+                       pretty_num(glob.min_nbs).c_str(),
+                       pretty_num(glob.max_nbs).c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
                        "   > %s rpc recv, %s per rank (min: %s, max: %s)",
-                       pretty_num(glob.nwr).c_str(),
-                       pretty_num(double(glob.nwr) / pctx.commsz).c_str(),
-                       pretty_num(glob.min_nwr).c_str(),
-                       pretty_num(glob.max_nwr).c_str());
+                       pretty_num(glob.nbr).c_str(),
+                       pretty_num(double(glob.nbr) / pctx.commsz).c_str(),
+                       pretty_num(glob.min_nbr).c_str(),
+                       pretty_num(glob.max_nbr).c_str());
               info(msg);
               snprintf(msg, sizeof(msg), "       > %s per rpc",
-                       pretty_dura(double(glob.dura) / glob.nwr * pctx.commsz)
+                       pretty_dura(double(glob.dura) / glob.nbr * pctx.commsz)
                            .c_str());
               info(msg);
               snprintf(

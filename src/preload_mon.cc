@@ -167,9 +167,9 @@ int mon_preload_write(const char* fn, char* data, size_t n, int epoch) {
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
   if (rv == 0 && !pctx.nomon) {
     pthread_mutex_lock(&mtx);
-    pctx.mctx.min_nws++;
-    pctx.mctx.max_nws++;
-    pctx.mctx.nws++;
+    pctx.mctx.min_nbs++;
+    pctx.mctx.max_nbs++;
+    pctx.mctx.nbs++;
 
     pthread_mutex_unlock(&mtx);
   }
@@ -189,9 +189,9 @@ int mon_shuffle_write_send(void* write_in, int peer_rank) {
   rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
   if (rv == 0 && !pctx.nomon) {
     pthread_mutex_lock(&mtx);
-    pctx.mctx.min_nws++;
-    pctx.mctx.max_nws++;
-    pctx.mctx.nws++;
+    pctx.mctx.min_nbs++;
+    pctx.mctx.max_nbs++;
+    pctx.mctx.nbs++;
 
     pthread_mutex_unlock(&mtx);
   }
@@ -202,9 +202,9 @@ int mon_shuffle_write_send(void* write_in, int peer_rank) {
 int mon_shuffle_write_received() {
   if (!pctx.nomon) {
     pthread_mutex_lock(&mtx);
-    pctx.mctx.min_nwr++;
-    pctx.mctx.max_nwr++;
-    pctx.mctx.nwr++;
+    pctx.mctx.min_nbr++;
+    pctx.mctx.max_nbr++;
+    pctx.mctx.nbr++;
 
     pthread_mutex_unlock(&mtx);
   }
@@ -216,18 +216,18 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->sum_wsz), &sum->sum_wsz, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<unsigned long long*>(&src->nws), &sum->nws, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nbs), &sum->nbs, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->min_nws), &sum->min_nws, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->min_nbs), &sum->min_nbs, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->max_nws), &sum->max_nws, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->max_nbs), &sum->max_nbs, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<unsigned long long*>(&src->nwr), &sum->nwr, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nbr), &sum->nbr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->min_nwr), &sum->min_nwr, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->min_nbr), &sum->min_nbr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->max_nwr), &sum->max_nwr, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->max_nbr), &sum->max_nbr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
   MPI_Reduce(const_cast<unsigned long long*>(&src->nw), &sum->nw, 1,
@@ -284,12 +284,12 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   DUMP(fd, buf, "[M] total sst data: %lld bytes", ctx->dir_stat.total_dblksz);
   DUMP(fd, buf, "[M] total num sst: %lld", ctx->dir_stat.num_sstables);
   DUMP(fd, buf, "[M] total write size: %llu bytes", ctx->sum_wsz);
-  DUMP(fd, buf, "[M] total rpc sent: %llu", ctx->nws);
-  DUMP(fd, buf, "[M] min rpc sent per rank: %llu", ctx->min_nws);
-  DUMP(fd, buf, "[M] max rpc sent per rank: %llu", ctx->max_nws);
-  DUMP(fd, buf, "[M] total rpc received: %llu", ctx->nwr);
-  DUMP(fd, buf, "[M] min rpc received per rank: %llu", ctx->min_nwr);
-  DUMP(fd, buf, "[M] max rpc received per rank: %llu", ctx->max_nwr);
+  DUMP(fd, buf, "[M] total rpc sent: %llu", ctx->nbs);
+  DUMP(fd, buf, "[M] min rpc sent per rank: %llu", ctx->min_nbs);
+  DUMP(fd, buf, "[M] max rpc sent per rank: %llu", ctx->max_nbs);
+  DUMP(fd, buf, "[M] total rpc received: %llu", ctx->nbr);
+  DUMP(fd, buf, "[M] min rpc received per rank: %llu", ctx->min_nbr);
+  DUMP(fd, buf, "[M] max rpc received per rank: %llu", ctx->max_nbr);
   DUMP(fd, buf, "[M] total writes: %llu", ctx->nw);
   DUMP(fd, buf, "[M] min writes per rank: %llu", ctx->min_nw);
   DUMP(fd, buf, "[M] max writes per rank: %llu", ctx->max_nw);

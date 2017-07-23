@@ -72,17 +72,17 @@ typedef struct mon_ctx {
   /* total app write size */
   unsigned long long sum_wsz;
 
-  /* num of writes sent per rank */
-  unsigned long long max_nws;
-  unsigned long long min_nws;
-  /* total num of writes being shuffled out */
-  unsigned long long nws;
+  /* num of write batches sent per rank */
+  unsigned long long max_nbs;
+  unsigned long long min_nbs;
+  /* total num of write batches being shuffled out */
+  unsigned long long nbs;
 
-  /* num of writes received per rank */
-  unsigned long long max_nwr;
-  unsigned long long min_nwr;
-  /* total num of writes being shuffled in */
-  unsigned long long nwr;
+  /* num of write batches received per rank */
+  unsigned long long max_nbr;
+  unsigned long long min_nbr;
+  /* total num of write batches being shuffled in */
+  unsigned long long nbr;
 
   /* num of writes executed per rank */
   unsigned long long max_nw;
