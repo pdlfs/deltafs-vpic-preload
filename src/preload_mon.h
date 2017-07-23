@@ -72,11 +72,9 @@ typedef struct dir_stat {
  */
 typedef struct mon_ctx {
   /* !!! auxiliary state !!! */
-  dir_stat_t last_dir_stat;
-  uint64_t epoch_start; /* the start time of an epoch */
-  int epoch_seq;        /* epoch seq num */
-
   int global; /* is stats global or local (per-rank) */
+
+  int epoch_seq; /* epoch seq num */
 
   /* !!! main monitoring state !!! */
   unsigned long long dura; /* total epoch duration */

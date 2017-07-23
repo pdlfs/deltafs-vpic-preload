@@ -258,7 +258,8 @@ static int claim_FILE(FILE* stream) {
 /*
  * dump in-memory mon stats to files.
  */
-static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
+static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat,
+                     const dir_stat_t* prev_stat) {
   uint64_t ts;
   uint64_t diff;
   char buf[MON_BUF_SIZE];
@@ -269,23 +270,23 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat) {
     /* collect stats from deltafs */
     if (pctx.plfsh != NULL) {
       mon_fetch_plfsdir_stat(pctx.plfsh, tmp_stat);
-      mon->dir_stat.num_keys = tmp_stat->num_keys - mon->last_dir_stat.num_keys;
+      mon->dir_stat.num_keys = tmp_stat->num_keys - prev_stat->num_keys;
       mon->dir_stat.max_num_keys =
-          tmp_stat->max_num_keys - mon->last_dir_stat.max_num_keys;
+          tmp_stat->max_num_keys - prev_stat->max_num_keys;
       mon->dir_stat.min_num_keys =
-          tmp_stat->min_num_keys - mon->last_dir_stat.min_num_keys;
+          tmp_stat->min_num_keys - prev_stat->min_num_keys;
       mon->dir_stat.num_dropped_keys =
-          tmp_stat->num_dropped_keys - mon->last_dir_stat.num_dropped_keys;
+          tmp_stat->num_dropped_keys - prev_stat->num_dropped_keys;
       mon->dir_stat.total_fblksz =
-          tmp_stat->total_fblksz - mon->last_dir_stat.total_fblksz;
+          tmp_stat->total_fblksz - prev_stat->total_fblksz;
       mon->dir_stat.total_iblksz =
-          tmp_stat->total_iblksz - mon->last_dir_stat.total_iblksz;
+          tmp_stat->total_iblksz - prev_stat->total_iblksz;
       mon->dir_stat.total_dblksz =
-          tmp_stat->total_dblksz - mon->last_dir_stat.total_dblksz;
+          tmp_stat->total_dblksz - prev_stat->total_dblksz;
       mon->dir_stat.total_datasz =
-          tmp_stat->total_datasz - mon->last_dir_stat.total_datasz;
+          tmp_stat->total_datasz - prev_stat->total_datasz;
       mon->dir_stat.num_sstables =
-          tmp_stat->num_sstables - mon->last_dir_stat.num_sstables;
+          tmp_stat->num_sstables - prev_stat->num_sstables;
     } else if (pctx.plfsfd != -1) {
       // XXX: TODO
     }
@@ -836,7 +837,7 @@ int MPI_Finalize(void) {
     }
   }
 
-  /* all writes done, time to close all plfsdirs */
+  /* all writes are concluded, time to close all plfsdirs */
   if (pctx.plfsh != NULL) {
     if (pctx.myrank == 0) {
       finish_start = now_micros();
@@ -850,7 +851,7 @@ int MPI_Finalize(void) {
       info(msg);
     }
     if (num_epochs != 0) {
-      dump_mon(&pctx.mctx, &tmp_stat);
+      dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
     }
 
     deltafs_plfsdir_free_handle(pctx.plfsh);
@@ -864,7 +865,9 @@ int MPI_Finalize(void) {
       info("plfsdir (via deltafs-LT) closed (rank 0)");
     }
   } else if (pctx.plfsfd != -1) {
-    if (num_epochs != 0) dump_mon(&pctx.mctx, &tmp_stat);
+    if (num_epochs != 0) {
+      dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
+    }
     deltafs_close(pctx.plfsfd);
     pctx.plfsfd = -1;
 
@@ -873,7 +876,7 @@ int MPI_Finalize(void) {
     }
   } else {
     if (num_epochs != 0) {
-      dump_mon(&pctx.mctx, &tmp_stat);
+      dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
     }
   }
 
@@ -1279,7 +1282,7 @@ DIR* opendir(const char* dir) {
      * compaction work.
      *
      */
-    dump_mon(&pctx.mctx, &tmp_stat);
+    dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
 
   /* increase epoch seq */
@@ -1293,9 +1296,10 @@ DIR* opendir(const char* dir) {
   if (!pctx.nomon) {
     mon_reinit(&pctx.mctx); /* reset mon stats */
 
-    pctx.mctx.last_dir_stat = tmp_stat;
-    pctx.mctx.epoch_start = epoch_start;
-    pctx.mctx.epoch_seq = num_epochs;
+    pctx.mctx.epoch_seq = num_epochs; /* reset epoch id */
+
+    pctx.last_dir_stat = tmp_stat;
+    pctx.epoch_start = epoch_start;
   }
 
   if (!pctx.paranoid_post_barrier) {
@@ -1403,7 +1407,7 @@ int closedir(DIR* dirp) {
 
     /* record epoch duration */
     if (!pctx.nomon) {
-      pctx.mctx.dura = now_micros() - pctx.mctx.epoch_start;
+      pctx.mctx.dura = now_micros() - pctx.epoch_start;
       if (pctx.myrank == 0) {
         snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
                  pretty_dura(pctx.mctx.dura).c_str());

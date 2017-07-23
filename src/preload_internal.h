@@ -82,6 +82,10 @@ typedef struct preload_ctx {
 
   mon_ctx_t mctx; /* mon stats */
 
+  /* temporary mon stats */
+  dir_stat_t last_dir_stat;
+  uint64_t epoch_start;
+
   int nomon;  /* skip monitoring */
   int nodist; /* skip copying mon files out */
 
