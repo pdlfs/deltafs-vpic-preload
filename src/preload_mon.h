@@ -56,8 +56,12 @@ typedef struct dir_stat {
 
 } dir_stat_t;
 
-/*
- * XXX: need to use atomic counters in future when VPIC goes openmp.
+/*  NOTE
+ * -------
+ * + remote write:
+ *     write executed on behalf of another rank
+ * + local write:
+ *     write directly executed locally (shortcut the shuffle path)
  */
 typedef struct mon_ctx {
   /* !!! auxiliary state !!! */
@@ -68,9 +72,7 @@ typedef struct mon_ctx {
   int global; /* is stats global or local (per-rank) */
 
   /* !!! main monitoring state !!! */
-  unsigned long long dura; /* epoch duration */
-  /* total app write size */
-  unsigned long long sum_wsz;
+  unsigned long long dura; /* total epoch duration */
 
   /* num of write batches sent per rank */
   unsigned long long max_nbs;
@@ -84,10 +86,15 @@ typedef struct mon_ctx {
   /* total num of write batches being shuffled in */
   unsigned long long nbr;
 
-  /* num of writes executed per rank */
-  unsigned long long max_nw;
+  /* total num of remote writes */
+  unsigned long long nrw;
+  /* total num of local writes */
+  unsigned long long nlw;
+
+  /* num of particle writes handled per rank */
   unsigned long long min_nw;
-  /* total num of writes to deltafs */
+  unsigned long long max_nw;
+  /* total num of particle writes */
   unsigned long long nw;
 
   /* !!! collected by deltafs !!! */
@@ -97,7 +104,10 @@ typedef struct mon_ctx {
 
 extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
 
-extern int mon_preload_write(const char* fn, char* data, size_t n, int epoch);
+extern int mon_preload_remote_write(const char* fn, char* data, size_t n,
+                                    int epoch);
+extern int mon_preload_local_write(const char* fn, char* data, size_t n,
+                                   int epoch);
 
 extern int mon_shuffle_write_received();
 extern int mon_shuffle_write_send_async(void* write_in, int peer_rank);

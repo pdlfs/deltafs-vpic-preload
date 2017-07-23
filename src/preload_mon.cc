@@ -139,25 +139,28 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   return 0;
 }
 
-int mon_preload_write(const char* fn, char* data, size_t n, int epoch) {
-  size_t l;
+int mon_preload_remote_write(const char* fn, char* data, size_t n, int epoch) {
   int rv;
 
   rv = preload_write(fn, data, n, epoch);
 
   if (rv == 0 && !pctx.nomon) {
-    assert(fn != NULL && pctx.plfsdir != NULL);
-    assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
-    assert(strlen(fn) > pctx.len_plfsdir + 1);
-
-    l = strlen(fn) - pctx.len_plfsdir - 1;
-
     pthread_mutex_lock(&mtx);
-    pctx.mctx.sum_wsz += n;
-    pctx.mctx.min_nw++;
-    pctx.mctx.max_nw++;
-    pctx.mctx.nw++;
+    pctx.mctx.nrw++;
+    pthread_mutex_unlock(&mtx);
+  }
 
+  return (rv);
+}
+
+int mon_preload_local_write(const char* fn, char* data, size_t n, int epoch) {
+  int rv;
+
+  rv = preload_write(fn, data, n, epoch);
+
+  if (rv == 0 && !pctx.nomon) {
+    pthread_mutex_lock(&mtx);
+    pctx.mctx.nlw++;
     pthread_mutex_unlock(&mtx);
   }
 
@@ -213,8 +216,6 @@ int mon_shuffle_write_received() {
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
-  MPI_Reduce(const_cast<unsigned long long*>(&src->sum_wsz), &sum->sum_wsz, 1,
-             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
   MPI_Reduce(const_cast<unsigned long long*>(&src->nbs), &sum->nbs, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -229,6 +230,11 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
              MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nbr), &sum->max_nbr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nrw), &sum->nrw, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nlw), &sum->nlw, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 
   MPI_Reduce(const_cast<unsigned long long*>(&src->nw), &sum->nw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -275,24 +281,23 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
     DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
   }
   DUMP(fd, buf, "[M] epoch dura: %llu us", ctx->dura);
-  DUMP(fd, buf, "[M] observed epoch tput: %.2f bytes/s",
-       double(ctx->sum_wsz) / ctx->dura * 1000000);
   DUMP(fd, buf, "[M] total sst filter bytes: %lld bytes",
        ctx->dir_stat.total_fblksz);
   DUMP(fd, buf, "[M] total sst indexes: %lld bytes",
        ctx->dir_stat.total_iblksz);
   DUMP(fd, buf, "[M] total sst data: %lld bytes", ctx->dir_stat.total_dblksz);
   DUMP(fd, buf, "[M] total num sst: %lld", ctx->dir_stat.num_sstables);
-  DUMP(fd, buf, "[M] total write size: %llu bytes", ctx->sum_wsz);
   DUMP(fd, buf, "[M] total rpc sent: %llu", ctx->nbs);
   DUMP(fd, buf, "[M] min rpc sent per rank: %llu", ctx->min_nbs);
   DUMP(fd, buf, "[M] max rpc sent per rank: %llu", ctx->max_nbs);
   DUMP(fd, buf, "[M] total rpc received: %llu", ctx->nbr);
   DUMP(fd, buf, "[M] min rpc received per rank: %llu", ctx->min_nbr);
   DUMP(fd, buf, "[M] max rpc received per rank: %llu", ctx->max_nbr);
+  DUMP(fd, buf, "[M] total remote writes: %llu", ctx->nrw);
+  DUMP(fd, buf, "[M] total direct writes: %llu", ctx->nlw);
+  DUMP(fd, buf, "[M] min num writes per rank: %llu", ctx->min_nw);
+  DUMP(fd, buf, "[M] max num writes per rank: %llu", ctx->max_nw);
   DUMP(fd, buf, "[M] total writes: %llu", ctx->nw);
-  DUMP(fd, buf, "[M] min writes per rank: %llu", ctx->min_nw);
-  DUMP(fd, buf, "[M] max writes per rank: %llu", ctx->max_nw);
   if (!ctx->global) DUMP(fd, buf, "!!! NON GLOBAL !!!");
   DUMP(fd, buf, "--- end ---\n");
 
