@@ -981,8 +981,9 @@ int MPI_Finalize(void) {
                     glob.cpu_stat.micros;
               snprintf(
                   msg, sizeof(msg),
-                  " @ epoch #%-3d %s overall cpu: %d%% (min: %d%%, max: %d%%)",
-                  epoch + 1, pretty_dura(glob.dura).c_str(), int(cpu),
+                  " @ epoch #%-3d %s - %s     cpu: %d%% (min: %d%%, max: %d%%)",
+                  epoch + 1, pretty_dura(glob.min_dura).c_str(),
+                  pretty_dura(glob.max_dura).c_str(), int(cpu),
                   glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu);
               info(msg);
               snprintf(
@@ -1034,14 +1035,15 @@ int MPI_Finalize(void) {
                   msg, sizeof(msg),
                   "         > %s particle data, %s, %s per rank",
                   pretty_size(glob.dir_stat.total_datasz).c_str(),
-                  pretty_bw(glob.dir_stat.total_datasz, glob.dura).c_str(),
+                  pretty_bw(glob.dir_stat.total_datasz, glob.max_dura).c_str(),
                   pretty_bw(double(glob.dir_stat.total_datasz) / pctx.commsz,
-                            glob.dura)
+                            glob.max_dura)
                       .c_str());
               info(msg);
-              snprintf(msg, sizeof(msg), "             > %s per write op",
-                       pretty_dura(double(glob.dura) / glob.nw * pctx.commsz)
-                           .c_str());
+              snprintf(
+                  msg, sizeof(msg), "             > %s per write op",
+                  pretty_dura(double(glob.max_dura) / glob.nw * pctx.commsz)
+                      .c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
                        "   > %s rpc sent, %s per rank (min: %s, max: %s)",
@@ -1050,10 +1052,11 @@ int MPI_Finalize(void) {
                        pretty_num(glob.min_nbs).c_str(),
                        pretty_num(glob.max_nbs).c_str());
               info(msg);
-              snprintf(msg, sizeof(msg), "       > %s, %s per rank",
-                       pretty_tput(glob.nbs, glob.dura).c_str(),
-                       pretty_tput(double(glob.nbs) / pctx.commsz, glob.dura)
-                           .c_str());
+              snprintf(
+                  msg, sizeof(msg), "       > %s, %s per rank",
+                  pretty_tput(glob.nbs, glob.max_dura).c_str(),
+                  pretty_tput(double(glob.nbs) / pctx.commsz, glob.max_dura)
+                      .c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
                        "   > %s rpc recv, %s per rank (min: %s, max: %s)",
@@ -1062,14 +1065,16 @@ int MPI_Finalize(void) {
                        pretty_num(glob.min_nbr).c_str(),
                        pretty_num(glob.max_nbr).c_str());
               info(msg);
-              snprintf(msg, sizeof(msg), "       > %s, %s per rank",
-                       pretty_tput(glob.nbr, glob.dura).c_str(),
-                       pretty_tput(double(glob.nbr) / pctx.commsz, glob.dura)
-                           .c_str());
+              snprintf(
+                  msg, sizeof(msg), "       > %s, %s per rank",
+                  pretty_tput(glob.nbr, glob.max_dura).c_str(),
+                  pretty_tput(double(glob.nbr) / pctx.commsz, glob.max_dura)
+                      .c_str());
               info(msg);
-              snprintf(msg, sizeof(msg), "           > %s per rpc",
-                       pretty_dura(double(glob.dura) / glob.nbr * pctx.commsz)
-                           .c_str());
+              snprintf(
+                  msg, sizeof(msg), "           > %s per rpc",
+                  pretty_dura(double(glob.max_dura) / glob.nbr * pctx.commsz)
+                      .c_str());
               info(msg);
             }
 
@@ -1445,10 +1450,11 @@ int closedir(DIR* dirp) {
 
   /* record epoch duration */
   if (!pctx.nomon) {
-    pctx.mctx.dura = now_micros() - pctx.epoch_start;
+    pctx.mctx.max_dura = now_micros() - pctx.epoch_start;
+    pctx.mctx.min_dura = pctx.mctx.max_dura;
     if (pctx.myrank == 0) {
       snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
-               pretty_dura(pctx.mctx.dura).c_str());
+               pretty_dura(pctx.mctx.max_dura).c_str());
       info(msg);
     }
   }

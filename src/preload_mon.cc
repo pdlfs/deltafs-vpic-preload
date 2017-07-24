@@ -230,7 +230,9 @@ static void cpu_stat_reduce(const cpu_stat_t* src, cpu_stat_t* sum) {
 }
 
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
-  MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->min_dura), &sum->min_dura, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->max_dura), &sum->max_dura, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
   MPI_Reduce(const_cast<unsigned long long*>(&src->nbs), &sum->nbs, 1,
@@ -279,7 +281,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   } else {
     DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);
   }
-  DUMP(fd, buf, "[M] epoch dura: %llu us", ctx->dura);
+  DUMP(fd, buf, "[M] epoch dura: %llu us", ctx->max_dura);
   DUMP(fd, buf, "[M] total sst filter bytes: %lld bytes",
        ctx->dir_stat.total_fblksz);
   DUMP(fd, buf, "[M] total sst indexes: %lld bytes",

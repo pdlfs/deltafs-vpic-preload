@@ -84,7 +84,8 @@ typedef struct cpu_stat {
  */
 typedef struct mon_ctx {
   /* !!! main monitoring state !!! */
-  unsigned long long dura; /* total epoch duration */
+  unsigned long long min_dura;
+  unsigned long long max_dura;
 
   /* num of write batches sent per rank */
   unsigned long long max_nbs;
