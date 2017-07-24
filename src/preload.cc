@@ -32,6 +32,7 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -1394,8 +1395,8 @@ int closedir(DIR* dirp) {
                        pctx.mctx.cpu_stat.usr_micros) /
           pctx.mctx.cpu_stat.micros;
 
-    pctx.mctx.cpu_stat.min_cpu = int(cpu);
-    pctx.mctx.cpu_stat.max_cpu = int(cpu);
+    pctx.mctx.cpu_stat.min_cpu = int(floor(cpu));
+    pctx.mctx.cpu_stat.max_cpu = int(ceil(cpu));
   }
 
   /* drain on-going rpc */
