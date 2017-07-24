@@ -792,7 +792,8 @@ int MPI_Finalize(void) {
   char msg[200];
   uint64_t finish_start;
   uint64_t finish_end;
-  double cpu;
+  double ucpu;
+  double scpu;
   double start;
   double min;
   double dura;
@@ -925,7 +926,7 @@ int MPI_Finalize(void) {
         if (fd2 != -1) {
           n = snprintf(msg, sizeof(msg),
                        "== Please send me back "
-                       "to deltafs authors ^_^\n");
+                       "to deltafs authors ==\n");
           n = write(fd2, msg, n);
 
           errno = 0;
@@ -976,15 +977,20 @@ int MPI_Finalize(void) {
             memcpy(buf, &glob, sizeof(mon_ctx_t));
             n = write(fd1, buf, sizeof(buf));
             if (n == sizeof(buf)) {
-              cpu = 100 * double(glob.cpu_stat.sys_micros +
-                                 glob.cpu_stat.usr_micros) /
-                    glob.cpu_stat.micros;
-              snprintf(
-                  msg, sizeof(msg),
-                  " @ epoch #%-3d %s - %s     cpu: %d%% (min: %d%%, max: %d%%)",
-                  epoch + 1, pretty_dura(glob.min_dura).c_str(),
-                  pretty_dura(glob.max_dura).c_str(), int(cpu),
-                  glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu);
+              ucpu =
+                  100 * double(glob.cpu_stat.usr_micros) / glob.cpu_stat.micros;
+              scpu =
+                  100 * double(glob.cpu_stat.sys_micros) / glob.cpu_stat.micros;
+              snprintf(msg, sizeof(msg),
+                       " @ epoch #%-3d %s - %s  (%d%% - %d%% cpu usage)",
+                       epoch + 1, pretty_dura(glob.min_dura).c_str(),
+                       pretty_dura(glob.max_dura).c_str(),
+                       glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu);
+              info(msg);
+              snprintf(msg, sizeof(msg),
+                       "       > avg cpu: %.2f%% user + %.2f%% system ="
+                       " %.2f%% total",
+                       ucpu, scpu, ucpu + scpu);
               info(msg);
               snprintf(
                   msg, sizeof(msg),
