@@ -792,6 +792,7 @@ int MPI_Finalize(void) {
   char msg[200];
   uint64_t finish_start;
   uint64_t finish_end;
+  double cpu;
   double start;
   double min;
   double dura;
@@ -975,8 +976,14 @@ int MPI_Finalize(void) {
             memcpy(buf, &glob, sizeof(mon_ctx_t));
             n = write(fd1, buf, sizeof(buf));
             if (n == sizeof(buf)) {
-              snprintf(msg, sizeof(msg), " @ epoch #%-3d %s", epoch + 1,
-                       pretty_dura(glob.dura).c_str());
+              cpu = 100 * double(glob.cpu_stat.sys_micros +
+                                 glob.cpu_stat.usr_micros) /
+                    glob.cpu_stat.micros;
+              snprintf(
+                  msg, sizeof(msg),
+                  " @ epoch #%-3d %s overall cpu: %d%% (min: %d%%, max: %d%%)",
+                  epoch + 1, pretty_dura(glob.dura).c_str(), int(cpu),
+                  glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu);
               info(msg);
               snprintf(
                   msg, sizeof(msg),
