@@ -524,7 +524,7 @@ int MPI_Init(int* argc, char*** argv) {
       info(msg);
       snprintf(msg, sizeof(msg),
                "deltafs-vpic lib initializing "
-               "... %d cores",
+               "... %d MPI ranks",
                size);
       info(msg);
     }
