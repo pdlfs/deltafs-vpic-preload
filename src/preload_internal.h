@@ -79,6 +79,8 @@ typedef struct preload_ctx {
 
   std::set<FILE*>* isdeltafs; /* open files owned by deltafs */
 
+  std::set<std::string>* fnames; /* used for checking unique file names */
+
   int testin;    /* developer mode - for debug use only */
   int fake_data; /* replace vpic output with fake data - for debug only */
   int noscan;    /* do not probe sys info */

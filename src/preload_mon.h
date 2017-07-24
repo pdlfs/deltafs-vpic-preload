@@ -104,6 +104,8 @@ typedef struct mon_ctx {
   /* total num of local writes */
   unsigned long long nlw;
 
+  /* total num of particles with duplicated names */
+  unsigned long long ncw;
   /* num of particle writes handled per rank */
   unsigned long long min_nw;
   unsigned long long max_nw;

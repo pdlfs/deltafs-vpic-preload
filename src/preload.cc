@@ -130,6 +130,8 @@ static void preload_init() {
   pctx.monfd = -1;
 
   pctx.isdeltafs = new std::set<FILE*>;
+  pctx.fnames = new std::set<std::string>;
+
   pctx.paranoid_checks = 1;
   pctx.paranoid_barrier = 1;
   pctx.paranoid_post_barrier = 1;
@@ -718,7 +720,8 @@ int MPI_Init(int* argc, char*** argv) {
       } else if (rank == 0) {
         info("plfsdir (via deltafs-LT) opened (rank 0)");
         if (!pctx.verr) {
-          snprintf(msg, sizeof(msg), "plfsdir mem partitions %d");
+          snprintf(msg, sizeof(msg), "plfsdir mem partitions %d",
+                   pctx.plfsparts);
           info(msg);
         } else {
           for (size_t pos = conf.find('&', 0); pos != std::string::npos;
@@ -1004,13 +1007,14 @@ int MPI_Finalize(void) {
                        " %.2f%% total",
                        ucpu, scpu, ucpu + scpu);
               info(msg);
-              snprintf(
-                  msg, sizeof(msg),
-                  "   > %s particle writes, %s per rank (min: %s, max: %s)",
-                  pretty_num(glob.nw).c_str(),
-                  pretty_num(double(glob.nw) / pctx.commsz).c_str(),
-                  pretty_num(glob.min_nw).c_str(),
-                  pretty_num(glob.max_nw).c_str());
+              snprintf(msg, sizeof(msg),
+                       "   > %s particle writes (%s collisions), %s per rank "
+                       "(min: %s, max: %s)",
+                       pretty_num(glob.nw).c_str(),
+                       pretty_num(glob.ncw).c_str(),
+                       pretty_num(double(glob.nw) / pctx.commsz).c_str(),
+                       pretty_num(glob.min_nw).c_str(),
+                       pretty_num(glob.max_nw).c_str());
               info(msg);
               snprintf(
                   msg, sizeof(msg), "         > %s remote + %s direct writes",
@@ -1375,6 +1379,8 @@ DIR* opendir(const char* dir) {
     if (ret) msg_abort("getrusage");
   }
 
+  pctx.fnames->clear();
+
   return (rv);
 }
 
@@ -1398,6 +1404,13 @@ int closedir(DIR* dirp) {
 
   if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
     return (nxt.closedir(dirp));
+  }
+
+  if (pctx.paranoid_checks) {
+    if (!pctx.isdeltafs->empty()) {
+      msg_abort("some plfsdir files still open!");
+    }
+    pctx.fnames->clear();
   }
 
   if (!pctx.nomon) {
@@ -1498,29 +1511,38 @@ int closedir(DIR* dirp) {
 /*
  * fopen
  */
-FILE* fopen(const char* fname, const char* mode) {
+FILE* fopen(const char* fpath, const char* mode) {
   int exact;
   const char* stripped;
+  const char* fname;
   FILE* rv;
 
   int ret = pthread_once(&init_once, preload_init);
   if (ret) msg_abort("pthread_once");
 
-  if (!claim_path(fname, &exact)) {
-    return (nxt.fopen(fname, mode));
-  } else if (!under_plfsdir(fname)) {
+  if (!claim_path(fpath, &exact)) {
+    return (nxt.fopen(fpath, mode));
+  } else if (!under_plfsdir(fpath)) {
     return (NULL); /* XXX: support this */
   }
 
   /* relative paths we pass through; absolute we strip off prefix */
 
-  if (*fname != '/') {
-    stripped = fname;
+  if (*fpath != '/') {
+    stripped = fpath;
   } else {
-    stripped = (exact) ? "/" : (fname + pctx.len_deltafs_root);
+    stripped = (exact) ? "/" : (fpath + pctx.len_deltafs_root);
   }
 
   must_maybelockmutex(&maybe_mtx);
+  if (pctx.paranoid_checks) {
+    fname = stripped + pctx.len_plfsdir + 1;
+    if (pctx.fnames->count(std::string(fname)) == 0) {
+      pctx.fnames->insert(std::string(fname));
+    } else {
+      pctx.mctx.ncw++;
+    }
+  }
   /* allocate a fake FILE* and put it in the set */
   fake_file* ff = NULL;
   if (vpic_file != &vpic_file_buffer) {
