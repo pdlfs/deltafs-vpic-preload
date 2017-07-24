@@ -1294,12 +1294,9 @@ DIR* opendir(const char* dir) {
   }
 
   if (!pctx.nomon) {
-    mon_reinit(&pctx.mctx); /* reset mon stats */
-
-    pctx.mctx.epoch_seq = num_epochs; /* reset epoch id */
-
-    pctx.last_dir_stat = tmp_stat;
-    pctx.epoch_start = epoch_start;
+    mon_reinit(&pctx.mctx); /* clear mon stats */
+    /* reset epoch id */
+    pctx.mctx.epoch_seq = num_epochs;
   }
 
   if (!pctx.paranoid_post_barrier) {
@@ -1326,10 +1323,16 @@ DIR* opendir(const char* dir) {
     }
   }
 
-  /* take a snapshot of sys usage */
-  pctx.last_sys_usage_snaptime = now_micros();
-  ret = getrusage(RUSAGE_SELF, &pctx.last_sys_usage);
-  if (ret) msg_abort("getrusage");
+  if (!pctx.nomon) {
+    pctx.epoch_start = epoch_start; /* record epoch start */
+
+    /* take a snapshot of dir stats */
+    pctx.last_dir_stat = tmp_stat;
+    /* take a snapshot of sys usage */
+    pctx.last_sys_usage_snaptime = now_micros();
+    ret = getrusage(RUSAGE_SELF, &pctx.last_sys_usage);
+    if (ret) msg_abort("getrusage");
+  }
 
   return (rv);
 }
@@ -1354,9 +1357,9 @@ int closedir(DIR* dirp) {
 
   if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
     return (nxt.closedir(dirp));
+  }
 
-  } else { /* deltafs */
-
+  if (!pctx.nomon) {
     tmp_usage_snaptime = now_micros();
     rv = getrusage(RUSAGE_SELF, &tmp_usage);
     if (rv) msg_abort("getrusage");
@@ -1375,79 +1378,79 @@ int closedir(DIR* dirp) {
 
     pctx.mctx.cpu_stat.min_cpu = int(cpu);
     pctx.mctx.cpu_stat.max_cpu = int(cpu);
-
-    /* drain on-going rpc */
-    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-      shuffle_flush();
-      if (!sctx.force_sync) {
-        shuffle_wait();
-      }
-    }
-
-    if (!pctx.paranoid_pre_barrier) {
-      if (pctx.myrank == 0) {
-        info("dumping done (rank 0)");
-      }
-    } else {
-      /* this ensures we have received all incoming writes */
-      if (pctx.myrank == 0) {
-        info("barrier ...");
-      }
-      start = MPI_Wtime();
-      MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-      if (pctx.myrank == 0) {
-        dura = MPI_Wtime() - min;
-        snprintf(msg, sizeof(msg), "barrier %s+",
-                 pretty_dura(dura * 1000000).c_str());
-        info(msg);
-
-        info("dumping done");
-      }
-    }
-
-    /* epoch pre-flush */
-    if (pctx.pre_flushing) {
-      if (IS_BYPASS_WRITE(pctx.mode)) {
-        /* noop */
-
-      } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-        if (pctx.plfsh != NULL) {
-          if (pctx.myrank == 0) {
-            flush_start = now_micros();
-            info("pre-flushing plfsdir ... (rank 0)");
-          }
-          deltafs_plfsdir_flush(pctx.plfsh, num_epochs - 1);
-          if (pctx.myrank == 0) {
-            flush_end = now_micros();
-            snprintf(msg, sizeof(msg), "pre-flushing done %s",
-                     pretty_dura(flush_end - flush_start).c_str());
-            info(msg);
-          }
-        } else {
-          msg_abort("plfsdir not opened");
-        }
-
-      } else {
-        /* XXX */
-      }
-    }
-
-    /* record epoch duration */
-    if (!pctx.nomon) {
-      pctx.mctx.dura = now_micros() - pctx.epoch_start;
-      if (pctx.myrank == 0) {
-        snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
-                 pretty_dura(pctx.mctx.dura).c_str());
-        info(msg);
-      }
-    }
-
-    if (pctx.myrank == 0) {
-      info("epoch ends (rank 0)");
-    }
-
-    return (0);
   }
+
+  /* drain on-going rpc */
+  if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+    shuffle_flush();
+    if (!sctx.force_sync) {
+      shuffle_wait();
+    }
+  }
+
+  if (!pctx.paranoid_pre_barrier) {
+    if (pctx.myrank == 0) {
+      info("dumping done (rank 0)");
+    }
+  } else {
+    /* this ensures we have received all incoming writes */
+    if (pctx.myrank == 0) {
+      info("barrier ...");
+    }
+    start = MPI_Wtime();
+    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      dura = MPI_Wtime() - min;
+      snprintf(msg, sizeof(msg), "barrier %s+",
+               pretty_dura(dura * 1000000).c_str());
+      info(msg);
+
+      info("dumping done");
+    }
+  }
+
+  /* epoch pre-flush */
+  if (pctx.pre_flushing) {
+    if (IS_BYPASS_WRITE(pctx.mode)) {
+      /* noop */
+
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+      if (pctx.plfsh != NULL) {
+        if (pctx.myrank == 0) {
+          flush_start = now_micros();
+          info("pre-flushing plfsdir ... (rank 0)");
+        }
+        deltafs_plfsdir_flush(pctx.plfsh, num_epochs - 1);
+        if (pctx.myrank == 0) {
+          flush_end = now_micros();
+          snprintf(msg, sizeof(msg), "pre-flushing done %s",
+                   pretty_dura(flush_end - flush_start).c_str());
+          info(msg);
+        }
+      } else {
+        msg_abort("plfsdir not opened");
+      }
+
+    } else {
+      /* XXX */
+    }
+  }
+
+  /* record epoch duration */
+  if (!pctx.nomon) {
+    pctx.mctx.dura = now_micros() - pctx.epoch_start;
+    if (pctx.myrank == 0) {
+      snprintf(msg, sizeof(msg), "epoch %s (rank 0)",
+               pretty_dura(pctx.mctx.dura).c_str());
+      info(msg);
+    }
+  }
+
+  if (pctx.myrank == 0) {
+    info("epoch ends (rank 0)");
+  }
+
+  return (0);
 }
 
 /*
