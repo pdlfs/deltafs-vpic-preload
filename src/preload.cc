@@ -720,9 +720,9 @@ int MPI_Init(int* argc, char*** argv) {
         if (pctx.verr) {
           for (size_t pos = conf.find('&', 0); pos != std::string::npos;
                pos = conf.find('&', 0)) {
-            conf.replace(pos, 1, "\n  ");
+            conf.replace(pos, 1, "\n>>> ");
           }
-          conf = std::string("plfsdir_conf = (\n  ") + conf;
+          conf = std::string("plfsdir_conf = (\n>>> ") + conf;
           conf += "\n)";
           info(conf.c_str());
         }
@@ -1017,24 +1017,35 @@ int MPI_Finalize(void) {
                        "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
                        " %s bloom filter (+%.3f%%)",
                        pretty_size(glob.dir_stat.total_dblksz).c_str(),
-                       (1.0 * glob.dir_stat.total_dblksz /
-                            glob.dir_stat.total_datasz -
-                        1.0) *
-                           100.0,
+                       glob.dir_stat.total_datasz
+                           ? (1.0 * glob.dir_stat.total_dblksz /
+                                  glob.dir_stat.total_datasz -
+                              1.0) *
+                                 100.0
+                           : 0,
                        pretty_size(glob.dir_stat.total_iblksz).c_str(),
-                       (1.0 * glob.dir_stat.total_iblksz /
-                        glob.dir_stat.total_datasz) *
-                           100.0,
+                       glob.dir_stat.total_datasz
+                           ? (1.0 * glob.dir_stat.total_iblksz /
+                              glob.dir_stat.total_datasz) *
+                                 100.0
+                           : 0,
                        pretty_size(glob.dir_stat.total_fblksz).c_str(),
-                       (1.0 * glob.dir_stat.total_fblksz /
-                        glob.dir_stat.total_datasz) *
-                           100.0);
+                       glob.dir_stat.total_datasz
+                           ? (1.0 * glob.dir_stat.total_fblksz /
+                              glob.dir_stat.total_datasz) *
+                                 100.0
+                           : 0);
               info(msg);
               snprintf(
-                  msg, sizeof(msg), "           > %s sst, %s per rank",
+                  msg, sizeof(msg),
+                  "           > %s sst, %s per rank, %.0f per mem partition",
                   pretty_num(glob.dir_stat.num_sstables).c_str(),
                   pretty_num(double(glob.dir_stat.num_sstables) / pctx.commsz)
-                      .c_str());
+                      .c_str(),
+                  pctx.plfsparts
+                      ? double(glob.dir_stat.num_sstables) / pctx.commsz /
+                            pctx.plfsparts
+                      : 0);
               info(msg);
               snprintf(msg, sizeof(msg),
                        "     > %s keys (%s dropped),"
