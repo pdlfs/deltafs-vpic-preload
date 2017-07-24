@@ -716,8 +716,15 @@ int MPI_Init(int* argc, char*** argv) {
       if (pctx.plfsh == NULL || rv != 0) {
         msg_abort("cannot open plfsdir");
       } else if (rank == 0) {
-        info(conf.c_str());
         info("plfsdir (via deltafs-LT) opened (rank 0)");
+        if (pctx.verr) {
+          for (size_t pos = conf.find('&', 0); pos != std::string::npos;) {
+            conf.replace(pos, 1, "\n  ");
+          }
+          conf = std::string("plfsdir_conf = (\n  ") + conf;
+          conf += "\n)";
+          info(conf.c_str());
+        }
       }
     } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
                !IS_BYPASS_DELTAFS(pctx.mode)) {
