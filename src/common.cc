@@ -38,6 +38,13 @@
 
 #include "common.h"
 
+uint64_t timeval_to_micros(const struct timeval* tv) {
+  uint64_t t;
+  t = static_cast<uint64_t>(tv->tv_sec) * 1000000;
+  t += tv->tv_usec;
+  return (t);
+}
+
 uint64_t now_micros() {
   uint64_t t;
 
@@ -56,8 +63,7 @@ uint64_t now_micros() {
   struct timeval tv;
 
   gettimeofday(&tv, NULL);
-  t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
-  t += tv.tv_usec;
+  t = timeval_to_micros(&tv);
 #endif
 
   return (t);

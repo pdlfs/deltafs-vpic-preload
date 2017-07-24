@@ -1191,7 +1191,7 @@ DIR* opendir(const char* dir) {
   /* return a fake DIR* since we don't actually open */
   rv = reinterpret_cast<DIR*>(&fake_dirptr);
 
-  /* initialize mon stats */
+  /* initialize tmp mon stats */
   if (!pctx.nomon) {
     memset(&tmp_stat, 0, sizeof(dir_stat_t));
     epoch_start = now_micros();
@@ -1326,6 +1326,11 @@ DIR* opendir(const char* dir) {
     }
   }
 
+  /* take a snapshot of sys usage */
+  pctx.last_sys_usage_snaptime = now_micros();
+  ret = getrusage(RUSAGE_SELF, &pctx.last_sys_usage);
+  if (ret) msg_abort("getrusage");
+
   return (rv);
 }
 
@@ -1333,6 +1338,9 @@ DIR* opendir(const char* dir) {
  * closedir
  */
 int closedir(DIR* dirp) {
+  uint64_t tmp_usage_snaptime;
+  struct rusage tmp_usage;
+  double cpu;
   double start;
   double min;
   double dura;
@@ -1348,6 +1356,25 @@ int closedir(DIR* dirp) {
     return (nxt.closedir(dirp));
 
   } else { /* deltafs */
+
+    tmp_usage_snaptime = now_micros();
+    rv = getrusage(RUSAGE_SELF, &tmp_usage);
+    if (rv) msg_abort("getrusage");
+    pctx.mctx.cpu_stat.micros =
+        pctx.mycpus * (tmp_usage_snaptime - pctx.last_sys_usage_snaptime);
+    pctx.mctx.cpu_stat.sys_micros =
+        timeval_to_micros(&tmp_usage.ru_stime) -
+        timeval_to_micros(&pctx.last_sys_usage.ru_stime);
+    pctx.mctx.cpu_stat.usr_micros =
+        timeval_to_micros(&tmp_usage.ru_utime) -
+        timeval_to_micros(&pctx.last_sys_usage.ru_utime);
+
+    cpu = 100 * double(pctx.mctx.cpu_stat.sys_micros +
+                       pctx.mctx.cpu_stat.usr_micros) /
+          pctx.mctx.cpu_stat.micros;
+
+    pctx.mctx.cpu_stat.min_cpu = int(cpu);
+    pctx.mctx.cpu_stat.max_cpu = int(cpu);
 
     /* drain on-going rpc */
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {

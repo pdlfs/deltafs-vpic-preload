@@ -41,7 +41,7 @@
 typedef double(hstg_t)[MON_NUM_BUCKETS + 4];
 #endif
 
-/* accumulated statistics for an opened plfsdir */
+/* statistics for an opened plfsdir */
 typedef struct dir_stat {
   long long min_num_keys; /* min number of keys inserted per rank */
   long long max_num_keys; /* max number of keys inserted per rank */
@@ -63,6 +63,18 @@ typedef struct dir_stat {
 
 } dir_stat_t;
 
+typedef struct cpu_stat {
+  unsigned long long sys_micros; /* system-level cpu time */
+  unsigned long long usr_micros; /* user-level cpu time */
+
+  unsigned long long micros; /* real time */
+
+  /* per rank cpu usage */
+  int min_cpu; /* from 0 to 100 */
+  int max_cpu; /* from 0 to 100 */
+
+} cpu_stat_t;
+
 /*  NOTE
  * -------
  * + remote write:
@@ -71,11 +83,6 @@ typedef struct dir_stat {
  *     write directly executed locally (shortcut the shuffle path)
  */
 typedef struct mon_ctx {
-  /* !!! auxiliary state !!! */
-  int global; /* is stats global or local (per-rank) */
-
-  int epoch_seq; /* epoch seq num */
-
   /* !!! main monitoring state !!! */
   unsigned long long dura; /* total epoch duration */
 
@@ -104,6 +111,15 @@ typedef struct mon_ctx {
 
   /* !!! collected by deltafs !!! */
   dir_stat_t dir_stat;
+
+  /* !!! collected by os !!!*/
+  cpu_stat_t cpu_stat;
+
+  /* !!! auxiliary state !!! */
+  int global; /* is stats global or local (per-rank) */
+
+  int epoch_seq; /* epoch seq num */
+
 #define MON_BUF_SIZE 512
 } mon_ctx_t;
 

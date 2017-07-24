@@ -53,6 +53,9 @@ int my_cpu_cores();
 /* get the current time in us. */
 uint64_t now_micros();
 
+/* convert posix timeval to micros */
+uint64_t timeval_to_micros(const struct timeval* tv);
+
 /* log message into a given file using unbuffered io. */
 inline void log(int fd, const char* fmt, ...) {
   char tmp[500];

@@ -30,6 +30,9 @@
 
 #pragma once
 
+#include <sys/resource.h>
+#include <sys/time.h>
+
 #include <deltafs/deltafs_api.h>
 
 #include "common.h"
@@ -83,6 +86,8 @@ typedef struct preload_ctx {
   mon_ctx_t mctx; /* mon stats */
 
   /* temporary mon stats */
+  uint64_t last_sys_usage_snaptime;
+  struct rusage last_sys_usage;
   dir_stat_t last_dir_stat;
   uint64_t epoch_start;
 

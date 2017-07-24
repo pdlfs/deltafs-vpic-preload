@@ -213,6 +213,22 @@ static void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
              MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 }
 
+static void cpu_stat_reduce(const cpu_stat_t* src, cpu_stat_t* sum) {
+  MPI_Reduce(const_cast<unsigned long long*>(&src->sys_micros),
+             &sum->sys_micros, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->usr_micros),
+             &sum->usr_micros, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->micros), &sum->micros, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  MPI_Reduce(const_cast<int*>(&src->min_cpu), &sum->min_cpu, 1, MPI_INT,
+             MPI_MIN, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<int*>(&src->max_cpu), &sum->max_cpu, 1, MPI_INT,
+             MPI_MAX, 0, MPI_COMM_WORLD);
+}
+
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->dura), &sum->dura, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
@@ -244,6 +260,7 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
   dir_stat_reduce(&src->dir_stat, &sum->dir_stat);
+  cpu_stat_reduce(&src->cpu_stat, &sum->cpu_stat);
 }
 
 #define DUMP(fd, buf, fmt, ...)                             \
