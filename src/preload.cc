@@ -717,12 +717,15 @@ int MPI_Init(int* argc, char*** argv) {
         msg_abort("cannot open plfsdir");
       } else if (rank == 0) {
         info("plfsdir (via deltafs-LT) opened (rank 0)");
-        if (pctx.verr) {
+        if (!pctx.verr) {
+          snprintf(msg, sizeof(msg), "plfsdir mem partitions %d");
+          info(msg);
+        } else {
           for (size_t pos = conf.find('&', 0); pos != std::string::npos;
                pos = conf.find('&', 0)) {
-            conf.replace(pos, 1, "\n>>> ");
+            conf.replace(pos, 1, "\n -> ");
           }
-          conf = std::string("plfsdir_conf = (\n>>> ") + conf;
+          conf = std::string("plfsdir_conf = (\n -> ") + conf;
           conf += "\n)";
           info(conf.c_str());
         }
