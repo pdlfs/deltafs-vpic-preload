@@ -718,7 +718,8 @@ int MPI_Init(int* argc, char*** argv) {
       } else if (rank == 0) {
         info("plfsdir (via deltafs-LT) opened (rank 0)");
         if (pctx.verr) {
-          for (size_t pos = conf.find('&', 0); pos != std::string::npos;) {
+          for (size_t pos = conf.find('&', 0); pos != std::string::npos;
+               pos = conf.find('&', 0)) {
             conf.replace(pos, 1, "\n  ");
           }
           conf = std::string("plfsdir_conf = (\n  ") + conf;
