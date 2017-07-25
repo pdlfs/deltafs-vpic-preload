@@ -158,8 +158,6 @@ void try_scan_sysfs() {
       }
     }
     closedir(d);
-    snprintf(msg, sizeof(msg), "[sys] %d CPU_cores", ncpus);
-    info(msg);
   }
 
   nnodes = 0;
@@ -175,9 +173,11 @@ void try_scan_sysfs() {
       }
     }
     closedir(d);
-    snprintf(msg, sizeof(msg), "[sys] %d NUMA_nodes", nnodes);
-    info(msg);
   }
+
+  snprintf(msg, sizeof(msg), "[sys] %d CPU cores / %d NUMA nodes", ncpus,
+           nnodes);
+  info(msg);
 
   nnics = 0;
   dirname = "/sys/class/net";
@@ -213,7 +213,7 @@ void try_scan_sysfs() {
         nnics++;
         snprintf(msg, sizeof(msg),
                  "[if] speed %5s Mbps, tx_queue_len "
-                 "%5s, mtu %4s, rx-irq: %3d, tx-irq: %3d (%s)",
+                 "%5s, mtu %5s, rx-irq: %3d, tx-irq: %3d (%s)",
                  speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx,
                  nic.c_str());
         info(msg);
@@ -231,6 +231,7 @@ void try_scan_sysfs() {
 void try_scan_procfs() {
   int num_cpus;
   std::string cpu_type;
+  std::string L1_cache_size;
   char msg[200];
   char line[1000];
   const char* sep;
@@ -258,13 +259,16 @@ void try_scan_procfs() {
       value = trim(sep + 1, strlen(sep + 1));
       if (key == "model name") {
         cpu_type = value;
+      } else if (key == "cache size") {
+        L1_cache_size = value;
       } else if (key == "processor") {
         num_cpus++;
       }
     }
     fclose(cpuinfo);
     if (num_cpus != 0) {
-      snprintf(msg, sizeof(msg), "[cpu] %d x %s", num_cpus, cpu_type.c_str());
+      snprintf(msg, sizeof(msg), "[cpu] %d x %s (L1 cache: %s)", num_cpus,
+               cpu_type.c_str(), L1_cache_size.c_str());
       info(msg);
     }
   }
