@@ -34,11 +34,7 @@
 #include <errno.h>
 #include <ifaddrs.h>
 #include <pthread.h>
-#include <sched.h>
 #include <stdlib.h>
-#include <sys/resource.h>
-#include <sys/time.h>
-#include <time.h>
 #include <unistd.h>
 
 #include <pdlfs-common/xxhash.h>
@@ -46,7 +42,6 @@
 #include "common.h"
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
-#include "preload_internal.h"
 
 #include <string>
 #include <vector>
@@ -101,7 +96,7 @@ static int cb_allowed = 1; /* soft limit */
 static int cb_left = 1;
 
 /*
- * prepare_addr(): obtain the mercury addr to bootstrap the rpc
+ * prepare_addr: obtain the mercury addr to bootstrap the rpc
  *
  * Write the server uri into *buf on success.
  *
@@ -306,7 +301,7 @@ static inline bool is_shuttingdown() {
 
 /* main shuffle code */
 
-hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data) {
+static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
   hg_uint16_t sz;
 
@@ -332,7 +327,7 @@ hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data) {
   return (hret);
 }
 
-hg_return_t shuffle_write_out_proc(hg_proc_t proc, void* data) {
+static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
 
   write_out_t* out = reinterpret_cast<write_out_t*>(data);
@@ -1215,9 +1210,9 @@ void nn_shuffler_init() {
   nnctx.hg_clz = HG_Init(nnctx.my_addr, HG_TRUE);
   if (!nnctx.hg_clz) msg_abort("HG_Init");
 
-  nnctx.hg_id = HG_Register_name(nnctx.hg_clz, "shuffle_rpc_write",
-                                 shuffle_write_in_proc, shuffle_write_out_proc,
-                                 nn_shuffler_write_rpc_handler_wrapper);
+  nnctx.hg_id = HG_Register_name(
+      nnctx.hg_clz, "shuffle_rpc_write", nn_shuffler_write_in_proc,
+      nn_shuffler_write_out_proc, nn_shuffler_write_rpc_handler_wrapper);
 
   hret = HG_Register_data(nnctx.hg_clz, nnctx.hg_id, &nnctx, NULL);
   if (hret != HG_SUCCESS) msg_abort("HG_Register_data");
