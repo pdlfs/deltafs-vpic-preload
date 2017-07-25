@@ -28,7 +28,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "shuffle_internal.h"
+#include "nn_shuffler_internal.h"
 
 /* The global shuffle context */
 shuffle_ctx_t sctx = {0};

@@ -44,9 +44,9 @@
 #include <pdlfs-common/xxhash.h>
 
 #include "common.h"
+#include "nn_shuffler.h"
+#include "nn_shuffler_internal.h"
 #include "preload_internal.h"
-#include "shuffle.h"
-#include "shuffle_internal.h"
 
 #include <string>
 #include <vector>

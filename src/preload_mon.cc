@@ -33,7 +33,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "shuffle_internal.h"
+#include "nn_shuffler_internal.h"
 
 #include "preload_internal.h"
 #include "preload_mon.h"
