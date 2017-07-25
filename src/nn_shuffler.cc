@@ -701,8 +701,8 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
   }
 }
 
-/* block until all outstanding rpc finishes */
-void shuffle_wait() {
+/* nn_shuffler_wait: block until all outstanding rpc finishes */
+void nn_shuffler_wait() {
   time_t now;
   struct timespec abstime;
   useconds_t delay;
@@ -853,8 +853,8 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank) {
   }
 }
 
-/* add an incoming write into an appropriate rpc sender queue */
-int shuffle_write(const char* path, char* data, size_t len, int epoch) {
+/* nn_shuffler_write: add an incoming write into an rpc queue */
+int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   write_in_t write_in;
   uint16_t write_sz;
   uint16_t nepoch;
@@ -1030,8 +1030,8 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch) {
   return (0);
 }
 
-/* force flush all rpc queue */
-void shuffle_flush() {
+/* nn_shuffler_flush: force flushing all rpc queue */
+void nn_shuffler_flush() {
   uint32_t nrank;
   uint16_t write_sz;
   write_in_t write_in;
@@ -1161,8 +1161,8 @@ void shuffle_init_ssg() {
   return;
 }
 
-/* shuffle_init(): init the shuffle layer */
-void shuffle_init() {
+/* nn_shuffler_init: init the shuffle layer */
+void nn_shuffler_init() {
   hg_return_t hret;
   pthread_t pid;
   char msg[200];
@@ -1276,8 +1276,8 @@ void shuffle_init() {
   return;
 }
 
-/* shuffle_destroy(): finalize the shuffle layer */
-void shuffle_destroy() {
+/* nn_shuffler_destroy: finalize the shuffle layer */
+void nn_shuffler_destroy() {
   int i;
 
   pthread_mutex_lock(&mtx[bg_cv]);

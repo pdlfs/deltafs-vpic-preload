@@ -59,25 +59,26 @@
 
 #pragma once
 
-/* shuffle_init: initialize the shuffle service or abort on errors. */
-extern void shuffle_init();
+/* nn_shuffler_init: initialize the shuffle service or die. */
+extern void nn_shuffler_init();
 
 /*
- * shuffle_write: add an incoming write into an rpc queue.
+ * nn_shuffler_write: add an incoming write into an rpc queue.
  * rpc maybe bypassed if write destination is local.
  *
  * return 0 on success, or EOF on errors.
  */
-extern int shuffle_write(const char* path, char* data, size_t len, int epoch);
+extern int nn_shuffler_write(const char* path, char* data, size_t len,
+                             int epoch);
 
-/* shuffle_wait: wait for outstanding rpcs to finish. */
-extern void shuffle_wait();
+/* nn_shuffler_wait: wait for outstanding rpcs to finish. */
+extern void nn_shuffler_wait();
 
-/* shuffle_flush: flush rpc queue. */
-extern void shuffle_flush();
+/* nn_shuffler_flush: flush rpc queue. */
+extern void nn_shuffler_flush();
 
-/* shuffle_destroy: deallocate shuffle resources. */
-extern void shuffle_destroy();
+/* nn_shuffler_destroy: deallocate shuffle resources. */
+extern void nn_shuffler_destroy();
 
 /*
  * The default min.

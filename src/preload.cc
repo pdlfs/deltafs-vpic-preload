@@ -641,7 +641,7 @@ int MPI_Init(int* argc, char*** argv) {
     if (rank == 0) {
       info("shuffle starting ...");
     }
-    shuffle_init();
+    nn_shuffler_init();
     /* ensures all peers have the shuffle ready */
     if (pctx.myrank == 0) {
       info("barrier ...");
@@ -848,7 +848,7 @@ int MPI_Finalize(void) {
                pretty_dura(dura * 1000000).c_str());
       info(msg);
     }
-    shuffle_destroy();
+    nn_shuffler_destroy();
 
     if (pctx.myrank == 0) {
       info("shuffle closed");
@@ -1437,9 +1437,9 @@ int closedir(DIR* dirp) {
 
   /* drain on-going rpc */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    shuffle_flush();
+    nn_shuffler_flush();
     if (!sctx.force_sync) {
-      shuffle_wait();
+      nn_shuffler_wait();
     }
   }
 
@@ -1617,7 +1617,8 @@ int fclose(FILE* stream) {
      * shuffle_write() will be checking if
      *   - BYPASS_PLACEMENT
      */
-    rv = shuffle_write(ff->file_name(), ff->data(), ff->size(), num_epochs - 1);
+    rv = nn_shuffler_write(ff->file_name(), ff->data(), ff->size(),
+                           num_epochs - 1);
     if (rv) {
       msg_abort("xxshuffle");
     }
