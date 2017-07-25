@@ -71,10 +71,9 @@ static inline void rpc_abort(const char* msg, hg_return_t ret) {
 }
 
 /*
- * shuffle context:
- *   - run-time state of the preload and shuffle lib
+ * nn_ctx: state for an nn shuffler.
  */
-typedef struct shuffle_ctx {
+typedef struct nn_ctx {
   char my_addr[100]; /* mercury server uri */
 
   hg_class_t* hg_clz;
@@ -91,9 +90,9 @@ typedef struct shuffle_ctx {
   /* ch-placement context */
   struct ch_placement_instance* chp;
 
-} shuffle_ctx_t;
+} nn_ctx_t;
 
-extern shuffle_ctx_t sctx;
+extern nn_ctx_t nnctx;
 
 typedef struct write_in {
   char encoding[MAX_RPC_MESSAGE]; /* buffer space for encoded contents */
@@ -122,8 +121,8 @@ extern hg_return_t nn_shuffler_write_async_handler(
 extern hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info);
 
 /* get current hg class and context instances */
-inline void* nn_shuffler_hg_class(void) { return sctx.hg_clz; }
-inline void* nn_shuffler_hg_ctx(void) { return sctx.hg_ctx; }
+inline void* nn_shuffler_hg_class(void) { return nnctx.hg_clz; }
+inline void* nn_shuffler_hg_ctx(void) { return nnctx.hg_ctx; }
 
 /*
  * nn_shuffler_write_send_async: asynchronously send one or more encoded writes

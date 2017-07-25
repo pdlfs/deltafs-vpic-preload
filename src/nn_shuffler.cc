@@ -431,9 +431,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   int n;
 
   assert(pctx.plfsdir != NULL);
-  assert(sctx.ssg != NULL);
+  assert(nnctx.ssg != NULL);
 
-  rank = ssg_get_rank(sctx.ssg); /* my rank */
+  rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
   hret = HG_Get_input(h, &write_in);
 
@@ -631,8 +631,8 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 
   assert(write_in != NULL);
   memcpy(&write_sz, write_in->encoding, 2);
-  assert(sctx.ssg != NULL);
-  rank = ssg_get_rank(sctx.ssg);
+  assert(nnctx.ssg != NULL);
+  rank = ssg_get_rank(nnctx.ssg);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
@@ -664,7 +664,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
       pthread_mutex_lock(&mtx[cb_cv]);
     } else {
       now = time(NULL);
-      abstime.tv_sec = now + sctx.timeout;
+      abstime.tv_sec = now + nnctx.timeout;
       abstime.tv_nsec = 0;
 
       e = pthread_cond_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
@@ -687,11 +687,11 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   pthread_mutex_unlock(&mtx[cb_cv]);
 
   /* go */
-  peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
+  peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) msg_abort("cannot obtain addr");
 
-  assert(sctx.hg_ctx != NULL);
-  hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h);
+  assert(nnctx.hg_ctx != NULL);
+  hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
   if (hret != HG_SUCCESS) rpc_abort("HG_Create", hret);
 
   write_cb->slot = slot;
@@ -736,7 +736,7 @@ void nn_shuffler_wait() {
       pthread_mutex_lock(&mtx[cb_cv]);
     } else {
       now = time(NULL);
-      abstime.tv_sec = now + sctx.timeout;
+      abstime.tv_sec = now + nnctx.timeout;
       abstime.tv_nsec = 0;
 
       e = pthread_cond_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
@@ -789,8 +789,8 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
   assert(write_in != NULL);
   memcpy(&write_sz, write_in->encoding, 2);
-  assert(sctx.ssg != NULL);
-  rank = ssg_get_rank(sctx.ssg);
+  assert(nnctx.ssg != NULL);
+  rank = ssg_get_rank(nnctx.ssg);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
@@ -802,11 +802,11 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
     errno = 0;
   }
 
-  peer_addr = ssg_get_addr(sctx.ssg, peer_rank);
+  peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) msg_abort("cannot obtain addr");
 
-  assert(sctx.hg_ctx != NULL);
-  hret = HG_Create(sctx.hg_ctx, peer_addr, sctx.hg_id, &h); /* XXX: malloc */
+  assert(nnctx.hg_ctx != NULL);
+  hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h); /* XXX: malloc */
   if (hret != HG_SUCCESS) rpc_abort("HG_Create", hret);
 
   write_cb.ok = 0;
@@ -835,7 +835,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
         pthread_mutex_lock(&mtx[rpc_cv]);
       } else {
         now = time(NULL);
-        abstime.tv_sec = now + sctx.timeout;
+        abstime.tv_sec = now + nnctx.timeout;
         abstime.tv_nsec = 0;
 
         e = pthread_cond_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
@@ -889,23 +889,23 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   int e;
   int n;
 
-  assert(sctx.ssg != NULL);
-  assert(ssg_get_count(sctx.ssg) != 0);
+  assert(nnctx.ssg != NULL);
+  assert(ssg_get_count(nnctx.ssg) != 0);
   assert(pctx.plfsdir != NULL);
   assert(path != NULL);
 
   fname = path + pctx.len_plfsdir + 1; /* remove parent path */
   fname_len = static_cast<unsigned char>(strlen(fname));
-  rank = ssg_get_rank(sctx.ssg); /* my rank */
+  rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
-  if (ssg_get_count(sctx.ssg) != 1) {
+  if (ssg_get_count(nnctx.ssg) != 1) {
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
       /* send to next-door neighbor instead of using ch-placement */
-      peer_rank = (rank + 1) % ssg_get_count(sctx.ssg);
+      peer_rank = (rank + 1) % ssg_get_count(nnctx.ssg);
     } else {
-      assert(sctx.chp != NULL);
+      assert(nnctx.chp != NULL);
       ch_placement_find_closest(
-          sctx.chp, pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
+          nnctx.chp, pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
       peer_rank = target;
     }
   } else {
@@ -914,7 +914,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    if (rank != peer_rank || sctx.force_rpc) {
+    if (rank != peer_rank || nnctx.force_rpc) {
       ha = pdlfs::xxhash32(data, len, 0); /* checksum */
       n = snprintf(buf, sizeof(buf),
                    "[SEND] %s %d bytes (e%d) r%d >> "
@@ -931,7 +931,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   }
 
   /* bypass rpc if target is local */
-  if (peer_rank == rank && !sctx.force_rpc) {
+  if (peer_rank == rank && !nnctx.force_rpc) {
     rv = mon_local_write(path, data, len, epoch);
     return (rv);
   }
@@ -965,7 +965,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
       pthread_mutex_lock(&mtx[qu_cv]);
     } else {
       now = time(NULL);
-      abstime.tv_sec = now + sctx.timeout;
+      abstime.tv_sec = now + nnctx.timeout;
       abstime.tv_nsec = 0;
 
       e = pthread_cond_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
@@ -996,7 +996,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
       nrank = htonl(rank);
       memcpy(write_in.encoding + 2, &nrank, 4);
       memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
-      if (!sctx.force_sync) {
+      if (!nnctx.force_sync) {
         rv = mon_shuffle_write_send_async(&write_in, peer_rank);
       } else {
         rv = mon_shuffle_write_send(&write_in, peer_rank);
@@ -1053,9 +1053,9 @@ void nn_shuffler_flush() {
   int rv;
   int i;
 
-  assert(sctx.ssg != NULL);
+  assert(nnctx.ssg != NULL);
 
-  rank = ssg_get_rank(sctx.ssg); /* my rank */
+  rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
   pthread_mutex_lock(&mtx[qu_cv]);
 
@@ -1073,7 +1073,7 @@ void nn_shuffler_flush() {
       nrank = htonl(rank);
       memcpy(write_in.encoding + 2, &nrank, 4);
       memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
-      if (!sctx.force_sync) {
+      if (!nnctx.force_sync) {
         rv = mon_shuffle_write_send_async(&write_in, i);
       } else {
         rv = mon_shuffle_write_send(&write_in, i);
@@ -1103,7 +1103,7 @@ static void* bg_work(void* foo) {
 
   while (true) {
     do {
-      hret = HG_Trigger(sctx.hg_ctx, 0, 1, &actual_count);
+      hret = HG_Trigger(nnctx.hg_ctx, 0, 1, &actual_count);
     } while (hret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
 
     if (!is_shuttingdown()) {
@@ -1112,7 +1112,7 @@ static void* bg_work(void* foo) {
         warn("calling mercury progress with higher interval (>5 secs)");
       }
       last_progress = now;
-      hret = HG_Progress(sctx.hg_ctx, 100);
+      hret = HG_Progress(nnctx.hg_ctx, 100);
       if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
         rpc_abort("HG_Progress", hret);
     } else {
@@ -1146,14 +1146,14 @@ void nn_shuffler_init_ssg() {
     vf = atoi(env);
   }
 
-  sctx.ssg = ssg_init_mpi(sctx.hg_clz, MPI_COMM_WORLD);
-  if (sctx.ssg == SSG_NULL) msg_abort("ssg_init_mpi");
+  nnctx.ssg = ssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD);
+  if (nnctx.ssg == SSG_NULL) msg_abort("ssg_init_mpi");
 
-  hret = ssg_lookup(sctx.ssg, sctx.hg_ctx);
+  hret = ssg_lookup(nnctx.ssg, nnctx.hg_ctx);
   if (hret != HG_SUCCESS) msg_abort("ssg_lookup");
 
-  rank = ssg_get_rank(sctx.ssg);
-  size = ssg_get_count(sctx.ssg);
+  rank = ssg_get_rank(nnctx.ssg);
+  size = ssg_get_count(nnctx.ssg);
 
   if (pctx.testin) {
     if (pctx.logfd != -1) {
@@ -1167,9 +1167,9 @@ void nn_shuffler_init_ssg() {
     }
   }
 
-  sctx.chp = ch_placement_initialize("ring", size, vf /* vir factor */,
-                                     0 /* hash seed */);
-  if (!sctx.chp) msg_abort("ch_init");
+  nnctx.chp = ch_placement_initialize("ring", size, vf /* vir factor */,
+                                      0 /* hash seed */);
+  if (!nnctx.chp) msg_abort("ch_init");
 
   return;
 }
@@ -1183,15 +1183,15 @@ void nn_shuffler_init() {
   int rv;
   int i;
 
-  prepare_addr(sctx.my_addr);
+  prepare_addr(nnctx.my_addr);
 
   env = maybe_getenv("SHUFFLE_Timeout");
   if (env == NULL) {
-    sctx.timeout = DEFAULT_TIMEOUT;
+    nnctx.timeout = DEFAULT_TIMEOUT;
   } else {
-    sctx.timeout = atoi(env);
-    if (sctx.timeout < 5) {
-      sctx.timeout = 5;
+    nnctx.timeout = atoi(env);
+    if (nnctx.timeout < 5) {
+      nnctx.timeout = 5;
     }
   }
 
@@ -1209,27 +1209,27 @@ void nn_shuffler_init() {
 
   cb_left = cb_allowed;
 
-  if (is_envset("SHUFFLE_Force_rpc")) sctx.force_rpc = 1;
-  if (is_envset("SHUFFLE_Force_sync_rpc")) sctx.force_sync = 1;
+  if (is_envset("SHUFFLE_Force_rpc")) nnctx.force_rpc = 1;
+  if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
 
-  sctx.hg_clz = HG_Init(sctx.my_addr, HG_TRUE);
-  if (!sctx.hg_clz) msg_abort("HG_Init");
+  nnctx.hg_clz = HG_Init(nnctx.my_addr, HG_TRUE);
+  if (!nnctx.hg_clz) msg_abort("HG_Init");
 
-  sctx.hg_id = HG_Register_name(sctx.hg_clz, "shuffle_rpc_write",
-                                shuffle_write_in_proc, shuffle_write_out_proc,
-                                nn_shuffler_write_rpc_handler_wrapper);
+  nnctx.hg_id = HG_Register_name(nnctx.hg_clz, "shuffle_rpc_write",
+                                 shuffle_write_in_proc, shuffle_write_out_proc,
+                                 nn_shuffler_write_rpc_handler_wrapper);
 
-  hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
+  hret = HG_Register_data(nnctx.hg_clz, nnctx.hg_id, &nnctx, NULL);
   if (hret != HG_SUCCESS) msg_abort("HG_Register_data");
 
-  sctx.hg_ctx = HG_Context_create(sctx.hg_clz);
-  if (!sctx.hg_ctx) msg_abort("HG_Context_create");
+  nnctx.hg_ctx = HG_Context_create(nnctx.hg_clz);
+  if (!nnctx.hg_ctx) msg_abort("HG_Context_create");
 
   nn_shuffler_init_ssg();
 
   /* rpc queue */
-  assert(sctx.ssg != NULL);
-  nrpcqs = ssg_get_count(sctx.ssg);
+  assert(nnctx.ssg != NULL);
+  nrpcqs = ssg_get_count(nnctx.ssg);
   env = maybe_getenv("SHUFFLE_Buffer_per_queue");
   if (env == NULL) {
     max_rpcq_sz = DEFAULT_BUFFER_PER_QUEUE;
@@ -1274,7 +1274,7 @@ void nn_shuffler_init() {
   }
 
   if (pctx.myrank == 0) {
-    if (sctx.force_sync) {
+    if (nnctx.force_sync) {
       warn("async rpc disabled");
     } else {
       snprintf(msg, sizeof(msg), "num outstanding rpc %d", cb_left);
@@ -1311,11 +1311,11 @@ void nn_shuffler_destroy() {
     free(rpcqs);
   }
 
-  if (sctx.chp != NULL) ch_placement_finalize(sctx.chp);
-  if (sctx.ssg != NULL) ssg_finalize(sctx.ssg);
+  if (nnctx.chp != NULL) ch_placement_finalize(nnctx.chp);
+  if (nnctx.ssg != NULL) ssg_finalize(nnctx.ssg);
 
-  if (sctx.hg_ctx != NULL) HG_Context_destroy(sctx.hg_ctx);
-  if (sctx.hg_clz != NULL) HG_Finalize(sctx.hg_clz);
+  if (nnctx.hg_ctx != NULL) HG_Context_destroy(nnctx.hg_ctx);
+  if (nnctx.hg_clz != NULL) HG_Finalize(nnctx.hg_clz);
 
   return;
 }

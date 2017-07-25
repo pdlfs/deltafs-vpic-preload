@@ -1438,7 +1438,7 @@ int closedir(DIR* dirp) {
   /* drain on-going rpc */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     nn_shuffler_flush();
-    if (!sctx.force_sync) {
+    if (!nnctx.force_sync) {
       nn_shuffler_wait();
     }
   }

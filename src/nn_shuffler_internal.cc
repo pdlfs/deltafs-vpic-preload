@@ -30,5 +30,5 @@
 
 #include "nn_shuffler_internal.h"
 
-/* The global shuffle context */
-shuffle_ctx_t sctx = {0};
+/* The global nn shuffler context */
+nn_ctx_t nnctx = {0};
