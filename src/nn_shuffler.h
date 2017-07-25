@@ -71,10 +71,10 @@ extern void nn_shuffler_init();
 extern int nn_shuffler_write(const char* path, char* data, size_t len,
                              int epoch);
 
-/* nn_shuffler_wait: wait for outstanding rpcs to finish. */
+/* nn_shuffler_wait: wait for all outstanding rpcs to finish. */
 extern void nn_shuffler_wait();
 
-/* nn_shuffler_flush: flush rpc queue. */
+/* nn_shuffler_flush: flush local rpc queues. */
 extern void nn_shuffler_flush();
 
 /* nn_shuffler_destroy: deallocate shuffle resources. */

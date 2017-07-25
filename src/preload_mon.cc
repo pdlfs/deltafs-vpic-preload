@@ -167,15 +167,15 @@ static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
 int mon_shuffle_write_send_async(void* write_in, int peer_rank) {
   int rv;
 
-  rv = shuffle_write_send_async(static_cast<write_in_t*>(write_in), peer_rank,
-                                mon_shuffle_cb, NULL, NULL);
+  rv = nn_shuffler_write_send_async(static_cast<write_in_t*>(write_in),
+                                    peer_rank, mon_shuffle_cb, NULL, NULL);
   return (rv);
 }
 
 int mon_shuffle_write_send(void* write_in, int peer_rank) {
   int rv;
 
-  rv = shuffle_write_send(static_cast<write_in_t*>(write_in), peer_rank);
+  rv = nn_shuffler_write_send(static_cast<write_in_t*>(write_in), peer_rank);
   pctx.mctx.min_nbs++;
   pctx.mctx.max_nbs++;
   pctx.mctx.nbs++;

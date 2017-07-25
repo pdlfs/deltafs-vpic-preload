@@ -115,32 +115,32 @@ typedef struct write_async_cb {
   int slot; /* cb slot used */
 } write_async_cb_t;
 
-extern hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
-extern hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t handle);
-extern hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
-extern hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
+extern hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t handle);
+extern hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t handle);
+extern hg_return_t nn_shuffler_write_async_handler(
+    const struct hg_cb_info* info);
+extern hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info);
 
 /* get current hg class and context instances */
-inline void* shuffle_hg_class(void) { return sctx.hg_clz; }
-inline void* shuffle_hg_ctx(void) { return sctx.hg_ctx; }
+inline void* nn_shuffler_hg_class(void) { return sctx.hg_clz; }
+inline void* nn_shuffler_hg_ctx(void) { return sctx.hg_ctx; }
 
 /*
- * shuffle_write_send_async: asynchronously send one or more encoded writes to
- * a remote peer and return immediately without waiting for response.
+ * nn_shuffler_write_send_async: asynchronously send one or more encoded writes
+ * to a remote peer and return immediately without waiting for response.
  *
  * return 0 on success, or EOF on errors.
  */
-extern int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
-                                    void (*async_cb)(int rv, void* arg1,
-                                                     void* arg2),
-                                    void* arg1, void* arg2);
+extern int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
+                                        void (*cb)(int rv, void* a1, void* a2),
+                                        void* a1, void* a2);
 /*
- * shuffle_write_send: send one or more encoded writes to a remote peer
+ * nn_shuffler_write_send: send one or more encoded writes to a remote peer
  * and wait for its response.
  *
  * return 0 on success, or EOF on errors.
  */
-extern int shuffle_write_send(write_in_t* write_in, int peer_rank);
+extern int nn_shuffler_write_send(write_in_t* write_in, int peer_rank);
 
-/* shuffle_init_ssg: initialize the ssg service. */
-extern void shuffle_init_ssg();
+/* nn_shuffler_init_ssg: initialize the ssg service. */
+extern void nn_shuffler_init_ssg();

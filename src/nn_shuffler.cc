@@ -374,7 +374,7 @@ static void* rpc_work(void* arg) {
     for (it = my_items.begin(); it != my_items.end(); ++it) {
       h = reinterpret_cast<hg_handle_t>(*it);
       if (h != NULL) {
-        hret = shuffle_write_rpc_handler(h);
+        hret = nn_shuffler_write_rpc_handler(h);
         if (hret != HG_SUCCESS) {
           rpc_abort("HG_Respond", hret);
         }
@@ -392,10 +392,10 @@ static void* rpc_work(void* arg) {
   return (NULL);
 }
 
-/* server-side rpc handler wrapper */
-hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t h) {
+/* nn_shuffler_write_rpc_handler_wrapper: server-side rpc handler wrapper */
+hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   if (num_wk == 0) {
-    return (shuffle_write_rpc_handler(h));
+    return (nn_shuffler_write_rpc_handler(h));
   } else {
     pthread_mutex_lock(&mtx[wk_cv]);
     wk_items.push_back(static_cast<void*>(h));
@@ -407,8 +407,8 @@ hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t h) {
   }
 }
 
-/* server-side rpc handler */
-hg_return_t shuffle_write_rpc_handler(hg_handle_t h) {
+/* nn_shuffler_write_rpc_handler: server-side rpc handler */
+hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   char* input;
   uint16_t input_left;
   uint32_t nrank;
@@ -560,8 +560,11 @@ hg_return_t shuffle_write_rpc_handler(hg_handle_t h) {
   return hret;
 }
 
-/* callback associated with shuffle_write_send_async(...) */
-hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info) {
+/*
+ * nn_shuffler_write_async_handler: rpc callback associated with
+ * shuffle_write_send_async(...)
+ */
+hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
   hg_return_t hret;
   hg_handle_t h;
   write_async_cb_t* write_cb;
@@ -604,10 +607,14 @@ hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info) {
   return HG_SUCCESS;
 }
 
-/* send a write request to a specified peer and return without waiting */
-int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
-                             void (*shuffle_cb)(int rv, void* arg1, void* arg2),
-                             void* arg1, void* arg2) {
+/*
+ * nn_shuffler_write_send_async: send a write request to a specified peer and
+ * return without waiting.
+ */
+int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
+                                 void (*shuffle_cb)(int rv, void* arg1,
+                                                    void* arg2),
+                                 void* arg1, void* arg2) {
   hg_return_t hret;
   hg_addr_t peer_addr;
   hg_handle_t h;
@@ -692,7 +699,7 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
   write_cb->arg1 = arg1;
   write_cb->arg2 = arg2;
 
-  hret = HG_Forward(h, shuffle_write_async_handler, write_cb, write_in);
+  hret = HG_Forward(h, nn_shuffler_write_async_handler, write_cb, write_in);
 
   if (hret != HG_SUCCESS) {
     rpc_abort("HG_Forward", hret);
@@ -742,8 +749,11 @@ void nn_shuffler_wait() {
   pthread_mutex_unlock(&mtx[cb_cv]);
 }
 
-/* callback associated with shuffle_write_send(...) */
-hg_return_t shuffle_write_handler(const struct hg_cb_info* info) {
+/*
+ * nn_shuffler_write_handler: rpc callback associated with
+ * shuffle_write_send(...)
+ */
+hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info) {
   write_cb_t* write_cb;
   write_cb = reinterpret_cast<write_cb_t*>(info->arg);
   assert(info->type == HG_CB_FORWARD);
@@ -757,8 +767,11 @@ hg_return_t shuffle_write_handler(const struct hg_cb_info* info) {
   return HG_SUCCESS;
 }
 
-/* send a write request to a specified peer and wait for its response */
-int shuffle_write_send(write_in_t* write_in, int peer_rank) {
+/*
+ * nn_shuffler_write_send: send a write request to a specified peer and wait for
+ * its response
+ */
+int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   hg_return_t hret;
   hg_addr_t peer_addr;
   hg_handle_t h;
@@ -798,7 +811,7 @@ int shuffle_write_send(write_in_t* write_in, int peer_rank) {
 
   write_cb.ok = 0;
 
-  hret = HG_Forward(h, shuffle_write_handler, &write_cb, write_in);
+  hret = HG_Forward(h, nn_shuffler_write_handler, &write_cb, write_in);
 
   delay = 1000; /* 1000 us */
 
@@ -1116,8 +1129,8 @@ static void* bg_work(void* foo) {
   return (NULL);
 }
 
-/* shuffle_init_ssg(): init the ssg sublayer */
-void shuffle_init_ssg() {
+/* nn_shuffler_init_ssg: init the ssg sublayer */
+void nn_shuffler_init_ssg() {
   char tmp[100];
   hg_return_t hret;
   const char* env;
@@ -1204,7 +1217,7 @@ void nn_shuffler_init() {
 
   sctx.hg_id = HG_Register_name(sctx.hg_clz, "shuffle_rpc_write",
                                 shuffle_write_in_proc, shuffle_write_out_proc,
-                                shuffle_write_rpc_handler_wrapper);
+                                nn_shuffler_write_rpc_handler_wrapper);
 
   hret = HG_Register_data(sctx.hg_clz, sctx.hg_id, &sctx, NULL);
   if (hret != HG_SUCCESS) msg_abort("HG_Register_data");
@@ -1212,7 +1225,7 @@ void nn_shuffler_init() {
   sctx.hg_ctx = HG_Context_create(sctx.hg_clz);
   if (!sctx.hg_ctx) msg_abort("HG_Context_create");
 
-  shuffle_init_ssg();
+  nn_shuffler_init_ssg();
 
   /* rpc queue */
   assert(sctx.ssg != NULL);
