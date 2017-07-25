@@ -524,7 +524,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
       }
 
       snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
-      write_out.rv = mon_remote_write(path, data, len, epoch);
+      write_out.rv = preload_foreign_write(path, data, len, epoch);
 
       /* write trace if we are in testing mode */
       if (pctx.testin && pctx.logfd != -1) {
@@ -927,7 +927,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !nnctx.force_rpc) {
-    rv = mon_local_write(path, data, len, epoch);
+    rv = preload_local_write(path, data, len, epoch);
     return (rv);
   }
 

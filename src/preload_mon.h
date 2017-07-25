@@ -77,10 +77,10 @@ typedef struct cpu_stat {
 
 /*  NOTE
  * -------
- * + remote write:
+ * + foreign write:
  *     write executed on behalf of another rank
  * + local write:
- *     write directly executed locally (shortcut the shuffle path)
+ *     write executed locally (shortcutting the shuffle path)
  */
 typedef struct mon_ctx {
   /* !!! main monitoring state !!! */
@@ -99,8 +99,8 @@ typedef struct mon_ctx {
   /* total num of write batches being shuffled in */
   unsigned long long nbr;
 
-  /* total num of remote writes */
-  unsigned long long nrw;
+  /* total num of foreign writes */
+  unsigned long long nfw;
   /* total num of local writes */
   unsigned long long nlw;
 
@@ -127,9 +127,6 @@ typedef struct mon_ctx {
 } mon_ctx_t;
 
 extern int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf);
-
-extern int mon_remote_write(const char* fn, char* data, size_t n, int epoch);
-extern int mon_local_write(const char* fn, char* data, size_t n, int epoch);
 
 extern int mon_shuffle_write_received();
 extern int mon_shuffle_write_send_async(void* write_in, int peer_rank);

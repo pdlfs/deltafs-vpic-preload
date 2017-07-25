@@ -110,3 +110,15 @@ typedef struct preload_ctx {
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;
+
+/*
+ * preload_foreign_write: perform a write on behalf of a remote rank.
+ * return 0 on success, or EOF on errors.
+ */
+extern int preload_foreign_write(const char* fn, char* d, size_t n, int epoch);
+
+/*
+ * preload_local_write: perform a direct local write.
+ * return 0 on success, or EOF on errors.
+ */
+extern int preload_local_write(const char* fn, char* d, size_t n, int epoch);

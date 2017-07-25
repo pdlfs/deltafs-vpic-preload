@@ -146,10 +146,9 @@
 #define IS_BYPASS_WRITE(m) (((m)&BYPASS_WRITE) == BYPASS_WRITE)
 
 /*
- * preload_write(fn, data, n):
- *   - ship data to deltafs
+ * preload_write: ship data to fs.
  */
-extern int preload_write(const char* fn, char* data, size_t n, int epoch);
+extern int preload_write(const char* fn, char* d, size_t n, int epoch);
 
 /*
  * Default hash key size for encoding file names.

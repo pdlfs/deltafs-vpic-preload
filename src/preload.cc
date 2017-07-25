@@ -1019,8 +1019,8 @@ int MPI_Finalize(void) {
                        pretty_num(glob.max_nw).c_str());
               info(msg);
               snprintf(
-                  msg, sizeof(msg), "         > %s remote + %s direct writes",
-                  pretty_num(glob.nrw).c_str(), pretty_num(glob.nlw).c_str());
+                  msg, sizeof(msg), "         > %s foreign + %s local writes",
+                  pretty_num(glob.nfw).c_str(), pretty_num(glob.nlw).c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
                        "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
@@ -1610,26 +1610,17 @@ int fclose(FILE* stream) {
 
   fake_file* ff = reinterpret_cast<fake_file*>(stream);
 
-  if (IS_BYPASS_SHUFFLE(pctx.mode)) {
-    /*
-     * preload_write() will be checking if
-     *   - BYPASS_DELTAFS_PLFSDIR
-     *   - BYPASS_DELTAFS
-     */
-    rv = mon_local_write(ff->file_name(), ff->data(), ff->size(),
-                         num_epochs - 1);
-    if (rv) {
-      msg_abort("xxwrite");
-    }
-  } else {
-    /*
-     * shuffle_write() will be checking if
-     *   - BYPASS_PLACEMENT
-     */
+  if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     rv = shuffle_write(&pctx.sctx, ff->file_name(), ff->data(), ff->size(),
                        num_epochs - 1);
     if (rv) {
       msg_abort("xxshuffle");
+    }
+  } else {
+    rv = preload_local_write(ff->file_name(), ff->data(), ff->size(),
+                             num_epochs - 1);
+    if (rv) {
+      msg_abort("xxwrite");
     }
   }
 

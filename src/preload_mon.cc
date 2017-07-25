@@ -140,24 +140,6 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   return 0;
 }
 
-int mon_remote_write(const char* fn, char* data, size_t n, int epoch) {
-  int rv;
-
-  rv = preload_write(fn, data, n, epoch);
-  pctx.mctx.nrw++;
-
-  return (rv);
-}
-
-int mon_local_write(const char* fn, char* data, size_t n, int epoch) {
-  int rv;
-
-  rv = preload_write(fn, data, n, epoch);
-  pctx.mctx.nlw++;
-
-  return (rv);
-}
-
 static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
   pctx.mctx.min_nbs++;
   pctx.mctx.max_nbs++;
@@ -249,7 +231,7 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nbr), &sum->max_nbr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
-  MPI_Reduce(const_cast<unsigned long long*>(&src->nrw), &sum->nrw, 1,
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nfw), &sum->nfw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->nlw), &sum->nlw, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -296,7 +278,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   DUMP(fd, buf, "[M] total rpc received: %llu", ctx->nbr);
   DUMP(fd, buf, "[M] min rpc received per rank: %llu", ctx->min_nbr);
   DUMP(fd, buf, "[M] max rpc received per rank: %llu", ctx->max_nbr);
-  DUMP(fd, buf, "[M] total remote writes: %llu", ctx->nrw);
+  DUMP(fd, buf, "[M] total remote writes: %llu", ctx->nfw);
   DUMP(fd, buf, "[M] total direct writes: %llu", ctx->nlw);
   DUMP(fd, buf, "[M] min num writes per rank: %llu", ctx->min_nw);
   DUMP(fd, buf, "[M] max num writes per rank: %llu", ctx->max_nw);

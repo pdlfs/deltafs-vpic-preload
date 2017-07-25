@@ -32,3 +32,21 @@
 
 /* The global preload context */
 preload_ctx_t pctx = {0};
+
+int preload_foreign_write(const char* fn, char* data, size_t n, int epoch) {
+  int rv;
+
+  rv = preload_write(fn, data, n, epoch);
+  pctx.mctx.nfw++;
+
+  return (rv);
+}
+
+int preload_local_write(const char* fn, char* data, size_t n, int epoch) {
+  int rv;
+
+  rv = preload_write(fn, data, n, epoch);
+  pctx.mctx.nlw++;
+
+  return (rv);
+}
