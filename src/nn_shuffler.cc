@@ -1117,7 +1117,7 @@ static void* bg_work(void* foo) {
 }
 
 /* shuffle_init_ssg(): init the ssg sublayer */
-void shuffle_init_ssg(void) {
+void shuffle_init_ssg() {
   char tmp[100];
   hg_return_t hret;
   const char* env;
@@ -1162,7 +1162,7 @@ void shuffle_init_ssg(void) {
 }
 
 /* shuffle_init(): init the shuffle layer */
-void shuffle_init(void) {
+void shuffle_init() {
   hg_return_t hret;
   pthread_t pid;
   char msg[200];
@@ -1277,7 +1277,7 @@ void shuffle_init(void) {
 }
 
 /* shuffle_destroy(): finalize the shuffle layer */
-void shuffle_destroy(void) {
+void shuffle_destroy() {
   int i;
 
   pthread_mutex_lock(&mtx[bg_cv]);

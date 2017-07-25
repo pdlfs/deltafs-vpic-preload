@@ -40,6 +40,7 @@
 
 #include <pdlfs-common/xxhash.h>
 
+#include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 #include "preload_internal.h"
 

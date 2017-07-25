@@ -115,30 +115,14 @@ typedef struct write_async_cb {
   int slot; /* cb slot used */
 } write_async_cb_t;
 
-void shuffle_init(void);
-void shuffle_init_ssg(void);
-hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
-hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t handle);
-hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
-hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
+extern hg_return_t shuffle_write_rpc_handler(hg_handle_t handle);
+extern hg_return_t shuffle_write_rpc_handler_wrapper(hg_handle_t handle);
+extern hg_return_t shuffle_write_async_handler(const struct hg_cb_info* info);
+extern hg_return_t shuffle_write_handler(const struct hg_cb_info* info);
 
 /* get current hg class and context instances */
 inline void* shuffle_hg_class(void) { return sctx.hg_clz; }
 inline void* shuffle_hg_ctx(void) { return sctx.hg_ctx; }
-
-/* wait for outstanding rpc */
-void shuffle_wait(void);
-/* flush rpc queue */
-void shuffle_flush(void);
-
-/*
- * shuffle_write_enqueue: add an incoming write into an rpc queue.
- *
- * rpc maybe bypassed if write destination is local.
- *
- * return 0 on success, or EOF on errors.
- */
-int shuffle_write(const char* path, char* data, size_t len, int epoch);
 
 /*
  * shuffle_write_send_async: asynchronously send one or more encoded writes to
@@ -146,15 +130,17 @@ int shuffle_write(const char* path, char* data, size_t len, int epoch);
  *
  * return 0 on success, or EOF on errors.
  */
-int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
-                             void (*async_cb)(int rv, void* arg1, void* arg2),
-                             void* arg1, void* arg2);
+extern int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
+                                    void (*async_cb)(int rv, void* arg1,
+                                                     void* arg2),
+                                    void* arg1, void* arg2);
 /*
  * shuffle_write_send: send one or more encoded writes to a remote peer
  * and wait for its response.
  *
  * return 0 on success, or EOF on errors.
  */
-int shuffle_write_send(write_in_t* write_in, int peer_rank);
+extern int shuffle_write_send(write_in_t* write_in, int peer_rank);
 
-void shuffle_destroy(void);
+/* shuffle_init_ssg: initialize the ssg service. */
+extern void shuffle_init_ssg();

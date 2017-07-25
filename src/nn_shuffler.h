@@ -28,26 +28,56 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * nn_shuffler.h  a simple shuffle implementation with N-N rpc endpoints.
+ *
+ * A list of all environmental variables used by us:
+ *
+ *  SHUFFLE_Mercury_proto
+ *    Mercury rpc proto
+ *  SHUFFLE_Force_rpc
+ *    Send rpc even if addr is local
+ *  SHUFFLE_Force_sync_rpc
+ *    Avoid sending async rpc
+ *  SHUFFLE_Num_outstanding_rpc
+ *    Max num of outstanding rpc allowed
+ *  SHUFFLE_Use_worker_thread
+ *    Allocate a dedicated worker thread
+ *  SHUFFLE_Subnet
+ *    IP prefix of the subnet we prefer to use
+ *  SHUFFLE_Min_port
+ *    The min port number we can use
+ *  SHUFFLE_Max_port
+ *    The max port number we can use
+ *  SHUFFLE_Virtual_factor
+ *    Virtual factor used by nodes in a ch ring
+ *  SHUFFLE_Buffer_per_queue
+ *    Memory allocated for each rpc queue
+ *  SHUFFLE_Timeout
+ *    RPC timeout
+ */
+
 #pragma once
 
-/* !!! A list of all environmental variables used by us !!! */
+/* shuffle_init: initialize the shuffle service or abort on errors. */
+extern void shuffle_init();
 
-//
-//  Env                                Description
-// ----------------------------------|----------------------------------
-//  SHUFFLE_Mercury_proto              Mercury rpc proto
-//  SHUFFLE_Force_rpc                  Send rpc even if addr is local
-//  SHUFFLE_Force_sync_rpc             Avoid sending async rpc
-//  SHUFFLE_Num_outstanding_rpc        Max num of outstanding rpc allowed
-//  SHUFFLE_Use_worker_thread          Allocate a dedicated worker thread
-//  SHUFFLE_Subnet                     IP prefix of the subnet we prefer to use
-//  SHUFFLE_Min_port                   The min port number we can use
-//  SHUFFLE_Max_port                   The max port number we can use
-//  SHUFFLE_Virtual_factor             Virtual factor used by nodes in a ch ring
-//  SHUFFLE_Buffer_per_queue           Memory allocated for each rpc queue
-//  SHUFFLE_Timeout                    RPC timeout
-// ----------------------------------|----------------------------------
-//
+/*
+ * shuffle_write: add an incoming write into an rpc queue.
+ * rpc maybe bypassed if write destination is local.
+ *
+ * return 0 on success, or EOF on errors.
+ */
+extern int shuffle_write(const char* path, char* data, size_t len, int epoch);
+
+/* shuffle_wait: wait for outstanding rpcs to finish. */
+extern void shuffle_wait();
+
+/* shuffle_flush: flush rpc queue. */
+extern void shuffle_flush();
+
+/* shuffle_destroy: deallocate shuffle resources. */
+extern void shuffle_destroy();
 
 /*
  * The default min.
