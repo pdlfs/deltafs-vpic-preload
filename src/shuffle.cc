@@ -100,9 +100,6 @@ static int cb_flags[MAX_OUTSTANDING_RPC] = {0};
 static int cb_allowed = 1; /* soft limit */
 static int cb_left = 1;
 
-/* shuffle context */
-shuffle_ctx_t sctx = {0};
-
 /*
  * prepare_addr(): obtain the mercury addr to bootstrap the rpc
  *
@@ -308,7 +305,6 @@ static inline bool is_shuttingdown() {
 #endif
 
 /* main shuffle code */
-extern "C" {
 
 hg_return_t shuffle_write_in_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
@@ -1310,5 +1306,3 @@ void shuffle_destroy(void) {
 
   return;
 }
-
-}  // extern C

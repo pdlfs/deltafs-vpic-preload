@@ -50,7 +50,6 @@
 #include "preload.h"
 #include "preload_internal.h"
 
-extern "C" {
 /*
  * The max allowed size for a single rpc message.
  *
@@ -159,5 +158,3 @@ int shuffle_write_send_async(write_in_t* write_in, int peer_rank,
 int shuffle_write_send(write_in_t* write_in, int peer_rank);
 
 void shuffle_destroy(void);
-
-}  // extern C
