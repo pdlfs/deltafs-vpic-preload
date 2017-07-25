@@ -22,7 +22,8 @@ find_package (Threads REQUIRED)
 # create the library target
 #
 add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
-        nn_shuffler.cc nn_shuffler_internal.cc common.cc)
+        preload_shuffle.cc nn_shuffler.cc nn_shuffler_internal.cc
+        common.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
 

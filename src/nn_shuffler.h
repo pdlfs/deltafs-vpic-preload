@@ -59,6 +59,8 @@
 
 #pragma once
 
+#include <stddef.h>
+
 /* nn_shuffler_init: initialize the shuffle service or die. */
 extern void nn_shuffler_init();
 
@@ -74,10 +76,10 @@ extern int nn_shuffler_write(const char* path, char* data, size_t len,
 /* nn_shuffler_wait: wait for all outstanding rpcs to finish. */
 extern void nn_shuffler_wait();
 
-/* nn_shuffler_flush: flush local rpc queues. */
+/* nn_shuffler_flush: force flushing local rpc queues. */
 extern void nn_shuffler_flush();
 
-/* nn_shuffler_destroy: deallocate shuffle resources. */
+/* nn_shuffler_destroy: close the shuffler. */
 extern void nn_shuffler_destroy();
 
 /*
