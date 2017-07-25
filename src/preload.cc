@@ -32,19 +32,16 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <math.h>
+#include <mpi.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <string>
 
 #include <pdlfs-common/xxhash.h>
-
-#include "nn_shuffler.h"
-#include "nn_shuffler_internal.h"
 #include "preload_internal.h"
-
-#include "preload.h"
 
 /* particle bytes */
 #define PRELOAD_PARTICLE_SIZE 40
@@ -641,7 +638,7 @@ int MPI_Init(int* argc, char*** argv) {
     if (rank == 0) {
       info("shuffle starting ...");
     }
-    nn_shuffler_init();
+    shuffle_init(&pctx.sctx);
     /* ensures all peers have the shuffle ready */
     if (pctx.myrank == 0) {
       info("barrier ...");
@@ -836,7 +833,7 @@ int MPI_Finalize(void) {
     if (pctx.myrank == 0) {
       info("shuffle shutting down ...");
     }
-    /* ensures all peer messages are handled */
+    /* ensures all peer messages are received */
     if (pctx.myrank == 0) {
       info("barrier ...");
     }
@@ -848,7 +845,11 @@ int MPI_Finalize(void) {
                pretty_dura(dura * 1000000).c_str());
       info(msg);
     }
-    nn_shuffler_destroy();
+    /* shuffle flush */
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+      shuffle_epoch_start(&pctx.sctx);
+    }
+    shuffle_finalize(&pctx.sctx);
 
     if (pctx.myrank == 0) {
       info("shuffle closed");
@@ -1250,6 +1251,10 @@ DIR* opendir(const char* dir) {
       info(msg);
     }
   } else {
+    /*
+     * this ensures all peer rpc messages sent at the previous
+     * epoch are now received.
+     */
     if (pctx.myrank == 0) {
       info("barrier ...");
     }
@@ -1264,6 +1269,11 @@ DIR* opendir(const char* dir) {
       snprintf(msg, sizeof(msg), "epoch %d bootstrapping ...", num_epochs + 1);
       info(msg);
     }
+  }
+
+  /* shuffle flush */
+  if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+    shuffle_epoch_start(&pctx.sctx);
   }
 
   /* epoch flush */
@@ -1326,7 +1336,6 @@ DIR* opendir(const char* dir) {
      * until the beginning of the next epoch, which allows us
      * to get mostly up-to-date stats on the background
      * compaction work.
-     *
      */
     dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
@@ -1352,7 +1361,7 @@ DIR* opendir(const char* dir) {
   } else {
     /*
      * this ensures writes belong to the new epoch will go into a
-     * new write buffer
+     * new write buffer.
      */
     if (pctx.myrank == 0) {
       info("barrier ...");
@@ -1437,10 +1446,7 @@ int closedir(DIR* dirp) {
 
   /* drain on-going rpc */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    nn_shuffler_flush();
-    if (!nnctx.force_sync) {
-      nn_shuffler_wait();
-    }
+    shuffle_epoch_end(&pctx.sctx);
   }
 
   if (!pctx.paranoid_pre_barrier) {
@@ -1448,7 +1454,10 @@ int closedir(DIR* dirp) {
       info("dumping done (rank 0)");
     }
   } else {
-    /* this ensures we have received all incoming writes */
+    /*
+     * this ensures we have received all rpc messages
+     * sent by peers.
+     */
     if (pctx.myrank == 0) {
       info("barrier ...");
     }
@@ -1617,8 +1626,8 @@ int fclose(FILE* stream) {
      * shuffle_write() will be checking if
      *   - BYPASS_PLACEMENT
      */
-    rv = nn_shuffler_write(ff->file_name(), ff->data(), ff->size(),
-                           num_epochs - 1);
+    rv = shuffle_write(&pctx.sctx, ff->file_name(), ff->data(), ff->size(),
+                       num_epochs - 1);
     if (rv) {
       msg_abort("xxshuffle");
     }

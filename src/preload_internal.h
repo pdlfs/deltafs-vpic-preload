@@ -37,6 +37,9 @@
 
 #include "common.h"
 #include "preload_mon.h"
+#include "preload_shuffle.h"
+
+#include "preload.h"
 
 #include <set>
 
@@ -80,6 +83,8 @@ typedef struct preload_ctx {
   std::set<FILE*>* isdeltafs; /* open files owned by deltafs */
 
   std::set<std::string>* fnames; /* used for checking unique file names */
+
+  shuffle_ctx_t sctx; /* shuffle context */
 
   int testin;    /* developer mode - for debug use only */
   int fake_data; /* replace vpic output with fake data - for debug only */
