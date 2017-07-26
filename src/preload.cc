@@ -492,6 +492,7 @@ int MPI_Init(int* argc, char*** argv) {
   std::string conf;
 #if MPI_VERSION >= 3
   size_t l;
+  std::string::size_type pos;
   char mpi_info[MPI_MAX_LIBRARY_VERSION_STRING];
   char* c;
 #endif
@@ -717,16 +718,14 @@ int MPI_Init(int* argc, char*** argv) {
         msg_abort("cannot open plfsdir");
       } else if (rank == 0) {
         info("plfsdir (via deltafs-LT) opened (rank 0)");
-        if (!pctx.verr) {
-          snprintf(msg, sizeof(msg), "plfsdir mem partitions %d",
-                   pctx.plfsparts);
-          info(msg);
-        } else {
-          for (size_t pos = conf.find('&', 0); pos != std::string::npos;
-               pos = conf.find('&', 0)) {
-            conf.replace(pos, 1, "\n -> ");
-          }
-          conf = std::string("plfsdir_conf = (\n -> ") + conf;
+        if (pctx.verr) {
+          pos = conf.find('=', 0);
+          for (; pos != std::string::npos; pos = conf.find('=', 0))
+            conf.replace(pos, 1, " -> ");
+          pos = conf.find('&', 0);
+          for (; pos != std::string::npos; pos = conf.find('&', 0))
+            conf.replace(pos, 1, "\n // ");
+          conf = std::string("plfsdir_conf = (\n // ") + conf;
           conf += "\n)";
           info(conf.c_str());
         }

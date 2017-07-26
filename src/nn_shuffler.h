@@ -98,7 +98,7 @@ extern void nn_shuffler_destroy();
  * This is considered a soft limit. There is also a hard limit
  * set for each rpc message.
  */
-#define DEFAULT_BUFFER_PER_QUEUE 4000
+#define DEFAULT_BUFFER_PER_QUEUE 4096
 
 /*
  * Default num of outstanding rpc.

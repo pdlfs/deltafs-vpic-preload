@@ -1166,7 +1166,8 @@ void nn_shuffler_init_ssg() {
 
   if (pctx.myrank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-      snprintf(msg, sizeof(msg), "ch virtual factor %d", vf);
+      snprintf(msg, sizeof(msg), "ch virtual factor: %s",
+               pretty_num(vf).c_str());
       info(msg);
     } else {
       warn("ch bypassed");
@@ -1250,8 +1251,9 @@ void nn_shuffler_init() {
     rpcqs[i].sz = 0;
   }
   if (pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "in-mem rpc queue: %d x %d bytes", nrpcqs,
-             int(max_rpcq_sz));
+    snprintf(msg, sizeof(msg), "rpc buffer: %d x %s (%s total)", nrpcqs,
+             pretty_size(max_rpcq_sz).c_str(),
+             pretty_size(nrpcqs * max_rpcq_sz).c_str());
     info(msg);
   }
 
@@ -1279,7 +1281,7 @@ void nn_shuffler_init() {
     if (nnctx.force_sync) {
       warn("async rpc disabled");
     } else {
-      snprintf(msg, sizeof(msg), "num outstanding rpc %d", cb_left);
+      snprintf(msg, sizeof(msg), "num outstanding rpcs: %d", cb_left);
       if (cb_left <= 1) {
         warn(msg);
       } else {
