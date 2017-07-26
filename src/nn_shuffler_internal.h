@@ -46,16 +46,11 @@
 
 #include <deltafs/deltafs_api.h>
 
-#include "preload.h"
 #include "preload_internal.h"
-#include "preload_mon.h"
+#include "preload_shuffle.h"
 
 /*
  * The max allowed size for a single rpc message.
- *
- * A TCP/IP jumbo frame can be as many as 9000 bytes for modern nics.
- *
- * (MTU=9000)
  */
 #define MAX_RPC_MESSAGE 65536
 
@@ -65,7 +60,7 @@
 static inline void rpc_abort(const char* msg, hg_return_t ret) {
   char tmp[500];
   const char* err = HG_Error_to_string(ret);
-  int n = snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
+  int n = snprintf(tmp, sizeof(tmp), "*** RPC FAILED *** %s: %s\n", msg, err);
   n = write(fileno(stderr), tmp, n);
   abort();
 }
