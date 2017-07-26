@@ -1131,13 +1131,12 @@ static void* bg_work(void* foo) {
 
 /* nn_shuffler_init_ssg: init the ssg sublayer */
 void nn_shuffler_init_ssg() {
-  char tmp[100];
+  char msg[100];
   hg_return_t hret;
   const char* env;
-  int vf;
   int rank; /* ssg */
   int size; /* ssg */
-  int n;
+  int vf;
 
   env = maybe_getenv("SHUFFLE_Virtual_factor");
   if (env == NULL) {
@@ -1152,24 +1151,23 @@ void nn_shuffler_init_ssg() {
   hret = ssg_lookup(nnctx.ssg, nnctx.hg_ctx);
   if (hret != HG_SUCCESS) msg_abort("ssg_lookup");
 
-  rank = ssg_get_rank(nnctx.ssg);
   size = ssg_get_count(nnctx.ssg);
+  rank = ssg_get_rank(nnctx.ssg);
 
-  if (pctx.testin) {
-    if (pctx.logfd != -1) {
-      n = snprintf(tmp, sizeof(tmp),
-                   "[SSG] ssg_rank=%d ssg_size=%d "
-                   "vir_factor=%d\n",
-                   rank, size, vf);
-      n = write(pctx.logfd, tmp, n);
-
-      errno = 0;
+  if (pctx.paranoid_checks) {
+    if (size != pctx.commsz || rank != pctx.myrank) {
+      msg_abort("ssg-mpi disagree");
     }
   }
 
   nnctx.chp = ch_placement_initialize("ring", size, vf /* vir factor */,
                                       0 /* hash seed */);
   if (!nnctx.chp) msg_abort("ch_init");
+
+  if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "ch virtual factor %d", vf);
+    info(msg);
+  }
 
   return;
 }
