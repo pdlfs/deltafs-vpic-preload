@@ -892,8 +892,8 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
   if (ssg_get_count(nnctx.ssg) != 1) {
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      /* send to next-door neighbor instead of using ch-placement */
-      peer_rank = (rank + 1) % ssg_get_count(nnctx.ssg);
+      peer_rank =
+          pdlfs::xxhash32(fname, strlen(fname), 0) % ssg_get_count(nnctx.ssg);
     } else {
       assert(nnctx.chp != NULL);
       ch_placement_find_closest(
@@ -1165,8 +1165,12 @@ void nn_shuffler_init_ssg() {
   if (!nnctx.chp) msg_abort("ch_init");
 
   if (pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "ch virtual factor %d", vf);
-    info(msg);
+    if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
+      snprintf(msg, sizeof(msg), "ch virtual factor %d", vf);
+      info(msg);
+    } else {
+      warn("ch bypassed");
+    }
   }
 
   return;
