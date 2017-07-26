@@ -87,24 +87,26 @@ typedef struct mon_ctx {
   unsigned long long min_dura;
   unsigned long long max_dura;
 
-  /* num of write batches sent per rank */
-  unsigned long long max_nbs;
-  unsigned long long min_nbs;
-  /* total num of write batches being shuffled out */
-  unsigned long long nbs;
+  /* num of messages sent per rank */
+  unsigned long long max_nms;
+  unsigned long long min_nms;
+  /* total num of messages being shuffled out */
+  unsigned long long nms;
+  /* total num of messages delivered */
+  unsigned long long nmd;
 
-  /* num of write batches received per rank */
-  unsigned long long max_nbr;
-  unsigned long long min_nbr;
-  /* total num of write batches being shuffled in */
-  unsigned long long nbr;
+  /* num of messages received per rank */
+  unsigned long long max_nmr;
+  unsigned long long min_nmr;
+  /* total num of messages being shuffled in */
+  unsigned long long nmr;
 
   /* total num of foreign writes */
   unsigned long long nfw;
   /* total num of local writes */
   unsigned long long nlw;
 
-  /* total num of particles with duplicated names */
+  /* total num of particles with name collisions (conflicts) */
   unsigned long long ncw;
   /* num of particle writes handled per rank */
   unsigned long long min_nw;

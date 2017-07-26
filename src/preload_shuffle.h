@@ -78,3 +78,29 @@ extern void shuffle_finalize(shuffle_ctx_t* ctx);
  * shuffle_init: initialize the shuffle service or die.
  */
 extern void shuffle_init(shuffle_ctx_t* ctx);
+
+/*
+ * shuffle_msg_sent: callback for a shuffle sender to
+ * notify the main system of the sending of an rpc request.
+ *
+ * note: the main system may pass 1 or 2 opaque
+ * arguments back to the shuffler for
+ * temporary storage.
+ */
+extern void shuffle_msg_sent(size_t n, void** arg1, void** arg2);
+
+/*
+ * shuffle_msg_replied: callback for a shuffler sender to
+ * notify the main system of the reception of an rpc response.
+ *
+ * note: a shuffler must return any arguments
+ * previously obtained from the main system.
+ */
+extern void shuffle_msg_replied(void* arg1, void* arg2);
+
+/*
+ * shuffle_msg_received: callback for a shuffler receiver
+ * to notify the main system of the reception of
+ * an rpc request.
+ */
+extern void shuffle_msg_received();

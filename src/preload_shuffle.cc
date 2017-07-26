@@ -29,6 +29,9 @@
  */
 
 #include "preload_shuffle.h"
+#include "preload_internal.h"
+#include "preload_mon.h"
+
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
@@ -78,4 +81,20 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   } else {
     // FIXME
   }
+}
+
+void shuffle_msg_sent(size_t n, void** arg1, void** arg2) {
+  pctx.mctx.min_nms++;
+  pctx.mctx.max_nms++;
+  pctx.mctx.nms++;
+}
+
+void shuffle_msg_replied(void* arg1, void* arg2) {
+  pctx.mctx.nmd++; /* delivered */
+}
+
+void shuffle_msg_received() {
+  pctx.mctx.min_nmr++;
+  pctx.mctx.max_nmr++;
+  pctx.mctx.nmr++;
 }
