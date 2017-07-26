@@ -1047,7 +1047,7 @@ int MPI_Finalize(void) {
               info(msg);
               snprintf(
                   msg, sizeof(msg),
-                  "           > %s sst, %s per rank, %.0f per mem partition",
+                  "           > %s sst, %s per rank, %.1f per mem partition",
                   pretty_num(glob.dir_stat.num_sstables).c_str(),
                   pretty_num(double(glob.dir_stat.num_sstables) / pctx.commsz)
                       .c_str(),
@@ -1067,8 +1067,7 @@ int MPI_Finalize(void) {
                        pretty_num(glob.dir_stat.max_num_keys).c_str());
               info(msg);
               snprintf(
-                  msg, sizeof(msg),
-                  "         > %s particle data, %s, %s per rank",
+                  msg, sizeof(msg), "         > %s table data, %s, %s per rank",
                   pretty_size(glob.dir_stat.total_datasz).c_str(),
                   pretty_bw(glob.dir_stat.total_datasz, glob.max_dura).c_str(),
                   pretty_bw(double(glob.dir_stat.total_datasz) / pctx.commsz,
@@ -1076,13 +1075,15 @@ int MPI_Finalize(void) {
                       .c_str());
               info(msg);
               snprintf(
-                  msg, sizeof(msg), "             > %s per write op",
+                  msg, sizeof(msg), "             > %s per op",
                   pretty_dura(double(glob.max_dura) / glob.nw * pctx.commsz)
                       .c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
-                       "   > %s rpc sent, %s per rank (min: %s, max: %s)",
+                       "   > %s rpc sent (%s replied), %s per rank "
+                       "(min: %s, max: %s)",
                        pretty_num(glob.nms).c_str(),
+                       pretty_num(glob.nmd).c_str(),
                        pretty_num(double(glob.nms) / pctx.commsz).c_str(),
                        pretty_num(glob.min_nms).c_str(),
                        pretty_num(glob.max_nms).c_str());
