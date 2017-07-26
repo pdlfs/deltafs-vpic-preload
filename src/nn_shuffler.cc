@@ -433,7 +433,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   hret = HG_Get_input(h, &write_in);
 
   if (hret == HG_SUCCESS) {
-    mon_shuffle_write_received();
+    shuffle_msg_received();
     memcpy(&input_left, write_in.encoding, 2);
 
     /* sender rank */
@@ -580,9 +580,7 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
 
   /* publish response */
   if (hret == HG_SUCCESS) {
-    if (write_cb->cb != NULL) {
-      write_cb->cb(rv, write_cb->arg1, write_cb->arg2);
-    }
+    shuffle_msg_replied(write_cb->arg1, write_cb->arg2);
   } else {
     rpc_abort("HG_Forward", hret);
   }
@@ -607,8 +605,6 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
  * return without waiting.
  */
 int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
-                                 void (*shuffle_cb)(int rv, void* arg1,
-                                                    void* arg2),
                                  void* arg1, void* arg2) {
   hg_return_t hret;
   hg_addr_t peer_addr;
@@ -690,7 +686,6 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   if (hret != HG_SUCCESS) rpc_abort("HG_Create", hret);
 
   write_cb->slot = slot;
-  write_cb->cb = shuffle_cb;
   write_cb->arg1 = arg1;
   write_cb->arg2 = arg2;
 
@@ -875,6 +870,8 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   useconds_t delay;
   char buf[200];
   int rv;
+  void* arg1;
+  void* arg2;
   const char* fname;
   unsigned char fname_len;
   unsigned long target;
@@ -992,9 +989,12 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
       memcpy(write_in.encoding + 2, &nrank, 4);
       memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
       if (!nnctx.force_sync) {
-        rv = mon_shuffle_write_send_async(&write_in, peer_rank);
+        shuffle_msg_sent(0, &arg1, &arg2);
+        rv = nn_shuffler_write_send_async(&write_in, peer_rank, arg1, arg2);
       } else {
-        rv = mon_shuffle_write_send(&write_in, peer_rank);
+        shuffle_msg_sent(0, &arg1, &arg2);
+        rv = nn_shuffler_write_send(&write_in, peer_rank);
+        shuffle_msg_replied(arg1, arg2);
       }
       if (rv) msg_abort("xxsend");
       pthread_mutex_lock(&mtx[qu_cv]);
@@ -1044,6 +1044,8 @@ void nn_shuffler_flush() {
   uint16_t write_sz;
   write_in_t write_in;
   rpcq_t* rpcq;
+  void* arg1;
+  void* arg2;
   int rank;
   int rv;
   int i;
@@ -1069,9 +1071,12 @@ void nn_shuffler_flush() {
       memcpy(write_in.encoding + 2, &nrank, 4);
       memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
       if (!nnctx.force_sync) {
-        rv = mon_shuffle_write_send_async(&write_in, i);
+        shuffle_msg_sent(0, &arg1, &arg2);
+        rv = nn_shuffler_write_send_async(&write_in, i, arg1, arg2);
       } else {
-        rv = mon_shuffle_write_send(&write_in, i);
+        shuffle_msg_sent(0, &arg1, &arg2);
+        rv = nn_shuffler_write_send(&write_in, i);
+        shuffle_msg_replied(arg1, arg2);
       }
       if (rv) msg_abort("xxsend");
       pthread_mutex_lock(&mtx[qu_cv]);

@@ -110,7 +110,6 @@ typedef struct write_cb {
 typedef struct write_async_cb {
   void* arg1;
   void* arg2;
-  void (*cb)(int rv, void*, void*);
   int slot; /* cb slot used */
 } write_async_cb_t;
 
@@ -131,8 +130,7 @@ inline void* nn_shuffler_hg_ctx(void) { return nnctx.hg_ctx; }
  * return 0 on success, or EOF on errors.
  */
 extern int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
-                                        void (*cb)(int rv, void* a1, void* a2),
-                                        void* a1, void* a2);
+                                        void* arg1, void* arg2);
 /*
  * nn_shuffler_write_send: send one or more encoded writes to a remote peer
  * and wait for its response.

@@ -140,37 +140,6 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   return 0;
 }
 
-static void mon_shuffle_cb(int rv, void* arg1, void* arg2) {
-  pctx.mctx.min_nms++;
-  pctx.mctx.max_nms++;
-  pctx.mctx.nms++;
-}
-
-int mon_shuffle_write_send_async(void* write_in, int peer_rank) {
-  int rv;
-
-  rv = nn_shuffler_write_send_async(static_cast<write_in_t*>(write_in),
-                                    peer_rank, mon_shuffle_cb, NULL, NULL);
-  return (rv);
-}
-
-int mon_shuffle_write_send(void* write_in, int peer_rank) {
-  int rv;
-
-  rv = nn_shuffler_write_send(static_cast<write_in_t*>(write_in), peer_rank);
-  pctx.mctx.min_nms++;
-  pctx.mctx.max_nms++;
-  pctx.mctx.nms++;
-
-  return (rv);
-}
-
-int mon_shuffle_write_received() {
-  pctx.mctx.min_nmr++;
-  pctx.mctx.max_nmr++;
-  pctx.mctx.nmr++;
-}
-
 static void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
   MPI_Reduce(const_cast<long long*>(&src->num_keys), &sum->num_keys, 1,
              MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
