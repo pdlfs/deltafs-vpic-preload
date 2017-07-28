@@ -505,7 +505,6 @@ int MPI_Init(int* argc, char*** argv) {
   std::string conf;
 #if MPI_VERSION >= 3
   size_t l;
-  std::string::size_type pos;
   char mpi_info[MPI_MAX_LIBRARY_VERSION_STRING];
   char* c;
 #endif
@@ -603,7 +602,11 @@ int MPI_Init(int* argc, char*** argv) {
   if (rank == 0) {
     n = snprintf(dirpath, sizeof(dirpath), "[cwd] ");
     cwd = getcwd(dirpath + n, sizeof(dirpath) - n);
-    info(dirpath);
+    if (cwd == NULL) {
+      msg_abort("getcwd");
+    } else {
+      info(dirpath);
+    }
   }
 
   if (pctx.testin) {
@@ -711,7 +714,17 @@ int MPI_Init(int* argc, char*** argv) {
     }
 
     /* so everyone sees the dir created */
-    nxt.MPI_Barrier(MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      info("barrier ...");
+    }
+    start = MPI_Wtime();
+    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      dura = MPI_Wtime() - min;
+      snprintf(msg, sizeof(msg), "barrier %s+",
+               pretty_dura(dura * 1000000).c_str());
+      info(msg);
+    }
 
     /* everyone opens it */
     if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
