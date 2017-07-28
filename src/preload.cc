@@ -413,6 +413,19 @@ static std::string gen_plfsdir_conf(int rank) {
   return (tmp);
 }
 
+static std::string& pretty_plfsdir_conf(std::string& conf) {
+  std::string::size_type pos;
+  pos = conf.find('=', 0);
+  for (; pos != std::string::npos; pos = conf.find('=', 0))
+    conf.replace(pos, 1, " -> ");
+  pos = conf.find('&', 0);
+  for (; pos != std::string::npos; pos = conf.find('&', 0))
+    conf.replace(pos, 1, "\n // ");
+  conf = std::string("plfsdir_conf = (\n // ") + conf;
+  conf += "\n)";
+  return (conf);
+}
+
 namespace {
 /*
  * fake_file is a replacement for FILE* that we use to accumulate all the
@@ -711,22 +724,13 @@ int MPI_Init(int* argc, char*** argv) {
       pctx.plfstp = deltafs_tp_init(pctx.plfsparts);
       deltafs_plfsdir_set_thread_pool(pctx.plfsh, pctx.plfstp);
 
-      if (pctx.plfsh != NULL) {
-        rv = deltafs_plfsdir_open(pctx.plfsh, path);
-      }
-      if (pctx.plfsh == NULL || rv != 0) {
+      rv = deltafs_plfsdir_open(pctx.plfsh, path);
+      if (rv != 0) {
         msg_abort("cannot open plfsdir");
       } else if (rank == 0) {
         info("plfsdir (via deltafs-LT) opened (rank 0)");
         if (pctx.verr) {
-          pos = conf.find('=', 0);
-          for (; pos != std::string::npos; pos = conf.find('=', 0))
-            conf.replace(pos, 1, " -> ");
-          pos = conf.find('&', 0);
-          for (; pos != std::string::npos; pos = conf.find('&', 0))
-            conf.replace(pos, 1, "\n // ");
-          conf = std::string("plfsdir_conf = (\n // ") + conf;
-          conf += "\n)";
+          pretty_plfsdir_conf(conf);
           info(conf.c_str());
         }
       }
