@@ -1280,16 +1280,14 @@ DIR* opendir(const char* dir) {
     epoch_start = now_micros();
   }
 
-  if (!pctx.paranoid_barrier) {
-    if (pctx.myrank == 0) {
-      snprintf(msg, sizeof(msg), "epoch %d bootstrapping ... (rank 0)",
-               num_epochs + 1);
-      info(msg);
-    }
+  if (num_epochs == 0) {
+    /* skip */
+  } else if (!pctx.paranoid_barrier) {
+    /* skip */
   } else {
     /*
-     * this ensures all peer rpc messages sent at the previous
-     * epoch are now received.
+     * this ensures we have received all peer writes and no more
+     * writes will happen for the previous epoch.
      */
     if (pctx.myrank == 0) {
       info("barrier ...");
@@ -1301,14 +1299,11 @@ DIR* opendir(const char* dir) {
       snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
       info(msg);
-
-      snprintf(msg, sizeof(msg), "epoch %d bootstrapping ...", num_epochs + 1);
-      info(msg);
     }
   }
 
   /* shuffle flush */
-  if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+  if (num_epochs != 0 && !IS_BYPASS_SHUFFLE(pctx.mode)) {
     shuffle_epoch_start(&pctx.sctx);
   }
 
@@ -1376,28 +1371,14 @@ DIR* opendir(const char* dir) {
     dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
 
-  /* increase epoch seq */
-  num_epochs++;
-
-  if (pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_epochs);
-    info(msg);
-  }
-
-  if (!pctx.nomon) {
-    mon_reinit(&pctx.mctx); /* clear mon stats */
-    /* reset epoch id */
-    pctx.mctx.epoch_seq = num_epochs;
-  }
-
-  if (!pctx.paranoid_post_barrier) {
-    if (pctx.myrank == 0) {
-      info("dumping particles ... (rank 0)");
-    }
+  if (num_epochs == 0) {
+    /* skip */
+  } else if (!pctx.paranoid_post_barrier) {
+    /* skip */
   } else {
     /*
-     * this ensures writes belong to the new epoch will go into a
-     * new write buffer.
+     * this ensures all writes made for the next epoch
+     * will go to a new write buffer.
      */
     if (pctx.myrank == 0) {
       info("barrier ...");
@@ -1409,9 +1390,23 @@ DIR* opendir(const char* dir) {
       snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
       info(msg);
-
-      info("dumping particles ...");
     }
+  }
+
+  /* increase epoch seq */
+  num_epochs++;
+
+  if (!pctx.nomon) {
+    mon_reinit(&pctx.mctx); /* clear mon stats */
+    /* reset epoch id */
+    pctx.mctx.epoch_seq = num_epochs;
+  }
+
+  pctx.fnames->clear();
+
+  if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_epochs);
+    info(msg);
   }
 
   if (!pctx.nomon) {
@@ -1425,7 +1420,9 @@ DIR* opendir(const char* dir) {
     if (ret) msg_abort("getrusage");
   }
 
-  pctx.fnames->clear();
+  if (pctx.myrank == 0) {
+    info("dumping particles ... (rank 0)");
+  }
 
   return (rv);
 }
@@ -1450,6 +1447,10 @@ int closedir(DIR* dirp) {
 
   if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
     return (nxt.closedir(dirp));
+  }
+
+  if (pctx.myrank == 0) {
+    info("dumping done (rank 0)");
   }
 
   if (pctx.paranoid_checks) {
@@ -1485,15 +1486,8 @@ int closedir(DIR* dirp) {
     shuffle_epoch_end(&pctx.sctx);
   }
 
-  if (!pctx.paranoid_pre_barrier) {
-    if (pctx.myrank == 0) {
-      info("dumping done (rank 0)");
-    }
-  } else {
-    /*
-     * this ensures we have received all rpc messages
-     * sent by peers.
-     */
+  /* this ensures we have received all peer messages */
+  if (pctx.paranoid_pre_barrier) {
     if (pctx.myrank == 0) {
       info("barrier ...");
     }
@@ -1504,8 +1498,6 @@ int closedir(DIR* dirp) {
       snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
       info(msg);
-
-      info("dumping done");
     }
   }
 
