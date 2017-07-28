@@ -1280,11 +1280,12 @@ DIR* opendir(const char* dir) {
     epoch_start = now_micros();
   }
 
-  if (num_epochs == 0) {
-    /* skip */
-  } else if (!pctx.paranoid_barrier) {
-    /* skip */
-  } else {
+  if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_epochs + 1);
+    info(msg);
+  }
+
+  if (num_epochs != 0 && pctx.paranoid_barrier) {
     /*
      * this ensures we have received all peer writes and no more
      * writes will happen for the previous epoch.
@@ -1371,11 +1372,7 @@ DIR* opendir(const char* dir) {
     dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
 
-  if (num_epochs == 0) {
-    /* skip */
-  } else if (!pctx.paranoid_post_barrier) {
-    /* skip */
-  } else {
+  if (num_epochs != 0 && pctx.paranoid_post_barrier) {
     /*
      * this ensures all writes made for the next epoch
      * will go to a new write buffer.
@@ -1400,16 +1397,7 @@ DIR* opendir(const char* dir) {
     mon_reinit(&pctx.mctx); /* clear mon stats */
     /* reset epoch id */
     pctx.mctx.epoch_seq = num_epochs;
-  }
 
-  pctx.fnames->clear();
-
-  if (pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_epochs);
-    info(msg);
-  }
-
-  if (!pctx.nomon) {
     pctx.epoch_start = epoch_start; /* record epoch start */
 
     /* take a snapshot of dir stats */
@@ -1423,6 +1411,8 @@ DIR* opendir(const char* dir) {
   if (pctx.myrank == 0) {
     info("dumping particles ... (rank 0)");
   }
+
+  pctx.fnames->clear();
 
   return (rv);
 }
