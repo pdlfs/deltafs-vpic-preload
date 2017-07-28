@@ -782,9 +782,9 @@ int MPI_Init(int* argc, char*** argv) {
     pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 
     if (pctx.monfd == -1) {
-      msg_abort("cannot create statistics file");
+      msg_abort("cannot create tmp stats file");
     } else if (rank == 0) {
-      snprintf(msg, sizeof(msg), "in-mem epoch statistics %d bytes",
+      snprintf(msg, sizeof(msg), "in-mem epoch mon stats %d bytes",
                int(sizeof(mon_ctx_t)));
       info(msg);
     }
@@ -935,7 +935,7 @@ int MPI_Finalize(void) {
       ok = 1; /* ready to go */
 
       if (pctx.myrank == 0) {
-        info("merging and saving epoch statistics to ...");
+        info("merging and saving epoch mon stats to ...");
         nxt.mkdir(pctx.log_root, 0755);
         ts = now_micros();
         now = time(NULL);
@@ -951,9 +951,11 @@ int MPI_Finalize(void) {
           snprintf(path2, sizeof(path2),
                    "%s/"
                    "vpic-deltafs-mon-reduced.bin",
-                   pctx.local_root);
+                   pctx.log_root);
           n = unlink(path2);
-          n = symlink(path1 + pctx.len_local_root + 1, path2);
+          n = symlink(path1 + pctx.len_log_root + 1, path2);
+        } else {
+          error("open");
         }
         snprintf(path1, sizeof(path1), "%s/%s-%s.txt", pctx.log_root,
                  "vpic-deltafs-mon-reduced", suffix);
@@ -963,12 +965,14 @@ int MPI_Finalize(void) {
           snprintf(path2, sizeof(path2),
                    "%s/"
                    "vpic-deltafs-mon-reduced.txt",
-                   pctx.local_root);
+                   pctx.log_root);
           n = unlink(path2);
-          n = symlink(path1 + pctx.len_local_root + 1, path2);
+          n = symlink(path1 + pctx.len_log_root + 1, path2);
+        } else {
+          error("open");
         }
         if (fd1 == -1 || fd2 == -1) {
-          warn("cannot open statistics files");
+          warn("cannot create stats files");
           ok = 0;
         }
         if (fd2 != -1) {
@@ -997,7 +1001,7 @@ int MPI_Finalize(void) {
             assert(sizeof(mon_ctx_t) < sizeof(buf));
             memcpy(&local, buf, sizeof(mon_ctx_t));
           } else {
-            warn("cannot read statistics");
+            warn("cannot read stats");
             ok = 0;
           }
         }
@@ -1011,7 +1015,7 @@ int MPI_Finalize(void) {
           glob.global = 1;
         } else if (pctx.myrank == 0) {
           snprintf(msg, sizeof(msg),
-                   "error merging statistics %d; "
+                   "error merging mon stats %d; "
                    "ABORT action!",
                    epoch + 1);
           warn(msg);
@@ -1163,7 +1167,7 @@ int MPI_Finalize(void) {
         }
         diff = now_micros() - ts;
 
-        snprintf(msg, sizeof(msg), "merged %d epoch statistics %s", epoch,
+        snprintf(msg, sizeof(msg), "merged %d epoch mon stats %s", epoch,
                  pretty_dura(diff).c_str());
         info(msg);
       }
