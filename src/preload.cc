@@ -1167,7 +1167,7 @@ int MPI_Finalize(void) {
         }
         diff = now_micros() - ts;
 
-        snprintf(msg, sizeof(msg), "merged %d epoch mon stats %s", epoch,
+        snprintf(msg, sizeof(msg), "merging ok (%d epochs) %s", epoch,
                  pretty_dura(diff).c_str());
         info(msg);
       }

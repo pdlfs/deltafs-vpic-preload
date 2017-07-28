@@ -20,7 +20,7 @@ if [ ! -z "$2" ]; then
     MPI_PROCS="$2"
 fi
 
-rm -rf $LOCAL_ROOT /tmp/vpic-preload-*
+rm -rf /tmp/vpic-deltafs-*
 
 mkdir $LOCAL_ROOT || exit 1
 
