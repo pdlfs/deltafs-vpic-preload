@@ -37,6 +37,8 @@
  *    Deltafs root (details below)
  *  PRELOAD_Plfsdir
  *    Path to the plfsdir (XXX: allows multi)
+ *  PRELOAD_Log_root
+ *    Path to log directory
  *  PRELOAD_Bypass_shuffle
  *    Do not shuffle writes at all
  *  PRELOAD_Bypass_placement
@@ -111,6 +113,13 @@
  * "deltafs_root" maybe a relative path.
  */
 #define DEFAULT_DELTAFS_ROOT "/deltafs"
+
+/*
+ * If "log_root" is not specified, we set it to the following path.
+ *
+ * Home to final mon stats.
+ */
+#define DEFAULT_LOG_ROOT "/tmp/vpic-deltafs-log"
 
 /*
  * If "local_root" is not specified, we set it to the following path.

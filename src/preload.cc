@@ -171,6 +171,20 @@ static void preload_init() {
 
   pctx.plfsfd = -1;
 
+  pctx.log_root = maybe_getenv("PRELOAD_Log_root");
+  if (!pctx.log_root) pctx.log_root = DEFAULT_LOG_ROOT;
+  pctx.len_log_root = strlen(pctx.log_root);
+
+  /* log root:
+   *   - any non-null path,
+   *   - not "/",
+   *   - starting with "/", and
+   *   - not ending in "/"
+   */
+  if (pctx.len_log_root == 0 || pctx.len_log_root == 1 ||
+      pctx.log_root[0] != '/' || pctx.log_root[pctx.len_log_root - 1] == '/')
+    msg_abort("bad log_root");
+
   pctx.local_root = maybe_getenv("PRELOAD_Local_root");
   if (!pctx.local_root) pctx.local_root = DEFAULT_LOCAL_ROOT;
   pctx.len_local_root = strlen(pctx.local_root);
@@ -623,7 +637,7 @@ int MPI_Init(int* argc, char*** argv) {
 
     n = nxt.mkdir(dirpath, 0777);
     errno = 0;
-    pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
     if (pctx.logfd == -1) {
       msg_abort("cannot create log");
@@ -765,7 +779,7 @@ int MPI_Init(int* argc, char*** argv) {
 
     n = nxt.mkdir(dirpath, 0777);
     errno = 0;
-    pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+    pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 
     if (pctx.monfd == -1) {
       msg_abort("cannot create statistics file");
@@ -922,16 +936,17 @@ int MPI_Finalize(void) {
 
       if (pctx.myrank == 0) {
         info("merging and saving epoch statistics to ...");
+        nxt.mkdir(pctx.log_root, 0755);
         ts = now_micros();
         now = time(NULL);
         localtime_r(&now, &timeinfo);
         snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
                  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
                  timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-        snprintf(path1, sizeof(path1), "%s/%s-%s.bin", pctx.local_root,
+        snprintf(path1, sizeof(path1), "%s/%s-%s.bin", pctx.log_root,
                  "vpic-deltafs-mon-reduced", suffix);
         info(path1);
-        fd1 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0666);
+        fd1 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd1 != -1) {
           snprintf(path2, sizeof(path2),
                    "%s/"
@@ -940,10 +955,10 @@ int MPI_Finalize(void) {
           n = unlink(path2);
           n = symlink(path1 + pctx.len_local_root + 1, path2);
         }
-        snprintf(path1, sizeof(path1), "%s/%s-%s.txt", pctx.local_root,
+        snprintf(path1, sizeof(path1), "%s/%s-%s.txt", pctx.log_root,
                  "vpic-deltafs-mon-reduced", suffix);
         info(path1);
-        fd2 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0666);
+        fd2 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd2 != -1) {
           snprintf(path2, sizeof(path2),
                    "%s/"
@@ -1817,7 +1832,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
 
   } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
     snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
-    fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
 
     if (fd != -1) {
       n = write(fd, data, len);
@@ -1832,7 +1847,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     }
 
     fd =
-        deltafs_openat(pctx.plfsfd, fname, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        deltafs_openat(pctx.plfsfd, fname, O_WRONLY | O_CREAT | O_APPEND, 0644);
 
     if (fd != -1) {
       n = deltafs_write(fd, data, len);
