@@ -68,8 +68,20 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
 }
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
+  char msg[100];
+  int min_iqdep;
+  int max_iqdep;
   if (true) {
     nn_shuffler_destroy();
+    MPI_Reduce(const_cast<int*>(&nnctx.iqdep), &min_iqdep, 1, MPI_INT, MPI_MIN,
+               0, MPI_COMM_WORLD);
+    MPI_Reduce(const_cast<int*>(&nnctx.iqdep), &max_iqdep, 1, MPI_INT, MPI_MAX,
+               0, MPI_COMM_WORLD);
+    if (pctx.myrank == 0 && min_iqdep != 0) {
+      snprintf(msg, sizeof(msg), "max incoming rpc queue depth: %d - %d",
+               min_iqdep, max_iqdep);
+      info(msg);
+    }
   } else {
     // FIXME
   }

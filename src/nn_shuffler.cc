@@ -347,7 +347,6 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
 
 /* rpc_work(): dedicated thread function to process rpc */
 static void* rpc_work(void* arg) {
-  char msg[100];
   hg_return_t hret;
   struct timespec abstime;
   std::vector<void*> my_items;
@@ -389,15 +388,13 @@ static void* rpc_work(void* arg) {
     my_items.clear();
   }
 
-  snprintf(msg, sizeof(msg), "max rpc incoming req queue depth: %d",
-           int(max_items));
-  info(msg);
-
   pthread_mutex_lock(&mtx[bg_cv]);
   assert(num_wk > 0);
   num_wk--;
   pthread_cond_broadcast(&cv[bg_cv]);
   pthread_mutex_unlock(&mtx[bg_cv]);
+
+  nnctx.iqdep = int(max_items);
 
 #ifndef NDEBUG
   if (pctx.myrank == 0) {
@@ -1308,6 +1305,8 @@ void nn_shuffler_init() {
     rv = pthread_create(&pid, NULL, rpc_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
+  } else if (pctx.myrank == 0) {
+    warn("no rpc worker");
   }
 
   if (pctx.myrank == 0) {

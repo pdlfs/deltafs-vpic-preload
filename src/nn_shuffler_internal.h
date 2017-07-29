@@ -85,6 +85,9 @@ typedef struct nn_ctx {
   /* ch-placement context */
   struct ch_placement_instance* chp;
 
+  /* per-rank rpc incoming queue depth */
+  int iqdep;
+
 } nn_ctx_t;
 
 extern nn_ctx_t nnctx;
