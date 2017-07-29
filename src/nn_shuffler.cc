@@ -347,19 +347,23 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
 
 /* rpc_work(): dedicated thread function to process rpc */
 static void* rpc_work(void* arg) {
+  char msg[100];
   hg_return_t hret;
   struct timespec abstime;
   std::vector<void*> my_items;
+  std::vector<void*>::size_type max_items;
   std::vector<void*>::iterator it;
   uint64_t timeout;
   hg_handle_t h;
 
+  info("rpc worker up");
   my_items.reserve(16);
+  max_items = 0;
 
-  do {
+  while (!is_shuttingdown()) {
     pthread_mutex_lock(&mtx[wk_cv]);
     while (wk_items.empty() && !is_shuttingdown()) {
-      timeout = now_micros() + 500 * 1000; /* wait 0.5 seconds */
+      timeout = now_micros() + 500 * 1000; /* wait 0.5 seconds at most */
       abstime.tv_nsec = 1000 * (timeout % 1000000);
       abstime.tv_sec = timeout / 1000000;
       pthread_cond_timedwait(&cv[wk_cv], &mtx[wk_cv], &abstime);
@@ -367,6 +371,7 @@ static void* rpc_work(void* arg) {
     my_items.swap(wk_items);
     pthread_mutex_unlock(&mtx[wk_cv]);
 
+    max_items = std::max(my_items.size(), max_items);
     for (it = my_items.begin(); it != my_items.end(); ++it) {
       h = reinterpret_cast<hg_handle_t>(*it);
       if (h != NULL) {
@@ -376,8 +381,13 @@ static void* rpc_work(void* arg) {
         }
       }
     }
+
     my_items.clear();
-  } while (!is_shuttingdown());
+  }
+
+  snprintf(msg, sizeof(msg), "max rpc incoming req queue depth: %d",
+           int(max_items));
+  info(msg);
 
   pthread_mutex_lock(&mtx[bg_cv]);
   assert(num_wk > 0);
