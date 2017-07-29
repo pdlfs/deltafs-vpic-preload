@@ -85,6 +85,26 @@ uint64_t now_micros_coarse() {
   return (t);
 }
 
+void check_clockres() {
+  char msg[100];
+  int n;
+#if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
+  struct timespec res;
+  n = clock_getres(CLOCK_MONOTONIC_COARSE, &res);
+  if (n == 0) {
+    snprintf(msg, sizeof(msg), "[clock] CLOCK_MONOTONIC_COARSE: %d us",
+             int(res.tv_sec * 1000 * 1000 + res.tv_nsec / 1000));
+    info(msg);
+  }
+  n = clock_getres(CLOCK_MONOTONIC, &res);
+  if (n == 0) {
+    snprintf(msg, sizeof(msg), "[clock] CLOCK_MONOTONIC: %d ns",
+             int(res.tv_sec * 1000 * 1000 * 1000 + res.tv_nsec));
+    info(msg);
+  }
+#endif
+}
+
 #undef PRELOAD_USE_CLOCK_GETTIME
 
 /* read a line from file */

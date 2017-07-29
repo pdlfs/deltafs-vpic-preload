@@ -654,15 +654,14 @@ int MPI_Init(int* argc, char*** argv) {
   pctx.mycpus = my_cpu_cores();
 
   /* probe system info, will skip if we have no access */
-  if (!pctx.noscan) {
-    if (rank == 0) {
-      maybe_warn_rlimit(pctx.myrank, pctx.commsz);
-      maybe_warn_cpuaffinity();
-      /* cpu info and os version */
-      try_scan_procfs();
-      /* numa topo and nic */
-      try_scan_sysfs();
-    }
+  if (rank == 0) {
+    maybe_warn_cpuaffinity();
+    maybe_warn_rlimit(pctx.myrank, pctx.commsz);
+    /* cpu info and os version */
+    if (!pctx.noscan) try_scan_procfs();
+    /* numa topo and nic */
+    if (!pctx.noscan) try_scan_sysfs();
+    check_clockres();
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
