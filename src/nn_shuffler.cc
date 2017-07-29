@@ -227,6 +227,7 @@ static const char* prepare_addr(char* buf) {
   if (port > max_port) {
     port = 0;
     n = 1;
+    addr_len = sizeof(addr);
     warn(
         "no free ports available within the specified range\n>>> "
         "auto detecting ports ...");
