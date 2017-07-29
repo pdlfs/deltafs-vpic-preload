@@ -45,18 +45,15 @@ uint64_t timeval_to_micros(const struct timeval* tv) {
   return (t);
 }
 
+#define PRELOAD_USE_CLOCK_GETTIME
+
 uint64_t now_micros() {
   uint64_t t;
 
 #if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
   struct timespec tp;
 
-#if defined(CLOCK_MONOTONIC_RAW)
-  clock_gettime(CLOCK_MONOTONIC_RAW, &tp);
-#else
   clock_gettime(CLOCK_MONOTONIC, &tp);
-#endif
-
   t = static_cast<uint64_t>(tp.tv_sec) * 1000000;
   t += tp.tv_nsec / 1000;
 #else
@@ -68,6 +65,27 @@ uint64_t now_micros() {
 
   return (t);
 }
+
+uint64_t now_micros_coarse() {
+  uint64_t t;
+
+#if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
+  struct timespec tp;
+
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &tp);
+  t = static_cast<uint64_t>(tp.tv_sec) * 1000000;
+  t += tp.tv_nsec / 1000;
+#else
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
+  t = timeval_to_micros(&tv);
+#endif
+
+  return (t);
+}
+
+#undef PRELOAD_USE_CLOCK_GETTIME
 
 /* read a line from file */
 static std::string readline(const char* fname) {

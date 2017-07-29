@@ -53,6 +53,9 @@ int my_cpu_cores();
 /* get the current time in us. */
 uint64_t now_micros();
 
+/* get the current time in us with fast but coarse-grained timestamps. */
+uint64_t now_micros_coarse();
+
 /* convert posix timeval to micros */
 uint64_t timeval_to_micros(const struct timeval* tv);
 
