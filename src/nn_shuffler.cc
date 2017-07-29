@@ -356,7 +356,11 @@ static void* rpc_work(void* arg) {
   uint64_t timeout;
   hg_handle_t h;
 
-  info("[bg] rpc worker up ...");
+#ifndef NDEBUG
+  if (pctx.myrank == 0) {
+    info("[bg] rpc worker up ... (rank 0)");
+  }
+#endif
   my_items.reserve(16);
   max_items = 0;
 
@@ -394,6 +398,12 @@ static void* rpc_work(void* arg) {
   num_wk--;
   pthread_cond_broadcast(&cv[bg_cv]);
   pthread_mutex_unlock(&mtx[bg_cv]);
+
+#ifndef NDEBUG
+  if (pctx.myrank == 0) {
+    info("[bg] rpc worker off (rank 0)");
+  }
+#endif
 
   return (NULL);
 }
@@ -1109,7 +1119,12 @@ static void* bg_work(void* foo) {
   time_t last_progress;
   time_t now;
 
-  info("[bg] rpc looper up ...");
+#ifndef NDEBUG
+  if (pctx.myrank == 0) {
+    info("[bg] rpc looper up ... (rank 0)");
+  }
+#endif
+
   /* trace the last time we do mercury progress */
   last_progress = 0;
 
@@ -1137,6 +1152,12 @@ static void* bg_work(void* foo) {
   num_bg--;
   pthread_cond_broadcast(&cv[bg_cv]);
   pthread_mutex_unlock(&mtx[bg_cv]);
+
+#ifndef NDEBUG
+  if (pctx.myrank == 0) {
+    info("[bg] rpc looper off (rank 0)");
+  }
+#endif
 
   return (NULL);
 }
