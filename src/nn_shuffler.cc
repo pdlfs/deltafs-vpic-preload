@@ -356,7 +356,7 @@ static void* rpc_work(void* arg) {
   uint64_t timeout;
   hg_handle_t h;
 
-  info("rpc worker up");
+  info("[bg] rpc worker up ...");
   my_items.reserve(16);
   max_items = 0;
 
@@ -1109,6 +1109,7 @@ static void* bg_work(void* foo) {
   time_t last_progress;
   time_t now;
 
+  info("[bg] rpc looper up ...");
   /* trace the last time we do mercury progress */
   last_progress = 0;
 
@@ -1120,7 +1121,7 @@ static void* bg_work(void* foo) {
     if (!is_shuttingdown()) {
       now = time(NULL);
       if (last_progress != 0 && now - last_progress > 5) {
-        warn("calling mercury progress with higher interval (>5 secs)");
+        warn("calling HG_Progress with high interval (>5 secs)");
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, 100);
