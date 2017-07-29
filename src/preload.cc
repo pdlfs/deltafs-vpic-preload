@@ -49,7 +49,7 @@
 /* XXX: VPIC is usually a single-threaded process but mutex may be
  * needed if VPIC is running with openmp.
  */
-static maybe_mutex_t maybe_mtx = MAYBE_MUTEX_INITIALIZER;
+static maybe_mutex_t preload_mtx = MAYBE_MUTEX_INITIALIZER;
 
 /* number of MPI barriers invoked by app */
 static int num_barriers = 0;
@@ -261,11 +261,11 @@ static int claim_FILE(FILE* stream) {
   std::set<FILE*>::iterator it;
   int rv;
 
-  must_maybelockmutex(&maybe_mtx);
+  must_maybelockmutex(&preload_mtx);
   assert(pctx.isdeltafs != NULL);
   it = pctx.isdeltafs->find(stream);
   rv = int(it != pctx.isdeltafs->end());
-  must_maybeunlock(&maybe_mtx);
+  must_maybeunlock(&preload_mtx);
 
   return (rv);
 }
@@ -1562,7 +1562,7 @@ FILE* fopen(const char* fpath, const char* mode) {
     stripped = (exact) ? "/" : (fpath + pctx.len_deltafs_root);
   }
 
-  must_maybelockmutex(&maybe_mtx);
+  must_maybelockmutex(&preload_mtx);
   if (pctx.paranoid_checks) {
     fname = stripped + pctx.len_plfsdir + 1;
     if (pctx.fnames->count(std::string(fname)) == 0) {
@@ -1571,6 +1571,9 @@ FILE* fopen(const char* fpath, const char* mode) {
       pctx.mctx.ncw++;
     }
   }
+  pctx.mctx.min_nw++;
+  pctx.mctx.max_nw++;
+  pctx.mctx.nw++;
   /* allocate a fake FILE* and put it in the set */
   fake_file* ff = NULL;
   if (vpic_file != &vpic_file_buffer) {
@@ -1584,7 +1587,7 @@ FILE* fopen(const char* fpath, const char* mode) {
   rv = reinterpret_cast<FILE*>(ff);
   assert(pctx.isdeltafs != NULL);
   pctx.isdeltafs->insert(rv);
-  must_maybeunlock(&maybe_mtx);
+  must_maybeunlock(&preload_mtx);
 
   return (rv);
 }
@@ -1642,7 +1645,7 @@ int fclose(FILE* stream) {
     }
   }
 
-  must_maybelockmutex(&maybe_mtx);
+  must_maybelockmutex(&preload_mtx);
   assert(pctx.isdeltafs != NULL);
   pctx.isdeltafs->erase(stream);
   if (ff == &vpic_file_buffer) {
@@ -1650,10 +1653,7 @@ int fclose(FILE* stream) {
   } else {
     delete ff;
   }
-  pctx.mctx.min_nw++;
-  pctx.mctx.max_nw++;
-  pctx.mctx.nw++;
-  must_maybeunlock(&maybe_mtx);
+  must_maybeunlock(&preload_mtx);
 
   return (rv);
 }
