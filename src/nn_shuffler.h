@@ -35,12 +35,17 @@
  *
  *  SHUFFLE_Mercury_proto
  *    Mercury rpc proto
+ *  SHUFFLE_Mercury_progress_timeout
+ *    Timeout for calling HG_Progress
+ *  SHUFFLE_Mercury_progress_warn_interval
+ *    Time between two HG_Progress calls that starts
+ *      to cause warning messages
  *  SHUFFLE_Force_rpc
- *    Send rpc even if addr is local
+ *    Send rpcs even if target is local
  *  SHUFFLE_Force_sync_rpc
- *    Avoid sending async rpc
+ *    Disallow async rpcs
  *  SHUFFLE_Num_outstanding_rpc
- *    Max num of outstanding rpc allowed
+ *    Max num of outstanding rpcs allowed
  *  SHUFFLE_Use_worker_thread
  *    Allocate a dedicated worker thread
  *  SHUFFLE_Subnet
@@ -146,4 +151,18 @@ extern void nn_shuffler_destroy();
  *
  * Use of tcp is subject to high latency.
  */
-#define DEFAULT_PROTO "bmi+tcp"
+#define DEFAULT_HG_PROTO "bmi+tcp"
+
+/*
+ * The default timeout for calling HG_Progress.
+ *
+ * Specified in milliseconds.
+ */
+#define DEFAULT_HG_TIMEOUT 100
+
+/*
+ * Max time between two HG_Progress calls that is still considered okay.
+ *
+ * Specified in milliseconds.
+ */
+#define DEFAULT_HG_INTERVAL 200

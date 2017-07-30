@@ -75,6 +75,10 @@ typedef struct nn_ctx {
   hg_context_t* hg_ctx;
   hg_id_t hg_id;
 
+  /* hg_timeouts (in ms) */
+  int hg_max_interval;
+  int hg_timeout;
+
   int timeout;    /* rpc timeout (in secs) */
   int force_sync; /* avoid async rpc */
   int force_rpc;  /* send rpc even if addr is local */

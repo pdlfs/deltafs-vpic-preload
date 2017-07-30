@@ -258,7 +258,7 @@ static const char* prepare_addr(char* buf) {
   /* add proto */
 
   env = maybe_getenv("SHUFFLE_Mercury_proto");
-  if (env == NULL) env = DEFAULT_PROTO;
+  if (env == NULL) env = DEFAULT_HG_PROTO;
   sprintf(buf, "%s://%s:%d", env, ip, port);
   if (pctx.myrank == 0) {
     snprintf(msg, sizeof(msg), "using %s", env);
@@ -1127,8 +1127,8 @@ void nn_shuffler_flush() {
 static void* bg_work(void* foo) {
   hg_return_t hret;
   unsigned int actual_count;
-  time_t last_progress;
-  time_t now;
+  uint64_t last_progress;
+  uint64_t now;
 
 #ifndef NDEBUG
   if (pctx.myrank == 0) {
@@ -1136,7 +1136,7 @@ static void* bg_work(void* foo) {
   }
 #endif
 
-  /* trace the last time we do mercury progress */
+  /* the last time we do mercury progress */
   last_progress = 0;
 
   while (true) {
@@ -1145,12 +1145,14 @@ static void* bg_work(void* foo) {
     } while (hret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
 
     if (!is_shuttingdown()) {
-      now = time(NULL);
-      if (last_progress != 0 && now - last_progress > 5) {
-        warn("calling HG_Progress with high interval (>5 secs)");
+      now = now_micros_coarse();
+      if (last_progress != 0 &&
+          now - last_progress >
+              static_cast<uint64_t>(nnctx.hg_max_interval) * 1000) {
+        warn("calling HG_Progress() with high interval");
       }
       last_progress = now;
-      hret = HG_Progress(nnctx.hg_ctx, 100);
+      hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
       if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
         rpc_abort("HG_Progress", hret);
     } else {
@@ -1242,6 +1244,26 @@ void nn_shuffler_init() {
     }
   }
 
+  env = maybe_getenv("SHUFFLE_Mercury_progress_timeout");
+  if (env == NULL) {
+    nnctx.hg_timeout = DEFAULT_HG_TIMEOUT;
+  } else {
+    nnctx.hg_timeout = atoi(env);
+    if (nnctx.hg_timeout < 100) {
+      nnctx.hg_timeout = 100;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Mercury_progress_warn_interval");
+  if (env == NULL) {
+    nnctx.hg_max_interval = DEFAULT_HG_INTERVAL;
+  } else {
+    nnctx.hg_max_interval = atoi(env);
+    if (nnctx.hg_max_interval < 100) {
+      nnctx.hg_max_interval = 100;
+    }
+  }
+
   env = maybe_getenv("SHUFFLE_Num_outstanding_rpc");
   if (env == NULL) {
     cb_allowed = DEFAULT_OUTSTANDING_RPC;
@@ -1325,6 +1347,11 @@ void nn_shuffler_init() {
   }
 
   if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg),
+             "HG_Progress() timeout: %d ms\n>>> "
+             "max interval: %d ms",
+             nnctx.hg_timeout, nnctx.hg_max_interval);
+    info(msg);
     if (nnctx.force_sync) {
       warn("async rpc disabled");
     } else {
