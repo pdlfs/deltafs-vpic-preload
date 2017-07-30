@@ -1145,10 +1145,8 @@ static void* bg_work(void* foo) {
     } while (hret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
 
     if (!is_shuttingdown()) {
-      now = now_micros_coarse();
-      if (last_progress != 0 &&
-          now - last_progress >
-              static_cast<uint64_t>(nnctx.hg_max_interval) * 1000) {
+      now = now_micros_coarse() / 1000;
+      if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
         warn("calling HG_Progress() with high interval");
       }
       last_progress = now;
@@ -1348,9 +1346,9 @@ void nn_shuffler_init() {
 
   if (pctx.myrank == 0) {
     snprintf(msg, sizeof(msg),
-             "HG_Progress() timeout: %d ms\n>>> "
-             "max interval: %d ms",
-             nnctx.hg_timeout, nnctx.hg_max_interval);
+             "HG_Progress() timeout: %d ms, warn interval: %d ms\n>>> "
+             "fatal rpc timeout %d s",
+             nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout);
     info(msg);
     if (nnctx.force_sync) {
       warn("async rpc disabled");
