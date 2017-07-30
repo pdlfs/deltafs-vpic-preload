@@ -797,7 +797,8 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (rank == 0) {
     if (pctx.fake_data) warn("vpic output replaced with fake data");
-    if (!pctx.paranoid_checks) warn("paranoid checks disabled");
+    if (pctx.paranoid_checks) warn("paranoid checks enabled");
+    if (pctx.noscan) warn("auto os & hardware detection disabled");
     if (pctx.nomon) warn("self-mon disabled");
 
     if (IS_BYPASS_WRITE(pctx.mode)) {
