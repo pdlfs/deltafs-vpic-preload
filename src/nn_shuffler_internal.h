@@ -85,8 +85,12 @@ typedef struct nn_ctx {
   /* ch-placement context */
   struct ch_placement_instance* chp;
 
-  /* per-rank rpc incoming queue depth */
-  int iqdep;
+  /* rpc incoming queue depth */
+  unsigned long long accqsz; /* accumulated queue size */
+  unsigned long long nps;    /* total number of queue passes */
+
+  int minqsz; /* min queue size */
+  int maxqsz; /* max queue size */
 
 } nn_ctx_t;
 

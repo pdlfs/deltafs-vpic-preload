@@ -68,18 +68,33 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
 }
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
-  char msg[100];
-  int min_iqdep;
-  int max_iqdep;
+  char msg[200];
+  unsigned long long accqsz;
+  unsigned long long nps;
+  int min_maxqsz;
+  int max_maxqsz;
+  int min_minqsz;
+  int max_minqsz;
   if (true) {
     nn_shuffler_destroy();
-    MPI_Reduce(const_cast<int*>(&nnctx.iqdep), &min_iqdep, 1, MPI_INT, MPI_MIN,
-               0, MPI_COMM_WORLD);
-    MPI_Reduce(const_cast<int*>(&nnctx.iqdep), &max_iqdep, 1, MPI_INT, MPI_MAX,
-               0, MPI_COMM_WORLD);
-    if (pctx.myrank == 0 && min_iqdep != 0) {
-      snprintf(msg, sizeof(msg), "max incoming rpc queue depth: %d - %d",
-               min_iqdep, max_iqdep);
+    MPI_Reduce(&nnctx.accqsz, &accqsz, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(&nnctx.nps, &nps, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(&nnctx.maxqsz, &min_maxqsz, 1, MPI_INT, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(&nnctx.maxqsz, &max_maxqsz, 1, MPI_INT, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(&nnctx.minqsz, &min_minqsz, 1, MPI_INT, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(&nnctx.minqsz, &max_minqsz, 1, MPI_INT, MPI_MAX, 0,
+               MPI_COMM_WORLD);
+    if (pctx.myrank == 0 && nps != 0) {
+      snprintf(msg, sizeof(msg),
+               "[rpc] incoming queue depth: %.3f per rank\n"
+               ">>> max: %d - %d, min: %d - %d",
+               double(accqsz) / nps, min_maxqsz, max_maxqsz, min_minqsz,
+               max_minqsz);
       info(msg);
     }
   } else {

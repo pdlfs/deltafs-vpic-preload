@@ -349,8 +349,11 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
 static void* rpc_work(void* arg) {
   hg_return_t hret;
   struct timespec abstime;
+  size_t num_loops;
   std::vector<void*> my_items;
+  std::vector<void*>::size_type num_items;
   std::vector<void*>::size_type max_items;
+  std::vector<void*>::size_type min_items;
   std::vector<void*>::iterator it;
   uint64_t timeout;
   hg_handle_t h;
@@ -360,8 +363,11 @@ static void* rpc_work(void* arg) {
     info("[bg] rpc worker up ... (rank 0)");
   }
 #endif
-  my_items.reserve(16);
   max_items = 0;
+  min_items = my_items.max_size();
+  my_items.reserve(512);
+  num_items = 0;
+  num_loops = 0;
 
   while (!is_shuttingdown()) {
     pthread_mutex_lock(&mtx[wk_cv]);
@@ -373,8 +379,11 @@ static void* rpc_work(void* arg) {
     }
     my_items.swap(wk_items);
     pthread_mutex_unlock(&mtx[wk_cv]);
+    num_loops++;
 
+    min_items = std::min(my_items.size(), min_items);
     max_items = std::max(my_items.size(), max_items);
+    num_items += my_items.size();
     for (it = my_items.begin(); it != my_items.end(); ++it) {
       h = reinterpret_cast<hg_handle_t>(*it);
       if (h != NULL) {
@@ -394,8 +403,10 @@ static void* rpc_work(void* arg) {
   pthread_cond_broadcast(&cv[bg_cv]);
   pthread_mutex_unlock(&mtx[bg_cv]);
 
-  nnctx.iqdep = int(max_items);
-
+  nnctx.accqsz = num_items;
+  nnctx.minqsz = int(min_items);
+  nnctx.maxqsz = int(max_items);
+  nnctx.nps = num_loops;
 #ifndef NDEBUG
   if (pctx.myrank == 0) {
     info("[bg] rpc worker off (rank 0)");
@@ -1301,12 +1312,13 @@ void nn_shuffler_init() {
   pthread_detach(pid);
 
   if (is_envset("SHUFFLE_Use_worker_thread")) {
+    wk_items.reserve(512);
     num_wk++;
     rv = pthread_create(&pid, NULL, rpc_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
   } else if (pctx.myrank == 0) {
-    warn("no rpc worker");
+    warn("rpc worker disabled");
   }
 
   if (pctx.myrank == 0) {
