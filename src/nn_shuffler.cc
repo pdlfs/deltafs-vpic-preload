@@ -370,6 +370,7 @@ static void* rpc_work(void* arg) {
   num_loops = 0;
 
   while (!is_shuttingdown()) {
+    my_items.clear();
     pthread_mutex_lock(&mtx[wk_cv]);
     while (wk_items.empty() && !is_shuttingdown()) {
       timeout = now_micros() + 500 * 1000; /* wait 0.5 seconds at most */
@@ -379,11 +380,15 @@ static void* rpc_work(void* arg) {
     }
     my_items.swap(wk_items);
     pthread_mutex_unlock(&mtx[wk_cv]);
+    if (my_items.empty()) {
+      continue;
+    }
     num_loops++;
 
     min_items = std::min(my_items.size(), min_items);
     max_items = std::max(my_items.size(), max_items);
     num_items += my_items.size();
+
     for (it = my_items.begin(); it != my_items.end(); ++it) {
       h = reinterpret_cast<hg_handle_t>(*it);
       if (h != NULL) {
@@ -393,8 +398,6 @@ static void* rpc_work(void* arg) {
         }
       }
     }
-
-    my_items.clear();
   }
 
   pthread_mutex_lock(&mtx[bg_cv]);
