@@ -590,16 +590,22 @@ int MPI_Init(int* argc, char*** argv) {
                       &flag);
     if (flag != 0) {
       if (mpi_wtime_is_global == 0) {
-        warn("wtime is not global");
+        warn(
+            "MPI_Wtime() is NOT globally synchronized\n>>> "
+            "MPI_WTIME_IS_GLOBAL is 0");
+      } else {
+        info(
+            "MPI_Wtime() is globally synchronized\n>>> "
+            "MPI_WTIME_IS_GLOBAL is 1");
       }
     } else {
       warn(
-          "cannot determine if wtime is global\n>>> "
-          "attr MPI_WTIME_IS_GLOBAL not set");
+          "cannot determine if MPI_Wtime() is global\n>>> "
+          "MPI_WTIME_IS_GLOBAL not set");
     }
 #else
     warn(
-        "cannot determine if wtime is global\n>>> "
+        "cannot determine if MPI_Wtime() is global\n>>> "
         "MPI_WTIME_IS_GLOBAL undefined");
 #endif
   }
@@ -791,7 +797,8 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (rank == 0) {
     if (pctx.fake_data) warn("vpic output replaced with fake data");
-    if (pctx.nomon) warn("perf monitoring disabled");
+    if (!pctx.paranoid_checks) warn("paranoid checks disabled");
+    if (pctx.nomon) warn("self-mon disabled");
 
     if (IS_BYPASS_WRITE(pctx.mode)) {
       warn("particle writes bypassed");
