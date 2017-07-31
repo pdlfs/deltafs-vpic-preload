@@ -42,6 +42,7 @@
 
 /* a set of utilities for probing important system configurations. */
 void check_clockres();
+void check_sse42();
 void maybe_warn_rlimit(int myrank, int worldsz);
 void maybe_warn_cpuaffinity();
 void try_scan_procfs();

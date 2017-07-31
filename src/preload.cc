@@ -611,10 +611,15 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   if (rank == 0) {
+#if defined(__GNUC__) && !defined(__OPTIMIZE__)
+    warn(
+        "c/c++ OPTIMIZATION disabled: benchmarks unnecessarily slow\n>>> "
+        "recompile with -O1, -O2, or -O3 to enable optimization");
+#endif
 #ifndef NDEBUG
     warn(
-        "assertions enabled: code unnecessarily slow\n>>> recompile with "
-        "\"-DNDEBUG\" to disable assertions");
+        "c/c++ ASSERTIONS enabled: benchmarks unnecessarily slow\n>>> "
+        "recompile with \"-DNDEBUG\" to disable assertions");
 #endif
   }
 
@@ -632,7 +637,7 @@ int MPI_Init(int* argc, char*** argv) {
   if (pctx.testin) {
     if (rank == 0) {
       warn(
-          "testing mode: code unnecessarily slow\n>>> rerun with "
+          "testing mode: benchmarks unnecessarily slow\n>>> rerun with "
           "\"export PRELOAD_Testing=0\" to "
           "disable testing");
     }
@@ -661,6 +666,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   /* probe system info, will skip if we have no access */
   if (rank == 0) {
+    check_sse42();
     maybe_warn_cpuaffinity();
     maybe_warn_rlimit(pctx.myrank, pctx.commsz);
     /* cpu info and os version */
@@ -797,7 +803,11 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (rank == 0) {
     if (pctx.fake_data) warn("vpic output replaced with fake data");
-    if (pctx.paranoid_checks) warn("paranoid checks enabled");
+    if (pctx.paranoid_checks)
+      warn(
+          "paranoid checks enabled: benchmarks unnecessarily slow "
+          "and memory usage unnecessarily high\n>>> "
+          "rerun with \"export PRELOAD_No_paranoid_checks=1\" to disable");
     if (pctx.noscan) warn("auto os & hardware detection disabled");
     if (pctx.nomon) warn("self-mon disabled");
 
