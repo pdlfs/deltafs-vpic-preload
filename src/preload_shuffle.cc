@@ -107,6 +107,73 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   }
 }
 
+static void _3h_shuffler_init(_3h_ctx_t* ctx) {
+  int min_port;
+  int max_port;
+  const char* env;
+  const char* subnet;
+  const char* proto;
+  nexus_ret_t ret;
+  char msg[100];
+
+  subnet = maybe_getenv("SHUFFLE_Subnet");
+  if (subnet == NULL) {
+    subnet = DEFAULT_SUBNET;
+  }
+
+  if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
+    if (strcmp(subnet, "127.0.0.1") == 0) {
+      warn(msg);
+    } else {
+      info(msg);
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Min_port");
+  if (env == NULL) {
+    min_port = DEFAULT_MIN_PORT;
+  } else {
+    min_port = atoi(env);
+  }
+
+  env = maybe_getenv("SHUFFLE_Max_port");
+  if (env == NULL) {
+    max_port = DEFAULT_MAX_PORT;
+  } else {
+    max_port = atoi(env);
+  }
+
+  /* sanity check on port range */
+  if (max_port - min_port < 0) msg_abort("bad min-max port");
+  if (min_port < 1) msg_abort("bad min port");
+  if (max_port > 65535) msg_abort("bad max port");
+
+  if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
+    info(msg);
+  }
+
+  proto = maybe_getenv("SHUFFLE_Mercury_proto");
+  if (proto == NULL) {
+    proto = DEFAULT_HG_PROTO;
+  }
+  if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "using %s", proto);
+    if (strstr(proto, "tcp") != NULL) {
+      warn(msg);
+    } else {
+      info(msg);
+    }
+  }
+
+  ret = nexus_bootstrap(ctx->nx, min_port, max_port, const_cast<char*>(subnet),
+                        const_cast<char*>(proto));
+  if (ret != NX_SUCCESS) {
+    msg_abort("nexus_bootstrap");
+  }
+}
+
 void shuffle_init(shuffle_ctx_t* ctx) {
   char msg[100];
   if (is_envset("SHUFFLE_Use_3hop")) {
@@ -126,8 +193,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   if (ctx->type == SHUFFLE_3HOP) {
     _3h_ctx_t* rep = new _3h_ctx_t;
+    _3h_shuffler_init(rep);
     ctx->rep = rep;
-    // TODO
   } else {
     nn_shuffler_init();
   }
