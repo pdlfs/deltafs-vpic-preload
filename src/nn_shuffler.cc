@@ -121,10 +121,6 @@ static const char* prepare_addr(char* buf) {
   int rv;
   int n;
 
-  /* figure out our ip addr by query the local socket layer */
-
-  if (getifaddrs(&ifaddr) == -1) msg_abort("getifaddrs");
-
   subnet = maybe_getenv("SHUFFLE_Subnet");
   if (subnet == NULL) {
     subnet = DEFAULT_SUBNET;
@@ -139,6 +135,11 @@ static const char* prepare_addr(char* buf) {
     }
   }
 
+  /* settle down an ip addr to use */
+  if (getifaddrs(&ifaddr) == -1) {
+    msg_abort("getifaddrs");
+  }
+
   for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
     if (cur->ifa_addr != NULL) {
       family = cur->ifa_addr->sa_family;
@@ -150,13 +151,14 @@ static const char* prepare_addr(char* buf) {
 
         if (strncmp(subnet, ip, strlen(subnet)) == 0) {
           break;
-        } else if (pctx.testin) {
-          if (pctx.logfd != -1) {
-            n = snprintf(msg, sizeof(msg), "[IPV4] skip %s\n", ip);
-            n = write(pctx.logfd, msg, n);
-
-            errno = 0;
+        } else {
+#ifndef NDEBUG
+          if (pctx.verr || pctx.myrank == 0) {
+            snprintf(msg, sizeof(msg), "[ip] skip %s (rank %d)", ip,
+                     pctx.myrank);
+            info(msg);
           }
+#endif
         }
       }
     }
@@ -269,14 +271,12 @@ static const char* prepare_addr(char* buf) {
     }
   }
 
-  if (pctx.testin) {
-    if (pctx.logfd != -1) {
-      n = snprintf(msg, sizeof(msg), "[URI] using %s\n", buf);
-      n = write(pctx.logfd, msg, n);
-
-      errno = 0;
-    }
+#ifndef NDEBUG
+  if (pctx.verr || pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.myrank);
+    info(msg);
   }
+#endif
 
   return (buf);
 }
@@ -359,8 +359,10 @@ static void* rpc_work(void* arg) {
   hg_handle_t h;
 
 #ifndef NDEBUG
-  if (pctx.myrank == 0) {
-    info("[bg] rpc worker up ... (rank 0)");
+  char msg[100];
+  if (pctx.verr || pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc worker up (rank %d)", pctx.myrank);
+    info(msg);
   }
 #endif
   max_items = 0;
@@ -411,8 +413,9 @@ static void* rpc_work(void* arg) {
   nnctx.maxqsz = int(max_items);
   nnctx.nps = num_loops;
 #ifndef NDEBUG
-  if (pctx.myrank == 0) {
-    info("[bg] rpc worker off (rank 0)");
+  if (pctx.verr || pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc worker down (rank %d)", pctx.myrank);
+    info(msg);
   }
 #endif
 
@@ -1131,8 +1134,10 @@ static void* bg_work(void* foo) {
   uint64_t now;
 
 #ifndef NDEBUG
-  if (pctx.myrank == 0) {
-    info("[bg] rpc looper up ... (rank 0)");
+  char msg[100];
+  if (pctx.verr || pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc looper up (rank %d)", pctx.myrank);
+    info(msg);
   }
 #endif
 
@@ -1165,8 +1170,9 @@ static void* bg_work(void* foo) {
   pthread_mutex_unlock(&mtx[bg_cv]);
 
 #ifndef NDEBUG
-  if (pctx.myrank == 0) {
-    info("[bg] rpc looper off (rank 0)");
+  if (pctx.verr || pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc looper down (rank %d)", pctx.myrank);
+    info(msg);
   }
 #endif
 
