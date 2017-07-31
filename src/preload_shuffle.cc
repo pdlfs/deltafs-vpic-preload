@@ -35,35 +35,40 @@
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
+#include <deltafs-nexus/deltafs-nexus_api.h>
+
 #include "common.h"
 
+/* shuffle context for the 3-hop shuffler. */
+typedef struct _3h_ctx {
+  nexus_ctx_t* nx;
+  void* sh;
+} _3h_ctx_t;
+
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
-  if (true) {
-    // Do nothing
-  } else {
-    // FIXME
+  if (ctx->type == SHUFFLE_3HOP) {
+    // TODO
   }
 }
 
 void shuffle_epoch_end(shuffle_ctx_t* ctx) {
-  if (true) {
+  if (ctx->type == SHUFFLE_3HOP) {
+    // TODO
+  } else {
     nn_shuffler_flush();
     if (!nnctx.force_sync) {
       /* wait for rpc replies */
       nn_shuffler_wait();
     }
-  } else {
-    // FIXME
   }
 }
 
 int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
                   int epoch) {
-  if (true) {
-    return nn_shuffler_write(fn, d, n, epoch);
+  if (ctx->type == SHUFFLE_3HOP) {
+    // TODO
   } else {
-    // FIXME
-    return EOF;
+    return nn_shuffler_write(fn, d, n, epoch);
   }
 }
 
@@ -75,7 +80,9 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   int max_maxqsz;
   int min_minqsz;
   int max_minqsz;
-  if (true) {
+  if (ctx->type == SHUFFLE_3HOP) {
+    // TODO
+  } else {
     nn_shuffler_destroy();
     MPI_Reduce(&nnctx.accqsz, &accqsz, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
@@ -97,16 +104,32 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                max_minqsz);
       info(msg);
     }
-  } else {
-    // FIXME
   }
 }
 
 void shuffle_init(shuffle_ctx_t* ctx) {
-  if (true) {
-    nn_shuffler_init();
+  char msg[100];
+  if (is_envset("SHUFFLE_Use_3hop")) {
+    ctx->type = SHUFFLE_3HOP;
+    if (pctx.myrank == 0) {
+      snprintf(msg, sizeof(msg), "using the scalable 3-hop shuffler");
+      info(msg);
+    }
   } else {
-    // FIXME
+    ctx->type = SHUFFLE_NN;
+    if (pctx.myrank == 0) {
+      snprintf(msg, sizeof(msg),
+               "using the nn shuffler; code may not scale well\n>>> "
+               "switch to the 3-hop shuffler for big runs");
+      warn(msg);
+    }
+  }
+  if (ctx->type == SHUFFLE_3HOP) {
+    _3h_ctx_t* rep = new _3h_ctx_t;
+    ctx->rep = rep;
+    // TODO
+  } else {
+    nn_shuffler_init();
   }
 }
 

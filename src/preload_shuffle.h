@@ -37,6 +37,12 @@
 #include <stddef.h>
 
 typedef struct shuffle_ctx {
+  /* internal shuffle impl */
+  void* rep;
+  /* shuffle type */
+  int type;
+#define SHUFFLE_NN 0 /* default */
+#define SHUFFLE_3HOP 1
 } shuffle_ctx_t;
 
 /*
