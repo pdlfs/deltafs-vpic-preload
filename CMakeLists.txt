@@ -16,6 +16,7 @@
 
 cmake_minimum_required (VERSION 3.0)
 project (deltafs-preload C CXX)
+set (CMAKE_CXX_STANDARD 11)
 enable_testing ()
 
 # link shared lib with full rpath
