@@ -1315,8 +1315,8 @@ void nn_shuffler_init() {
     rpcqs[i].sz = 0;
   }
   if (pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "rpc buffer: %d x %s (%s total)", nrpcqs,
-             pretty_size(max_rpcq_sz).c_str(),
+    snprintf(msg, sizeof(msg), "rpc buffer: %s x %s (%s total)",
+             pretty_num(nrpcqs).c_str(), pretty_size(max_rpcq_sz).c_str(),
              pretty_size(nrpcqs * max_rpcq_sz).c_str());
     info(msg);
   }
