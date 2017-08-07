@@ -1232,6 +1232,8 @@ void nn_shuffler_init_ssg() {
 /* nn_shuffler_init: init the shuffle layer */
 void nn_shuffler_init() {
   hg_return_t hret;
+  hg_size_t isz;
+  hg_size_t osz;
   pthread_t pid;
   char msg[200];
   const char* env;
@@ -1353,21 +1355,27 @@ void nn_shuffler_init() {
   }
 
   if (pctx.myrank == 0) {
+    if (!nnctx.force_sync) {
+      isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
+      osz = HG_Class_get_output_eager_size(nnctx.hg_clz);
+      snprintf(msg, sizeof(msg),
+               "HG_input_eager_size: %s, HG_output_eager_size: %s\n>>> "
+               "num outstanding rpcs: %d",
+               pretty_size(isz).c_str(), /* server-side rpc input buf */
+               pretty_size(osz).c_str(), /* rpc output buf */
+               cb_left);
+      info(msg);
+    } else {
+      warn("async rpc disabled");
+    }
+
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms\n>>> "
              "fatal rpc timeout %d s",
-             nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout);
+             nnctx.hg_timeout,      /* milliseconds */
+             nnctx.hg_max_interval, /* milliseconds */
+             nnctx.timeout);
     info(msg);
-    if (nnctx.force_sync) {
-      warn("async rpc disabled");
-    } else {
-      snprintf(msg, sizeof(msg), "num outstanding rpcs: %d", cb_left);
-      if (cb_left <= 1) {
-        warn(msg);
-      } else {
-        info(msg);
-      }
-    }
   }
 
   return;
