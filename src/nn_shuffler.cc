@@ -1131,9 +1131,9 @@ static void* bg_work(void* foo) {
   unsigned int actual_count;
   uint64_t last_progress;
   uint64_t now;
+  char msg[100];
 
 #ifndef NDEBUG
-  char msg[100];
   if (pctx.verr || pctx.myrank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc looper up (rank %d)", pctx.myrank);
     info(msg);
@@ -1151,7 +1151,10 @@ static void* bg_work(void* foo) {
     if (!is_shuttingdown()) {
       now = now_micros_coarse() / 1000;
       if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
-        warn("calling HG_Progress() with high interval");
+        snprintf(msg, sizeof(msg),
+                 "calling HG_Progress() with high interval: %d ms (rank %d)",
+                 int(now - last_progress), pctx.myrank);
+        warn(msg);
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
