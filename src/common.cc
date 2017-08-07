@@ -125,9 +125,9 @@ void check_sse42() {
   int sse42;
   CHECK_SSE42(sse42);
   if (sse42) {
-    snprintf(msg, sizeof(msg), "[cpu] SSE4.2 instruction set is available");
+    snprintf(msg, sizeof(msg), "[isa] SSE V4.2 instruction set is available");
   } else {
-    snprintf(msg, sizeof(msg), "[cpu] SSE4.2 is not available");
+    snprintf(msg, sizeof(msg), "[isa] SSE V4.2 is not available");
   }
 
   info(msg);
@@ -192,6 +192,7 @@ void try_scan_sysfs() {
   const char* dirname;
   char msg[200];
   char path[PATH_MAX];
+  std::string idx[4];
   std::string mtu;
   std::string txqlen;
   std::string speed;
@@ -224,6 +225,14 @@ void try_scan_sysfs() {
     closedir(d);
   }
 
+  if (ncpus != 0) {
+    for (int i = 0; i < 4; i++) {
+      snprintf(path, sizeof(path),
+               "/sys/devices/system/cpu/cpu0/cache/index%d/size", i);
+      idx[i] = readline(path);
+    }
+  }
+
   nnodes = 0;
   dirname = "/sys/devices/system/node";
   d = opendir(dirname);
@@ -239,8 +248,10 @@ void try_scan_sysfs() {
     closedir(d);
   }
 
-  snprintf(msg, sizeof(msg), "[sys] %d CPU cores / %d NUMA nodes", ncpus,
-           nnodes);
+  snprintf(msg, sizeof(msg),
+           "[sys] %d NUMA nodes / %d CPU cores (L1: %s + %s, L2: %s, L3: %s)",
+           nnodes, ncpus, idx[0].c_str(), idx[1].c_str(), idx[2].c_str(),
+           idx[3].c_str());
   info(msg);
 
   nnics = 0;
@@ -331,7 +342,7 @@ void try_scan_procfs() {
     }
     fclose(cpuinfo);
     if (num_cpus != 0) {
-      snprintf(msg, sizeof(msg), "[cpu] %d x %s (L1 cache: %s)", num_cpus,
+      snprintf(msg, sizeof(msg), "[cpu] %d x %s (L2/L3 cache: %s)", num_cpus,
                cpu_type.c_str(), L1_cache_size.c_str());
       info(msg);
     }
