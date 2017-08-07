@@ -117,6 +117,7 @@ static const char* prepare_addr(char* buf) {
   const char* subnet;
   char msg[100];
   char ip[50];  // ip
+  int opt;
   int so;
   int rv;
   int n;
@@ -202,24 +203,23 @@ static const char* prepare_addr(char* buf) {
 #else
   comm = MPI_COMM_WORLD;
 #endif
-
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &size);
+
+  /* try and test port availability */
   port = min_port + (rank % (1 + max_port - min_port));
   for (; port <= max_port; port += size) {
-    n = 1;
-    /* test port availability */
     so = socket(PF_INET, SOCK_STREAM, 0);
-    setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n));
     if (so != -1) {
       addr.sin_family = AF_INET;
       addr.sin_addr.s_addr = INADDR_ANY;
       addr.sin_port = htons(port);
-      n = bind(so, (struct sockaddr*)&addr, sizeof(addr));
+      opt = 1;
+      setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+      n = bind(so, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
       close(so);
-      errno = 0;
       if (n == 0) {
-        break; /* done */
+        break;
       }
     } else {
       msg_abort("socket");
@@ -228,31 +228,32 @@ static const char* prepare_addr(char* buf) {
 
   if (port > max_port) {
     port = 0;
-    n = 1;
-    addr_len = sizeof(addr);
     warn(
         "no free ports available within the specified range\n>>> "
         "auto detecting ports ...");
     so = socket(PF_INET, SOCK_STREAM, 0);
-    setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n));
     if (so != -1) {
       addr.sin_family = AF_INET;
       addr.sin_addr.s_addr = INADDR_ANY;
       addr.sin_port = htons(0);
-      n = bind(so, (struct sockaddr*)&addr, sizeof(addr));
+      opt = 1;
+      setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+      n = bind(so, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
       if (n == 0) {
-        n = getsockname(so, (struct sockaddr*)&addr, &addr_len);
+        addr_len = sizeof(addr);
+        n = getsockname(so, reinterpret_cast<struct sockaddr*>(&addr),
+                        &addr_len);
         if (n == 0) {
           port = ntohs(addr.sin_port);
-          /* okay */
         }
       }
       close(so);
-      errno = 0;
     } else {
       msg_abort("socket");
     }
   }
+
+  errno = 0;
 
   if (port == 0) /* maybe a wrong port range has been specified */
     msg_abort("no free ports");
