@@ -186,8 +186,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     ctx->type = SHUFFLE_NN;
     if (pctx.myrank == 0) {
       snprintf(msg, sizeof(msg),
-               "using the nn shuffler; code may not scale well\n>>> "
-               "switch to the 3-hop shuffler for big runs");
+               "using the default NN shuffler: code might not scale well\n>>> "
+               "switch to the 3-hop shuffler for better scalability");
       warn(msg);
     }
   }

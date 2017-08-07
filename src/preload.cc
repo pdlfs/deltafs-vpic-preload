@@ -611,6 +611,24 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   if (rank == 0) {
+#if defined(__INTEL_COMPILER)
+    snprintf(msg, sizeof(msg), "[cxx] Intel (icc/icpc) %d.%d.%d %d",
+             __INTEL_COMPILER / 100, __INTEL_COMPILER % 100,
+             __INTEL_COMPILER_UPDATE, __INTEL_COMPILER_BUILD_DATE);
+    info(msg);
+#elif defined(_CRAYC)
+    snprintf(msg, sizeof(msg), "[cxx] Cray (crayc/crayc++) %d.%d", _RELEASE,
+             _RELEASE_MINOR);
+    info(msg);
+#elif defined(__GNUC__)
+    snprintf(msg, sizeof(msg), "[cxx] GNU (gcc/g++) %d.%d.%d", __GNUC__,
+             __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+    info(msg);
+#elif defined(__clang__)
+    snprintf(msg, sizeof(msg), "[cxx] Clang (clang/clang++) %d.%d.%d",
+             __clang_major__, __clang_minor__, __clang_patchlevel__);
+    info(msg);
+#endif
 #if defined(__GNUC__) && !defined(__OPTIMIZE__)
     warn(
         "c/c++ OPTIMIZATION disabled: benchmarks unnecessarily slow\n>>> "
