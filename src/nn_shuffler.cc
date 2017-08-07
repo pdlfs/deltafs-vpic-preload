@@ -77,6 +77,7 @@ static int num_bg = 0;
 /* workers */
 static std::vector<void*> wk_items;
 static int num_wk = 0; /* number of worker threads running */
+#define MAX_WORK_ITEM 256
 
 /* rpc queue */
 typedef struct rpcq {
@@ -351,13 +352,15 @@ static void* rpc_work(void* arg) {
   hg_return_t hret;
   struct timespec abstime;
   size_t num_loops;
-  std::vector<void*> my_items;
+  std::vector<void*> todo;
   std::vector<void*>::size_type num_items;
   std::vector<void*>::size_type max_items;
   std::vector<void*>::size_type min_items;
   std::vector<void*>::iterator it;
   uint64_t timeout;
   hg_handle_t h;
+
+  todo.reserve(MAX_WORK_ITEM);
 
 #ifndef NDEBUG
   char msg[100];
@@ -366,38 +369,33 @@ static void* rpc_work(void* arg) {
     info(msg);
   }
 #endif
+  min_items = todo.max_size();
   max_items = 0;
-  min_items = my_items.max_size();
-  my_items.reserve(512);
   num_items = 0;
   num_loops = 0;
 
   while (!is_shuttingdown()) {
-    my_items.clear();
+    todo.clear();
     pthread_mutex_lock(&mtx[wk_cv]);
     while (wk_items.empty() && !is_shuttingdown()) {
-      timeout = now_micros() + 500 * 1000; /* wait 0.5 seconds at most */
-      abstime.tv_nsec = 1000 * (timeout % 1000000);
-      abstime.tv_sec = timeout / 1000000;
-      pthread_cond_timedwait(&cv[wk_cv], &mtx[wk_cv], &abstime);
+      pthread_cond_wait(&cv[wk_cv], &mtx[wk_cv]);
     }
-    my_items.swap(wk_items);
+    todo.swap(wk_items);
     pthread_mutex_unlock(&mtx[wk_cv]);
-    if (my_items.empty()) {
-      continue;
-    }
-    num_loops++;
+    if (!todo.empty()) {
+      num_loops++;
 
-    min_items = std::min(my_items.size(), min_items);
-    max_items = std::max(my_items.size(), max_items);
-    num_items += my_items.size();
+      min_items = std::min(todo.size(), min_items);
+      max_items = std::max(todo.size(), max_items);
+      num_items += todo.size();
 
-    for (it = my_items.begin(); it != my_items.end(); ++it) {
-      h = reinterpret_cast<hg_handle_t>(*it);
-      if (h != NULL) {
-        hret = nn_shuffler_write_rpc_handler(h);
-        if (hret != HG_SUCCESS) {
-          rpc_abort("HG_Respond", hret);
+      for (it = todo.begin(); it != todo.end(); ++it) {
+        h = reinterpret_cast<hg_handle_t>(*it);
+        if (h != NULL) {
+          hret = nn_shuffler_write_rpc_handler(h);
+          if (hret != HG_SUCCESS) {
+            rpc_abort("HG_Respond", hret);
+          }
         }
       }
     }
@@ -1377,7 +1375,12 @@ void nn_shuffler_destroy() {
   int i;
 
   pthread_mutex_lock(&mtx[bg_cv]);
-  shutting_down = 1;  // start shutdown seq
+  pthread_mutex_lock(&mtx[wk_cv]);
+  shutting_down = 1;
+
+  /* shutting down */
+  pthread_cond_broadcast(&cv[wk_cv]); /* notify the rpc worker */
+  pthread_mutex_unlock(&mtx[wk_cv]);
   while (num_bg != 0 || num_wk != 0) {
     pthread_cond_wait(&cv[bg_cv], &mtx[bg_cv]);
   }
