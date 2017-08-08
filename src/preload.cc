@@ -612,21 +612,30 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (rank == 0) {
 #if defined(__INTEL_COMPILER)
-    snprintf(msg, sizeof(msg), "[cxx] Intel (icc/icpc) %d.%d.%d %d",
-             __INTEL_COMPILER / 100, __INTEL_COMPILER % 100,
-             __INTEL_COMPILER_UPDATE, __INTEL_COMPILER_BUILD_DATE);
+    snprintf(
+        msg, sizeof(msg),
+        "[cc] compiled by Intel (icc/icpc) %d.%d.%d %d using c++ V%ld on %s %s",
+        __INTEL_COMPILER / 100, __INTEL_COMPILER % 100, __INTEL_COMPILER_UPDATE,
+        __INTEL_COMPILER_BUILD_DATE, __cplusplus, __DATE__, __TIME__);
     info(msg);
 #elif defined(_CRAYC)
-    snprintf(msg, sizeof(msg), "[cxx] Cray (crayc/crayc++) %d.%d", _RELEASE,
-             _RELEASE_MINOR);
+    snprintf(
+        msg, sizeof(msg),
+        "[cc] compiled by Cray (crayc/crayc++) %d.%d using c++ V%ld on %s %s",
+        _RELEASE, _RELEASE_MINOR, __cplusplus, __DATE__, __TIME__);
     info(msg);
 #elif defined(__GNUC__)
-    snprintf(msg, sizeof(msg), "[cxx] GNU (gcc/g++) %d.%d.%d", __GNUC__,
-             __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+    snprintf(msg, sizeof(msg),
+             "[cc] compiled by GNU (gcc/g++) %d.%d.%d using c++ V%ld on %s %s",
+             __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __cplusplus,
+             __DATE__, __TIME__);
     info(msg);
 #elif defined(__clang__)
-    snprintf(msg, sizeof(msg), "[cxx] Clang (clang/clang++) %d.%d.%d",
-             __clang_major__, __clang_minor__, __clang_patchlevel__);
+    snprintf(msg, sizeof(msg),
+             "[cc] compiled by LLVM/Clang (clang/clang++) %d.%d.%d using c++ "
+             "V%ld on %s %s",
+             __clang_major__, __clang_minor__, __clang_patchlevel__,
+             __cplusplus, __DATE__, __TIME__);
     info(msg);
 #endif
 #if defined(__GNUC__) && !defined(__OPTIMIZE__)

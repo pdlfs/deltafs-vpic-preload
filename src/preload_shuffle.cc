@@ -175,7 +175,7 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
 }
 
 void shuffle_init(shuffle_ctx_t* ctx) {
-  char msg[100];
+  char msg[150];
   if (is_envset("SHUFFLE_Use_3hop")) {
     ctx->type = SHUFFLE_3HOP;
     if (pctx.myrank == 0) {
