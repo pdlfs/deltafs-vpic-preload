@@ -1355,6 +1355,14 @@ void nn_shuffler_init() {
   }
 
   if (pctx.myrank == 0) {
+    snprintf(msg, sizeof(msg),
+             "HG_Progress() timeout: %d ms, warn interval: %d ms, "
+             "fatal rpc timeout: %d s\n>>> "
+             "force rpc: %s",
+             nnctx.hg_timeout,      /* milliseconds */
+             nnctx.hg_max_interval, /* milliseconds */
+             nnctx.timeout, nnctx.force_rpc ? "ON" : "OFF");
+    info(msg);
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
       osz = HG_Class_get_output_eager_size(nnctx.hg_clz);
@@ -1368,14 +1376,6 @@ void nn_shuffler_init() {
     } else {
       warn("async rpc disabled");
     }
-
-    snprintf(msg, sizeof(msg),
-             "HG_Progress() timeout: %d ms, warn interval: %d ms\n>>> "
-             "fatal rpc timeout %d s",
-             nnctx.hg_timeout,      /* milliseconds */
-             nnctx.hg_max_interval, /* milliseconds */
-             nnctx.timeout);
-    info(msg);
   }
 
   return;
