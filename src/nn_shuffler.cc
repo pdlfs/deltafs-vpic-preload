@@ -609,6 +609,9 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
     hret = HG_Get_output(h, &write_out);
     if (hret == HG_SUCCESS) {
       rv = write_out.rv;
+      if (rv != 0) {
+        msg_abort("xxreply");
+      }
     }
     HG_Free_output(h, &write_out);
   }
@@ -679,7 +682,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
     if (pctx.testin) {
       pthread_mutex_unlock(&mtx[cb_cv]);
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[SLOT] %d us\n", int(delay));
+        n = snprintf(buf, sizeof(buf), "[BLOCK-SLOT] %d us\n", int(delay));
         n = write(pctx.logfd, buf, n);
 
         errno = 0;
@@ -997,7 +1000,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     if (pctx.testin) {
       pthread_mutex_unlock(&mtx[qu_cv]);
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[QUEUE] %d us\n", int(delay));
+        n = snprintf(buf, sizeof(buf), "[BLOCK-QUEUE] %d us\n", int(delay));
         n = write(pctx.logfd, buf, n);
 
         errno = 0;
