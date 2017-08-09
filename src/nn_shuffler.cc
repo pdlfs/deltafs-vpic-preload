@@ -307,23 +307,24 @@ static inline bool is_shuttingdown() {
 
 static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
-  hg_uint16_t sz;
 
-  write_in_t* in = reinterpret_cast<write_in_t*>(data);
+  write_in_t* in = static_cast<write_in_t*>(data);
   hg_proc_op_t op = hg_proc_get_op(proc);
 
   if (op == HG_ENCODE) {
-    memcpy(&sz, in->encoding, 2);
-    hret = hg_proc_hg_uint16_t(proc, &sz);
-    if (hret == HG_SUCCESS) {
-      hret = hg_proc_memcpy(proc, in->encoding + 2, sz);
-    }
+    hret = hg_proc_hg_uint32_t(proc, &in->owner);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint16_t(proc, &in->sz);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_memcpy(proc, in->msg, in->sz);
+
   } else if (op == HG_DECODE) {
-    hret = hg_proc_hg_uint16_t(proc, &sz);
-    if (hret == HG_SUCCESS) {
-      memcpy(in->encoding, &sz, 2);
-      hret = hg_proc_memcpy(proc, in->encoding + 2, sz);
-    }
+    hret = hg_proc_hg_uint32_t(proc, &in->owner);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint16_t(proc, &in->sz);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_memcpy(proc, in->msg, in->sz);
+
   } else {
     hret = HG_SUCCESS; /* noop */
   }
@@ -391,7 +392,7 @@ static void* rpc_work(void* arg) {
       num_items += todo.size();
 
       for (it = todo.begin(); it != todo.end(); ++it) {
-        h = reinterpret_cast<hg_handle_t>(*it);
+        h = static_cast<hg_handle_t>(*it);
         if (h != NULL) {
           hret = nn_shuffler_write_rpc_handler(h);
           if (hret != HG_SUCCESS) {
@@ -444,6 +445,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   uint32_t nrank;
   uint16_t nepoch;
   hg_return_t hret;
+  char msg[MAX_RPC_MESSAGE];
   write_out_t write_out;
   write_in_t write_in;
   char* data;
@@ -465,33 +467,27 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
 
   rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
+  write_in.msg = msg;
+  write_in.sz = 0;
+
   hret = HG_Get_input(h, &write_in);
 
   if (hret == HG_SUCCESS) {
     shuffle_msg_received();
-    memcpy(&input_left, write_in.encoding, 2);
+    peer_rank = ntohl(write_in.owner);
+    /* write trace if we are in testing mode */
+    if (pctx.testin) {
+      if (pctx.logfd != -1) {
+        n = snprintf(buf, sizeof(buf), "[IN] %d bytes r%d << r%d\n",
+                     int(write_in.sz), rank, peer_rank);
+        n = write(pctx.logfd, buf, n);
 
-    /* sender rank */
-    if (input_left < 4) {
-      hret = HG_OTHER_ERROR;
-    } else {
-      memcpy(&nrank, write_in.encoding + 2, 4);
-      peer_rank = ntohl(nrank);
-
-      /* write trace if we are in testing mode */
-      if (pctx.testin) {
-        if (pctx.logfd != -1) {
-          n = snprintf(buf, sizeof(buf), "[IN] %d bytes r%d << r%d\n",
-                       int(input_left), rank, peer_rank);
-          n = write(pctx.logfd, buf, n);
-
-          errno = 0;
-        }
+        errno = 0;
       }
-
-      input = write_in.encoding + 2 + 4;
-      input_left -= 4;
     }
+
+    input_left = write_in.sz;
+    input = msg;
 
     /* decode and execute writes */
     while (hret == HG_SUCCESS && input_left != 0) {
@@ -659,15 +655,14 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   int e;
   int n;
 
-  assert(write_in != NULL);
-  memcpy(&write_sz, write_in->encoding, 2);
   assert(nnctx.ssg != NULL);
   rank = ssg_get_rank(nnctx.ssg);
+  assert(write_in != NULL);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n", int(write_sz),
-                 rank, peer_rank);
+    n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n",
+                 int(write_in->sz), rank, peer_rank);
 
     n = write(pctx.logfd, buf, n);
 
@@ -829,15 +824,14 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   int e;
   int n;
 
-  assert(write_in != NULL);
-  memcpy(&write_sz, write_in->encoding, 2);
   assert(nnctx.ssg != NULL);
   rank = ssg_get_rank(nnctx.ssg);
+  assert(write_in != NULL);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n", int(write_sz),
-                 rank, peer_rank);
+    n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n",
+                 int(write_in->sz), rank, peer_rank);
 
     n = write(pctx.logfd, buf, n);
 
@@ -1031,18 +1025,17 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
   /* flush queue if full */
   if (rpcq->sz + rpc_sz > max_rpcq_sz) {
-    if (rpcq->sz + 2 + 4 > sizeof(write_in.encoding)) {
+    if (rpcq->sz > MAX_RPC_MESSAGE) {
       /* happens when the total size of queued data is greater than
        * the size limit for an rpc message */
       msg_abort("rpc overflow");
     } else {
       rpcq->busy = 1; /* force other writers to block */
+      /* unlock when sending the rpc */
       pthread_mutex_unlock(&mtx[qu_cv]);
-      write_sz = rpcq->sz + 4; /* with sender rank */
-      memcpy(write_in.encoding, &write_sz, 2);
-      nrank = htonl(rank);
-      memcpy(write_in.encoding + 2, &nrank, 4);
-      memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
+      write_in.owner = htonl(rank);
+      write_in.msg = rpcq->buf;
+      write_in.sz = rpcq->sz;
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
         rv = nn_shuffler_write_send_async(&write_in, peer_rank, arg1, arg2);
@@ -1051,7 +1044,9 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
         rv = nn_shuffler_write_send(&write_in, peer_rank);
         shuffle_msg_replied(arg1, arg2);
       }
-      if (rv) msg_abort("xxsend");
+      if (rv != 0) {
+        msg_abort("xxsend");
+      }
       pthread_mutex_lock(&mtx[qu_cv]);
       pthread_cond_broadcast(&cv[qu_cv]);
       rpcq->busy = 0;
@@ -1115,16 +1110,15 @@ void nn_shuffler_flush() {
     rpcq = &rpcqs[i];
     if (rpcq->sz == 0) { /* skip empty queue */
       continue;
-    } else if (rpcq->sz + 2 + 4 > sizeof(write_in.encoding)) {
+    } else if (rpcq->sz > MAX_RPC_MESSAGE) {
       msg_abort("rpc overflow");
     } else {
       rpcq->busy = 1; /* force other writers to block */
+      /* unlock when sending the rpc */
       pthread_mutex_unlock(&mtx[qu_cv]);
-      write_sz = rpcq->sz + 4; /* with sender rank */
-      memcpy(write_in.encoding, &write_sz, 2);
-      nrank = htonl(rank);
-      memcpy(write_in.encoding + 2, &nrank, 4);
-      memcpy(write_in.encoding + 2 + 4, rpcq->buf, rpcq->sz);
+      write_in.owner = htonl(rank);
+      write_in.msg = rpcq->buf;
+      write_in.sz = rpcq->sz;
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
         rv = nn_shuffler_write_send_async(&write_in, i, arg1, arg2);
@@ -1133,7 +1127,9 @@ void nn_shuffler_flush() {
         rv = nn_shuffler_write_send(&write_in, i);
         shuffle_msg_replied(arg1, arg2);
       }
-      if (rv) msg_abort("xxsend");
+      if (rv != 0) {
+        msg_abort("xxsend");
+      }
       pthread_mutex_lock(&mtx[qu_cv]);
       pthread_cond_broadcast(&cv[qu_cv]);
       rpcq->busy = 0;

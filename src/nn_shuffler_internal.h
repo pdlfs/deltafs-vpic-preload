@@ -52,7 +52,7 @@
 /*
  * The max allowed size for a single rpc message.
  */
-#define MAX_RPC_MESSAGE 65536
+#define MAX_RPC_MESSAGE (65536 - 128)
 
 /*
  * rpc_abort: abort with a mercury rpc error
@@ -101,7 +101,10 @@ typedef struct nn_ctx {
 extern nn_ctx_t nnctx;
 
 typedef struct write_in {
-  char encoding[MAX_RPC_MESSAGE]; /* buffer space for encoded contents */
+  hg_uint32_t owner; /* write initiator */
+
+  hg_uint16_t sz; /* msg size */
+  void* msg;
 } write_in_t;
 
 typedef struct write_out {
