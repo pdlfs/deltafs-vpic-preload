@@ -425,17 +425,16 @@ static void* rpc_work(void* arg) {
 
 /* nn_shuffler_write_rpc_handler_wrapper: server-side rpc handler wrapper */
 hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
-  if (num_wk == 0) {
-    return (nn_shuffler_write_rpc_handler(h));
-  } else {
-    pthread_mutex_lock(&mtx[wk_cv]);
-    wk_items.push_back(static_cast<void*>(h));
-    if (wk_items.size() == 1) {
-      pthread_cond_broadcast(&cv[wk_cv]);
-    }
-    pthread_mutex_unlock(&mtx[wk_cv]);
-    return (HG_SUCCESS);
+  if (num_wk == 0) return (nn_shuffler_write_rpc_handler(h));
+
+  pthread_mutex_lock(&mtx[wk_cv]);
+  wk_items.push_back(static_cast<void*>(h));
+  if (wk_items.size() == 1) {
+    pthread_cond_broadcast(&cv[wk_cv]);
   }
+  pthread_mutex_unlock(&mtx[wk_cv]);
+
+  return (HG_SUCCESS);
 }
 
 /* nn_shuffler_write_rpc_handler: server-side rpc handler */
@@ -645,7 +644,6 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   hg_addr_t peer_addr;
   hg_handle_t h;
   write_async_cb_t* write_cb;
-  uint16_t write_sz;
   time_t now;
   struct timespec abstime;
   useconds_t delay;
@@ -812,7 +810,6 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   hg_return_t hret;
   hg_addr_t peer_addr;
   hg_handle_t h;
-  uint16_t write_sz;
   write_out_t write_out;
   write_cb_t write_cb;
   time_t now;
