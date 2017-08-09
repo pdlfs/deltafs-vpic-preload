@@ -1359,11 +1359,12 @@ void nn_shuffler_init() {
   pthread_detach(pid);
 
   if (is_envset("SHUFFLE_Use_worker_thread")) {
-    wk_items.reserve(512);
+    wk_items.reserve(MAX_WORK_ITEM);
     num_wk++;
     rv = pthread_create(&pid, NULL, rpc_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
+    info("rpc worker is on");
   } else if (pctx.myrank == 0) {
     warn("rpc worker disabled");
   }
@@ -1373,9 +1374,9 @@ void nn_shuffler_init() {
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
              "force rpc: %s",
-             nnctx.hg_timeout,      /* milliseconds */
-             nnctx.hg_max_interval, /* milliseconds */
-             nnctx.timeout, nnctx.force_rpc ? "ON" : "OFF");
+             nnctx.hg_timeout,      /* ms */
+             nnctx.hg_max_interval, /* ms */
+             nnctx.timeout, nnctx.force_rpc ? "TRUE" : "FALSE");
     info(msg);
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
