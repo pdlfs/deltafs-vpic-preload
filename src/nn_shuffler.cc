@@ -91,7 +91,8 @@ static int nrpcqs = 0;         /* number of queues */
 
 /* rpc callback slots */
 #define MAX_OUTSTANDING_RPC 128 /* hard limit */
-static write_async_cb_t cb_slots[MAX_OUTSTANDING_RPC];
+static hg_handle_t hg_hdls[MAX_OUTSTANDING_RPC] = {0};
+static write_async_cb_t cb_slots[MAX_OUTSTANDING_RPC] = {0};
 static int cb_flags[MAX_OUTSTANDING_RPC] = {0};
 static int cb_allowed = 1; /* soft limit */
 static int cb_left = 1;
@@ -628,8 +629,9 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
   }
   cb_left++;
   pthread_mutex_unlock(&mtx[cb_cv]);
-
-  HG_Destroy(h);
+  if (h != hg_hdls[write_cb->slot]) {
+    HG_Destroy(h);
+  }
 
   return HG_SUCCESS;
 }
@@ -713,11 +715,24 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 
   /* go */
   peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
-  if (peer_addr == HG_ADDR_NULL) msg_abort("cannot obtain addr");
-
+  if (peer_addr == HG_ADDR_NULL) {
+    msg_abort("ssg_get_addr");
+  }
   assert(nnctx.hg_ctx != NULL);
-  hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
-  if (hret != HG_SUCCESS) rpc_abort("HG_Create", hret);
+  h = hg_hdls[slot];
+  if (h == NULL) {
+    hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
+    if (hret != HG_SUCCESS) {
+      rpc_abort("HG_Create", hret);
+    } else {
+      hg_hdls[slot] = h;
+    }
+  } else {
+    hret = HG_Reset(h, peer_addr, nnctx.hg_id);
+    if (hret != HG_SUCCESS) {
+      rpc_abort("HG_Reset", hret);
+    }
+  }
 
   write_cb->slot = slot;
   write_cb->arg1 = arg1;
@@ -827,11 +842,14 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   }
 
   peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
-  if (peer_addr == HG_ADDR_NULL) msg_abort("cannot obtain addr");
-
+  if (peer_addr == HG_ADDR_NULL) {
+    msg_abort("ssg_get_addr");
+  }
   assert(nnctx.hg_ctx != NULL);
-  hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h); /* XXX: malloc */
-  if (hret != HG_SUCCESS) rpc_abort("HG_Create", hret);
+  hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
+  if (hret != HG_SUCCESS) {
+    rpc_abort("HG_Create", hret);
+  }
 
   write_cb.ok = 0;
 
@@ -879,7 +897,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
     }
   }
 
-  HG_Destroy(h); /* XXX: reuse */
+  HG_Destroy(h);
 
   if (hret != HG_SUCCESS) {
     rpc_abort("HG_Forward", hret);
