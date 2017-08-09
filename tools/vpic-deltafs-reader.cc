@@ -145,7 +145,7 @@ int deltafs_read_particles(char *indir, char *outdir)
             goto err_dir;
         }
 
-        file_data = (char*) deltafs_plfsdir_readall(dir, pname, &file_len);
+        file_data = (char*) deltafs_plfsdir_readall(dir, pname, &file_len, NULL, NULL);
         if (!file_data) {
             perror("Error: cannot read from deltafs");
             goto err_dir;
