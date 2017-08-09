@@ -1426,11 +1426,27 @@ void nn_shuffler_destroy() {
     free(rpcqs);
   }
 
-  if (nnctx.chp != NULL) ch_placement_finalize(nnctx.chp);
-  if (nnctx.ssg != NULL) ssg_finalize(nnctx.ssg);
+  if (nnctx.chp != NULL) {
+    ch_placement_finalize(nnctx.chp);
+  }
 
-  if (nnctx.hg_ctx != NULL) HG_Context_destroy(nnctx.hg_ctx);
-  if (nnctx.hg_clz != NULL) HG_Finalize(nnctx.hg_clz);
+  if (nnctx.ssg != NULL) {
+    ssg_finalize(nnctx.ssg);
+  }
+
+  for (size_t i = 0; i < sizeof(hg_hdls) / sizeof(hg_handle_t); i++) {
+    if (hg_hdls[i] != NULL) {
+      HG_Destroy(hg_hdls[i]);
+    }
+  }
+
+  if (nnctx.hg_ctx != NULL) {
+    HG_Context_destroy(nnctx.hg_ctx);
+  }
+
+  if (nnctx.hg_clz != NULL) {
+    HG_Finalize(nnctx.hg_clz);
+  }
 
   return;
 }
