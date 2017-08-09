@@ -192,6 +192,7 @@ void try_scan_sysfs() {
   const char* dirname;
   char msg[200];
   char path[PATH_MAX];
+  std::string syscpus;
   std::string idx[4];
   std::string mtu;
   std::string txqlen;
@@ -295,6 +296,13 @@ void try_scan_sysfs() {
       }
     }
     closedir(d);
+  }
+
+  if (access("/sys/fs/cgroup/cpuset/slurm/system", R_OK) == 0) {
+    syscpus = readline("/sys/fs/cgroup/cpuset/slurm/system/cpuset.cpus");
+    snprintf(msg, sizeof(msg), "[cgroup] cpus specialized: %s",
+             syscpus.c_str());
+    info(msg);
   }
 
   errno = 0;
