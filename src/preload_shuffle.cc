@@ -49,6 +49,8 @@ typedef struct _3h_ctx {
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_3HOP) {
     // TODO
+  } else {
+    nn_shuffler_bgwait();
   }
 }
 
@@ -56,7 +58,7 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_3HOP) {
     // TODO
   } else {
-    nn_shuffler_flush();
+    nn_shuffler_flush_rpcq();
     if (!nnctx.force_sync) {
       /* wait for rpc replies */
       nn_shuffler_wait();

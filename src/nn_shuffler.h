@@ -83,8 +83,11 @@ extern int nn_shuffler_write(const char* path, char* data, size_t len,
 /* nn_shuffler_wait: wait for all outstanding rpcs to finish. */
 extern void nn_shuffler_wait();
 
-/* nn_shuffler_flush: force flushing local rpc queues. */
-extern void nn_shuffler_flush();
+/* nn_shuffler_flush_rpcq: force flushing local rpc queues. */
+extern void nn_shuffler_flush_rpcq();
+
+/* nn_shuffler_bgwait: wait for all background rpc work to finish */
+extern void nn_shuffler_bgwait();
 
 /* nn_shuffler_destroy: close the shuffler. */
 extern void nn_shuffler_destroy();

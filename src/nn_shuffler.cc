@@ -77,6 +77,8 @@ static int num_bg = 0;
 /* workers */
 static std::vector<void*> wk_items;
 static int num_wk = 0; /* number of worker threads running */
+static size_t items_submitted = 0;
+static size_t items_completed = 0;
 #define MAX_WORK_ITEM 256
 
 /* rpc queue */
@@ -351,19 +353,20 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
 
 /* rpc_work(): dedicated thread function to process rpc */
 static void* rpc_work(void* arg) {
-  hg_return_t hret;
-  struct timespec abstime;
   size_t num_loops;
+  size_t num_items;
   std::vector<void*> todo;
-  std::vector<void*>::size_type num_items;
+  std::vector<void*>::size_type sum_items;
   std::vector<void*>::size_type max_items;
   std::vector<void*>::size_type min_items;
   std::vector<void*>::iterator it;
-  uint64_t timeout;
+  hg_return_t hret;
   hg_handle_t h;
 
-  todo.reserve(MAX_WORK_ITEM);
+  num_items = 0;
+  num_loops = 0;
 
+  todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
   char msg[100];
   if (pctx.verr || pctx.myrank == 0) {
@@ -373,23 +376,28 @@ static void* rpc_work(void* arg) {
 #endif
   min_items = todo.max_size();
   max_items = 0;
-  num_items = 0;
-  num_loops = 0;
+  sum_items = 0;
 
   while (!is_shuttingdown()) {
     todo.clear();
     pthread_mutex_lock(&mtx[wk_cv]);
+    items_completed += num_items;
+    if (items_completed == items_submitted) {
+      pthread_cond_broadcast(&cv[wk_cv]);
+    }
+    num_items = 0;
     while (wk_items.empty() && !is_shuttingdown()) {
       pthread_cond_wait(&cv[wk_cv], &mtx[wk_cv]);
     }
     todo.swap(wk_items);
     pthread_mutex_unlock(&mtx[wk_cv]);
     if (!todo.empty()) {
+      num_items = todo.size();
       num_loops++;
 
       min_items = std::min(todo.size(), min_items);
       max_items = std::max(todo.size(), max_items);
-      num_items += todo.size();
+      sum_items += num_items;
 
       for (it = todo.begin(); it != todo.end(); ++it) {
         h = static_cast<hg_handle_t>(*it);
@@ -409,7 +417,7 @@ static void* rpc_work(void* arg) {
   pthread_cond_broadcast(&cv[bg_cv]);
   pthread_mutex_unlock(&mtx[bg_cv]);
 
-  nnctx.accqsz = num_items;
+  nnctx.accqsz = sum_items;
   nnctx.minqsz = int(min_items);
   nnctx.maxqsz = int(max_items);
   nnctx.nps = num_loops;
@@ -423,6 +431,38 @@ static void* rpc_work(void* arg) {
   return (NULL);
 }
 
+/* nn_shuffler_bgwait: wait for background rpc work execution */
+void nn_shuffler_bgwait() {
+  useconds_t delay;
+  char buf[50];
+  int n;
+
+  delay = 1000; /* 1000 us */
+
+  pthread_mutex_lock(&mtx[wk_cv]);
+  while (items_completed < items_submitted) {
+    if (pctx.testin) {
+      pthread_mutex_unlock(&mtx[wk_cv]);
+      if (pctx.logfd != -1) {
+        n = snprintf(buf, sizeof(buf), "[BGWAIT] %d us\n", int(delay));
+        n = write(pctx.logfd, buf, n);
+
+        errno = 0;
+      }
+
+      usleep(delay);
+      delay <<= 1;
+
+      pthread_mutex_lock(&mtx[wk_cv]);
+    } else {
+      pthread_cond_wait(&cv[wk_cv], &mtx[wk_cv]);
+    }
+  }
+  pthread_mutex_unlock(&mtx[wk_cv]);
+
+  return;
+}
+
 /* nn_shuffler_write_rpc_handler_wrapper: server-side rpc handler wrapper */
 hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   if (num_wk == 0) return (nn_shuffler_write_rpc_handler(h));
@@ -432,6 +472,7 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   if (wk_items.size() == 1) {
     pthread_cond_broadcast(&cv[wk_cv]);
   }
+  items_submitted++;
   pthread_mutex_unlock(&mtx[wk_cv]);
 
   return (HG_SUCCESS);
@@ -1087,8 +1128,8 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   return (0);
 }
 
-/* nn_shuffler_flush: force flushing all rpc queue */
-void nn_shuffler_flush() {
+/* nn_shuffler_flush_rpcq: force flushing all rpc queue */
+void nn_shuffler_flush_rpcq() {
   uint32_t nrank;
   uint16_t write_sz;
   write_in_t write_in;
