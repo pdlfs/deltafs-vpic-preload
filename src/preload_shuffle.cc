@@ -36,6 +36,7 @@
 #include "nn_shuffler_internal.h"
 
 #include <deltafs-nexus/deltafs-nexus_api.h>
+#include <mercury_config.h>
 
 #include "common.h"
 
@@ -197,6 +198,18 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     ctx->rep = rep;
   } else {
     nn_shuffler_init();
+  }
+  if (pctx.myrank == 0) {
+#ifdef HG_HAS_SELF_FORWARD
+    info("HG_HAS_SELF_FORWARD is ON");
+#else
+    info("HG_HAS_SELF_FORWARD is OFF");
+#endif
+#ifdef HG_HAS_CHECKSUMS
+    info("HG_HAS_CHECKSUMS is ON");
+#else
+    info("HG_HAS_CHECKSUMS is OFF");
+#endif
   }
 }
 

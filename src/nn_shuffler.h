@@ -40,6 +40,8 @@
  *  SHUFFLE_Mercury_progress_warn_interval
  *    Time between two HG_Progress calls that starts
  *      to cause warning messages
+ *  SHUFFLE_Mercury_cache_handles
+ *    Reuse mercury handles to avoid freq mallocs
  *  SHUFFLE_Force_rpc
  *    Send rpcs even if target is local
  *  SHUFFLE_Force_sync_rpc

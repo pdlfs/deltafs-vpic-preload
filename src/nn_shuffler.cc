@@ -592,6 +592,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
 hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
   hg_return_t hret;
   hg_handle_t h;
+  int cache;
   write_async_cb_t* write_cb;
   write_out_t write_out;
   int rv;
@@ -620,6 +621,7 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
 
   /* return rpc callback slot */
   pthread_mutex_lock(&mtx[cb_cv]);
+  cache = nnctx.cache_hlds && (h == hg_hdls[write_cb->slot]);
   cb_flags[write_cb->slot] = 0;
   assert(cb_left < cb_allowed);
   if (cb_left == 0 || cb_left == cb_allowed - 1) {
@@ -627,7 +629,7 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
   }
   cb_left++;
   pthread_mutex_unlock(&mtx[cb_cv]);
-  if (h != hg_hdls[write_cb->slot]) {
+  if (!cache) {
     HG_Destroy(h);
   }
 
@@ -720,7 +722,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
     hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
     if (hret != HG_SUCCESS) {
       rpc_abort("HG_Create", hret);
-    } else {
+    } else if (nnctx.cache_hlds) {
       hg_hdls[slot] = h;
     }
   } else {
@@ -1300,6 +1302,7 @@ void nn_shuffler_init() {
 
   cb_left = cb_allowed;
 
+  if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
   if (is_envset("SHUFFLE_Force_rpc")) nnctx.force_rpc = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
 
@@ -1364,7 +1367,6 @@ void nn_shuffler_init() {
     rv = pthread_create(&pid, NULL, rpc_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
-    info("rpc worker is on");
   } else if (pctx.myrank == 0) {
     warn("rpc worker disabled");
   }
@@ -1373,10 +1375,11 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
-             "force rpc: %s",
+             "force rpc: %s, cache hg_handle_t: %s",
              nnctx.hg_timeout,      /* ms */
              nnctx.hg_max_interval, /* ms */
-             nnctx.timeout, nnctx.force_rpc ? "TRUE" : "FALSE");
+             nnctx.timeout, nnctx.force_rpc ? "TRUE" : "FALSE",
+             nnctx.cache_hlds ? "TRUE" : "FALSE");
     info(msg);
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);

@@ -82,6 +82,7 @@ typedef struct nn_ctx {
   int timeout;    /* rpc timeout (in secs) */
   int force_sync; /* avoid async rpc */
   int force_rpc;  /* send rpc even if addr is local */
+  int cache_hlds; /* cache mercury rpc handles */
 
   /* SSG context */
   ssg_t ssg;
@@ -102,9 +103,8 @@ extern nn_ctx_t nnctx;
 
 typedef struct write_in {
   hg_uint32_t owner; /* write initiator */
-
-  hg_uint16_t sz; /* msg size */
   void* msg;
+  hg_uint16_t sz; /* msg size */
 } write_in_t;
 
 typedef struct write_out {
