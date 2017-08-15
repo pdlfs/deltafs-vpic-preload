@@ -69,7 +69,7 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
                   int epoch) {
   if (ctx->type == SHUFFLE_3HOP) {
-    // TODO
+    return EOF;
   } else {
     return nn_shuffler_write(fn, d, n, epoch);
   }

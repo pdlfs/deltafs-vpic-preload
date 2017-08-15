@@ -40,6 +40,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <string>
 /* a set of utilities for probing important system configurations. */
 void check_clockres();
 void check_sse42();
@@ -96,23 +97,20 @@ inline void msg_abort(const char* msg) {
 }
 
 inline const char* maybe_getenv(const char* key) {
-  const char* env = getenv(key);
+  const char* env;
+  env = getenv(key);
   errno = 0;
-  return (env);
+  return env;
 }
 
-inline bool is_envset(const char* key) {
-  const char* env = getenv(key);
-  errno = 0;
-  if (env == NULL) {
-    return (false);
-  } else if (env[0] == '\0') {
-    return (false);
-  } else if (env[0] == '0') {
-    return (false);
-  } else {
-    return (true);
-  }
+inline int is_envset(const char* key) {
+  std::string str;
+  const char* env;
+  env = maybe_getenv(key);
+  if (env == NULL || env[0] == 0) return false;
+  str = env;
+
+  return (str != "0");
 }
 
 inline int pthread_cv_notifyall(pthread_cond_t* cv) {
@@ -121,9 +119,9 @@ inline int pthread_cv_notifyall(pthread_cond_t* cv) {
   if (r != 0) {
     errno = r;
     msg_abort("cv_sigall");
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
 inline int pthread_cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
@@ -136,9 +134,9 @@ inline int pthread_cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
   if (r != 0) {
     errno = r;
     msg_abort("cv_timedwait");
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
 inline int pthread_cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
@@ -147,9 +145,9 @@ inline int pthread_cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
   if (r != 0) {
     errno = r;
     msg_abort("cv_wait");
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
 inline int pthread_mtx_lock(pthread_mutex_t* mtx) {
@@ -158,9 +156,9 @@ inline int pthread_mtx_lock(pthread_mutex_t* mtx) {
   if (r != 0) {
     errno = r;
     msg_abort("mtx_lock");
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
 inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
@@ -169,12 +167,11 @@ inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
   if (r != 0) {
     errno = r;
     msg_abort("mtx_unlock");
-  } else {
-    return 0;
   }
+
+  return 0;
 }
 
-#include <string>
 #define PRELOAD_PRETTY_SIZE_USE_BINARY
 
 /* print a human-readable time duration. */
@@ -186,7 +183,7 @@ inline std::string pretty_dura(double us) {
     snprintf(tmp, sizeof(tmp), "%.3f ms", us / 1000.0);
   }
 
-  return (tmp);
+  return tmp;
 }
 
 /* print a human-readable integer number. */
@@ -226,7 +223,7 @@ inline std::string pretty_num(double num) {
   }
 #endif
 
-  return (tmp);
+  return tmp;
 }
 
 /* print a human-readable I/O throughput number. */
@@ -267,7 +264,7 @@ inline std::string pretty_tput(double ops, double us) {
   }
 #endif
 
-  return (tmp);
+  return tmp;
 }
 
 /* print a human-readable I/O size. */
@@ -307,7 +304,7 @@ inline std::string pretty_size(double size) {
   }
 #endif
 
-  return (tmp);
+  return tmp;
 }
 
 /* print a human-readable data bandwidth number. */
@@ -348,7 +345,7 @@ inline std::string pretty_bw(double bytes, double us) {
   }
 #endif
 
-  return (tmp);
+  return tmp;
 }
 
 #undef PRELOAD_PRETTY_SIZE_USE_BINARY

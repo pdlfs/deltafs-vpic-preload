@@ -283,7 +283,7 @@ static const char* prepare_addr(char* buf) {
   }
 #endif
 
-  return (buf);
+  return buf;
 }
 
 #if defined(__x86_64__) && defined(__GNUC__)
@@ -292,7 +292,7 @@ static inline bool is_shuttingdown() {
   // See http://en.wikipedia.org/wiki/Memory_ordering.
   __asm__ __volatile__("" : : : "memory");
 
-  return (r);
+  return r;
 }
 #else
 static inline bool is_shuttingdown() {
@@ -301,7 +301,7 @@ static inline bool is_shuttingdown() {
   bool r = shutting_down;
   pthread_mtx_unlock(&mtx);
 
-  return (r);
+  return r;
 }
 #endif
 
@@ -331,7 +331,7 @@ static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
     hret = HG_SUCCESS; /* noop */
   }
 
-  return (hret);
+  return hret;
 }
 
 static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
@@ -348,7 +348,7 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
     hret = HG_SUCCESS; /* noop */
   }
 
-  return (hret);
+  return hret;
 }
 
 /* rpc_work(): dedicated thread function to process rpc */
@@ -428,7 +428,7 @@ static void* rpc_work(void* arg) {
   }
 #endif
 
-  return (NULL);
+  return NULL;
 }
 
 /* nn_shuffler_bgwait: wait for background rpc work execution */
@@ -459,8 +459,6 @@ void nn_shuffler_bgwait() {
     }
   }
   pthread_mtx_unlock(&mtx[wk_cv]);
-
-  return;
 }
 
 /* nn_shuffler_write_rpc_handler_wrapper: server-side rpc handler wrapper */
@@ -781,9 +779,9 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 
   if (hret != HG_SUCCESS) {
     rpc_abort("HG_Forward", hret);
-  } else {
-    return (0);
   }
+
+  return 0;
 }
 
 /* nn_shuffler_wait: block until all outstanding rpc finishes */
@@ -938,17 +936,14 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
   if (hret != HG_SUCCESS) {
     rpc_abort("HG_Forward", hret);
-  } else if (rv != 0) {
-    return (EOF);
-  } else {
-    return (0);
   }
+
+  return rv;
 }
 
 /* nn_shuffler_write: add an incoming write into an rpc queue */
 int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   write_in_t write_in;
-  uint16_t write_sz;
   uint16_t nepoch;
   uint32_t nrank;
   rpcq_t* rpcq;
@@ -976,6 +971,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   assert(path != NULL);
 
   fname = path + pctx.len_plfsdir + 1; /* remove parent path */
+  assert(strlen(fname) < 256);
   fname_len = static_cast<unsigned char>(strlen(fname));
   rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
@@ -1023,7 +1019,6 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   assert(rpcq_idx < nrpcqs);
   rpcq = &rpcqs[rpcq_idx];
   assert(rpcq != NULL);
-  assert(fname_len < 256);
   assert(len < 256);
   rpc_sz = 0;
 
@@ -1125,13 +1120,11 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
   pthread_mtx_unlock(&mtx[qu_cv]);
 
-  return (0);
+  return 0;
 }
 
 /* nn_shuffler_flush_rpcq: force flushing all rpc queue */
 void nn_shuffler_flush_rpcq() {
-  uint32_t nrank;
-  uint16_t write_sz;
   write_in_t write_in;
   rpcq_t* rpcq;
   void* arg1;
@@ -1235,7 +1228,7 @@ static void* bg_work(void* foo) {
   }
 #endif
 
-  return (NULL);
+  return NULL;
 }
 
 /* nn_shuffler_init_ssg: init the ssg sublayer */
@@ -1282,8 +1275,6 @@ void nn_shuffler_init_ssg() {
       warn("ch bypassed");
     }
   }
-
-  return;
 }
 
 /* nn_shuffler_init: init the shuffle layer */
@@ -1436,8 +1427,6 @@ void nn_shuffler_init() {
       warn("async rpc disabled");
     }
   }
-
-  return;
 }
 
 /* nn_shuffler_destroy: finalize the shuffle layer */
@@ -1488,6 +1477,4 @@ void nn_shuffler_destroy() {
   if (nnctx.hg_clz != NULL) {
     HG_Finalize(nnctx.hg_clz);
   }
-
-  return;
 }
