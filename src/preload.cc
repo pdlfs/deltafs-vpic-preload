@@ -46,10 +46,8 @@
 /* particle bytes */
 #define PRELOAD_PARTICLE_SIZE 40
 
-/* XXX: VPIC is usually a single-threaded process but mutex may be
- * needed if VPIC is running with openmp.
- */
-static maybe_mutex_t preload_mtx = MAYBE_MUTEX_INITIALIZER;
+/* mutex to protect preload state */
+static pthread_mutex_t preload_mtx = PTHREAD_MUTEX_INITIALIZER;
 
 /* number of MPI barriers invoked by app */
 static int num_barriers = 0;
@@ -261,11 +259,11 @@ static int claim_FILE(FILE* stream) {
   std::set<FILE*>::iterator it;
   int rv;
 
-  must_maybelockmutex(&preload_mtx);
+  mtx_lock(&preload_mtx);
   assert(pctx.isdeltafs != NULL);
   it = pctx.isdeltafs->find(stream);
   rv = int(it != pctx.isdeltafs->end());
-  must_maybeunlock(&preload_mtx);
+  mtx_unlock(&preload_mtx);
 
   return (rv);
 }
@@ -1608,7 +1606,7 @@ FILE* fopen(const char* fpath, const char* mode) {
     stripped = (exact) ? "/" : (fpath + pctx.len_deltafs_root);
   }
 
-  must_maybelockmutex(&preload_mtx);
+  mtx_lock(&preload_mtx);
   if (pctx.paranoid_checks) {
     fname = stripped + pctx.len_plfsdir + 1;
     if (pctx.fnames->count(std::string(fname)) == 0) {
@@ -1633,7 +1631,7 @@ FILE* fopen(const char* fpath, const char* mode) {
   rv = reinterpret_cast<FILE*>(ff);
   assert(pctx.isdeltafs != NULL);
   pctx.isdeltafs->insert(rv);
-  must_maybeunlock(&preload_mtx);
+  mtx_unlock(&preload_mtx);
 
   return (rv);
 }
@@ -1691,7 +1689,7 @@ int fclose(FILE* stream) {
     }
   }
 
-  must_maybelockmutex(&preload_mtx);
+  mtx_lock(&preload_mtx);
   assert(pctx.isdeltafs != NULL);
   pctx.isdeltafs->erase(stream);
   if (ff == &vpic_file_buffer) {
@@ -1699,7 +1697,7 @@ int fclose(FILE* stream) {
   } else {
     delete ff;
   }
-  must_maybeunlock(&preload_mtx);
+  mtx_unlock(&preload_mtx);
 
   return (rv);
 }

@@ -115,44 +115,62 @@ inline bool is_envset(const char* key) {
   }
 }
 
-#ifndef PRELOAD_MUTEX_LOCKING
-
-typedef int maybe_mutex_t;
-typedef int maybe_mutexattr_t;
-static inline int maybe_mutex_lock(maybe_mutex_t* __mut) { return 0; }
-static inline int maybe_mutex_unlock(maybe_mutex_t* __mut) { return 0; }
-static inline int maybe_mutex_trylock(maybe_mutex_t* __mut) { return 0; }
-static inline int maybe_mutex_init(maybe_mutex_t* __mut,
-                                   maybe_mutexattr_t* __attr) {
-  return 0;
-}
-static inline int maybe_mutex_destroy(maybe_mutex_t* __mut) { return 0; }
-#define MAYBE_MUTEX_INITIALIZER 0
-
-#else
-
-typedef pthread_mutex_t maybe_mutex_t;
-typedef pthread_mutexattr_t maybe_mutexattr_t;
-#define maybe_mutex_lock(__mut) pthread_mutex_lock(__mut)
-#define maybe_mutex_unlock(__mut) pthread_mutex_unlock(__mut)
-#define maybe_mutex_trylock(__mut) pthread_mutex_trylock(__mut)
-#define maybe_mutex_init(__mut, __attr) pthread_mutex_init(__mut, __attr)
-#define maybe_mutex_destroy(__mut) pthread_mutex_destroy(__mut)
-#define MAYBE_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-
-#endif
-
-inline void must_maybelockmutex(maybe_mutex_t* __mut) {
-  int r = maybe_mutex_lock(__mut);
+inline int cv_sigall(pthread_cond_t* cv) {
+  errno = 0;
+  int r = pthread_cond_broadcast(cv);
   if (r != 0) {
-    msg_abort("mtx_lock");
+    errno = r;
+    msg_abort("cv_sigall");
+  } else {
+    return 0;
   }
 }
 
-inline void must_maybeunlock(maybe_mutex_t* __mut) {
-  int r = maybe_mutex_unlock(__mut);
+inline int cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
+                        const timespec* due) {
+  errno = 0;
+  int r = pthread_cond_timedwait(cv, mtx, due);
+  if (r == ETIMEDOUT) {
+    return r;
+  }
   if (r != 0) {
+    errno = r;
+    msg_abort("cv_timedwait");
+  } else {
+    return 0;
+  }
+}
+
+inline int cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
+  errno = 0;
+  int r = pthread_cond_wait(cv, mtx);
+  if (r != 0) {
+    errno = r;
+    msg_abort("cv_wait");
+  } else {
+    return 0;
+  }
+}
+
+inline int mtx_lock(pthread_mutex_t* mtx) {
+  errno = 0;
+  int r = pthread_mutex_lock(mtx);
+  if (r != 0) {
+    errno = r;
+    msg_abort("mtx_lock");
+  } else {
+    return 0;
+  }
+}
+
+inline int mtx_unlock(pthread_mutex_t* mtx) {
+  errno = 0;
+  int r = pthread_mutex_unlock(mtx);
+  if (r != 0) {
+    errno = r;
     msg_abort("mtx_unlock");
+  } else {
+    return 0;
   }
 }
 
