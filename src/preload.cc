@@ -623,19 +623,19 @@ int MPI_Init(int* argc, char*** argv) {
              "(__cplusplus: %ld)",
              _RELEASE, _RELEASE_MINOR, __DATE__, __TIME__, __cplusplus);
     info(msg);
-#elif defined(__GNUC__)
-    snprintf(msg, sizeof(msg),
-             "[cc] compiled by GNU (gcc/g++) %d.%d.%d on %s %s "
-             "(__cplusplus: %ld)",
-             __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __DATE__, __TIME__,
-             __cplusplus);
-    info(msg);
 #elif defined(__clang__)
     snprintf(msg, sizeof(msg),
              "[cc] compiled by LLVM/Clang (clang/clang++) %d.%d.%d on %s %s "
              "(__cplusplus: %ld)",
              __clang_major__, __clang_minor__, __clang_patchlevel__, __DATE__,
              __TIME__, __cplusplus);
+    info(msg);
+#elif defined(__GNUC__)
+    snprintf(msg, sizeof(msg),
+             "[cc] compiled by GNU (gcc/g++) %d.%d.%d on %s %s "
+             "(__cplusplus: %ld)",
+             __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __DATE__, __TIME__,
+             __cplusplus);
     info(msg);
 #endif
 #if defined(__GNUC__) && !defined(__OPTIMIZE__)

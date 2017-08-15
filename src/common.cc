@@ -127,10 +127,10 @@ void check_sse42() {
   CHECK_SSE42(sse42);
   if (sse42) {
     n = snprintf(msg, sizeof(msg), "[sse] SSE V4.2 extension is available");
-#if defined(__SSE4_2__)
+#if defined(__GUNC__) && defined(__SSE4_2__)
     snprintf(msg + n, sizeof(msg) - n, "\n>>> __SSE4_2__ is %d", __SSE4_2__);
 #else
-    snprintf(msg + n, sizeof(msg) - n, "\n>>> __SSE4_2__ not defined");
+    snprintf(msg + n, sizeof(msg) - n, "\n>>> yet __SSE4_2__ is not defined");
 #endif
   } else {
     snprintf(msg, sizeof(msg), "[sse] SSE V4.2 is not available");
