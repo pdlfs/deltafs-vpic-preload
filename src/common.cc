@@ -123,11 +123,17 @@ void check_clockres() {
 void check_sse42() {
   char msg[100];
   int sse42;
+  int n;
   CHECK_SSE42(sse42);
   if (sse42) {
-    snprintf(msg, sizeof(msg), "[isa] SSE V4.2 instruction set is available");
+    n = snprintf(msg, sizeof(msg), "[sse] SSE V4.2 extension is available");
+#if defined(__SSE4_2__)
+    snprintf(msg + n, sizeof(msg) - n, "\n>>> __SSE4_2__ is %d", __SSE4_2__);
+#else
+    snprintf(msg + n, sizeof(msg) - n, "\n>>> __SSE4_2__ not defined");
+#endif
   } else {
-    snprintf(msg, sizeof(msg), "[isa] SSE V4.2 is not available");
+    snprintf(msg, sizeof(msg), "[sse] SSE V4.2 is not available");
   }
 
   info(msg);
