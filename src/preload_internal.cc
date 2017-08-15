@@ -30,6 +30,8 @@
 
 #include "preload_internal.h"
 
+#include <mpi.h>
+
 /* The global preload context */
 preload_ctx_t pctx = {0};
 
@@ -49,4 +51,36 @@ int preload_local_write(const char* fn, char* data, size_t n, int epoch) {
   pctx.mctx.nlw++;
 
   return (rv);
+}
+
+namespace {
+struct barrier_state {
+  double time;
+  int rank;
+};
+}
+
+int preload_barrier(MPI_Comm comm) {
+  char msg[100];
+  struct barrier_state start;
+  struct barrier_state min;
+  double dura;
+
+  if (pctx.myrank == 0) {
+    info("barrier ...");
+  }
+  start.time = MPI_Wtime();
+  start.rank = pctx.myrank;
+  MPI_Allreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC,
+                static_cast<MPI_Comm>(comm));
+  if (pctx.myrank == 0) {
+    if (pctx.verr) {
+      snprintf(msg, sizeof(msg), "// barrier ok -> rank %d waited longest", min.rank);
+      info(msg);
+    }
+    dura = MPI_Wtime() - min.time;
+    snprintf(msg, sizeof(msg), "barrier %s+",
+             pretty_dura(dura * 1000000).c_str());
+    info(msg);
+  }
 }

@@ -514,9 +514,6 @@ int MPI_Init(int* argc, char*** argv) {
   char msg[100];  // snprintf
   char dirpath[PATH_MAX];
   char path[PATH_MAX];
-  double start;
-  double min;
-  double dura;
   std::string conf;
 #if MPI_VERSION >= 3
   size_t l;
@@ -712,17 +709,7 @@ int MPI_Init(int* argc, char*** argv) {
     }
     shuffle_init(&pctx.sctx);
     /* ensures all peers have the shuffle ready */
-    if (pctx.myrank == 0) {
-      info("barrier ...");
-    }
-    start = MPI_Wtime();
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    if (pctx.myrank == 0) {
-      dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-      info(msg);
-    }
+    preload_barrier(MPI_COMM_WORLD);
     if (rank == 0) {
       info("shuffle started");
     }
@@ -769,17 +756,7 @@ int MPI_Init(int* argc, char*** argv) {
     }
 
     /* so everyone sees the dir created */
-    if (pctx.myrank == 0) {
-      info("barrier ...");
-    }
-    start = MPI_Wtime();
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    if (pctx.myrank == 0) {
-      dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-      info(msg);
-    }
+    preload_barrier(MPI_COMM_WORLD);
 
     /* everyone opens it */
     if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
@@ -884,9 +861,6 @@ int MPI_Finalize(void) {
   uint64_t finish_end;
   double ucpu;
   double scpu;
-  double start;
-  double min;
-  double dura;
   time_t now;
   struct tm timeinfo;
   uint64_t ts;
@@ -911,17 +885,7 @@ int MPI_Finalize(void) {
       info("shuffle shutting down ...");
     }
     /* ensures all peer messages are received */
-    if (pctx.myrank == 0) {
-      info("barrier ...");
-    }
-    start = MPI_Wtime();
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    if (pctx.myrank == 0) {
-      dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-      info(msg);
-    }
+    preload_barrier(MPI_COMM_WORLD);
     /* shuffle flush */
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       shuffle_epoch_start(&pctx.sctx);
@@ -1304,9 +1268,6 @@ DIR* opendir(const char* dir) {
   uint64_t epoch_start;
   uint64_t flush_start;
   uint64_t flush_end;
-  double start;
-  double min;
-  double dura;
   DIR* rv;
 
   int ret = pthread_once(&init_once, preload_init);
@@ -1337,17 +1298,7 @@ DIR* opendir(const char* dir) {
      * this ensures we have received all peer writes and no more
      * writes will happen for the previous epoch.
      */
-    if (pctx.myrank == 0) {
-      info("barrier ...");
-    }
-    start = MPI_Wtime();
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    if (pctx.myrank == 0) {
-      dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-      info(msg);
-    }
+    preload_barrier(MPI_COMM_WORLD);
   }
 
   /* shuffle flush */
@@ -1424,17 +1375,7 @@ DIR* opendir(const char* dir) {
      * this ensures all writes made for the next epoch
      * will go to a new write buffer.
      */
-    if (pctx.myrank == 0) {
-      info("barrier ...");
-    }
-    start = MPI_Wtime();
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    if (pctx.myrank == 0) {
-      dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-      info(msg);
-    }
+    preload_barrier(MPI_COMM_WORLD);
   }
 
   /* increase epoch seq */
@@ -1471,9 +1412,6 @@ int closedir(DIR* dirp) {
   uint64_t tmp_usage_snaptime;
   struct rusage tmp_usage;
   double cpu;
-  double start;
-  double min;
-  double dura;
   uint64_t flush_start;
   uint64_t flush_end;
   char msg[100];
@@ -1525,17 +1463,7 @@ int closedir(DIR* dirp) {
 
   /* this ensures we have received all peer messages */
   if (pctx.paranoid_pre_barrier) {
-    if (pctx.myrank == 0) {
-      info("barrier ...");
-    }
-    start = MPI_Wtime();
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
-    if (pctx.myrank == 0) {
-      dura = MPI_Wtime() - min;
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-      info(msg);
-    }
+    preload_barrier(MPI_COMM_WORLD);
   }
 
   /* epoch pre-flush */

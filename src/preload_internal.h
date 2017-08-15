@@ -32,6 +32,7 @@
 
 #include <sys/resource.h>
 #include <sys/time.h>
+#include <mpi.h>
 
 #include <deltafs/deltafs_api.h>
 
@@ -125,3 +126,6 @@ extern int preload_foreign_write(const char* fn, char* d, size_t n, int epoch);
  * return 0 on success, or EOF on errors.
  */
 extern int preload_local_write(const char* fn, char* d, size_t n, int epoch);
+
+/**/
+extern int preload_barrier(MPI_Comm comm);
