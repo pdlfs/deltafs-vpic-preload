@@ -60,7 +60,7 @@ struct barrier_state {
 };
 }
 
-int preload_barrier(MPI_Comm comm) {
+void preload_barrier(MPI_Comm comm) {
   char msg[100];
   struct barrier_state start;
   struct barrier_state min;
@@ -75,7 +75,8 @@ int preload_barrier(MPI_Comm comm) {
                 static_cast<MPI_Comm>(comm));
   if (pctx.myrank == 0) {
     if (pctx.verr) {
-      snprintf(msg, sizeof(msg), "// barrier ok -> rank %d waited longest", min.rank);
+      snprintf(msg, sizeof(msg), "// barrier ok -> rank %d waited longest",
+               min.rank);
       info(msg);
     }
     dura = MPI_Wtime() - min.time;

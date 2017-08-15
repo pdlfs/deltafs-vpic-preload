@@ -127,5 +127,8 @@ extern int preload_foreign_write(const char* fn, char* d, size_t n, int epoch);
  */
 extern int preload_local_write(const char* fn, char* d, size_t n, int epoch);
 
-/**/
-extern int preload_barrier(MPI_Comm comm);
+/*
+ * preload_barrier: perform a collective barrier operation
+ * on the give communicator.
+ */
+extern void preload_barrier(MPI_Comm comm);
