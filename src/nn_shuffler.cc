@@ -473,7 +473,7 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   items_submitted++;
   pthread_mtx_unlock(&mtx[wk_cv]);
 
-  return (HG_SUCCESS);
+  return HG_SUCCESS;
 }
 
 /* nn_shuffler_write_rpc_handler: server-side rpc handler */
@@ -1171,8 +1171,6 @@ void nn_shuffler_flush_rpcq() {
   }
 
   pthread_mtx_unlock(&mtx[qu_cv]);
-
-  return;
 }
 
 /* bg_work(): dedicated thread function to drive mercury progress */
