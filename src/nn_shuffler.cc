@@ -297,9 +297,9 @@ static inline bool is_shuttingdown() {
 #else
 static inline bool is_shuttingdown() {
   /* XXX: enforce memory order via mutex */
-  pthread_mutex_lock(&mtx);
+  pthread_mtx_lock(&mtx);
   bool r = shutting_down;
-  pthread_mutex_unlock(&mtx);
+  pthread_mtx_unlock(&mtx);
 
   return (r);
 }
@@ -380,17 +380,17 @@ static void* rpc_work(void* arg) {
 
   while (!is_shuttingdown()) {
     todo.clear();
-    pthread_mutex_lock(&mtx[wk_cv]);
+    pthread_mtx_lock(&mtx[wk_cv]);
     items_completed += num_items;
     if (items_completed == items_submitted) {
-      pthread_cond_broadcast(&cv[wk_cv]);
+      pthread_cv_notifyall(&cv[wk_cv]);
     }
     num_items = 0;
     while (wk_items.empty() && !is_shuttingdown()) {
-      pthread_cond_wait(&cv[wk_cv], &mtx[wk_cv]);
+      pthread_cv_wait(&cv[wk_cv], &mtx[wk_cv]);
     }
     todo.swap(wk_items);
-    pthread_mutex_unlock(&mtx[wk_cv]);
+    pthread_mtx_unlock(&mtx[wk_cv]);
     if (!todo.empty()) {
       num_items = todo.size();
       num_loops++;
@@ -411,11 +411,11 @@ static void* rpc_work(void* arg) {
     }
   }
 
-  pthread_mutex_lock(&mtx[bg_cv]);
+  pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_wk > 0);
   num_wk--;
-  pthread_cond_broadcast(&cv[bg_cv]);
-  pthread_mutex_unlock(&mtx[bg_cv]);
+  pthread_cv_notifyall(&cv[bg_cv]);
+  pthread_mtx_unlock(&mtx[bg_cv]);
 
   nnctx.accqsz = sum_items;
   nnctx.minqsz = int(min_items);
@@ -439,10 +439,10 @@ void nn_shuffler_bgwait() {
 
   delay = 1000; /* 1000 us */
 
-  pthread_mutex_lock(&mtx[wk_cv]);
+  pthread_mtx_lock(&mtx[wk_cv]);
   while (items_completed < items_submitted) {
     if (pctx.testin) {
-      pthread_mutex_unlock(&mtx[wk_cv]);
+      pthread_mtx_unlock(&mtx[wk_cv]);
       if (pctx.logfd != -1) {
         n = snprintf(buf, sizeof(buf), "[BGWAIT] %d us\n", int(delay));
         n = write(pctx.logfd, buf, n);
@@ -453,12 +453,12 @@ void nn_shuffler_bgwait() {
       usleep(delay);
       delay <<= 1;
 
-      pthread_mutex_lock(&mtx[wk_cv]);
+      pthread_mtx_lock(&mtx[wk_cv]);
     } else {
-      pthread_cond_wait(&cv[wk_cv], &mtx[wk_cv]);
+      pthread_cv_wait(&cv[wk_cv], &mtx[wk_cv]);
     }
   }
-  pthread_mutex_unlock(&mtx[wk_cv]);
+  pthread_mtx_unlock(&mtx[wk_cv]);
 
   return;
 }
@@ -467,13 +467,13 @@ void nn_shuffler_bgwait() {
 hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   if (num_wk == 0) return (nn_shuffler_write_rpc_handler(h));
 
-  pthread_mutex_lock(&mtx[wk_cv]);
+  pthread_mtx_lock(&mtx[wk_cv]);
   wk_items.push_back(static_cast<void*>(h));
   if (wk_items.size() == 1) {
-    pthread_cond_broadcast(&cv[wk_cv]);
+    pthread_cv_notifyall(&cv[wk_cv]);
   }
   items_submitted++;
-  pthread_mutex_unlock(&mtx[wk_cv]);
+  pthread_mtx_unlock(&mtx[wk_cv]);
 
   return (HG_SUCCESS);
 }
@@ -661,15 +661,15 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
   }
 
   /* return rpc callback slot */
-  pthread_mutex_lock(&mtx[cb_cv]);
+  pthread_mtx_lock(&mtx[cb_cv]);
   cache = nnctx.cache_hlds && (h == hg_hdls[write_cb->slot]);
   cb_flags[write_cb->slot] = 0;
   assert(cb_left < cb_allowed);
   if (cb_left == 0 || cb_left == cb_allowed - 1) {
-    pthread_cond_broadcast(&cv[cb_cv]);
+    pthread_cv_notifyall(&cv[cb_cv]);
   }
   cb_left++;
-  pthread_mutex_unlock(&mtx[cb_cv]);
+  pthread_mtx_unlock(&mtx[cb_cv]);
   if (!cache) {
     HG_Destroy(h);
   }
@@ -713,10 +713,10 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   delay = 1000; /* 1000 us */
 
   /* wait for slot */
-  pthread_mutex_lock(&mtx[cb_cv]);
+  pthread_mtx_lock(&mtx[cb_cv]);
   while (cb_left == 0) { /* no slots available */
     if (pctx.testin) {
-      pthread_mutex_unlock(&mtx[cb_cv]);
+      pthread_mtx_unlock(&mtx[cb_cv]);
       if (pctx.logfd != -1) {
         n = snprintf(buf, sizeof(buf), "[BLOCK-SLOT] %d us\n", int(delay));
         n = write(pctx.logfd, buf, n);
@@ -727,13 +727,13 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
       usleep(delay);
       delay <<= 1;
 
-      pthread_mutex_lock(&mtx[cb_cv]);
+      pthread_mtx_lock(&mtx[cb_cv]);
     } else {
       now = time(NULL);
       abstime.tv_sec = now + nnctx.timeout;
       abstime.tv_nsec = 0;
 
-      e = pthread_cond_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
+      e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
         msg_abort("timeout");
       }
@@ -750,7 +750,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   assert(cb_left > 0);
   cb_left--;
 
-  pthread_mutex_unlock(&mtx[cb_cv]);
+  pthread_mtx_unlock(&mtx[cb_cv]);
 
   /* go */
   peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
@@ -797,10 +797,10 @@ void nn_shuffler_wait() {
 
   delay = 1000; /* 1000 us */
 
-  pthread_mutex_lock(&mtx[cb_cv]);
+  pthread_mtx_lock(&mtx[cb_cv]);
   while (cb_left != cb_allowed) {
     if (pctx.testin) {
-      pthread_mutex_unlock(&mtx[cb_cv]);
+      pthread_mtx_unlock(&mtx[cb_cv]);
       if (pctx.logfd != -1) {
         n = snprintf(buf, sizeof(buf), "[WAIT] %d us\n", int(delay));
         n = write(pctx.logfd, buf, n);
@@ -811,20 +811,20 @@ void nn_shuffler_wait() {
       usleep(delay);
       delay <<= 1;
 
-      pthread_mutex_lock(&mtx[cb_cv]);
+      pthread_mtx_lock(&mtx[cb_cv]);
     } else {
       now = time(NULL);
       abstime.tv_sec = now + nnctx.timeout;
       abstime.tv_nsec = 0;
 
-      e = pthread_cond_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
+      e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
         msg_abort("timeout");
       }
     }
   }
 
-  pthread_mutex_unlock(&mtx[cb_cv]);
+  pthread_mtx_unlock(&mtx[cb_cv]);
 }
 
 /*
@@ -836,11 +836,11 @@ hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info) {
   write_cb = reinterpret_cast<write_cb_t*>(info->arg);
   assert(info->type == HG_CB_FORWARD);
 
-  pthread_mutex_lock(&mtx[rpc_cv]);
+  pthread_mtx_lock(&mtx[rpc_cv]);
   write_cb->hret = info->ret;
   write_cb->ok = 1;
-  pthread_cond_broadcast(&cv[rpc_cv]);
-  pthread_mutex_unlock(&mtx[rpc_cv]);
+  pthread_cv_notifyall(&cv[rpc_cv]);
+  pthread_mtx_unlock(&mtx[rpc_cv]);
 
   return HG_SUCCESS;
 }
@@ -896,10 +896,10 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
   if (hret == HG_SUCCESS) {
     /* here we block until rpc completes */
-    pthread_mutex_lock(&mtx[rpc_cv]);
+    pthread_mtx_lock(&mtx[rpc_cv]);
     while (write_cb.ok == 0) { /* rpc not completed */
       if (pctx.testin) {
-        pthread_mutex_unlock(&mtx[rpc_cv]);
+        pthread_mtx_unlock(&mtx[rpc_cv]);
         if (pctx.logfd != -1) {
           n = snprintf(buf, sizeof(buf), "[WAIT] r%d >> r%d %d us\n", rank,
                        peer_rank, int(delay));
@@ -911,19 +911,19 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
         usleep(delay);
         delay <<= 1;
 
-        pthread_mutex_lock(&mtx[rpc_cv]);
+        pthread_mtx_lock(&mtx[rpc_cv]);
       } else {
         now = time(NULL);
         abstime.tv_sec = now + nnctx.timeout;
         abstime.tv_nsec = 0;
 
-        e = pthread_cond_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
+        e = pthread_cv_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
         if (e == ETIMEDOUT) {
           msg_abort("timeout");
         }
       }
     }
-    pthread_mutex_unlock(&mtx[rpc_cv]);
+    pthread_mtx_unlock(&mtx[rpc_cv]);
 
     hret = write_cb.hret;
 
@@ -1017,7 +1017,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     return (rv);
   }
 
-  pthread_mutex_lock(&mtx[qu_cv]);
+  pthread_mtx_lock(&mtx[qu_cv]);
 
   rpcq_idx = peer_rank; /* XXX: assuming one queue per rank */
   assert(rpcq_idx < nrpcqs);
@@ -1032,7 +1032,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   /* wait for queue */
   while (rpcq->busy != 0) {
     if (pctx.testin) {
-      pthread_mutex_unlock(&mtx[qu_cv]);
+      pthread_mtx_unlock(&mtx[qu_cv]);
       if (pctx.logfd != -1) {
         n = snprintf(buf, sizeof(buf), "[BLOCK-QUEUE] %d us\n", int(delay));
         n = write(pctx.logfd, buf, n);
@@ -1043,13 +1043,13 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
       usleep(delay);
       delay <<= 1;
 
-      pthread_mutex_lock(&mtx[qu_cv]);
+      pthread_mtx_lock(&mtx[qu_cv]);
     } else {
       now = time(NULL);
       abstime.tv_sec = now + nnctx.timeout;
       abstime.tv_nsec = 0;
 
-      e = pthread_cond_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
+      e = pthread_cv_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
       if (e == ETIMEDOUT) {
         msg_abort("timeout");
       }
@@ -1072,7 +1072,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     } else {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
-      pthread_mutex_unlock(&mtx[qu_cv]);
+      pthread_mtx_unlock(&mtx[qu_cv]);
       write_in.owner = htonl(rank);
       write_in.msg = rpcq->buf;
       write_in.sz = rpcq->sz;
@@ -1087,8 +1087,8 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
       if (rv != 0) {
         msg_abort("xxsend");
       }
-      pthread_mutex_lock(&mtx[qu_cv]);
-      pthread_cond_broadcast(&cv[qu_cv]);
+      pthread_mtx_lock(&mtx[qu_cv]);
+      pthread_cv_notifyall(&cv[qu_cv]);
       rpcq->busy = 0;
       rpcq->sz = 0;
     }
@@ -1123,7 +1123,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     rpcq->sz += 2;
   }
 
-  pthread_mutex_unlock(&mtx[qu_cv]);
+  pthread_mtx_unlock(&mtx[qu_cv]);
 
   return (0);
 }
@@ -1144,7 +1144,7 @@ void nn_shuffler_flush_rpcq() {
 
   rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
-  pthread_mutex_lock(&mtx[qu_cv]);
+  pthread_mtx_lock(&mtx[qu_cv]);
 
   for (i = 0; i < nrpcqs; i++) {
     rpcq = &rpcqs[i];
@@ -1155,7 +1155,7 @@ void nn_shuffler_flush_rpcq() {
     } else {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
-      pthread_mutex_unlock(&mtx[qu_cv]);
+      pthread_mtx_unlock(&mtx[qu_cv]);
       write_in.owner = htonl(rank);
       write_in.msg = rpcq->buf;
       write_in.sz = rpcq->sz;
@@ -1170,14 +1170,14 @@ void nn_shuffler_flush_rpcq() {
       if (rv != 0) {
         msg_abort("xxsend");
       }
-      pthread_mutex_lock(&mtx[qu_cv]);
-      pthread_cond_broadcast(&cv[qu_cv]);
+      pthread_mtx_lock(&mtx[qu_cv]);
+      pthread_cv_notifyall(&cv[qu_cv]);
       rpcq->busy = 0;
       rpcq->sz = 0;
     }
   }
 
-  pthread_mutex_unlock(&mtx[qu_cv]);
+  pthread_mtx_unlock(&mtx[qu_cv]);
 
   return;
 }
@@ -1222,11 +1222,11 @@ static void* bg_work(void* foo) {
     }
   }
 
-  pthread_mutex_lock(&mtx[bg_cv]);
+  pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_bg > 0);
   num_bg--;
-  pthread_cond_broadcast(&cv[bg_cv]);
-  pthread_mutex_unlock(&mtx[bg_cv]);
+  pthread_cv_notifyall(&cv[bg_cv]);
+  pthread_mtx_unlock(&mtx[bg_cv]);
 
 #ifndef NDEBUG
   if (pctx.verr || pctx.myrank == 0) {
@@ -1444,17 +1444,17 @@ void nn_shuffler_init() {
 void nn_shuffler_destroy() {
   int i;
 
-  pthread_mutex_lock(&mtx[bg_cv]);
-  pthread_mutex_lock(&mtx[wk_cv]);
+  pthread_mtx_lock(&mtx[bg_cv]);
+  pthread_mtx_lock(&mtx[wk_cv]);
   shutting_down = 1;
 
   /* shutting down */
-  pthread_cond_broadcast(&cv[wk_cv]); /* notify the rpc worker */
-  pthread_mutex_unlock(&mtx[wk_cv]);
+  pthread_cv_notifyall(&cv[wk_cv]); /* notify the rpc worker */
+  pthread_mtx_unlock(&mtx[wk_cv]);
   while (num_bg != 0 || num_wk != 0) {
-    pthread_cond_wait(&cv[bg_cv], &mtx[bg_cv]);
+    pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
   }
-  pthread_mutex_unlock(&mtx[bg_cv]);
+  pthread_mtx_unlock(&mtx[bg_cv]);
 
   if (rpcqs != NULL) {
     for (i = 0; i < nrpcqs; i++) {

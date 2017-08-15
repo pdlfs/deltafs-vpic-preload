@@ -115,7 +115,7 @@ inline bool is_envset(const char* key) {
   }
 }
 
-inline int cv_sigall(pthread_cond_t* cv) {
+inline int pthread_cv_notifyall(pthread_cond_t* cv) {
   errno = 0;
   int r = pthread_cond_broadcast(cv);
   if (r != 0) {
@@ -126,8 +126,8 @@ inline int cv_sigall(pthread_cond_t* cv) {
   }
 }
 
-inline int cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
-                        const timespec* due) {
+inline int pthread_cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
+                                const timespec* due) {
   errno = 0;
   int r = pthread_cond_timedwait(cv, mtx, due);
   if (r == ETIMEDOUT) {
@@ -141,7 +141,7 @@ inline int cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
   }
 }
 
-inline int cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
+inline int pthread_cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
   errno = 0;
   int r = pthread_cond_wait(cv, mtx);
   if (r != 0) {
@@ -152,7 +152,7 @@ inline int cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
   }
 }
 
-inline int mtx_lock(pthread_mutex_t* mtx) {
+inline int pthread_mtx_lock(pthread_mutex_t* mtx) {
   errno = 0;
   int r = pthread_mutex_lock(mtx);
   if (r != 0) {
@@ -163,7 +163,7 @@ inline int mtx_lock(pthread_mutex_t* mtx) {
   }
 }
 
-inline int mtx_unlock(pthread_mutex_t* mtx) {
+inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
   errno = 0;
   int r = pthread_mutex_unlock(mtx);
   if (r != 0) {

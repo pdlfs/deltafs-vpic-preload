@@ -262,11 +262,11 @@ static int claim_FILE(FILE* stream) {
   std::set<FILE*>::iterator it;
   int rv;
 
-  mtx_lock(&preload_mtx);
+  pthread_mtx_lock(&preload_mtx);
   assert(pctx.isdeltafs != NULL);
   it = pctx.isdeltafs->find(stream);
   rv = int(it != pctx.isdeltafs->end());
-  mtx_unlock(&preload_mtx);
+  pthread_mtx_unlock(&preload_mtx);
 
   return (rv);
 }
@@ -1609,7 +1609,7 @@ FILE* fopen(const char* fpath, const char* mode) {
     stripped = (exact) ? "/" : (fpath + pctx.len_deltafs_root);
   }
 
-  mtx_lock(&preload_mtx);
+  pthread_mtx_lock(&preload_mtx);
   if (pctx.paranoid_checks) {
     fname = stripped + pctx.len_plfsdir + 1;
     if (pctx.fnames->count(std::string(fname)) == 0) {
@@ -1634,7 +1634,7 @@ FILE* fopen(const char* fpath, const char* mode) {
   rv = reinterpret_cast<FILE*>(ff);
   assert(pctx.isdeltafs != NULL);
   pctx.isdeltafs->insert(rv);
-  mtx_unlock(&preload_mtx);
+  pthread_mtx_unlock(&preload_mtx);
 
   return (rv);
 }
@@ -1692,7 +1692,7 @@ int fclose(FILE* stream) {
     }
   }
 
-  mtx_lock(&preload_mtx);
+  pthread_mtx_lock(&preload_mtx);
   assert(pctx.isdeltafs != NULL);
   pctx.isdeltafs->erase(stream);
   if (ff == &vpic_file_buffer) {
@@ -1700,7 +1700,7 @@ int fclose(FILE* stream) {
   } else {
     delete ff;
   }
-  mtx_unlock(&preload_mtx);
+  pthread_mtx_unlock(&preload_mtx);
 
   return (rv);
 }
@@ -1831,7 +1831,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   fname = fn + pctx.len_plfsdir + 1;
   errno = 0;
 
-  mtx_lock(&write_mtx);
+  pthread_mtx_lock(&write_mtx);
 
   if (pctx.fake_data) {
     memset(buf, 0, sizeof(buf));
@@ -1894,7 +1894,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     }
   }
 
-  mtx_unlock(&write_mtx);
+  pthread_mtx_unlock(&write_mtx);
 
   return (rv);
 }
