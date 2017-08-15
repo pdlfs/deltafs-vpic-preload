@@ -49,6 +49,9 @@
 /* mutex to protect preload state */
 static pthread_mutex_t preload_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+/* mutex to synchronize writes */
+static pthread_mutex_t write_mtx = PTHREAD_MUTEX_INITIALIZER;
+
 /* number of MPI barriers invoked by app */
 static int num_barriers = 0;
 
@@ -1826,6 +1829,9 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   assert(pctx.plfsdir != NULL);
   /* remove parent directory path */
   fname = fn + pctx.len_plfsdir + 1;
+  errno = 0;
+
+  mtx_lock(&write_mtx);
 
   if (pctx.fake_data) {
     memset(buf, 0, sizeof(buf));
@@ -1837,10 +1843,10 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
 
   if (pctx.paranoid_checks) {
     if (len != PRELOAD_PARTICLE_SIZE) {
-      msg_abort("write size!");
+      msg_abort("bad write size!");
     }
     if (epoch != num_epochs - 1) {
-      msg_abort("epoch!");
+      msg_abort("bad epoch!");
     }
   }
 
@@ -1887,6 +1893,8 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
       deltafs_close(fd);
     }
   }
+
+  mtx_unlock(&write_mtx);
 
   return (rv);
 }
