@@ -56,8 +56,11 @@
  *    The min port number we can use
  *  SHUFFLE_Max_port
  *    The max port number we can use
+ *  SHUFFLE_Placement_protocol
+ *    Protocol name for initializing placement groups
+ *      such as hash_spooky, hash_lookup3, xor, as well as ring
  *  SHUFFLE_Virtual_factor
- *    Virtual factor used by nodes in a ch ring
+ *    Virtual factor used by nodes in a placement group
  *  SHUFFLE_Buffer_per_queue
  *    Memory allocated for each rpc queue
  *  SHUFFLE_Timeout
@@ -132,6 +135,11 @@ extern void nn_shuffler_destroy();
  * Timeout ignored in testing mode.
  */
 #define DEFAULT_TIMEOUT 300
+
+/*
+ * Default placement protocol.
+ */
+#define DEFAULT_PLACEMENT_PROTO "ring"
 
 /*
  * Default virtual factor.

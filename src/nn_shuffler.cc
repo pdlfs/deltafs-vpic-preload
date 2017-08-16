@@ -1233,6 +1233,7 @@ static void* bg_work(void* foo) {
 void nn_shuffler_init_ssg() {
   char msg[100];
   hg_return_t hret;
+  const char* proto;
   const char* env;
   int rank; /* ssg */
   int size; /* ssg */
@@ -1260,17 +1261,23 @@ void nn_shuffler_init_ssg() {
     }
   }
 
-  nnctx.chp = ch_placement_initialize("ring", size, vf /* vir factor */,
+  proto = maybe_getenv("SHUFFLE_Placement_protocol");
+  if (proto == NULL) {
+    proto = DEFAULT_PLACEMENT_PROTO;
+  }
+
+  nnctx.chp = ch_placement_initialize(proto, size, vf /* vir factor */,
                                       0 /* hash seed */);
   if (!nnctx.chp) msg_abort("ch_init");
 
   if (pctx.myrank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-      snprintf(msg, sizeof(msg), "ch virtual factor: %s",
-               pretty_num(vf).c_str());
+      snprintf(msg, sizeof(msg),
+               "ch/p group size: %s (vir-factor: %s, proto: %s)",
+               pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
       info(msg);
     } else {
-      warn("ch bypassed");
+      warn("ch/p bypassed");
     }
   }
 }
