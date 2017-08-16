@@ -179,6 +179,13 @@ inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
   return 0;
 }
 
+inline void softlink(const char* src, const char* dst) {
+  int n;
+  n = unlink(dst);
+  n = symlink(src, dst);
+  errno = 0;
+}
+
 #define PRELOAD_PRETTY_SIZE_USE_BINARY
 
 /* print a human-readable time duration. */
