@@ -254,25 +254,24 @@ static void preload_init() {
  * claim_path: look at path to see if we can claim it
  */
 static int claim_path(const char* path, int* exact) {
-  if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0) return (0);
+  if (strncmp(pctx.deltafs_root, path, pctx.len_deltafs_root) != 0) return 0;
   if (path[pctx.len_deltafs_root] != '/' &&
       path[pctx.len_deltafs_root] != '\0') {
-    return (0);
+    return 0;
   }
   /* if we've just got pctx.root, caller may convert it to a "/" */
   *exact = int(path[pctx.len_deltafs_root] == '\0');
-  return (1);
+  return 1;
 }
 
 /*
  * under_plfsdir: if a given path is a plfsdir or plfsdir files
  */
 static int under_plfsdir(const char* path) {
-  if (pctx.plfsdir == NULL) return (0);
-  if (strncmp(pctx.plfsdir, path, pctx.len_plfsdir) != 0) return (0);
-  if (path[pctx.len_plfsdir] == '\0') return (1);
-  if (path[pctx.len_plfsdir] == '/') return (1);
-  return (0);
+  if (pctx.plfsdir == NULL) return 0;
+  if (strncmp(pctx.plfsdir, path, pctx.len_plfsdir) != 0) return 0;
+  if (path[pctx.len_plfsdir] == 0 || path[pctx.len_plfsdir] == '/') return 1;
+  return 0;
 }
 
 /*
@@ -288,7 +287,7 @@ static int claim_FILE(FILE* stream) {
   rv = int(it != pctx.isdeltafs->end());
   pthread_mtx_unlock(&preload_mtx);
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -445,7 +444,7 @@ static std::string gen_plfsdir_conf(int rank) {
                 PRELOAD_PARTICLE_SIZE);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", key_size);
 
-  return (tmp);
+  return tmp;
 }
 
 static std::string& pretty_plfsdir_conf(std::string& conf) {
@@ -458,7 +457,7 @@ static std::string& pretty_plfsdir_conf(std::string& conf) {
     conf.replace(pos, 1, "\n // ");
   conf = std::string("plfsdir_conf = (\n // ") + conf;
   conf += "\n)";
-  return (conf);
+  return conf;
 }
 
 namespace {
@@ -498,7 +497,7 @@ class fake_file {
       dptr_ += n;
       resid_ -= n;
     }
-    return (n);
+    return n;
   }
 
   /* get data length */
@@ -872,18 +871,19 @@ int MPI_Init(int* argc, char*** argv) {
 
   srand(rank);
 
-  return (rv);
+  return rv;
 }
 
 /*
  * MPI_Barrier
  */
 int MPI_Barrier(MPI_Comm comm) {
-  int rv = nxt.MPI_Barrier(comm);
+  int rv;
 
+  rv = nxt.MPI_Barrier(comm);
   num_barriers++;
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1309,7 +1309,7 @@ int MPI_Finalize(void) {
   rv = nxt.MPI_Finalize();
   if (pctx.myrank == 0) info("all done");
   if (pctx.myrank == 0) info("bye");
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1324,7 +1324,7 @@ int chdir(const char* dir) {
   rv = nxt.chdir(dir);
   if (rv) msg_abort("chdir");
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1366,7 +1366,7 @@ int mkdir(const char* dir, mode_t mode) {
 
   if (rv) msg_abort("xxmkdir");
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1513,7 +1513,7 @@ DIR* opendir(const char* dir) {
 
   pctx.fnames->clear();
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1619,7 +1619,7 @@ int closedir(DIR* dirp) {
     info("epoch ends (rank 0)");
   }
 
-  return (0);
+  return 0;
 }
 
 /*
@@ -1675,7 +1675,7 @@ FILE* fopen(const char* fpath, const char* mode) {
   pctx.isdeltafs->insert(rv);
   pthread_mtx_unlock(&preload_mtx);
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1741,7 +1741,7 @@ int fclose(FILE* stream) {
   }
   pthread_mtx_unlock(&preload_mtx);
 
-  return (rv);
+  return rv;
 }
 
 /*
@@ -1763,7 +1763,7 @@ int feof(FILE* stream) {
 
   errno = ENOTSUP;
   msg_abort("feof!");
-  return (0);
+  return 0;
 }
 
 /*
@@ -1780,7 +1780,7 @@ int ferror(FILE* stream) {
 
   errno = ENOTSUP;
   msg_abort("ferror!");
-  return (0);
+  return 0;
 }
 
 /*
@@ -1814,7 +1814,7 @@ size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream) {
 
   errno = ENOTSUP;
   msg_abort("fread!");
-  return (0);
+  return 0;
 }
 
 /*
@@ -1831,7 +1831,7 @@ int fseek(FILE* stream, long offset, int whence) {
 
   errno = ENOTSUP;
   msg_abort("fseek!");
-  return (0);
+  return 0;
 }
 
 /*
@@ -1848,7 +1848,7 @@ long ftell(FILE* stream) {
 
   errno = ENOTSUP;
   msg_abort("ftell!");
-  return (0);
+  return 0;
 }
 
 } /* extern "C" */
@@ -1948,5 +1948,5 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
 
   pthread_mtx_unlock(&write_mtx);
 
-  return (rv);
+  return rv;
 }
