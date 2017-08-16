@@ -574,7 +574,7 @@ int MPI_Init(int* argc, char*** argv) {
       info(msg);
     }
   } else {
-    return (rv);
+    return rv;
   }
 
   if (rank == 0) {
@@ -1340,9 +1340,9 @@ int mkdir(const char* dir, mode_t mode) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_path(dir, &exact)) {
-    return (nxt.mkdir(dir, mode));
+    return nxt.mkdir(dir, mode);
   } else if (under_plfsdir(dir)) {
-    return (0); /* plfsdirs are pre-created at MPI_Init */
+    return 0; /* plfsdirs are pre-created at MPI_Init */
   }
 
   /* relative paths we pass through; absolute we strip off prefix */
@@ -1385,9 +1385,9 @@ DIR* opendir(const char* dir) {
   if (ret) msg_abort("pthread_once");
 
   if (!claim_path(dir, &ignored_exact)) {
-    return (nxt.opendir(dir));
+    return nxt.opendir(dir);
   } else if (!under_plfsdir(dir)) {
-    return (NULL); /* not supported */
+    return NULL; /* not supported */
   }
 
   /* return a fake DIR* since we don't actually open */
@@ -1532,7 +1532,7 @@ int closedir(DIR* dirp) {
   if (rv) msg_abort("pthread_once");
 
   if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
-    return (nxt.closedir(dirp));
+    return nxt.closedir(dirp);
   }
 
   if (pctx.myrank == 0) {
@@ -1635,9 +1635,9 @@ FILE* fopen(const char* fpath, const char* mode) {
   if (ret) msg_abort("pthread_once");
 
   if (!claim_path(fpath, &exact)) {
-    return (nxt.fopen(fpath, mode));
+    return nxt.fopen(fpath, mode);
   } else if (!under_plfsdir(fpath)) {
-    return (NULL); /* XXX: support this */
+    return NULL; /* XXX: support this */
   }
 
   /* relative paths we pass through; absolute we strip off prefix */
@@ -1688,7 +1688,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nitems, FILE* stream) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.fwrite(ptr, size, nitems, stream));
+    return nxt.fwrite(ptr, size, nitems, stream);
   }
 
   fake_file* ff = reinterpret_cast<fake_file*>(stream);
@@ -1712,7 +1712,7 @@ int fclose(FILE* stream) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.fclose(stream));
+    return nxt.fclose(stream);
   }
 
   fake_file* ff = reinterpret_cast<fake_file*>(stream);
@@ -1758,7 +1758,7 @@ int feof(FILE* stream) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.feof(stream));
+    return nxt.feof(stream);
   }
 
   errno = ENOTSUP;
@@ -1775,7 +1775,7 @@ int ferror(FILE* stream) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.ferror(stream));
+    return nxt.ferror(stream);
   }
 
   errno = ENOTSUP;
@@ -1809,7 +1809,7 @@ size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.fread(ptr, size, nitems, stream));
+    return nxt.fread(ptr, size, nitems, stream);
   }
 
   errno = ENOTSUP;
@@ -1826,7 +1826,7 @@ int fseek(FILE* stream, long offset, int whence) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.fseek(stream, offset, whence));
+    return nxt.fseek(stream, offset, whence);
   }
 
   errno = ENOTSUP;
@@ -1843,7 +1843,7 @@ long ftell(FILE* stream) {
   if (rv) msg_abort("pthread_once");
 
   if (!claim_FILE(stream)) {
-    return (nxt.ftell(stream));
+    return nxt.ftell(stream);
   }
 
   errno = ENOTSUP;
