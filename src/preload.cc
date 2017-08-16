@@ -839,7 +839,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (rank == 0) {
     if (pctx.sampling) {
-      snprintf(msg, sizeof(msg), "particle sampling: %s in %s",
+      snprintf(msg, sizeof(msg), "########## | >>> particle sampling: %s in %s",
                pretty_num(pctx.sthres).c_str(), pretty_num(1000000).c_str());
       info(msg);
     } else {
@@ -994,7 +994,8 @@ int MPI_Finalize(void) {
     MPI_Reduce(num_samples, sum_samples, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
     if (pctx.myrank == 0) {
-      snprintf(msg, sizeof(msg), "total particles sampled: %s (%s valid)",
+      snprintf(msg, sizeof(msg),
+               "########## | >>> total particles sampled: %s (%s valid)",
                pretty_num(sum_samples[0]).c_str(),
                pretty_num(sum_samples[1]).c_str());
       info(msg);

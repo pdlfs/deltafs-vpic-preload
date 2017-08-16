@@ -74,14 +74,15 @@ void preload_barrier(MPI_Comm comm) {
   MPI_Allreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC,
                 static_cast<MPI_Comm>(comm));
   if (pctx.myrank == 0) {
-    if (pctx.verr) {
-      snprintf(msg, sizeof(msg), "// barrier ok -> rank %d waited longest",
-               min.rank);
-      info(msg);
-    }
     dura = MPI_Wtime() - min.time;
-    snprintf(msg, sizeof(msg), "barrier %s+",
-             pretty_dura(dura * 1000000).c_str());
+    if (pctx.verr) {
+      snprintf(msg, sizeof(msg),
+               "barrier ok (\n /* rank %d waited longest */\n %s+\n)", min.rank,
+               pretty_dura(dura * 1000000).c_str());
+    } else {
+      snprintf(msg, sizeof(msg), "barrier %s+",
+               pretty_dura(dura * 1000000).c_str());
+    }
     info(msg);
   }
 }
