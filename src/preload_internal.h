@@ -87,9 +87,9 @@ typedef struct preload_ctx {
   std::set<FILE*>* isdeltafs;    /* open files owned by deltafs */
   std::set<std::string>* fnames; /* used for checking unique file names */
 
-  std::map<std::string, int>* smap; /* sampled particle file names */
+  std::map<std::string, int>* smap; /* sampled particle names */
 
-  int sthres;   /* sample threshold (num names per 1 million input) */
+  int sthres;   /* sample threshold (num samples per 1 million input names) */
   int sampling; /* enable particle name sampling */
 
   shuffle_ctx_t sctx; /* shuffle context */

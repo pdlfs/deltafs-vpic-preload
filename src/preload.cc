@@ -106,6 +106,8 @@ static void must_getnextdlsym(void** result, const char* symbol) {
  * we'll abort the process....
  */
 static void preload_init() {
+  const char* tmp;
+
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.MPI_Init), "MPI_Init");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.MPI_Finalize),
                     "MPI_Finalize");
@@ -204,6 +206,16 @@ static void preload_init() {
       pctx.local_root[0] != '/' ||
       pctx.local_root[pctx.len_local_root - 1] == '/')
     msg_abort("bad local_root");
+
+  if (is_envset("PRELOAD_Skip_sampling")) pctx.sampling = 0;
+
+  tmp = maybe_getenv("PRELOAD_Sample_threshold");
+  if (tmp != NULL) {
+    pctx.sthres = atoi(tmp);
+    if (pctx.sthres < 100) {
+      pctx.sthres = 100;
+    }
+  }
 
   if (is_envset("PRELOAD_Bypass_shuffle")) pctx.mode |= BYPASS_SHUFFLE;
   if (is_envset("PRELOAD_Bypass_placement")) pctx.mode |= BYPASS_PLACEMENT;
@@ -826,6 +838,14 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   if (rank == 0) {
+    if (pctx.sampling) {
+      snprintf(msg, sizeof(msg), "particle sampling: %s in %s",
+               pretty_num(pctx.sthres).c_str(), pretty_num(1000000).c_str());
+      info(msg);
+    } else {
+      info("particle sampling skipped");
+    }
+
     if (pctx.fake_data) warn("vpic output replaced with fake data");
     if (pctx.paranoid_checks)
       warn(
@@ -878,8 +898,8 @@ int MPI_Finalize(void) {
   char msg[200];
   uint64_t finish_start;
   uint64_t finish_end;
-  unsigned long long num_samples;
-  unsigned long long sum_samples;
+  unsigned long long num_samples[2];
+  unsigned long long sum_samples[2];
   double ucpu;
   double scpu;
   time_t now;
@@ -963,18 +983,20 @@ int MPI_Finalize(void) {
 
   /* conclude sampling */
   if (pctx.sampling) {
-    num_samples = 0;
+    num_samples[0] = num_samples[1] = 0;
     for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
          it != pctx.smap->end(); ++it) {
       if (it->second == num_epochs) {
-        num_samples++;
+        num_samples[1]++;
       }
+      num_samples[0]++;
     }
-    MPI_Reduce(&num_samples, &sum_samples, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
-               0, MPI_COMM_WORLD);
+    MPI_Reduce(num_samples, sum_samples, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
     if (pctx.myrank == 0) {
-      snprintf(msg, sizeof(msg), "total particle names sampled: %llu",
-               sum_samples);
+      snprintf(msg, sizeof(msg), "total particles sampled: %s (%s valid)",
+               pretty_num(sum_samples[0]).c_str(),
+               pretty_num(sum_samples[1]).c_str());
       info(msg);
     }
   }
