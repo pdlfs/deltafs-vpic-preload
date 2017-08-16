@@ -216,8 +216,8 @@ static void preload_init() {
   tmp = maybe_getenv("PRELOAD_Sample_threshold");
   if (tmp != NULL) {
     pctx.sthres = atoi(tmp);
-    if (pctx.sthres < 100) {
-      pctx.sthres = 100;
+    if (pctx.sthres < 1) {
+      pctx.sthres = 1;
     }
   }
 
