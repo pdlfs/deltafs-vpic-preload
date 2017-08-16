@@ -1022,7 +1022,7 @@ int MPI_Finalize(void) {
     }
     if (!pctx.nodist) {
       if (pctx.myrank == 0) {
-        info("dumping sampled particle names ...");
+        info("dumping sampled particle names to ...");
         ts = now_micros();
         snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_root,
                  "vpic-deltafs-sampled-particle-names", suffix);
@@ -1037,13 +1037,13 @@ int MPI_Finalize(void) {
           error("open");
         }
         num_names = 0;
-        tmp = "sampled names = (\n";
+        tmp = "sampled names = (\n    ...\n";
         for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
              it != pctx.smap->end(); ++it) {
           if (it->second == num_epochs) {
             num_names++;
-            if (num_names <= 3) {
-              tmp += " // ";
+            if (num_names <= 7) {
+              tmp += " !! ";
               tmp += it->first;
               tmp += "\n";
             }
