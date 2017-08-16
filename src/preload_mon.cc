@@ -256,13 +256,9 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   DUMP(fd, buf, "[M] total writes: %llu", ctx->nw);
   if (!ctx->global) DUMP(fd, buf, "!!! NON GLOBAL !!!");
   DUMP(fd, buf, "--- end ---\n");
-
-  return;
 }
 
 void mon_reinit(mon_ctx_t* ctx) {
   mon_ctx_t tmp = {0};
   *ctx = tmp;
-
-  return;
 }

@@ -901,6 +901,9 @@ int MPI_Finalize(void) {
   char dst_path[PATH_MAX];
   char suffix[100];
   char msg[200];
+  unsigned long long num_writes;
+  unsigned long long min_writes;
+  unsigned long long max_writes;
   uint64_t finish_start;
   uint64_t finish_end;
   std::string tmp;
@@ -1129,6 +1132,12 @@ int MPI_Finalize(void) {
         MPI_Allreduce(&ok, &go, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
 
         if (go) {
+          /* per-rank total writes = local writes + foreign writes */
+          num_writes = local.nlw + local.nfw;
+          MPI_Reduce(&num_writes, &min_writes, 1, MPI_UNSIGNED_LONG_LONG,
+                     MPI_MIN, 0, MPI_COMM_WORLD);
+          MPI_Reduce(&num_writes, &max_writes, 1, MPI_UNSIGNED_LONG_LONG,
+                     MPI_MAX, 0, MPI_COMM_WORLD);
           mon_reinit(&glob);
           mon_reduce(&local, &glob);
           glob.epoch_seq = epoch + 1;
@@ -1176,9 +1185,18 @@ int MPI_Finalize(void) {
                        pretty_num(glob.min_nw).c_str(),
                        pretty_num(glob.max_nw).c_str());
               info(msg);
+              snprintf(msg, sizeof(msg),
+                       "         > %s foreign + %s local = %s total writes",
+                       pretty_num(glob.nfw).c_str(),
+                       pretty_num(glob.nlw).c_str(),
+                       pretty_num(glob.nfw + glob.nlw).c_str());
+              info(msg);
               snprintf(
-                  msg, sizeof(msg), "         > %s foreign + %s local writes",
-                  pretty_num(glob.nfw).c_str(), pretty_num(glob.nlw).c_str());
+                  msg, sizeof(msg),
+                  "               > %s per rank (min: %s, max: %s)",
+                  pretty_num(double(glob.nfw + glob.nlw) / pctx.commsz).c_str(),
+                  pretty_num(min_writes).c_str(),
+                  pretty_num(max_writes).c_str());
               info(msg);
               snprintf(msg, sizeof(msg),
                        "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
