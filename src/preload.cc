@@ -886,20 +886,23 @@ int MPI_Barrier(MPI_Comm comm) {
  * MPI_Finalize
  */
 int MPI_Finalize(void) {
+  int fd0;
   int fd1;
   int fd2;
   mon_ctx_t local;
   mon_ctx_t glob;
   dir_stat_t tmp_stat;
   char buf[MON_BUF_SIZE];
-  char path1[PATH_MAX];
-  char path2[PATH_MAX];
+  char spath[PATH_MAX];
+  char lpath[PATH_MAX];
   char suffix[100];
   char msg[200];
   uint64_t finish_start;
   uint64_t finish_end;
+  std::string tmp;
   unsigned long long num_samples[2];
   unsigned long long sum_samples[2];
+  size_t num_names;
   double ucpu;
   double scpu;
   time_t now;
@@ -919,6 +922,18 @@ int MPI_Finalize(void) {
     info("lib finalizing ... ");
     snprintf(msg, sizeof(msg), "%d epochs generated in total", num_epochs);
     info(msg);
+    if (!pctx.nodist) {
+      now = time(NULL);
+      localtime_r(&now, &timeinfo);
+      snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
+               timeinfo.tm_year + 1900,  // YYYY
+               timeinfo.tm_mon + 1,      // MM
+               timeinfo.tm_mday,         // DD
+               timeinfo.tm_hour,         // hh
+               timeinfo.tm_min,          // mm
+               timeinfo.tm_sec           // ss
+               );
+    }
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
@@ -1000,6 +1015,52 @@ int MPI_Finalize(void) {
                pretty_num(sum_samples[1]).c_str());
       info(msg);
     }
+    if (!pctx.nodist) {
+      if (pctx.myrank == 0) {
+        info("dumping sampled particle names ...");
+        nxt.mkdir(pctx.log_root, 0755);
+        ts = now_micros();
+        snprintf(spath, sizeof(spath), "%s/%s-%s.txt", pctx.log_root,
+                 "vpic-deltafs-sampled-particle-names", suffix);
+        info(spath);
+        fd0 = open(spath, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd0 != -1) {
+          snprintf(lpath, sizeof(lpath),
+                   "%s/vpic-deltafs-sampled-particle-names.txt", pctx.log_root);
+          n = unlink(lpath);
+          n = symlink(spath + pctx.len_log_root + 1, lpath);
+          errno = 0;
+        } else {
+          error("open");
+        }
+        num_names = 0;
+        tmp = "sampled names = (\n";
+        for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
+             it != pctx.smap->end(); ++it) {
+          if (it->second == num_epochs) {
+            num_names++;
+            if (num_names <= 3) {
+              tmp += " // ";
+              tmp += it->first;
+              tmp += "\n";
+            }
+            n = snprintf(msg, sizeof(msg), "%s\n", it->first.c_str());
+            n = write(fd0, msg, n);
+            errno = 0;
+          }
+        }
+        tmp += "    ...\n";
+        tmp += ")";
+        info(tmp.c_str());
+        if (fd0 != -1) {
+          close(fd0);
+        }
+        diff = now_micros() - ts;
+        snprintf(msg, sizeof(msg), "dumping ok (%s names) %s",
+                 pretty_num(num_names).c_str(), pretty_dura(diff).c_str());
+        info(msg);
+      }
+    }
   }
 
   /* close, merge, and dist mon files */
@@ -1011,50 +1072,33 @@ int MPI_Finalize(void) {
         info("merging and saving epoch mon stats to ...");
         nxt.mkdir(pctx.log_root, 0755);
         ts = now_micros();
-        now = time(NULL);
-        localtime_r(&now, &timeinfo);
-        snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
-                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
-                 timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
-        snprintf(path1, sizeof(path1), "%s/%s-%s.bin", pctx.log_root,
+        snprintf(spath, sizeof(spath), "%s/%s-%s.bin", pctx.log_root,
                  "vpic-deltafs-mon-reduced", suffix);
-        info(path1);
-        fd1 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        info(spath);
+        fd1 = open(spath, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd1 != -1) {
-          snprintf(path2, sizeof(path2),
-                   "%s/"
-                   "vpic-deltafs-mon-reduced.bin",
+          snprintf(lpath, sizeof(lpath), "%s/vpic-deltafs-mon-reduced.bin",
                    pctx.log_root);
-          n = unlink(path2);
-          n = symlink(path1 + pctx.len_log_root + 1, path2);
+          n = unlink(lpath);
+          n = symlink(spath + pctx.len_log_root + 1, lpath);
         } else {
           error("open");
         }
-        snprintf(path1, sizeof(path1), "%s/%s-%s.txt", pctx.log_root,
+        snprintf(spath, sizeof(spath), "%s/%s-%s.txt", pctx.log_root,
                  "vpic-deltafs-mon-reduced", suffix);
-        info(path1);
-        fd2 = open(path1, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        info(spath);
+        fd2 = open(spath, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd2 != -1) {
-          snprintf(path2, sizeof(path2),
-                   "%s/"
-                   "vpic-deltafs-mon-reduced.txt",
+          snprintf(lpath, sizeof(lpath), "%s/vpic-deltafs-mon-reduced.txt",
                    pctx.log_root);
-          n = unlink(path2);
-          n = symlink(path1 + pctx.len_log_root + 1, path2);
+          n = unlink(lpath);
+          n = symlink(spath + pctx.len_log_root + 1, lpath);
         } else {
           error("open");
         }
         if (fd1 == -1 || fd2 == -1) {
           warn("cannot create stats files");
           ok = 0;
-        }
-        if (fd2 != -1) {
-          n = snprintf(msg, sizeof(msg),
-                       "== Please send me back "
-                       "to deltafs authors ==\n");
-          n = write(fd2, msg, n);
-
-          errno = 0;
         }
       }
 

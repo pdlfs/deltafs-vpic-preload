@@ -107,7 +107,7 @@ typedef struct preload_ctx {
   uint64_t epoch_start;
 
   int nomon;  /* skip monitoring */
-  int nodist; /* skip copying mon files out */
+  int nodist; /* skip releasing mon and sampling results */
 
   int logfd; /* descriptor for the testing log file */
   int monfd; /* descriptor for the mon dump file */
