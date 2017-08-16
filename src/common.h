@@ -110,7 +110,14 @@ inline int is_envset(const char* key) {
   if (env == NULL || env[0] == 0) return false;
   str = env;
 
-  return (str != "0");
+  return int(str != "0");
+}
+
+inline int getr(int min, int max) {
+  return static_cast<int>(
+      (static_cast<double>(rand()) / (static_cast<double>(RAND_MAX) + 1)) *
+          (max - min + 1) +
+      min);
 }
 
 inline int pthread_cv_notifyall(pthread_cond_t* cv) {

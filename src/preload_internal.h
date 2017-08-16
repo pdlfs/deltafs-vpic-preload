@@ -42,6 +42,7 @@
 
 #include "preload.h"
 
+#include <map>
 #include <set>
 
 /*
@@ -81,17 +82,15 @@ typedef struct preload_ctx {
   deltafs_plfsdir_t* plfsh; /* opaque handle to an opened plfsdir */
 
   int plfsparts; /* num of memtable partitions */
+  int plfsfd;    /* fd for the plfsdir */
 
-  int plfsfd; /* fd for the plfsdir */
-
-  std::set<FILE*>* isdeltafs; /* open files owned by deltafs */
-
+  std::set<FILE*>* isdeltafs;    /* open files owned by deltafs */
   std::set<std::string>* fnames; /* used for checking unique file names */
-  std::set<std::string>* snames; /* sampled file names */
 
-  double sratio; /* sample ratio (1 in 1 million) */
+  std::map<std::string, int>* smap; /* sampled particle file names */
 
-  int sampling; /* sample particle names */
+  int sthres;   /* sample threshold (num names per 1 million input) */
+  int sampling; /* enable particle name sampling */
 
   shuffle_ctx_t sctx; /* shuffle context */
 

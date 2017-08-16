@@ -130,9 +130,9 @@ static void preload_init() {
 
   pctx.isdeltafs = new std::set<FILE*>;
   pctx.fnames = new std::set<std::string>;
-  pctx.snames = new std::set<std::string>;
+  pctx.smap = new std::map<std::string, int>;
 
-  pctx.sratio = 100; /* 100 samples per 1 million input */
+  pctx.sthres = 100; /* 100 samples per 1 million input */
 
   pctx.sampling = 1;
   pctx.paranoid_checks = 1;
@@ -846,6 +846,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  srand(rank);
+
   return (rv);
 }
 
@@ -876,6 +878,8 @@ int MPI_Finalize(void) {
   char msg[200];
   uint64_t finish_start;
   uint64_t finish_end;
+  unsigned long long num_samples;
+  unsigned long long sum_samples;
   double ucpu;
   double scpu;
   time_t now;
@@ -954,6 +958,24 @@ int MPI_Finalize(void) {
   } else {
     if (num_epochs != 0) {
       dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
+    }
+  }
+
+  /* conclude sampling */
+  if (pctx.sampling) {
+    num_samples = 0;
+    for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
+         it != pctx.smap->end(); ++it) {
+      if (it->second == num_epochs) {
+        num_samples++;
+      }
+    }
+    MPI_Reduce(&num_samples, &sum_samples, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
+               0, MPI_COMM_WORLD);
+    if (pctx.myrank == 0) {
+      snprintf(msg, sizeof(msg), "total particle names sampled: %llu",
+               sum_samples);
+      info(msg);
     }
   }
 
@@ -1792,6 +1814,19 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     }
     if (epoch != num_epochs - 1) {
       msg_abort("bad epoch!");
+    }
+  }
+
+  if (pctx.sampling) {
+    if (epoch == 0) {
+      /* during the initial epoch, we accept as many names as possible */
+      if (getr(0, 1000000 - 1) < pctx.sthres) {
+        pctx.smap->insert(std::make_pair(std::string(fname), 1));
+      }
+    } else {
+      if (pctx.smap->count(std::string(fname)) != 0) {
+        pctx.smap->at(std::string(fname))++;
+      }
     }
   }
 
