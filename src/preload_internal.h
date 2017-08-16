@@ -30,9 +30,9 @@
 
 #pragma once
 
+#include <mpi.h>
 #include <sys/resource.h>
 #include <sys/time.h>
-#include <mpi.h>
 
 #include <deltafs/deltafs_api.h>
 
@@ -87,6 +87,11 @@ typedef struct preload_ctx {
   std::set<FILE*>* isdeltafs; /* open files owned by deltafs */
 
   std::set<std::string>* fnames; /* used for checking unique file names */
+  std::set<std::string>* snames; /* sampled file names */
+
+  double sratio; /* sample ratio (1 in 1 million) */
+
+  int sampling; /* sample particle names */
 
   shuffle_ctx_t sctx; /* shuffle context */
 

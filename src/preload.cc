@@ -130,7 +130,11 @@ static void preload_init() {
 
   pctx.isdeltafs = new std::set<FILE*>;
   pctx.fnames = new std::set<std::string>;
+  pctx.snames = new std::set<std::string>;
 
+  pctx.sratio = 100; /* 100 samples per 1 million input */
+
+  pctx.sampling = 1;
   pctx.paranoid_checks = 1;
   pctx.paranoid_barrier = 1;
   pctx.paranoid_post_barrier = 1;
