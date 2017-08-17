@@ -38,7 +38,7 @@
  *  PRELOAD_Plfsdir
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Log_home
- *    Path to the home directory for log dumps
+ *    Path to the home directory for log files
  *  PRELOAD_Ignore_root (XXX: allows multi)
  *    Path to a directory where file I/O should be ignored
  *  PRELOAD_Bypass_shuffle
@@ -123,7 +123,7 @@
 /*
  * If "log_home" is not specified, we set it to the following path.
  *
- * Home to final dump files.
+ * Home to log files.
  */
 #define DEFAULT_LOG_HOME "/tmp/vpic-deltafs-log"
 

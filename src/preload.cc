@@ -203,7 +203,7 @@ static void preload_init() {
   if (!pctx.log_home) pctx.log_home = DEFAULT_LOG_HOME;
   pctx.len_log_home = strlen(pctx.log_home);
 
-  /* log root:
+  /* log home:
    *   - any non-null path,
    *   - not "/",
    *   - starting with "/", and
