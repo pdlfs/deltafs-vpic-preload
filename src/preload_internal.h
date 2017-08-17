@@ -53,14 +53,14 @@ typedef struct preload_ctx {
   const char* deltafs_root; /* deltafs root */
   size_t len_deltafs_root;  /* strlen */
 
-  const char* log_root; /* log dir */
-  size_t len_log_root;  /* strlen */
-
   const char* local_root; /* localfs root */
   size_t len_local_root;  /* strlen */
 
   const char* ignore_root; /* file operations should be ignored */
   size_t len_ignore_root;  /* strlen */
+
+  const char* log_home; /* home for log dumps */
+  size_t len_log_home;  /* strlen */
 
   int mode; /* operating mode */
 

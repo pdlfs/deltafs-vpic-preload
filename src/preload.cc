@@ -199,9 +199,9 @@ static void preload_init() {
 
   pctx.plfsfd = -1;
 
-  pctx.log_root = maybe_getenv("PRELOAD_Log_root");
-  if (!pctx.log_root) pctx.log_root = DEFAULT_LOG_ROOT;
-  pctx.len_log_root = strlen(pctx.log_root);
+  pctx.log_home = maybe_getenv("PRELOAD_Log_home");
+  if (!pctx.log_home) pctx.log_home = DEFAULT_LOG_HOME;
+  pctx.len_log_home = strlen(pctx.log_home);
 
   /* log root:
    *   - any non-null path,
@@ -209,8 +209,8 @@ static void preload_init() {
    *   - starting with "/", and
    *   - not ending in "/"
    */
-  if (pctx.len_log_root == 0 || pctx.len_log_root == 1 ||
-      pctx.log_root[0] != '/' || pctx.log_root[pctx.len_log_root - 1] == '/')
+  if (pctx.len_log_home == 0 || pctx.len_log_home == 1 ||
+      pctx.log_home[0] != '/' || pctx.log_home[pctx.len_log_home - 1] == '/')
     msg_abort("bad log_root");
 
   pctx.local_root = maybe_getenv("PRELOAD_Local_root");
@@ -957,7 +957,7 @@ int MPI_Finalize(void) {
     snprintf(msg, sizeof(msg), "%d epochs generated in total", num_epochs);
     info(msg);
     if (!pctx.nodist) {
-      nxt.mkdir(pctx.log_root, 0755);
+      nxt.mkdir(pctx.log_home, 0755);
       now = time(NULL);
       localtime_r(&now, &timeinfo);
       snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
@@ -1054,14 +1054,14 @@ int MPI_Finalize(void) {
       if (pctx.myrank == 0) {
         info("dumping sampled particle names to ...");
         ts = now_micros();
-        snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_root,
+        snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_home,
                  "vpic-deltafs-sampled-particle-names", suffix);
         info(src_path);
         fd0 = open(src_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd0 != -1) {
           snprintf(dst_path, sizeof(dst_path),
-                   "%s/vpic-deltafs-sampled-particle-names.txt", pctx.log_root);
-          softlink(src_path + pctx.len_log_root + 1, dst_path);
+                   "%s/vpic-deltafs-sampled-particle-names.txt", pctx.log_home);
+          softlink(src_path + pctx.len_log_home + 1, dst_path);
           errno = 0;
         } else {
           error("open");
@@ -1106,28 +1106,28 @@ int MPI_Finalize(void) {
         info("merging and saving epoch mon stats to ...");
         ts = now_micros();
         if (mon_dump_bin) {
-          snprintf(src_path, sizeof(src_path), "%s/%s-%s.bin", pctx.log_root,
+          snprintf(src_path, sizeof(src_path), "%s/%s-%s.bin", pctx.log_home,
                    "vpic-deltafs-mon-reduced", suffix);
           info(src_path);
           fd1 = open(src_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
           if (fd1 != -1) {
             snprintf(dst_path, sizeof(dst_path),
-                     "%s/vpic-deltafs-mon-reduced.bin", pctx.log_root);
-            softlink(src_path + pctx.len_log_root + 1, dst_path);
+                     "%s/vpic-deltafs-mon-reduced.bin", pctx.log_home);
+            softlink(src_path + pctx.len_log_home + 1, dst_path);
           } else {
             error("open");
             ok = 0;
           }
         }
         if (mon_dump_txt) {
-          snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_root,
+          snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_home,
                    "vpic-deltafs-mon-reduced", suffix);
           info(src_path);
           fd2 = open(src_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
           if (fd2 != -1) {
             snprintf(dst_path, sizeof(dst_path),
-                     "%s/vpic-deltafs-mon-reduced.txt", pctx.log_root);
-            softlink(src_path + pctx.len_log_root + 1, dst_path);
+                     "%s/vpic-deltafs-mon-reduced.txt", pctx.log_home);
+            softlink(src_path + pctx.len_log_home + 1, dst_path);
           } else {
             error("open");
             ok = 0;
