@@ -38,7 +38,10 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
+
+#include <map>
 #include <string>
+#include <vector>
 
 #include <pdlfs-common/xxhash.h>
 #include "preload_internal.h"
@@ -110,6 +113,7 @@ static void must_getnextdlsym(void** result, const char* symbol) {
  * we'll abort the process....
  */
 static void preload_init() {
+  std::vector<std::pair<const char*, size_t> > paths;
   const char* tmp;
 
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.MPI_Init), "MPI_Init");
@@ -163,21 +167,39 @@ static void preload_init() {
       pctx.deltafs_root[pctx.len_deltafs_root - 1] == '/')
     msg_abort("bad deltafs_root");
 
-  pctx.ignore_root = maybe_getenv("PRELOAD_Ignore_root");
-  if (pctx.ignore_root) {
-    pctx.len_ignore_root = strlen(pctx.ignore_root);
+  tmp = maybe_getenv("PRELOAD_Ignore_dirs");
+  if (tmp != NULL && tmp[0] != 0) {
+    for (const char* ch = strchr(tmp, ':'); ch != NULL;) {
+      paths.push_back(std::make_pair(tmp, ch - tmp));
+      tmp = ch + 1;
+      ch = strchr(tmp, ':');
+    }
+    if (tmp[0] != 0) {
+      paths.push_back(std::make_pair(tmp, strlen(tmp)));
+    }
   }
-
-  /* ignore root:
+  /* for each ignore dir:
    * - may be NULL or empty, otherwise,
    * - not "/", and
    * - not ending in "/"
    */
-  if (pctx.len_ignore_root != 0) {
-    if (pctx.len_ignore_root == 1 && pctx.ignore_root[0] == '/')
-      msg_abort("bad ignore_root");
-    if (pctx.ignore_root[pctx.len_ignore_root - 1] == '/')
-      msg_abort("bad ignore_root");
+  if (paths.size() != 0) {
+    pctx.num_ignore_dirs = paths.size();
+    pctx.ignore_dirs =
+        static_cast<const char**>(malloc(pctx.num_ignore_dirs * sizeof(void*)));
+    pctx.len_ignore_dirs =
+        static_cast<size_t*>(malloc(pctx.num_ignore_dirs * sizeof(size_t)));
+
+    for (size_t i = 0; i < pctx.num_ignore_dirs; i++) {
+      pctx.len_ignore_dirs[i] = paths[i].second;
+      pctx.ignore_dirs[i] = paths[i].first;
+      if (pctx.len_ignore_dirs[i] != 0) {
+        if (pctx.len_ignore_dirs[i] == 1 && pctx.ignore_dirs[i][0] == '/')
+          msg_abort("bad ignore_dir");
+        if (pctx.ignore_dirs[i][pctx.len_ignore_dirs[i] - 1] == '/')
+          msg_abort("bad ignore_dir");
+      }
+    }
   }
 
   /* obtain the path to plfsdir */
@@ -271,9 +293,15 @@ static void preload_init() {
  * should_ignore: inspect the path to see if we should just ignore it
  */
 static int should_ignore(const char* path) {
-  if (pctx.len_ignore_root == 0) return 0;
-  if (strncmp(pctx.ignore_root, path, pctx.len_ignore_root) != 0) return 0;
-  if (path[pctx.len_ignore_root] == '/') return 1;
+  for (size_t i = 0; i < pctx.num_ignore_dirs; i++) {
+    if (pctx.len_ignore_dirs[i] != 0) {
+      if (strncmp(pctx.ignore_dirs[i], path, pctx.len_ignore_dirs[i]) == 0) {
+        if (path[pctx.len_ignore_dirs[i]] == '/') {
+          return 1;
+        }
+      }
+    }
+  }
   return 0;
 }
 

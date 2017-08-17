@@ -56,8 +56,9 @@ typedef struct preload_ctx {
   const char* local_root; /* localfs root */
   size_t len_local_root;  /* strlen */
 
-  const char* ignore_root; /* file operations should be ignored */
-  size_t len_ignore_root;  /* strlen */
+  const char** ignore_dirs; /* dirs where file i/o should be ignored */
+  size_t* len_ignore_dirs;  /* strlens */
+  size_t num_ignore_dirs;
 
   const char* log_home; /* home for log dumps */
   size_t len_log_home;  /* strlen */
