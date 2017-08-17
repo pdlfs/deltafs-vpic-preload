@@ -42,7 +42,7 @@ uint64_t timeval_to_micros(const struct timeval* tv) {
   uint64_t t;
   t = static_cast<uint64_t>(tv->tv_sec) * 1000000;
   t += tv->tv_usec;
-  return (t);
+  return t;
 }
 
 #define PRELOAD_USE_CLOCK_GETTIME
@@ -63,7 +63,7 @@ uint64_t now_micros() {
   t = timeval_to_micros(&tv);
 #endif
 
-  return (t);
+  return t;
 }
 
 uint64_t now_micros_coarse() {
@@ -82,7 +82,7 @@ uint64_t now_micros_coarse() {
   t = timeval_to_micros(&tv);
 #endif
 
-  return (t);
+  return t;
 }
 
 void check_clockres() {
@@ -165,7 +165,7 @@ static std::string readline(const char* fname) {
     strcat(tmp, "?");
   }
 
-  return (tmp);
+  return tmp;
 }
 
 /* remove leading and tailing space */
@@ -184,7 +184,7 @@ static std::string trim(const char* str, size_t limit) {
   if (sz != 0) memcpy(tmp, str + start, sz);
   tmp[sz] = 0;
 
-  return (tmp);
+  return tmp;
 }
 
 /*
@@ -457,5 +457,5 @@ int my_cpu_cores() {
     ncpus = CPU_COUNT(&cpuset);
   }
 
-  return (ncpus);
+  return ncpus;
 }
