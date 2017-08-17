@@ -59,6 +59,9 @@ typedef struct preload_ctx {
   const char* local_root; /* localfs root */
   size_t len_local_root;  /* strlen */
 
+  const char* ignore_root; /* file operations should be ignored */
+  size_t len_ignore_root;  /* strlen */
+
   int mode; /* operating mode */
 
   int paranoid_checks; /* various checks on vpic writes */

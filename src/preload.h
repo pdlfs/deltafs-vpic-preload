@@ -39,6 +39,8 @@
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Log_root
  *    Path to log directory
+ *  PRELOAD_Ignore_root (XXX: allows multi)
+ *    Path to a directory where file I/O should be ignored
  *  PRELOAD_Bypass_shuffle
  *    Do not shuffle writes at all
  *  PRELOAD_Bypass_placement

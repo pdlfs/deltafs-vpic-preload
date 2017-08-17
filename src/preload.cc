@@ -163,6 +163,23 @@ static void preload_init() {
       pctx.deltafs_root[pctx.len_deltafs_root - 1] == '/')
     msg_abort("bad deltafs_root");
 
+  pctx.ignore_root = maybe_getenv("PRELOAD_Ignore_root");
+  if (pctx.ignore_root) {
+    pctx.len_ignore_root = strlen(pctx.ignore_root);
+  }
+
+  /* ignore root:
+   * - may be NULL or empty, otherwise,
+   * - not "/", and
+   * - not ending in "/"
+   */
+  if (pctx.len_ignore_root != 0) {
+    if (pctx.len_ignore_root == 1 && pctx.ignore_root[0] == '/')
+      msg_abort("bad ignore_root");
+    if (pctx.ignore_root[pctx.len_ignore_root - 1] == '/')
+      msg_abort("bad ignore_root");
+  }
+
   /* obtain the path to plfsdir */
   pctx.plfsdir = maybe_getenv("PRELOAD_Plfsdir");
 
@@ -248,6 +265,16 @@ static void preload_init() {
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
   /* additional init can go here or MPI_Init() */
+}
+
+/*
+ * should_ignore: inspect the path to see if we should just ignore it
+ */
+static int should_ignore(const char* path) {
+  if (pctx.len_ignore_root == 0) return 0;
+  if (strncmp(pctx.ignore_root, path, pctx.len_ignore_root) != 0) return 0;
+  if (path[pctx.len_ignore_root] == '/') return 1;
+  return 0;
 }
 
 /*
@@ -1652,7 +1679,9 @@ FILE* fopen(const char* fpath, const char* mode) {
   int ret = pthread_once(&init_once, preload_init);
   if (ret) msg_abort("pthread_once");
 
-  if (!claim_path(fpath, &exact)) {
+  if (should_ignore(fpath)) {
+    return nxt.fopen("/dev/null", mode);
+  } else if (!claim_path(fpath, &exact)) {
     return nxt.fopen(fpath, mode);
   } else if (!under_plfsdir(fpath)) {
     return NULL; /* XXX: support this */
