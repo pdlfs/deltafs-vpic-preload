@@ -8,6 +8,9 @@ set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 add_executable (vpic-deltafs-reader parallel_reader.cc)
 target_link_libraries (vpic-deltafs-reader deltafs ch-placement m)
 
+add_executable (simple-vpic-deltafs-reader reader.cc)
+target_link_libraries (simple-vpic-deltafs-reader deltafs)
+
 foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
     if (NOT ${lcv} STREQUAL "")
         target_compile_options (vpic-deltafs-reader PUBLIC ${lcv})
