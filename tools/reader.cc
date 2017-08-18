@@ -150,7 +150,11 @@ struct ms {
 /*
  * report: print performance measurements
  */
-static void report() { printf("total read ops: %lu", m.tn); }
+static void report() {
+  printf("total read ops: %lu\n", m.tn);
+  printf("total table seeks: %lu\n", m.ts);
+  printf("total seeks: %lu\n", m.tb);
+}
 
 /*
  * alarm signal handler
@@ -185,6 +189,9 @@ static void usage(const char* msg) {
  */
 static void prepare_conf(int rank) {
   int n;
+
+  if (g.bg && !tp) tp = deltafs_tp_init(g.bg);
+  if (g.bg && !tp) complain("fail to init thread pool");
 
   n = snprintf(conf, sizeof(conf), "rank=%d", rank);
   n += snprintf(conf + n, sizeof(conf) - n, "&verify_checksums=%d", g.crc32c);
@@ -264,7 +271,7 @@ static void run_queries(int rank) {
   int r;
 
   get_names(rank, &names);
-  if (g.v) info("%d names available for rank %d", int(names.size()), rank);
+  if (g.v) info("\n%d names available for rank %d", int(names.size()), rank);
   std::random_shuffle(names.begin(), names.end());
   prepare_conf(rank);
 
@@ -345,10 +352,16 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
+  if (!g.dirsz) usage("dir size cannot be 0");
   if (argc != 2) /* plfsdir and indir must be provided on cli */
     usage("bad args");
   g.dirname = argv[0];
   g.in = argv[1];
+
+  if (access(g.dirname, R_OK) != 0)
+    complain("cannot access %s: %s", g.dirname, strerror(errno));
+  if (access(g.in, R_OK) != 0)
+    complain("cannot access %s: %s", g.in, strerror(errno));
 
   printf("\n%s options:\n", argv0);
   printf("\t          num ranks: %d\n", g.w);
