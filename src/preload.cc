@@ -1098,17 +1098,16 @@ int MPI_Finalize(void) {
       info(msg);
     }
     if (!pctx.nodist) {
+      num_names = 0;
+      snprintf(path, sizeof(path), "%s/exp-info/NAMES-%08d.txt", pctx.log_home,
+               pctx.myrank);
       if (pctx.myrank == 0) {
-        info("dumping sampled particle names to ...");
-        ts = now_micros();
-        snprintf(path, sizeof(path), "%s/exp-info/NAMES.txt", pctx.log_home);
+        info("dumping valid particle names to ...");
         info(path);
-        fd0 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
-        if (fd0 == -1) {
-          error("open");
-        }
-        num_names = 0;
-        tmp = "sampled names = (\n    ...\n";
+      }
+      fd0 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+      if (fd0 != -1) {
+        tmp = "dumped names = (\n    ...\n";
         for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
              it != pctx.smap->end(); ++it) {
           if (it->second == num_epochs) {
@@ -1125,13 +1124,19 @@ int MPI_Finalize(void) {
         }
         tmp += "    ...\n";
         tmp += ")";
-        info(tmp.c_str());
-        if (fd0 != -1) {
-          close(fd0);
+        if (pctx.myrank == 0) {
+          info(tmp.c_str());
         }
-        diff = now_micros() - ts;
-        snprintf(msg, sizeof(msg), "dumping ok (%s names) %s",
-                 pretty_num(num_names).c_str(), pretty_dura(diff).c_str());
+        close(fd0);
+      } else {
+        error("open");
+      }
+      num_samples[0] = num_names;
+      MPI_Reduce(num_samples, sum_samples, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
+                 0, MPI_COMM_WORLD);
+      if (pctx.myrank == 0) {
+        snprintf(msg, sizeof(msg), "dumping ok (%s names)",
+                 pretty_num(sum_samples[0]).c_str());
         info(msg);
       }
     }
