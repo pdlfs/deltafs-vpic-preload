@@ -231,7 +231,7 @@ void mon_dumpstate(int fd, const mon_ctx_t* ctx) {
   char buf[1024];
   if (!ctx->global) {
     DUMP(fd, buf, "\n--- epoch-[%d] (rank %d) ---", ctx->epoch_seq,
-         pctx.myrank);
+         pctx.my_rank);
     DUMP(fd, buf, "!!! NON GLOBAL !!!");
   } else {
     DUMP(fd, buf, "\n--- epoch-[%d] ---", ctx->epoch_seq);

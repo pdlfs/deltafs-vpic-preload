@@ -99,7 +99,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                MPI_COMM_WORLD);
     MPI_Reduce(&nnctx.minqsz, &max_minqsz, 1, MPI_INT, MPI_MAX, 0,
                MPI_COMM_WORLD);
-    if (pctx.myrank == 0 && nps != 0) {
+    if (pctx.my_rank == 0 && nps != 0) {
       snprintf(msg, sizeof(msg),
                "[rpc] incoming queue depth: %.3f per rank\n"
                ">>> max: %d - %d, min: %d - %d",
@@ -124,7 +124,7 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
     subnet = DEFAULT_SUBNET;
   }
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
     if (strcmp(subnet, "127.0.0.1") == 0) {
       warn(msg);
@@ -152,7 +152,7 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
   if (min_port < 1) msg_abort("bad min port");
   if (max_port > 65535) msg_abort("bad max port");
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
     info(msg);
   }
@@ -161,7 +161,7 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
   if (proto == NULL) {
     proto = DEFAULT_HG_PROTO;
   }
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using %s", proto);
     if (strstr(proto, "tcp") != NULL) {
       warn(msg);
@@ -181,13 +181,13 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   char msg[150];
   if (is_envset("SHUFFLE_Use_3hop")) {
     ctx->type = SHUFFLE_3HOP;
-    if (pctx.myrank == 0) {
+    if (pctx.my_rank == 0) {
       snprintf(msg, sizeof(msg), "using the scalable 3-hop shuffler");
       info(msg);
     }
   } else {
     ctx->type = SHUFFLE_NN;
-    if (pctx.myrank == 0) {
+    if (pctx.my_rank == 0) {
       snprintf(msg, sizeof(msg),
                "using the default NN shuffler: code might not scale well\n>>> "
                "switch to the 3-hop shuffler for better scalability");
@@ -201,7 +201,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   } else {
     nn_shuffler_init();
   }
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
 #ifdef HG_HAS_SELF_FORWARD
     info("HG_HAS_SELF_FORWARD is ON");
 #else

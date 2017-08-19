@@ -76,9 +76,9 @@ typedef struct preload_ctx {
 
   int pre_flushing; /* force a soft flush at the end of an epoch */
 
-  int myrank; /* my MPI world rank */
-  int commsz; /* my MPI world size */
-  int mycpus; /* num of available cpu cores */
+  int my_rank; /* my MPI world rank */
+  int comm_sz; /* my MPI world size */
+  int my_cpus; /* num of available cpu cores */
 
   const char* plfsdir;  /* path to the plfsdir */
   size_t len_plfsdir;   /* strlen */

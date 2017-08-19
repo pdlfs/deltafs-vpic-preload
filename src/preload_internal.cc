@@ -66,14 +66,14 @@ void preload_barrier(MPI_Comm comm) {
   struct barrier_state min;
   double dura;
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     info("barrier ...");
   }
   start.time = MPI_Wtime();
-  start.rank = pctx.myrank;
+  start.rank = pctx.my_rank;
   MPI_Allreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC,
                 static_cast<MPI_Comm>(comm));
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     dura = MPI_Wtime() - min.time;
     if (pctx.verr) {
       snprintf(msg, sizeof(msg),

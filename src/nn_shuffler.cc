@@ -131,7 +131,7 @@ static const char* prepare_addr(char* buf) {
     subnet = DEFAULT_SUBNET;
   }
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
     if (strcmp(subnet, "127.0.0.1") == 0) {
       warn(msg);
@@ -158,9 +158,9 @@ static const char* prepare_addr(char* buf) {
           break;
         } else {
 #ifndef NDEBUG
-          if (pctx.verr || pctx.myrank == 0) {
+          if (pctx.verr || pctx.my_rank == 0) {
             snprintf(msg, sizeof(msg), "[ip] skip %s (rank %d)", ip,
-                     pctx.myrank);
+                     pctx.my_rank);
             info(msg);
           }
 #endif
@@ -195,7 +195,7 @@ static const char* prepare_addr(char* buf) {
   if (min_port < 1) msg_abort("bad min port");
   if (max_port > 65535) msg_abort("bad max port");
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
     info(msg);
   }
@@ -267,7 +267,7 @@ static const char* prepare_addr(char* buf) {
   env = maybe_getenv("SHUFFLE_Mercury_proto");
   if (env == NULL) env = DEFAULT_HG_PROTO;
   sprintf(buf, "%s://%s:%d", env, ip, port);
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using %s", env);
     if (strstr(env, "tcp") != NULL) {
       warn(msg);
@@ -277,8 +277,8 @@ static const char* prepare_addr(char* buf) {
   }
 
 #ifndef NDEBUG
-  if (pctx.verr || pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.myrank);
+  if (pctx.verr || pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);
     info(msg);
   }
 #endif
@@ -369,8 +369,8 @@ static void* rpc_work(void* arg) {
   todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
   char msg[100];
-  if (pctx.verr || pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc worker up (rank %d)", pctx.myrank);
+  if (pctx.verr || pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc worker up (rank %d)", pctx.my_rank);
     info(msg);
   }
 #endif
@@ -422,8 +422,8 @@ static void* rpc_work(void* arg) {
   nnctx.maxqsz = int(max_items);
   nnctx.nps = num_loops;
 #ifndef NDEBUG
-  if (pctx.verr || pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc worker down (rank %d)", pctx.myrank);
+  if (pctx.verr || pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc worker down (rank %d)", pctx.my_rank);
     info(msg);
   }
 #endif
@@ -1182,8 +1182,8 @@ static void* bg_work(void* foo) {
   char msg[100];
 
 #ifndef NDEBUG
-  if (pctx.verr || pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc looper up (rank %d)", pctx.myrank);
+  if (pctx.verr || pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc looper up (rank %d)", pctx.my_rank);
     info(msg);
   }
 #endif
@@ -1201,7 +1201,7 @@ static void* bg_work(void* foo) {
       if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
         snprintf(msg, sizeof(msg),
                  "calling HG_Progress() with high interval: %d ms (rank %d)",
-                 int(now - last_progress), pctx.myrank);
+                 int(now - last_progress), pctx.my_rank);
         warn(msg);
       }
       last_progress = now;
@@ -1220,8 +1220,8 @@ static void* bg_work(void* foo) {
   pthread_mtx_unlock(&mtx[bg_cv]);
 
 #ifndef NDEBUG
-  if (pctx.verr || pctx.myrank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc looper down (rank %d)", pctx.myrank);
+  if (pctx.verr || pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "[bg] rpc looper down (rank %d)", pctx.my_rank);
     info(msg);
   }
 #endif
@@ -1256,7 +1256,7 @@ void nn_shuffler_init_ssg() {
   rank = ssg_get_rank(nnctx.ssg);
 
   if (pctx.paranoid_checks) {
-    if (size != pctx.commsz || rank != pctx.myrank) {
+    if (size != pctx.comm_sz || rank != pctx.my_rank) {
       msg_abort("ssg-mpi disagree");
     }
   }
@@ -1270,7 +1270,7 @@ void nn_shuffler_init_ssg() {
                                       0 /* hash seed */);
   if (!nnctx.chp) msg_abort("ch_init");
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
       snprintf(msg, sizeof(msg),
                "ch/p group size: %s (vir-factor: %s, proto: %s)",
@@ -1378,7 +1378,7 @@ void nn_shuffler_init() {
     rpcqs[i].busy = 0;
     rpcqs[i].sz = 0;
   }
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "rpc buffer: %s x %s (%s total)",
              pretty_num(nrpcqs).c_str(), pretty_size(max_rpcq_sz).c_str(),
              pretty_size(nrpcqs * max_rpcq_sz).c_str());
@@ -1404,11 +1404,11 @@ void nn_shuffler_init() {
     rv = pthread_create(&pid, NULL, rpc_work, NULL);
     if (rv) msg_abort("pthread_create");
     pthread_detach(pid);
-  } else if (pctx.myrank == 0) {
+  } else if (pctx.my_rank == 0) {
     warn("rpc worker disabled");
   }
 
-  if (pctx.myrank == 0) {
+  if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
