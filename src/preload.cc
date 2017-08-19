@@ -889,8 +889,9 @@ int MPI_Init(int* argc, char*** argv) {
     if (pctx.monfd == -1) {
       msg_abort("cannot create tmp stats file");
     } else if (rank == 0) {
-      snprintf(msg, sizeof(msg), "in-mem epoch mon stats %d bytes",
-               int(sizeof(mon_ctx_t)));
+      snprintf(msg, sizeof(msg),
+               "in-mem epoch mon stats %d bytes\n>>> MON_BUF_SIZE is %d",
+               int(sizeof(mon_ctx_t)), MON_BUF_SIZE);
       info(msg);
     }
   }
@@ -911,7 +912,21 @@ int MPI_Init(int* argc, char*** argv) {
           "and memory usage unnecessarily high\n>>> "
           "rerun with \"export PRELOAD_No_paranoid_checks=1\" to disable");
     if (pctx.noscan) warn("auto os & hardware detection disabled");
-    if (pctx.nomon) warn("self-mon disabled");
+    if (pctx.nomon)
+      warn("self-mon disabled: detailed stats reporting not available");
+
+    n = snprintf(msg, sizeof(msg), "deltafs root is \"%s\"", pctx.deltafs_root);
+    if (pctx.num_ignore_dirs != 0) {
+      n += snprintf(msg + n, sizeof(msg) - n, "\n>>> ignore dirs: ");
+      for (size_t i = 0; i < pctx.num_ignore_dirs; i++)
+        n += snprintf(
+            msg + n, sizeof(msg) - n, "\"%s\",",
+            std::string(pctx.ignore_dirs[i], pctx.len_ignore_dirs[i]).c_str());
+      if (n - 1 < sizeof(msg)) {
+        msg[n - 1] = 0;
+      }
+    }
+    info(msg);
 
     if (IS_BYPASS_WRITE(pctx.mode)) {
       warn("particle writes bypassed");
