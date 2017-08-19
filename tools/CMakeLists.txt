@@ -34,5 +34,5 @@ set_property (TARGET vpic-deltafs-reader APPEND PROPERTY LINK_FLAGS
 #
 # "make install" rules
 #
-install (TARGETS vpic-deltafs-reader
+install (TARGETS vpic-deltafs-reader simple-vpic-deltafs-reader
          RUNTIME DESTINATION bin)
