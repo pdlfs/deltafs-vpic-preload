@@ -416,7 +416,10 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat,
   }
 }
 
-static std::string gen_plfsdir_conf(int rank) {
+/*
+ * plfsdir_conf: plfsdir configurations.
+ */
+struct plfsdir_conf {
   const char* key_size;
   const char* bits_per_key;
   const char* comp_buf;
@@ -427,77 +430,88 @@ static std::string gen_plfsdir_conf(int rank) {
   const char* memtable_size;
   const char* lg_parts;
   int skip_checksums;
+};
+
+static struct plfsdir_conf dirc = {0};
+
+/*
+ * gen_plfsdir_conf: initialize plfsdir conf and obtain it's string literal.
+ */
+static std::string gen_plfsdir_conf(int rank) {
   char tmp[500];
   int n;
 
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
-  key_size = maybe_getenv("PLFSDIR_Key_size");
-  if (key_size == NULL) {
-    key_size = DEFAULT_KEY_SIZE;
+  dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
+  if (dirc.key_size == NULL) {
+    dirc.key_size = DEFAULT_KEY_SIZE;
   }
 
-  bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
-  if (bits_per_key == NULL) {
-    bits_per_key = DEFAULT_BITS_PER_KEY;
+  dirc.bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
+  if (dirc.bits_per_key == NULL) {
+    dirc.bits_per_key = DEFAULT_BITS_PER_KEY;
   }
 
-  memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
-  if (memtable_size == NULL) {
-    memtable_size = DEFAULT_MEMTABLE_SIZE;
+  dirc.memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
+  if (dirc.memtable_size == NULL) {
+    dirc.memtable_size = DEFAULT_MEMTABLE_SIZE;
   }
 
-  comp_buf = maybe_getenv("PLFSDIR_Compaction_buf_size");
-  if (comp_buf == NULL) {
-    comp_buf = DEFAULT_COMPACTION_BUF;
+  dirc.comp_buf = maybe_getenv("PLFSDIR_Compaction_buf_size");
+  if (dirc.comp_buf == NULL) {
+    dirc.comp_buf = DEFAULT_COMPACTION_BUF;
   }
 
-  min_index_write_size = maybe_getenv("PLFSDIR_Index_min_write_size");
-  if (min_index_write_size == NULL) {
-    min_index_write_size = DEFAULT_INDEX_MIN_WRITE_SIZE;
+  dirc.min_index_write_size = maybe_getenv("PLFSDIR_Index_min_write_size");
+  if (dirc.min_index_write_size == NULL) {
+    dirc.min_index_write_size = DEFAULT_INDEX_MIN_WRITE_SIZE;
   }
 
-  index_buf = maybe_getenv("PLFSDIR_Index_buf_size");
-  if (index_buf == NULL) {
-    index_buf = DEFAULT_INDEX_BUF;
+  dirc.index_buf = maybe_getenv("PLFSDIR_Index_buf_size");
+  if (dirc.index_buf == NULL) {
+    dirc.index_buf = DEFAULT_INDEX_BUF;
   }
 
-  min_data_write_size = maybe_getenv("PLFSDIR_Data_min_write_size");
-  if (min_data_write_size == NULL) {
-    min_data_write_size = DEFAULT_DATA_MIN_WRITE_SIZE;
+  dirc.min_data_write_size = maybe_getenv("PLFSDIR_Data_min_write_size");
+  if (dirc.min_data_write_size == NULL) {
+    dirc.min_data_write_size = DEFAULT_DATA_MIN_WRITE_SIZE;
   }
 
-  data_buf = maybe_getenv("PLFSDIR_Data_buf_size");
-  if (data_buf == NULL) {
-    data_buf = DEFAULT_DATA_BUF;
+  dirc.data_buf = maybe_getenv("PLFSDIR_Data_buf_size");
+  if (dirc.data_buf == NULL) {
+    dirc.data_buf = DEFAULT_DATA_BUF;
   }
 
-  lg_parts = maybe_getenv("PLFSDIR_Lg_parts");
-  if (lg_parts == NULL) {
-    lg_parts = DEFAULT_LG_PARTS;
+  dirc.lg_parts = maybe_getenv("PLFSDIR_Lg_parts");
+  if (dirc.lg_parts == NULL) {
+    dirc.lg_parts = DEFAULT_LG_PARTS;
   }
 
   if (is_envset("PLFSDIR_Skip_checksums")) {
-    skip_checksums = 1;
+    dirc.skip_checksums = 1;
   } else {
-    skip_checksums = 0;
+    dirc.skip_checksums = 0;
   }
 
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", lg_parts);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s", memtable_size);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&compaction_buffer=%s", comp_buf);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&index_buffer=%s", index_buf);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", dirc.lg_parts);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
+                dirc.memtable_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&compaction_buffer=%s",
+                dirc.comp_buf);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&index_buffer=%s", dirc.index_buf);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&min_index_buffer=%s",
-                min_index_write_size);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&data_buffer=%s", data_buf);
+                dirc.min_index_write_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&data_buffer=%s", dirc.data_buf);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&min_data_buffer=%s",
-                min_data_write_size);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&skip_checksums=%d", skip_checksums);
+                dirc.min_data_write_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&skip_checksums=%d",
+                dirc.skip_checksums);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
-                bits_per_key);
+                dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
                 PRELOAD_PARTICLE_SIZE);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", key_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
 
   return tmp;
 }
@@ -1099,7 +1113,7 @@ int MPI_Finalize(void) {
     }
     if (!pctx.nodist) {
       num_names = 0;
-      snprintf(path, sizeof(path), "%s/exp-info/NAMES-%08d.txt", pctx.log_home,
+      snprintf(path, sizeof(path), "%s/exp-info/NAMES-%07d.txt", pctx.log_home,
                pctx.myrank);
       if (pctx.myrank == 0) {
         info("dumping valid particle names to ...");
@@ -1155,7 +1169,7 @@ int MPI_Finalize(void) {
         info("merging and saving epoch mon stats to ...");
         ts = now_micros();
         if (mon_dump_bin) {
-          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon-stats.bin",
+          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon.bin",
                    pctx.log_home);
           info(path);
           fd1 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
@@ -1165,7 +1179,7 @@ int MPI_Finalize(void) {
           }
         }
         if (mon_dump_txt) {
-          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon-stats.txt",
+          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon.txt",
                    pctx.log_home);
           info(path);
           fd2 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
