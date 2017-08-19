@@ -1111,23 +1111,26 @@ int MPI_Finalize(void) {
         for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
              it != pctx.smap->end(); ++it) {
           if (it->second == num_epochs) {
+            n = snprintf(msg, sizeof(msg), "%s\n", it->first.c_str());
+            n = write(fd0, msg, n);
+            if (n == -1) {
+              break;
+            }
             num_names++;
             if (num_names <= 7) {
               tmp += " !! ";
               tmp += it->first;
               tmp += "\n";
             }
-            n = snprintf(msg, sizeof(msg), "%s\n", it->first.c_str());
-            write(fd0, msg, n);
-            errno = 0;
           }
         }
         tmp += "    ...\n";
         tmp += ")";
-        if (pctx.myrank == 0) {
+        if (num_names != 0 && pctx.myrank == 0) {
           info(tmp.c_str());
         }
         close(fd0);
+        errno = 0;
       } else {
         error("open");
       }
@@ -1222,7 +1225,7 @@ int MPI_Finalize(void) {
               memset(buf, 0, sizeof(buf));
               assert(sizeof(buf) > sizeof(mon_ctx_t));
               memcpy(buf, &glob, sizeof(mon_ctx_t));
-              write(fd1, buf, sizeof(buf));
+              n = write(fd1, buf, sizeof(buf));
               errno = 0;
             }
             if (sizeof(buf) != 0) {
