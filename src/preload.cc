@@ -1029,6 +1029,26 @@ int MPI_Finalize(void) {
       snprintf(path, sizeof(path), "%s/exp-info/TIMESTAMP-%s", pctx.log_home,
                suffix);
       mknod(path, 0644, S_IFREG);
+      if (pctx.plfsdir != NULL) {
+        snprintf(path, sizeof(path), "%s/exp-info/MANIFEST", pctx.log_home);
+        fd0 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd0 != -1) {
+          n = snprintf(msg, sizeof(msg), "key_size=%s\n", dirc.key_size);
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "filter_bits_per_key=%s\n",
+                       dirc.bits_per_key);
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "lg_parts=%s\n", dirc.lg_parts);
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "skip_checksums=%d\n",
+                       dirc.skip_checksums);
+          n = write(fd0, msg, n);
+          close(fd0);
+          errno = 0;
+        } else {
+          error("open");
+        }
+      }
     }
   }
 
