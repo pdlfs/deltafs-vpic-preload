@@ -967,8 +967,7 @@ int MPI_Finalize(void) {
   mon_ctx_t glob;
   dir_stat_t tmp_stat;
   char buf[MON_BUF_SIZE];
-  char src_path[PATH_MAX];
-  char dst_path[PATH_MAX];
+  char path[PATH_MAX];
   char suffix[100];
   char msg[200];
   unsigned long long num_writes;
@@ -1001,6 +1000,8 @@ int MPI_Finalize(void) {
     info(msg);
     if (!pctx.nodist) {
       nxt.mkdir(pctx.log_home, 0755);
+      snprintf(path, sizeof(path), "%s/exp-info", pctx.log_home);
+      nxt.mkdir(path, 0755);
       now = time(NULL);
       localtime_r(&now, &timeinfo);
       snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
@@ -1011,6 +1012,9 @@ int MPI_Finalize(void) {
                timeinfo.tm_min,          // mm
                timeinfo.tm_sec           // ss
                );
+      snprintf(path, sizeof(path), "%s/exp-info/TIMESTAMP-%s", pctx.log_home,
+               suffix);
+      mknod(path, 0644, S_IFREG);
     }
   }
 
@@ -1097,16 +1101,10 @@ int MPI_Finalize(void) {
       if (pctx.myrank == 0) {
         info("dumping sampled particle names to ...");
         ts = now_micros();
-        snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_home,
-                 "vpic-deltafs-sampled-particle-names", suffix);
-        info(src_path);
-        fd0 = open(src_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
-        if (fd0 != -1) {
-          snprintf(dst_path, sizeof(dst_path),
-                   "%s/vpic-deltafs-sampled-particle-names.txt", pctx.log_home);
-          softlink(src_path + pctx.len_log_home + 1, dst_path);
-          errno = 0;
-        } else {
+        snprintf(path, sizeof(path), "%s/exp-info/NAMES.txt", pctx.log_home);
+        info(path);
+        fd0 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+        if (fd0 == -1) {
           error("open");
         }
         num_names = 0;
@@ -1121,7 +1119,7 @@ int MPI_Finalize(void) {
               tmp += "\n";
             }
             n = snprintf(msg, sizeof(msg), "%s\n", it->first.c_str());
-            n = write(fd0, msg, n);
+            write(fd0, msg, n);
             errno = 0;
           }
         }
@@ -1149,29 +1147,21 @@ int MPI_Finalize(void) {
         info("merging and saving epoch mon stats to ...");
         ts = now_micros();
         if (mon_dump_bin) {
-          snprintf(src_path, sizeof(src_path), "%s/%s-%s.bin", pctx.log_home,
-                   "vpic-deltafs-mon-reduced", suffix);
-          info(src_path);
-          fd1 = open(src_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
-          if (fd1 != -1) {
-            snprintf(dst_path, sizeof(dst_path),
-                     "%s/vpic-deltafs-mon-reduced.bin", pctx.log_home);
-            softlink(src_path + pctx.len_log_home + 1, dst_path);
-          } else {
+          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon-stats.bin",
+                   pctx.log_home);
+          info(path);
+          fd1 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+          if (fd1 == -1) {
             error("open");
             ok = 0;
           }
         }
         if (mon_dump_txt) {
-          snprintf(src_path, sizeof(src_path), "%s/%s-%s.txt", pctx.log_home,
-                   "vpic-deltafs-mon-reduced", suffix);
-          info(src_path);
-          fd2 = open(src_path, O_WRONLY | O_CREAT | O_EXCL, 0644);
-          if (fd2 != -1) {
-            snprintf(dst_path, sizeof(dst_path),
-                     "%s/vpic-deltafs-mon-reduced.txt", pctx.log_home);
-            softlink(src_path + pctx.len_log_home + 1, dst_path);
-          } else {
+          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon-stats.txt",
+                   pctx.log_home);
+          info(path);
+          fd2 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
+          if (fd2 == -1) {
             error("open");
             ok = 0;
           }
@@ -1227,7 +1217,7 @@ int MPI_Finalize(void) {
               memset(buf, 0, sizeof(buf));
               assert(sizeof(buf) > sizeof(mon_ctx_t));
               memcpy(buf, &glob, sizeof(mon_ctx_t));
-              n = write(fd1, buf, sizeof(buf));
+              write(fd1, buf, sizeof(buf));
               errno = 0;
             }
             if (sizeof(buf) != 0) {
