@@ -1043,7 +1043,7 @@ int MPI_Finalize(void) {
           n = snprintf(msg, sizeof(msg), "skip_checksums=%d\n",
                        dirc.skip_checksums);
           n = write(fd0, msg, n);
-          n = snprintf(msg, sizeof(msg), "comm_sz=%d", pctx.comm_sz);
+          n = snprintf(msg, sizeof(msg), "comm_sz=%d\n", pctx.comm_sz);
           n = write(fd0, msg, n);
           close(fd0);
           errno = 0;
