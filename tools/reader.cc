@@ -439,6 +439,7 @@ int main(int argc, char* argv[]) {
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
 
+  memset(&m, 0, sizeof(m));
   if (g.v) info("start queries (%d ranks) ...", std::min(g.r, c.comm_sz));
   for (int i = 0; i < g.r && i < c.comm_sz; i++) {
     run_queries(i);
