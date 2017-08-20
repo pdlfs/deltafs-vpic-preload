@@ -134,6 +134,7 @@ struct gs {
   int bg;        /* number of background worker threads */
   char* in;      /* path to the input dir */
   char* dirname; /* dir name (path to dir storage) */
+  int nobf;      /* ignore bloom filters */
   int crc32c;    /* verify checksums */
   int paranoid;  /* paranoid checks */
   int timeout;   /* alarm timeout */
@@ -180,12 +181,13 @@ static void sigalarm(int foo) {
  */
 static void usage(const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
-  fprintf(stderr, "usage: %s [options] plfsdir indir\n", argv0);
+  fprintf(stderr, "usage: %s [options] plfsdir infodir\n", argv0);
   fprintf(stderr, "\noptions:\n");
-  fprintf(stderr, "\t-r num    number of ranks to read\n");
-  fprintf(stderr, "\t-d num    number of names to read per rank\n");
+  fprintf(stderr, "\t-r ranks  number of ranks to read\n");
+  fprintf(stderr, "\t-d depth  number of names to read per rank\n");
   fprintf(stderr, "\t-j num    number of background worker threads\n");
   fprintf(stderr, "\t-t sec    timeout (alarm), in seconds\n");
+  fprintf(stderr, "\t-i        ignore bloom filters\n");
   fprintf(stderr, "\t-c        verify crc32c (for both data and indexes)\n");
   fprintf(stderr, "\t-k        force paranoid checks\n");
   fprintf(stderr, "\t-v        be verbose\n");
@@ -251,6 +253,8 @@ static void prepare_conf(int rank) {
   n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
   n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
   n += snprintf(cf + n, sizeof(cf) - n, "&paranoid_checks=%d", g.paranoid);
+  n += snprintf(cf + n, sizeof(cf) - n, "&parallel_reads=%d", g.bg != 0);
+  n += snprintf(cf + n, sizeof(cf) - n, "&ignore_filters=%d", g.nobf);
   snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
 
 #ifndef NDEBUG
@@ -337,8 +341,8 @@ static void run_queries(int rank) {
   if (r) complain("error opening plfsdir: %s", strerror(errno));
 
   if (g.v)
-    info("do %d/%d reads on rank %d...", std::min(g.d, int(names.size())),
-         int(names.size()), rank);
+    info("rank %d (%d reads over %d samples) ...", rank,
+         std::min(g.d, int(names.size())), int(names.size()));
   for (int i = 0; i < g.d && i < int(names.size()); i++) {
     do_read(dir, names[i].c_str());
   }
@@ -364,7 +368,7 @@ int main(int argc, char* argv[]) {
   /* setup default to zero/null, except as noted below */
   memset(&g, 0, sizeof(g));
   g.timeout = DEF_TIMEOUT;
-  while ((ch = getopt(argc, argv, "r:d:j:t:ckv")) != -1) {
+  while ((ch = getopt(argc, argv, "r:d:j:t:ickv")) != -1) {
     switch (ch) {
       case 'r':
         g.r = atoi(optarg);
@@ -381,6 +385,9 @@ int main(int argc, char* argv[]) {
       case 't':
         g.timeout = atoi(optarg);
         if (g.timeout < 0) usage("bad timeout");
+        break;
+      case 'i':
+        g.nobf = 1;
         break;
       case 'c':
         g.crc32c = 1;
@@ -417,8 +424,10 @@ int main(int argc, char* argv[]) {
   printf("\tinfodir: %s\n", g.in);
   printf("\tplfsdir: %s\n", g.dirname);
   printf("\ttimeout: %d\n", g.timeout);
+  printf("\tignore bloom filters: %d\n", g.nobf);
   printf("\tverify crc32: %d\n", g.crc32c);
   printf("\tparanoid checks: %d\n", g.paranoid);
+  printf("\tverbose: %d\n", g.v);
   printf("\n==dir manifest\n");
   printf("\tkey size: %d\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
@@ -430,7 +439,7 @@ int main(int argc, char* argv[]) {
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
 
-  if (g.v) info("start queries ...");
+  if (g.v) info("start queries (%d ranks) ...", std::min(g.r, c.comm_sz));
   for (int i = 0; i < g.r && i < c.comm_sz; i++) {
     run_queries(i);
   }
