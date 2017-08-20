@@ -31,7 +31,7 @@
 /*
  * reader.cc
  *
- * a simple program for reading data out of a plfsdir.
+ * a simple reader program for reading data out of a plfsdir.
  */
 
 #include <assert.h>
@@ -61,7 +61,14 @@
  */
 static char* argv0;      /* argv[0], program name */
 static deltafs_tp_t* tp; /* plfsdir worker thread pool */
-static char conf[500];   /* plfsdir conf */
+static char cf[500];     /* plfsdir conf str */
+static struct deltafs_conf {
+  int key_size;
+  int filter_bits_per_key;
+  int lg_parts;
+  int skip_crc32c;
+  int comm_sz;
+} c; /* plfsdir conf */
 
 /*
  * vcomplain/complain about something and exit.
@@ -122,13 +129,11 @@ static uint64_t now() {
  * gs: shared global data (e.g. from the command line)
  */
 struct gs {
-  int w;         /* number of ranks to read */
+  int r;         /* number of ranks to read */
   int d;         /* number of names to read per rank */
   int bg;        /* number of background worker threads */
   char* in;      /* path to the input dir */
   char* dirname; /* dir name (path to dir storage) */
-  int dirradix;  /* dir radix (lg memtable partitions per rank) ) */
-  int dirsz;     /* dir size (total dir ranks) */
   int crc32c;    /* verify checksums */
   int paranoid;  /* paranoid checks */
   int timeout;   /* alarm timeout */
@@ -172,9 +177,7 @@ static void usage(const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
   fprintf(stderr, "usage: %s [options] plfsdir indir\n", argv0);
   fprintf(stderr, "\noptions:\n");
-  fprintf(stderr, "\t-s num    dir size (total dir ranks)\n");
-  fprintf(stderr, "\t-x num    dir radix (lg memtable partitions)\n");
-  fprintf(stderr, "\t-w num    number of ranks to read\n");
+  fprintf(stderr, "\t-r num    number of ranks to read\n");
   fprintf(stderr, "\t-d num    number of names to read per rank\n");
   fprintf(stderr, "\t-j num    number of background worker threads\n");
   fprintf(stderr, "\t-t sec    timeout (alarm), in seconds\n");
@@ -182,6 +185,51 @@ static void usage(const char* msg) {
   fprintf(stderr, "\t-k        force paranoid checks\n");
   fprintf(stderr, "\t-v        be verbose\n");
   exit(1);
+}
+
+/*
+ * get_manifest: parse the conf from the dir manifest file
+ */
+static void get_manifest() {
+  char* ch;
+  char fname[PATH_MAX];
+  char tmp[100];
+  FILE* f;
+
+  snprintf(fname, sizeof(fname), "%s/MANIFEST", g.in);
+  f = fopen(fname, "r");
+  if (!f) complain("error opening %s: %s", fname, strerror(errno));
+
+  while ((ch = fgets(tmp, sizeof(tmp), f)) != NULL) {
+    if (strncmp(ch, "key_size=", strlen("key_size=")) == 0) {
+      c.key_size = atoi(ch + strlen("key_size="));
+      if (c.key_size < 0) complain("bad key_size from manifest");
+    } else if (strncmp(ch, "filter_bits_per_key=",
+                       strlen("filter_bits_per_key=")) == 0) {
+      c.filter_bits_per_key = atoi(ch + strlen("filter_bits_per_key="));
+      if (c.filter_bits_per_key < 0)
+        complain("bad filter_bits_per_key from manifest");
+    } else if (strncmp(ch, "lg_parts=", strlen("lg_parts=")) == 0) {
+      c.lg_parts = atoi(ch + strlen("lg_parts="));
+      if (c.lg_parts < 0) complain("bad lg_parts from manifest");
+    } else if (strncmp(ch, "skip_checksums=", strlen("skip_checksums=")) == 0) {
+      c.skip_crc32c = atoi(ch + strlen("skip_checksums="));
+      if (c.skip_crc32c < 0) complain("bad skip_checksums from manifest");
+    } else if (strncmp(ch, "comm_sz=", strlen("comm_sz=")) == 0) {
+      c.comm_sz = atoi(ch + strlen("comm_sz="));
+      if (c.comm_sz < 0) complain("bad comm_sz from manifests");
+    }
+  }
+
+  if (ferror(f)) {
+    complain("error reading %s: %s", fname, strerror(errno));
+  }
+
+  if (c.key_size == 0 || c.filter_bits_per_key == 0 || c.comm_sz == 0) {
+    complain("bad manifest");
+  }
+
+  fclose(f);
 }
 
 /*
@@ -193,13 +241,15 @@ static void prepare_conf(int rank) {
   if (g.bg && !tp) tp = deltafs_tp_init(g.bg);
   if (g.bg && !tp) complain("fail to init thread pool");
 
-  n = snprintf(conf, sizeof(conf), "rank=%d", rank);
-  n += snprintf(conf + n, sizeof(conf) - n, "&verify_checksums=%d", g.crc32c);
-  n += snprintf(conf + n, sizeof(conf) - n, "&skip_checksums=%d", !g.crc32c);
-  snprintf(conf + n, sizeof(conf) - n, "&lg_parts=%d", g.dirradix);
+  n = snprintf(cf, sizeof(cf), "rank=%d", rank);
+  n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
+  n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
+  n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
+  n += snprintf(cf + n, sizeof(cf) - n, "&paranoid_checks=%d", g.paranoid);
+  snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
 
 #ifndef NDEBUG
-  info(conf);
+  info(cf);
 #endif
 }
 
@@ -246,12 +296,11 @@ static void get_names(int rank, std::vector<std::string>* results) {
 
   results->clear();
 
-  snprintf(fname, sizeof(fname), "%s/r-%08d.txt", g.in, rank);
+  snprintf(fname, sizeof(fname), "%s/NAMES-%07d.txt", g.in, rank);
   f = fopen(fname, "r");
   if (!f) complain("error opening %s: %s", fname, strerror(errno));
 
   while ((ch = fgets(tmp, sizeof(tmp), f)) != NULL) {
-    if (strlen(ch) >= 100) complain("name len overflow");
     results->push_back(std::string(ch, strlen(ch) - 1));
   }
 
@@ -271,11 +320,10 @@ static void run_queries(int rank) {
   int r;
 
   get_names(rank, &names);
-  if (g.v) info("\n%d names available for rank %d", int(names.size()), rank);
   std::random_shuffle(names.begin(), names.end());
   prepare_conf(rank);
 
-  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY);
+  dir = deltafs_plfsdir_create_handle(cf, O_RDONLY);
   if (!dir) complain("fail to create dir handle");
   deltafs_plfsdir_enable_io_measurement(dir, 0); /* we don't need this */
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
@@ -283,11 +331,12 @@ static void run_queries(int rank) {
   r = deltafs_plfsdir_open(dir, g.dirname);
   if (r) complain("error opening plfsdir: %s", strerror(errno));
 
-  if (g.v) info("do %d reads ...", std::min(g.d, int(names.size())));
+  if (g.v)
+    info("do %d/%d reads on rank %d...", std::min(g.d, int(names.size())),
+         int(names.size()), rank);
   for (int i = 0; i < g.d && i < int(names.size()); i++) {
     do_read(dir, names[i].c_str());
   }
-  if (g.v) info("ok");
 
   deltafs_plfsdir_free_handle(dir);
 
@@ -301,7 +350,7 @@ int main(int argc, char* argv[]) {
   int ch;
 
   argv0 = argv[0];
-  memset(conf, 0, sizeof(conf));
+  memset(cf, 0, sizeof(cf));
   tp = NULL;
 
   /* we want lines, even if we are writing to a pipe */
@@ -310,23 +359,15 @@ int main(int argc, char* argv[]) {
   /* setup default to zero/null, except as noted below */
   memset(&g, 0, sizeof(g));
   g.timeout = DEF_TIMEOUT;
-  while ((ch = getopt(argc, argv, "s:x:w:d:j:t:ckv")) != -1) {
+  while ((ch = getopt(argc, argv, "r:d:j:t:ckv")) != -1) {
     switch (ch) {
-      case 's':
-        g.dirsz = atoi(optarg);
-        if (g.dirsz < 0) usage("bad size");
-        break;
-      case 'x':
-        g.dirradix = atoi(optarg);
-        if (g.dirradix < 0) usage("bad radix");
-        break;
-      case 'w':
-        g.w = atoi(optarg);
-        if (g.w < 0) usage("bad w");
+      case 'r':
+        g.r = atoi(optarg);
+        if (g.r < 0) usage("bad rank number");
         break;
       case 'd':
         g.d = atoi(optarg);
-        if (g.d < 0) usage("bad d");
+        if (g.d < 0) usage("bad depth");
         break;
       case 'j':
         g.bg = atoi(optarg);
@@ -352,8 +393,7 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
-  if (!g.dirsz) usage("dir size cannot be 0");
-  if (argc != 2) /* plfsdir and indir must be provided on cli */
+  if (argc != 2) /* plfsdir and infodir must be provided on cli */
     usage("bad args");
   g.dirname = argv[0];
   g.in = argv[1];
@@ -363,22 +403,30 @@ int main(int argc, char* argv[]) {
   if (access(g.in, R_OK) != 0)
     complain("cannot access %s: %s", g.in, strerror(errno));
 
-  printf("\n%s options:\n", argv0);
-  printf("\t          num ranks: %d\n", g.w);
-  printf("\t num names per rank: %d\n", g.d);
-  printf("\t     num bg threads: %d\n", g.bg);
-  printf("\t          inpur dir: %s\n", g.in);
-  printf("\t       plfsdir name: %s\n", g.dirname);
-  printf("\t      plfsdir radix: %d\n", g.dirradix);
-  printf("\t         plfsdir sz: %d\n", g.dirsz);
-  printf("\t      alarm timeout: %d\n", g.timeout);
+  memset(&c, 0, sizeof(c));
+  get_manifest();
+
+  printf("\n%s\n==options:\n", argv0);
+  printf("\tqueries: %d x %d\n", g.r, g.d);
+  printf("\tnum bg threads: %d\n", g.bg);
+  printf("\tinfodir: %s\n", g.in);
+  printf("\tplfsdir: %s\n", g.dirname);
+  printf("\ttimeout: %d\n", g.timeout);
+  printf("\tverify crc32: %d\n", g.crc32c);
+  printf("\tparanoid checks: %d\n", g.paranoid);
+  printf("\n==dir manifest\n");
+  printf("\tkey size: %d\n", c.key_size);
+  printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
+  printf("\tskip crc32c: %d\n", c.skip_crc32c);
+  printf("\tlg parts: %d\n", c.lg_parts);
+  printf("\tcomm sz: %d\n", c.comm_sz);
   printf("\n");
 
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
 
-  if (g.v) info("ok - i'm doing it ...");
-  for (int i = 0; i < g.w && i < g.dirsz; i++) {
+  if (g.v) info("start queries ...");
+  for (int i = 0; i < g.r && i < c.comm_sz; i++) {
     run_queries(i);
   }
   if (g.v) info("all done!");
