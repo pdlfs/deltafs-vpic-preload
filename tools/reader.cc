@@ -156,9 +156,14 @@ struct ms {
  * report: print performance measurements
  */
 static void report() {
-  printf("total read ops: %lu\n", m.tn);
-  printf("total table seeks: %lu\n", m.ts);
-  printf("total seeks: %lu\n", m.tb);
+  printf("\n");
+  printf("total ops: %lu (%lu ranks), avg %.3f ms per op\n", m.tn, m.tr,
+         double(m.tt) / 1000 / m.tn);
+  printf("total sst touched: %lu, avg %.3f per op\n", m.ts,
+         double(m.ts) / m.tn);
+  printf("total seeks: %lu, avg %.3f per op\n", m.tb, double(m.tb) / m.tn);
+  printf("%lu bytes, %lu per op\n", m.td, m.td / m.tn);
+  printf("\n");
 }
 
 /*
@@ -429,10 +434,9 @@ int main(int argc, char* argv[]) {
   for (int i = 0; i < g.r && i < c.comm_sz; i++) {
     run_queries(i);
   }
+  report();
   if (g.v) info("all done!");
   if (g.v) info("bye");
-
-  report();
 
   exit(0);
 }
