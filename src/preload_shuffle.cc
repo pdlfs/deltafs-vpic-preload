@@ -42,7 +42,7 @@
 
 /* shuffle context for the 3-hop shuffler. */
 typedef struct _3h_ctx {
-  nexus_ctx_t* nx;
+  nexus_ctx_t nx;
   void* sh;
 } _3h_ctx_t;
 
@@ -170,9 +170,9 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
     }
   }
 
-  ret = nexus_bootstrap(ctx->nx, min_port, max_port, const_cast<char*>(subnet),
-                        const_cast<char*>(proto));
-  if (ret != NX_SUCCESS) {
+  ctx->nx = nexus_bootstrap(const_cast<char*>(subnet),
+                            const_cast<char*>(proto));
+  if (ctx->nx == NULL) {
     msg_abort("nexus_bootstrap");
   }
 }
