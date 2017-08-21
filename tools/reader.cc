@@ -63,6 +63,7 @@ static char* argv0;      /* argv[0], program name */
 static deltafs_tp_t* tp; /* plfsdir worker thread pool */
 static char cf[500];     /* plfsdir conf str */
 static struct deltafs_conf {
+  int num_epochs;
   int key_size;
   int filter_bits_per_key;
   int lg_parts;
@@ -158,11 +159,12 @@ struct ms {
  */
 static void report() {
   printf("\n");
-  printf("total ops: %lu (%lu ranks), avg %.3f ms per op\n", m.tn, m.tr,
-         double(m.tt) / 1000 / m.tn);
-  printf("total sst touched: %lu, avg %.3f per op\n", m.ts,
-         double(m.ts) / m.tn);
-  printf("total seeks: %lu, avg %.3f per op\n", m.tb, double(m.tb) / m.tn);
+  printf("total read ops: %lu (%lu ranks), avg %.3f ms per read op\n", m.tn,
+         m.tr, double(m.tt) / 1000 / m.tn);
+  printf("total sst touched: %lu, avg %.3f per op (%.3f per epoch)\n", m.ts,
+         double(m.ts) / m.tn, double(m.ts) / m.tn / c.num_epochs);
+  printf("total seeks: %lu, avg %.3f per op (%.3f per epoch)\n", m.tb,
+         double(m.tb) / m.tn, double(m.tb) / m.tn / c.num_epochs);
   printf("%lu bytes, %lu per op\n", m.td, m.td / m.tn);
   printf("\n");
 }
@@ -208,7 +210,10 @@ static void get_manifest() {
   if (!f) complain("error opening %s: %s", fname, strerror(errno));
 
   while ((ch = fgets(tmp, sizeof(tmp), f)) != NULL) {
-    if (strncmp(ch, "key_size=", strlen("key_size=")) == 0) {
+    if (strncmp(ch, "num_epochs=", strlen("num_epochs=")) == 0) {
+      c.num_epochs = atoi(ch + strlen("num_epochs="));
+      if (c.num_epochs < 0) complain("bad num_epochs from manifest");
+    } else if (strncmp(ch, "key_size=", strlen("key_size=")) == 0) {
       c.key_size = atoi(ch + strlen("key_size="));
       if (c.key_size < 0) complain("bad key_size from manifest");
     } else if (strncmp(ch, "filter_bits_per_key=",
@@ -429,6 +434,7 @@ int main(int argc, char* argv[]) {
   printf("\tparanoid checks: %d\n", g.paranoid);
   printf("\tverbose: %d\n", g.v);
   printf("\n==dir manifest\n");
+  printf("\tnum epochs: %d\n", c.num_epochs);
   printf("\tkey size: %d\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
