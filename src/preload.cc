@@ -1014,8 +1014,6 @@ int MPI_Finalize(void) {
     info(msg);
     if (!pctx.nodist) {
       nxt.mkdir(pctx.log_home, 0755);
-      snprintf(path, sizeof(path), "%s/exp-info", pctx.log_home);
-      nxt.mkdir(path, 0755);
       now = time(NULL);
       localtime_r(&now, &timeinfo);
       snprintf(suffix, sizeof(suffix), "%04d%02d%02d-%02d:%02d:%02d",
@@ -1026,13 +1024,14 @@ int MPI_Finalize(void) {
                timeinfo.tm_min,          // mm
                timeinfo.tm_sec           // ss
                );
-      snprintf(path, sizeof(path), "%s/exp-info/TIMESTAMP-%s", pctx.log_home,
-               suffix);
+      snprintf(path, sizeof(path), "%s/TIMESTAMP-%s", pctx.log_home, suffix);
       mknod(path, 0644, S_IFREG);
       if (pctx.plfsdir != NULL) {
-        snprintf(path, sizeof(path), "%s/exp-info/MANIFEST", pctx.log_home);
+        snprintf(path, sizeof(path), "%s/MANIFEST", pctx.log_home);
         fd0 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd0 != -1) {
+          n = snprintf(msg, sizeof(msg), "num_epochs=%d\n", num_epochs);
+          n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "key_size=%s\n", dirc.key_size);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "filter_bits_per_key=%s\n",
@@ -1134,8 +1133,9 @@ int MPI_Finalize(void) {
       info(msg);
     }
     if (!pctx.nodist) {
+      preload_barrier(MPI_COMM_WORLD);
       num_names = 0;
-      snprintf(path, sizeof(path), "%s/exp-info/NAMES-%07d.txt", pctx.log_home,
+      snprintf(path, sizeof(path), "%s/NAMES-%07d.txt", pctx.log_home,
                pctx.my_rank);
       if (pctx.my_rank == 0) {
         info("dumping valid particle names to ...");
@@ -1191,8 +1191,7 @@ int MPI_Finalize(void) {
         info("merging and saving epoch mon stats to ...");
         ts = now_micros();
         if (mon_dump_bin) {
-          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon.bin",
-                   pctx.log_home);
+          snprintf(path, sizeof(path), "%s/DUMP-mon.bin", pctx.log_home);
           info(path);
           fd1 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
           if (fd1 == -1) {
@@ -1201,8 +1200,7 @@ int MPI_Finalize(void) {
           }
         }
         if (mon_dump_txt) {
-          snprintf(path, sizeof(path), "%s/exp-info/DUMP-mon.txt",
-                   pctx.log_home);
+          snprintf(path, sizeof(path), "%s/DUMP-mon.txt", pctx.log_home);
           info(path);
           fd2 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
           if (fd2 == -1) {
