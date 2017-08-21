@@ -170,7 +170,9 @@ static void preload_init() {
   tmp = maybe_getenv("PRELOAD_Ignore_dirs");
   if (tmp != NULL && tmp[0] != 0) {
     for (const char* ch = strchr(tmp, ':'); ch != NULL;) {
-      paths.push_back(std::make_pair(tmp, ch - tmp));
+      if (ch != tmp) {
+        paths.push_back(std::make_pair(tmp, static_cast<size_t>(ch - tmp)));
+      }
       tmp = ch + 1;
       ch = strchr(tmp, ':');
     }
