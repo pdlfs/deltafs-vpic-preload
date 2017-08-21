@@ -161,9 +161,9 @@ static void report() {
   printf("\n");
   printf("total read ops: %lu (%lu ranks), avg %.3f ms per read op\n", m.tn,
          m.tr, double(m.tt) / 1000 / m.tn);
-  printf("total sst touched: %lu, avg %.3f per op (%.3f per epoch)\n", m.ts,
+  printf("total sst touched: %lu, avg %.1f per op (%.1f per epoch)\n", m.ts,
          double(m.ts) / m.tn, double(m.ts) / m.tn / c.num_epochs);
-  printf("total seeks: %lu, avg %.3f per op (%.3f per epoch)\n", m.tb,
+  printf("total seeks: %lu, avg %.1f per op (%.1f per epoch)\n", m.tb,
          double(m.tb) / m.tn, double(m.tb) / m.tn / c.num_epochs);
   printf("%lu bytes, %lu per op\n", m.td, m.td / m.tn);
   printf("\n");
@@ -237,7 +237,8 @@ static void get_manifest() {
     complain("error reading %s: %s", fname, strerror(errno));
   }
 
-  if (c.key_size == 0 || c.filter_bits_per_key == 0 || c.comm_sz == 0) {
+  if (c.num_epochs == 0 || c.key_size == 0 || c.filter_bits_per_key == 0 ||
+      c.comm_sz == 0) {
     complain("bad manifest");
   }
 
