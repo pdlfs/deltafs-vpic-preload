@@ -150,7 +150,8 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
 }
 
 void shuffle_init(shuffle_ctx_t* ctx) {
-  char msg[150];
+  char msg[200];
+  int n;
   if (is_envset("SHUFFLE_Use_3hop")) {
     ctx->type = SHUFFLE_3HOP;
     if (pctx.my_rank == 0) {
@@ -174,16 +175,32 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     nn_shuffler_init();
   }
   if (pctx.my_rank == 0) {
+    n = 0;
+    n += snprintf(msg + n, sizeof(msg) - n, "HG_HAS_POST_LIMIT is ");
+#ifdef HG_HAS_POST_LIMIT
+    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
+#else
+    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
+#endif
+    n += snprintf(msg + n, sizeof(msg) - n, ", HG_HAS_SELF_FORWARD is ");
 #ifdef HG_HAS_SELF_FORWARD
-    info("HG_HAS_SELF_FORWARD is ON");
+    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
 #else
-    info("HG_HAS_SELF_FORWARD is OFF");
+    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
 #endif
+    n += snprintf(msg + n, sizeof(msg) - n, ", HG_HAS_EAGER_BULK is ");
+#ifdef HG_HAS_EAGER_BULK
+    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
+#else
+    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
+#endif
+    n += snprintf(msg + n, sizeof(msg) - n, "\n>>> HG_HAS_CHECKSUMS is ");
 #ifdef HG_HAS_CHECKSUMS
-    info("HG_HAS_CHECKSUMS is ON");
+    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
 #else
-    info("HG_HAS_CHECKSUMS is OFF");
+    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
 #endif
+    info(msg);
   }
 }
 
