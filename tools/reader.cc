@@ -362,7 +362,7 @@ static void run_queries(int rank) {
   if (r) complain("error opening plfsdir: %s", strerror(errno));
 
   if (g.v)
-    info("rank %d (%d reads over %d samples) ...", rank,
+    info("rank %d (%d reads) ...\n>>> %d samples available)", rank,
          std::min(g.d, int(names.size())), int(names.size()));
   for (int i = 0; i < g.d && i < int(names.size()); i++) {
     do_read(dir, names[i].c_str());
@@ -377,6 +377,7 @@ static void run_queries(int rank) {
  * main program
  */
 int main(int argc, char* argv[]) {
+  std::vector<int> ranks;
   int ch;
 
   argv0 = argv[0];
@@ -465,9 +466,13 @@ int main(int argc, char* argv[]) {
   m.table_seeks[MIN] = ULONG_LONG_MAX;
   m.seeks[MIN] = ULONG_LONG_MAX;
   m.t[MIN] = ULONG_LONG_MAX;
+  for (int i = 0; i < c.comm_sz; i++) {
+    ranks.push_back(i);
+  }
+  std::random_shuffle(ranks.begin(), ranks.end());
   if (g.v) info("start queries (%d ranks) ...", std::min(g.r, c.comm_sz));
   for (int i = 0; i < g.r && i < c.comm_sz; i++) {
-    run_queries(i);
+    run_queries(ranks[i]);
   }
   report();
   if (g.v) info("all done!");
