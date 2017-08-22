@@ -146,26 +146,35 @@ struct gs {
  * ms: measurements
  */
 struct ms {
-  uint64_t tr; /* total ranks touched */
-  uint64_t tn; /* total names touched */
-  uint64_t td; /* total user data read out (in bytes) */
-  uint64_t tb; /* total data block fetched (total seeks) */
-  uint64_t ts; /* total sstable opened */
-  uint64_t tt; /* total time past (in micros)*/
+  uint64_t ranks;          /* num ranks touched */
+  uint64_t ops;            /* num read ops */
+  uint64_t bytes;          /* total amount of user data retrieved */
+  uint64_t seeks[3];       /* sum/min/max data block fetched */
+  uint64_t table_seeks[3]; /* sum/min/max sstable opened */
+  uint64_t t[3];           /* sum/min/max time past (in micros)*/
+#define SUM 0
+#define MIN 1
+#define MAX 2
 } m;
 
 /*
  * report: print performance measurements
  */
 static void report() {
+  if (m.ops == 0) return;
   printf("\n");
-  printf("total read ops: %lu (%lu ranks), avg %.3f ms per read op\n", m.tn,
-         m.tr, double(m.tt) / 1000 / m.tn);
-  printf("total sst touched: %lu, avg %.1f per op (%.1f per epoch)\n", m.ts,
-         double(m.ts) / m.tn, double(m.ts) / m.tn / c.num_epochs);
-  printf("total seeks: %lu, avg %.1f per op (%.1f per epoch)\n", m.tb,
-         double(m.tb) / m.tn, double(m.tb) / m.tn / c.num_epochs);
-  printf("%lu bytes, %lu per op\n", m.td, m.td / m.tn);
+  printf("+++ Query Results +++\n");
+  printf("Total Ranks: %lu\n", m.ranks);
+  printf("Total Read Ops: %lu\n", m.ops);
+  printf("Latency (avg/min/max): %.3f/%lu/%lu ms per op\n",
+         double(m.t[SUM]) / m.ops, m.t[MIN], m.t[MAX]);
+  printf("Table Seeks (avg/min/max): %.3f/%lu/%lu ms per op\n",
+         double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
+         m.table_seeks[MAX]);
+  printf("Seeks (avg/min/max): %.3f/%lu/%lu ms per op\n",
+         double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
+  printf("Total Epochs: %d\n", c.num_epochs);
+  printf("Total Bytes: %lu\n", m.bytes);
   printf("\n");
 }
 
@@ -293,11 +302,17 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
 
   free(data);
 
-  m.tt += end - start;
-  m.ts += table_seeks;
-  m.tb += seeks;
-  m.td += sz;
-  m.tn++;
+  m.t[SUM] += end - start;
+  m.t[MIN] = std::min(end - start, m.t[MIN]);
+  m.t[MAX] = std::max(end - start, m.t[MAX]);
+  m.table_seeks[SUM] += table_seeks;
+  m.table_seeks[MIN] = std::min(table_seeks, m.table_seeks[MIN]);
+  m.table_seeks[MAX] = std::max(table_seeks, m.table_seeks[MAX]);
+  m.seeks[SUM] += seeks;
+  m.seeks[MIN] = std::min(seeks, m.seeks[MIN]);
+  m.seeks[MAX] = std::max(seeks, m.seeks[MAX]);
+  m.bytes += sz;
+  m.ops++;
 }
 
 /*
@@ -355,7 +370,7 @@ static void run_queries(int rank) {
 
   deltafs_plfsdir_free_handle(dir);
 
-  m.tr++;
+  m.ranks++;
 }
 
 /*
@@ -447,6 +462,9 @@ int main(int argc, char* argv[]) {
   alarm(g.timeout);
 
   memset(&m, 0, sizeof(m));
+  m.table_seeks[MIN] = ULONG_LONG_MAX;
+  m.seeks[MIN] = ULONG_LONG_MAX;
+  m.t[MIN] = ULONG_LONG_MAX;
   if (g.v) info("start queries (%d ranks) ...", std::min(g.r, c.comm_sz));
   for (int i = 0; i < g.r && i < c.comm_sz; i++) {
     run_queries(i);
