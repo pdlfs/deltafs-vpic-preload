@@ -164,18 +164,19 @@ static void report() {
   if (m.ops == 0) return;
   printf("\n");
   printf("+++ Query Results +++\n");
-  printf("Total Ranks: %lu\n", m.ranks);
-  printf("Total Read Ops: %lu\n", m.ops);
-  printf("Latency (avg/min/max): %.3f/%.3f/%.3f ms per op\n",
+  printf("Total Ranks: %lu\t***grep me***\n", m.ranks);
+  printf("Total Read Ops: %lu\t***grep me***\n", m.ops);
+  printf("Total Particle Data: %lu bytes\t***grep me***\n", m.bytes);
+  printf("Num Epochs: %d\t***grep me***\n", c.num_epochs);
+  printf("Latency: %.3f (min: %.3f, max %.3f) ms per op\t***grep me***\n",
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
-  printf("Table Seeks (avg/min/max): %.1f/%lu/%lu per op\n",
+  printf("SST Seeks: %.3f (min: %lu, max: %lu) per op\t***grep me**\n",
          double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
          m.table_seeks[MAX]);
-  printf("Seeks (avg/min/max): %.1f/%lu/%lu per op\n",
+  printf("Seeks: %.3f (min: %lu, max: %lu) per op\t***grep me***\n",
          double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
-  printf("Total Particle Data: %lu bytes\n", m.bytes);
-  printf("Total Epochs: %d\n", c.num_epochs);
+  printf("BF Bits: %d\t***grep me***\n", c.filter_bits_per_key);
   printf("\n");
 }
 
