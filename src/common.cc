@@ -198,7 +198,7 @@ void try_scan_sysfs() {
   const char* dirname;
   char msg[200];
   char path[PATH_MAX];
-  std::string syscpus;
+  std::string jobcpuset;
   std::string idx[4];
   std::string mtu;
   std::string txqlen;
@@ -270,16 +270,16 @@ void try_scan_sysfs() {
       if (strcmp(dent->d_name, "lo") != 0 && strcmp(dent->d_name, ".") != 0 &&
           strcmp(dent->d_name, "..") != 0) {
         nic = dent->d_name;
-        snprintf(path, sizeof(path), "/sys/class/net/%s/tx_queue_len",
+        snprintf(path, sizeof(path), "%s/%s/tx_queue_len", dirname,
                  dent->d_name);
         txqlen = readline(path);
-        snprintf(path, sizeof(path), "/sys/class/net/%s/speed", dent->d_name);
+        snprintf(path, sizeof(path), "%s/%s/speed", dirname, dent->d_name);
         speed = readline(path);
-        snprintf(path, sizeof(path), "/sys/class/net/%s/mtu", dent->d_name);
+        snprintf(path, sizeof(path), "%s/%s/mtu", dirname, dent->d_name);
         mtu = readline(path);
         tx = 0;
         rx = 0;
-        snprintf(path, sizeof(path), "/sys/class/net/%s/queues", dent->d_name);
+        snprintf(path, sizeof(path), "%s/%s/queues", dirname, dent->d_name);
         dd = opendir(path);
         if (dd != NULL) {
           ddent = readdir(dd);
@@ -304,11 +304,34 @@ void try_scan_sysfs() {
     closedir(d);
   }
 
-  if (access("/sys/fs/cgroup/cpuset/slurm/system", R_OK) == 0) {
-    syscpus = readline("/sys/fs/cgroup/cpuset/slurm/system/cpuset.cpus");
-    snprintf(msg, sizeof(msg), "[cgroup] cpus specialized: %s",
-             syscpus.c_str());
-    info(msg);
+  dirname = "/sys/fs/cgroup/cpuset/slurm";
+  d = opendir(dirname);
+  if (d != NULL) {
+    dent = readdir(d);
+    for (; dent != NULL; dent = readdir(d)) {
+      if (strncmp(dent->d_name, "uid_", strlen("uid_")) == 0) {
+        snprintf(path, sizeof(path), "%s/%s", dirname, dent->d_name);
+        dd = opendir(path);
+        if (dd != NULL) {
+          ddent = readdir(dd);
+          for (; ddent != NULL; ddent = readdir(dd)) {
+            if (strncmp(ddent->d_name, "job_", strlen("job_")) == 0) {
+              snprintf(path, sizeof(path), "%s/%s/%s/cpus", dirname,
+                       dent->d_name, ddent->d_name);
+              jobcpuset = readline(path);
+              snprintf(msg, sizeof(msg),
+                       "[slurm] job cgroup cpuset: %s\n>>> %s/%s",
+                       jobcpuset.c_str(), dent->d_name, ddent->d_name);
+              info(msg);
+              break;
+            }
+          }
+          closedir(dd);
+        }
+        break;
+      }
+    }
+    closedir(d);
   }
 
   errno = 0;
