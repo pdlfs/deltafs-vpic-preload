@@ -178,27 +178,27 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     n = 0;
     n += snprintf(msg + n, sizeof(msg) - n, "HG_HAS_POST_LIMIT is ");
 #ifdef HG_HAS_POST_LIMIT
-    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
+    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
+    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
     n += snprintf(msg + n, sizeof(msg) - n, ", HG_HAS_SELF_FORWARD is ");
 #ifdef HG_HAS_SELF_FORWARD
-    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
+    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
+    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
     n += snprintf(msg + n, sizeof(msg) - n, ", HG_HAS_EAGER_BULK is ");
 #ifdef HG_HAS_EAGER_BULK
-    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
+    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
+    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
     n += snprintf(msg + n, sizeof(msg) - n, "\n>>> HG_HAS_CHECKSUMS is ");
 #ifdef HG_HAS_CHECKSUMS
-    n += snprintf(msg + n, sizeof(msg) - n, "ENABLED");
+    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "OFF");
+    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
     info(msg);
   }
