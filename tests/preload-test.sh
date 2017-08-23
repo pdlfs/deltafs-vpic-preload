@@ -6,7 +6,7 @@
 # Argument 1: directory containing library and test executable
 # Argument 2: number of MPI processes to spawn
 
-DELTAFS_ROOT="particle"
+DELTAFS_MNTP="particle"
 
 LOCAL_ROOT="/tmp/vpic-deltafs-test"
 
@@ -40,7 +40,7 @@ if [ x"$MPI" = xmpich ]; then
         -env LD_PRELOAD "$BUILD_PREFIX/src/libdeltafs-preload.so" \
         -env PRELOAD_Bypass_deltafs "1" \
         -env PRELOAD_Bypass_shuffle "0" \
-        -env PRELOAD_Deltafs_root "$DELTAFS_ROOT" \
+        -env PRELOAD_Deltafs_mntp "$DELTAFS_MNTP" \
         -env PRELOAD_Local_root "$LOCAL_ROOT" \
         -env PRELOAD_Testing "1" \
         $BUILD_PREFIX/tests/preload-test
@@ -52,7 +52,7 @@ elif [ x"$MPI" = xopenmpi ]; then
         -x "LD_PRELOAD=$BUILD_PREFIX/src/libdeltafs-preload.so" \
         -x "PRELOAD_Bypass_deltafs=1" \
         -x "PRELOAD_Bypass_shuffle=0" \
-        -x "PRELOAD_Deltafs_root=$DELTAFS_ROOT" \
+        -x "PRELOAD_Deltafs_mntp=$DELTAFS_MNTP" \
         -x "PRELOAD_Local_root=$LOCAL_ROOT" \
         -x "PRELOAD_Testing=1" \
         $BUILD_PREFIX/tests/preload-test
