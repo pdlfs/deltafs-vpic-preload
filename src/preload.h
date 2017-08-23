@@ -33,8 +33,8 @@
  *
  * A list of all environmental variables used by us:
  *
- *  PRELOAD_Deltafs_root
- *    Deltafs root (details below)
+ *  PRELOAD_Deltafs_mntp
+ *    Deltafs mount point (may be relative or empty)
  *  PRELOAD_Plfsdir
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Log_home
@@ -77,7 +77,7 @@
  *  PRELOAD_No_epoch_pre_flushing
  *    No soft epoch flush at the end of an epoch
  *  PRELOAD_Local_root
- *    Local file system root
+ *    Local file system root that backs deltafs
  *  PRELOAD_Testing
  *    Used by developers to debug code
  *  PRELOAD_Inject_fake_data
@@ -111,32 +111,9 @@
 #pragma once
 
 /*
- * If "deltafs_root" is not specified, we set it to the following path.
- *
- * App writes with a path that starts with "deltafs_root" will
- * be redirected to deltafs.
- *
- * "deltafs_root" maybe a relative path.
+ * Default tmp directory
  */
-#define DEFAULT_DELTAFS_ROOT "/deltafs"
-
-/*
- * If "log_home" is not specified, we set it to the following path.
- *
- * Home to log files.
- */
-#define DEFAULT_LOG_HOME "/tmp/vpic-deltafs-log"
-
-/*
- * If "local_root" is not specified, we set it to the following path.
- *
- * When "bypass_deltafs" or "bypass_deltafs_namespace" is set, we
- * will redirect deltafs writes to the local file system.
- *
- * In such cases, all local file system writes will
- * be rooted under the following path.
- */
-#define DEFAULT_LOCAL_ROOT "/tmp/vpic-deltafs-test"
+#define DEFAULT_TMP_DIR "/tmp/vpic-deltafs-test"
 
 /*
  * Preload mode bits

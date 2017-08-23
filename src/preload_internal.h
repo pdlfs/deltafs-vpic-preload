@@ -50,8 +50,8 @@
  *   - run-time state of the preload layer
  */
 typedef struct preload_ctx {
-  const char* deltafs_root; /* deltafs root */
-  size_t len_deltafs_root;  /* strlen */
+  const char* deltafs_mntp; /* deltafs mount point */
+  size_t len_deltafs_mntp;  /* strlen */
 
   const char* local_root; /* localfs root */
   size_t len_local_root;  /* strlen */
@@ -83,7 +83,7 @@ typedef struct preload_ctx {
   const char* plfsdir;  /* path to the plfsdir */
   size_t len_plfsdir;   /* strlen */
   deltafs_tp_t* plfstp; /* opaque handle to a dedicated bg compaction pool */
-  deltafs_plfsdir_t* plfsh; /* opaque handle to an opened plfsdir */
+  deltafs_plfsdir_t* plfshdl; /* opaque handle to an opened plfsdir */
 
   int plfsparts; /* num of memtable partitions */
   int plfsfd;    /* fd for the plfsdir */
