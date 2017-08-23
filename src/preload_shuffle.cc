@@ -37,16 +37,20 @@
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
+#include <ch-placement.h>
+typedef struct ch_placement_instance* ch_t;
 #include <deltafs-nexus/deltafs-nexus_api.h>
 #include <mercury_config.h>
 #include <pdlfs-common/xxhash.h>
 
 #include "common.h"
+#include "shuffler.h"
 
 /* shuffle context for the 3-hop shuffler. */
 typedef struct _3h_ctx {
+  shuffler_t sh;
   nexus_ctx_t nx;
-  void* sh;
+  ch_t ch;
 } _3h_ctx_t;
 
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
@@ -175,6 +179,57 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   }
 }
 
+static void _3h_shuffler_init_ch_placement(_3h_ctx_t* ctx) {
+  char msg[100];
+  const char* proto;
+  const char* env;
+  int rank; /* nx */
+  int size; /* nx */
+  int vf;
+
+  assert(ctx->nx != NULL);
+
+  if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
+    env = maybe_getenv("SHUFFLE_Virtual_factor");
+    if (env == NULL) {
+      vf = DEFAULT_VIRTUAL_FACTOR;
+    } else {
+      vf = atoi(env);
+    }
+
+    rank = nexus_global_rank(ctx->nx);
+    size = 1;
+
+    if (pctx.paranoid_checks) {
+      if (size != pctx.comm_sz || rank != pctx.my_rank) {
+        msg_abort("nx-mpi disagree");
+      }
+    }
+
+    proto = maybe_getenv("SHUFFLE_Placement_protocol");
+    if (proto == NULL) {
+      proto = DEFAULT_PLACEMENT_PROTO;
+    }
+
+    ctx->ch = ch_placement_initialize(proto, size, vf /* vir factor */,
+                                      0 /* hash seed */);
+    if (ctx->ch == NULL) {
+      msg_abort("ch_init");
+    }
+  }
+
+  if (pctx.my_rank == 0) {
+    if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
+      snprintf(msg, sizeof(msg),
+               "ch-placement group size: %s (vir-factor: %s, proto: %s)",
+               pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
+      info(msg);
+    } else {
+      warn("ch-placement bypassed");
+    }
+  }
+}
+
 static void _3h_shuffler_init(_3h_ctx_t* ctx) {
   const char* subnet;
   const char* proto;
@@ -233,7 +288,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     }
   }
   if (ctx->type == SHUFFLE_3HOP) {
-    _3h_ctx_t* rep = new _3h_ctx_t;
+    _3h_ctx_t* rep = static_cast<_3h_ctx_t*>(malloc(sizeof(_3h_ctx_t)));
+    memset(rep, 0, sizeof(_3h_ctx_t));
     _3h_shuffler_init(rep);
     ctx->rep = rep;
   } else {
