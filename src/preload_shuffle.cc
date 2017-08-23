@@ -28,15 +28,18 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "preload_shuffle.h"
+#include <assert.h>
+
 #include "preload_internal.h"
 #include "preload_mon.h"
+#include "preload_shuffle.h"
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
 #include <deltafs-nexus/deltafs-nexus_api.h>
 #include <mercury_config.h>
+#include <pdlfs-common/xxhash.h>
 
 #include "common.h"
 
@@ -66,10 +69,72 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   }
 }
 
+static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* d, size_t n,
+                             int epoch) {
+  char buf[200];
+  hg_return_t hret;
+  unsigned long target;
+  unsigned char fname_len;
+  const char* fname;
+  uint16_t e;
+  int dst;
+  int rpc_sz;
+  int sz;
+
+  /* sanity checks */
+  assert(pctx.len_plfsdir != 0);
+  assert(pctx.plfsdir != NULL);
+  assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
+  assert(fn != NULL);
+
+  fname = fn + pctx.len_plfsdir + 1; /* remove parent path */
+  assert(strlen(fname) < 256);
+  fname_len = static_cast<unsigned char>(strlen(fname));
+  assert(n < 256);
+
+  dst = 0;  // FIXME
+
+  rpc_sz = 0;
+  /* get an estimated size of the rpc */
+  rpc_sz += 1 + fname_len + 1; /* vpic fname */
+  rpc_sz += 1 + n;             /* vpic data */
+  rpc_sz += 2;                 /* epoch */
+  assert(rpc_sz <= sizeof(buf));
+  sz = 0;
+
+  /* vpic fname */
+  buf[sz] = static_cast<char>(fname_len);
+  sz += 1;
+  memcpy(buf + sz, fname, fname_len);
+  sz += fname_len;
+  buf[sz] = 0;
+  sz += 1;
+  /* vpic data */
+  buf[sz] = static_cast<char>(n);
+  sz += 1;
+  memcpy(buf + sz, d, n);
+  sz += n;
+  /* epoch */
+  e = htons(epoch);
+  memcpy(buf + sz, &e, 2);
+  sz += 2;
+
+  assert(sz == rpc_sz);
+
+  // shuffler_send(ctx->sh, dst, 0, buf, sz);
+
+  if (hret != HG_SUCCESS) {
+    rpc_abort("shsend", hret);
+  }
+
+  return 0;
+}
+
 int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
                   int epoch) {
   if (ctx->type == SHUFFLE_3HOP) {
-    return EOF;
+    return _3h_shuffle_write(static_cast<_3h_ctx_t*>(ctx->rep), fn, d, n,
+                             epoch);
   } else {
     return nn_shuffler_write(fn, d, n, epoch);
   }
