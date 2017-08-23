@@ -1154,7 +1154,6 @@ int MPI_Finalize(void) {
         info(msg);
       }
       if (!pctx.nodist) {
-        preload_barrier(MPI_COMM_WORLD);
         num_names = 0;
         snprintf(path, sizeof(path), "%s/NAMES-%07d.txt", pctx.log_home,
                  pctx.my_rank);
