@@ -26,7 +26,7 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         xn_shuffler.cc shuffler/shuffler.cc shuffler/shuf_mlog.cc
         shuffler/mlog.c common.cc)
 
-target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement)
+target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement deltafs-nexus)
 
 if (CMAKE_THREAD_LIBS_INIT)
   target_link_libraries (deltafs-preload "${CMAKE_THREAD_LIBS_INIT}")
