@@ -96,7 +96,19 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* d, size_t n,
   fname_len = static_cast<unsigned char>(strlen(fname));
   assert(n < 256);
 
-  dst = 0;  // FIXME
+  if (nexus_global_size(ctx->nx) != 1) {
+    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+      dst =
+          pdlfs::xxhash32(fname, strlen(fname), 0) % nexus_global_size(ctx->nx);
+    } else {
+      assert(ctx->ch != NULL);
+      ch_placement_find_closest(
+          ctx->ch, pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
+      dst = int(target);
+    }
+  } else {
+    dst = nexus_global_rank(ctx->nx);
+  }
 
   rpc_sz = 0;
   /* get an estimated size of the rpc */
@@ -189,21 +201,21 @@ static void _3h_shuffler_init_ch_placement(_3h_ctx_t* ctx) {
 
   assert(ctx->nx != NULL);
 
+  rank = nexus_global_rank(ctx->nx);
+  size = nexus_global_size(ctx->nx);
+
+  if (pctx.paranoid_checks) {
+    if (size != pctx.comm_sz || rank != pctx.my_rank) {
+      msg_abort("nx-mpi disagree");
+    }
+  }
+
   if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
     env = maybe_getenv("SHUFFLE_Virtual_factor");
     if (env == NULL) {
       vf = DEFAULT_VIRTUAL_FACTOR;
     } else {
       vf = atoi(env);
-    }
-
-    rank = nexus_global_rank(ctx->nx);
-    size = 1;
-
-    if (pctx.paranoid_checks) {
-      if (size != pctx.comm_sz || rank != pctx.my_rank) {
-        msg_abort("nx-mpi disagree");
-      }
     }
 
     proto = maybe_getenv("SHUFFLE_Placement_protocol");
@@ -267,6 +279,8 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
   if (ctx->nx == NULL) {
     msg_abort("nexus_bootstrap");
   }
+
+  _3h_shuffler_init_ch_placement(ctx);
 }
 
 void shuffle_init(shuffle_ctx_t* ctx) {
