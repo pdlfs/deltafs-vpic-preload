@@ -142,7 +142,7 @@ static void _3h_shuffle_deliver(int src, int dst, int type, void* buf,
                  "[RECV] %s %d bytes (e%d) r%d "
                  "<< r%d (hash=%08x)\n",
                  path, int(len), epoch, dst, src, ha);
-    n = write(pctx.logfd, buf, n);
+    n = write(pctx.logfd, msg, n);
 
     errno = 0;
   }
@@ -155,14 +155,20 @@ static void _3h_shuffle_deliver(int src, int dst, int type, void* buf,
 static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
                              size_t len, int epoch) {
   char buf[200];
+  char msg[200];
   hg_return_t hret;
   unsigned long target;
   const char* fname;
   size_t fname_len;
   uint16_t e;
+  int ha;
+  int src;
   int dst;
   int rpc_sz;
   int sz;
+  int n;
+
+  src = nexus_global_rank(ctx->nx);
 
   /* sanity checks */
   assert(pctx.len_plfsdir != 0);
@@ -186,7 +192,20 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
       dst = int(target);
     }
   } else {
-    dst = nexus_global_rank(ctx->nx);
+    dst = src;
+  }
+
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.logfd != -1) {
+    ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
+    n = snprintf(msg, sizeof(msg),
+                 "[SEND] %s %d bytes (e%d) r%d >> "
+                 "r%d (hash=%08x)\n",
+                 fn, int(len), epoch, src, dst, ha);
+
+    n = write(pctx.logfd, msg, n);
+
+    errno = 0;
   }
 
   rpc_sz = 0;
