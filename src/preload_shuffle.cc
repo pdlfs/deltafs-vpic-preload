@@ -73,13 +73,92 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   }
 }
 
-static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* d, size_t n,
-                             int epoch) {
+static void _3h_shuffle_deliver(int src, int dst, int type, void* buf,
+                                int buf_sz) {
+  char* input;
+  size_t input_left;
+  char path[PATH_MAX];
+  char msg[200];
+  const char* fname;
+  size_t fname_len;
+  uint16_t e;
+  int ha;
+  int epoch;
+  char* data;
+  size_t len;
+  int rv;
+  int n;
+
+  assert(buf_sz >= 0);
+  input_left = static_cast<size_t>(buf_sz);
+  input = static_cast<char*>(buf);
+  assert(input != NULL);
+
+  /* vpic fname */
+  if (input_left < 1) {
+    msg_abort("rpc_corruption");
+  }
+  fname_len = static_cast<unsigned char>(input[0]);
+  input_left -= 1;
+  input += 1;
+  if (input_left < fname_len + 1) {
+    msg_abort("rpc_corruption");
+  }
+  fname = input;
+  assert(strlen(fname) == fname_len);
+  input_left -= fname_len + 1;
+  input += fname_len + 1;
+
+  /* vpic data */
+  if (input_left < 1) {
+    msg_abort("rpc_corruption");
+  }
+  len = static_cast<unsigned char>(input[0]);
+  input_left -= 1;
+  input += 1;
+  if (input_left < len) {
+    msg_abort("rpc_corruption");
+  }
+  data = input;
+  input_left -= len;
+  input += len;
+
+  /* epoch */
+  if (input_left < 2) {
+    msg_abort("rpc_corruption");
+  }
+  memcpy(&e, input, 2);
+  epoch = ntohs(e);
+
+  assert(pctx.len_plfsdir != 0);
+  assert(pctx.plfsdir != NULL);
+  snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
+  rv = preload_foreign_write(path, data, len, epoch);
+
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.logfd != -1) {
+    ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
+    n = snprintf(msg, sizeof(msg),
+                 "[RECV] %s %d bytes (e%d) r%d "
+                 "<< r%d (hash=%08x)\n",
+                 path, int(len), epoch, dst, src, ha);
+    n = write(pctx.logfd, buf, n);
+
+    errno = 0;
+  }
+
+  if (rv != 0) {
+    msg_abort("xxwrite");
+  }
+}
+
+static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
+                             size_t len, int epoch) {
   char buf[200];
   hg_return_t hret;
   unsigned long target;
-  unsigned char fname_len;
   const char* fname;
+  size_t fname_len;
   uint16_t e;
   int dst;
   int rpc_sz;
@@ -93,8 +172,8 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* d, size_t n,
 
   fname = fn + pctx.len_plfsdir + 1; /* remove parent path */
   assert(strlen(fname) < 256);
-  fname_len = static_cast<unsigned char>(strlen(fname));
-  assert(n < 256);
+  fname_len = strlen(fname);
+  assert(len < 256);
 
   if (nexus_global_size(ctx->nx) != 1) {
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
@@ -113,23 +192,23 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* d, size_t n,
   rpc_sz = 0;
   /* get an estimated size of the rpc */
   rpc_sz += 1 + fname_len + 1; /* vpic fname */
-  rpc_sz += 1 + n;             /* vpic data */
+  rpc_sz += 1 + len;           /* vpic data */
   rpc_sz += 2;                 /* epoch */
   assert(rpc_sz <= sizeof(buf));
   sz = 0;
 
   /* vpic fname */
-  buf[sz] = static_cast<char>(fname_len);
+  buf[sz] = static_cast<unsigned char>(fname_len);
   sz += 1;
   memcpy(buf + sz, fname, fname_len);
   sz += fname_len;
   buf[sz] = 0;
   sz += 1;
   /* vpic data */
-  buf[sz] = static_cast<char>(n);
+  buf[sz] = static_cast<unsigned char>(len);
   sz += 1;
-  memcpy(buf + sz, d, n);
-  sz += n;
+  memcpy(buf + sz, data, len);
+  sz += len;
   /* epoch */
   e = htons(epoch);
   memcpy(buf + sz, &e, 2);
@@ -140,7 +219,7 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* d, size_t n,
   // shuffler_send(ctx->sh, dst, 0, buf, sz);
 
   if (hret != HG_SUCCESS) {
-    rpc_abort("shsend", hret);
+    rpc_abort("xxsend", hret);
   }
 
   return 0;
