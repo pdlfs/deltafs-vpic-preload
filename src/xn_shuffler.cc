@@ -35,8 +35,8 @@
 
 #include "common.h"
 #include "nn_shuffler.h"
-#include "preload_internal.h"
 #include "nn_shuffler_internal.h"
+#include "preload_internal.h"
 #include "xn_shuffler.h"
 
 void xn_shuffle_deliver(int src, int dst, int type, void* buf, int buf_sz) {
@@ -285,7 +285,12 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
 }
 
 void xn_shuffler_init(xn_ctx_t* ctx) {
-  char rpc_name[] = "shuffle_rpc_write";
+  int deliverq_max;
+  int lmaxrpc;
+  int lbuftarget;
+  int rmaxrpc;
+  int rbuftarget;
+  const char* env;
   const char* subnet;
   const char* proto;
   char msg[100];
@@ -325,10 +330,61 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   xn_shuffler_init_ch_placement(ctx);
 
-  ctx->sh = shuffler_init(ctx->nx, rpc_name, 4, 4 << 10, 16, 32 << 10, 256,
-                          xn_shuffle_deliver);
+  env = maybe_getenv("SHUFFLE_Max_locals");
+  if (env == NULL) {
+    lmaxrpc = DEFAULT_OUTSTANDING_RPC;
+  } else {
+    lmaxrpc = atoi(env);
+    if (lmaxrpc <= 0) {
+      lmaxrpc = 1;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Max_remotes");
+  if (env == NULL) {
+    rmaxrpc = DEFAULT_OUTSTANDING_RPC;
+  } else {
+    rmaxrpc = atoi(env);
+    if (rmaxrpc <= 0) {
+      rmaxrpc = 1;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Buf_localq");
+  if (env == NULL) {
+    lbuftarget = DEFAULT_BUFFER_PER_QUEUE;
+  } else {
+    lbuftarget = atoi(env);
+    if (lbuftarget < 128) {
+      lbuftarget = 128;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Buf_remoteq");
+  if (env == NULL) {
+    rbuftarget = DEFAULT_BUFFER_PER_QUEUE;
+  } else {
+    rbuftarget = atoi(env);
+    if (rbuftarget < 128) {
+      rbuftarget = 128;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Max_deliverq");
+  if (env == NULL) {
+    deliverq_max = DEFAULT_DELIVER_MAX;
+  } else {
+    deliverq_max = atoi(env);
+    if (deliverq_max <= 0) {
+      deliverq_max = 1;
+    }
+  }
+
+  ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
+                          lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
+                          deliverq_max, xn_shuffle_deliver);
 
   if (ctx->sh == NULL) {
-    msg_abort("sh_init");
+    msg_abort("shuffler_init");
   }
 }

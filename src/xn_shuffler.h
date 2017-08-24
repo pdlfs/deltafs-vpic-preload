@@ -77,3 +77,8 @@ extern void xn_shuffler_init(xn_ctx_t* ctx);
 /* xn_shuffler_write: shuffle a file write or die */
 extern void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data,
                               size_t len, int epoch);
+
+/*
+ * Default size of the rpc delivery queue.
+ */
+#define DEFAULT_DELIVER_MAX 256
