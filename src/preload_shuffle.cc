@@ -369,6 +369,7 @@ static void _3h_shuffler_init_ch_placement(_3h_ctx_t* ctx) {
 }
 
 static void _3h_shuffler_init(_3h_ctx_t* ctx) {
+  char rpc_name[] = "shuffle_rpc_write";
   const char* subnet;
   const char* proto;
   char msg[100];
@@ -407,6 +408,13 @@ static void _3h_shuffler_init(_3h_ctx_t* ctx) {
   }
 
   _3h_shuffler_init_ch_placement(ctx);
+
+  ctx->sh = shuffler_init(ctx->nx, rpc_name, 4, 4 << 10, 16, 32 << 10, 256,
+                          _3h_shuffle_deliver);
+
+  if (ctx->sh == NULL) {
+    msg_abort("sh_init");
+  }
 }
 
 void shuffle_init(shuffle_ctx_t* ctx) {
