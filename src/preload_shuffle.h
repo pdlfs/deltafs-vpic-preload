@@ -42,7 +42,7 @@ typedef struct shuffle_ctx {
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
-#define SHUFFLE_3HOP 1
+#define SHUFFLE_XN 1
 } shuffle_ctx_t;
 
 /*

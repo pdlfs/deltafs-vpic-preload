@@ -43,7 +43,7 @@
 #include "common.h"
 
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
-  if (ctx->type == SHUFFLE_3HOP) {
+  if (ctx->type == SHUFFLE_XN) {
     // TODO
   } else {
     nn_shuffler_bgwait();
@@ -51,7 +51,7 @@ void shuffle_epoch_start(shuffle_ctx_t* ctx) {
 }
 
 void shuffle_epoch_end(shuffle_ctx_t* ctx) {
-  if (ctx->type == SHUFFLE_3HOP) {
+  if (ctx->type == SHUFFLE_XN) {
     // TODO
   } else {
     nn_shuffler_flush_rpcq();
@@ -64,7 +64,7 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 
 int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
                   int epoch) {
-  if (ctx->type == SHUFFLE_3HOP) {
+  if (ctx->type == SHUFFLE_XN) {
     assert(ctx != NULL);
     xn_shuffler_write(static_cast<xn_ctx_t*>(ctx->rep), fn, d, n, epoch);
     return 0;
@@ -81,7 +81,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   int max_maxqsz;
   int min_minqsz;
   int max_minqsz;
-  if (ctx->type == SHUFFLE_3HOP) {
+  if (ctx->type == SHUFFLE_XN) {
     // TODO
   } else {
     nn_shuffler_destroy();
@@ -111,10 +111,10 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
 void shuffle_init(shuffle_ctx_t* ctx) {
   char msg[200];
   int n;
-  if (is_envset("SHUFFLE_Use_3hop")) {
-    ctx->type = SHUFFLE_3HOP;
+  if (is_envset("SHUFFLE_Use_xn")) {
+    ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {
-      snprintf(msg, sizeof(msg), "using the scalable 3-hop shuffler");
+      snprintf(msg, sizeof(msg), "using the scalable multi-hop shuffler");
       info(msg);
     }
   } else {
@@ -122,11 +122,11 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     if (pctx.my_rank == 0) {
       snprintf(msg, sizeof(msg),
                "using the default NN shuffler: code might not scale well\n>>> "
-               "switch to the 3-hop shuffler for better scalability");
+               "switch to the multi-hop shuffler for better scalability");
       warn(msg);
     }
   }
-  if (ctx->type == SHUFFLE_3HOP) {
+  if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
     xn_shuffler_init(rep);
