@@ -78,6 +78,9 @@ extern void xn_shuffler_init(xn_ctx_t* ctx);
 extern void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data,
                               size_t len, int epoch);
 
+/* xn_shuffler_destroy: shutdown the shuffler */
+extern void xn_shuffler_destroy(xn_ctx_t* ctx);
+
 /*
  * Default size of the rpc delivery queue.
  */

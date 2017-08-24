@@ -241,6 +241,7 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
   int size; /* nx */
   int vf;
 
+  assert(ctx != NULL);
   assert(ctx->nx != NULL);
 
   rank = nexus_global_rank(ctx->nx);
@@ -284,16 +285,12 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
   }
 }
 
-void xn_shuffler_init(xn_ctx_t* ctx) {
-  int deliverq_max;
-  int lmaxrpc;
-  int lbuftarget;
-  int rmaxrpc;
-  int rbuftarget;
-  const char* env;
+void xn_shuffler_init_nx(xn_ctx_t* ctx) {
   const char* subnet;
   const char* proto;
   char msg[100];
+
+  assert(ctx != NULL);
 
   subnet = maybe_getenv("SHUFFLE_Subnet");
   if (subnet == NULL) {
@@ -327,7 +324,18 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   if (ctx->nx == NULL) {
     msg_abort("nexus_bootstrap");
   }
+}
 
+void xn_shuffler_init(xn_ctx_t* ctx) {
+  int deliverq_max;
+  int lmaxrpc;
+  int lbuftarget;
+  int rmaxrpc;
+  int rbuftarget;
+  const char* env;
+
+  assert(ctx != NULL);
+  xn_shuffler_init_nx(ctx);
   xn_shuffler_init_ch_placement(ctx);
 
   env = maybe_getenv("SHUFFLE_Max_locals");
@@ -386,5 +394,22 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   if (ctx->sh == NULL) {
     msg_abort("shuffler_init");
+  }
+}
+
+void xn_shuffler_close(xn_ctx_t* ctx) {
+  if (ctx != NULL) {
+    if (ctx->sh != NULL) {
+      shuffler_shutdown(ctx->sh);
+      ctx->sh = NULL;
+    }
+    if (ctx->ch != NULL) {
+      ch_placement_finalize(ctx->ch);
+      ctx->ch = NULL;
+    }
+    if (ctx->nx != NULL) {
+      nexus_destroy(ctx->nx);
+      ctx->nx = NULL;
+    }
   }
 }
