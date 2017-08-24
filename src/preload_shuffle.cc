@@ -44,7 +44,8 @@
 
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
-    // TODO
+    assert(ctx != NULL);
+    xn_shuffler_epoch_start(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
     nn_shuffler_bgwait();
   }
@@ -52,9 +53,10 @@ void shuffle_epoch_start(shuffle_ctx_t* ctx) {
 
 void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
-    // TODO
+    assert(ctx != NULL);
+    xn_shuffler_epoch_end(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
-    nn_shuffler_flush_rpcq();
+    nn_shuffler_flush_rpcq(); /* flush rpc queues */
     if (!nnctx.force_sync) {
       /* wait for rpc replies */
       nn_shuffler_wait();
@@ -81,8 +83,11 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   int max_maxqsz;
   int min_minqsz;
   int max_minqsz;
+  assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    // TODO
+    xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
+    xn_shuffler_destroy(rep);
+    free(rep);
   } else {
     nn_shuffler_destroy();
     MPI_Reduce(&nnctx.accqsz, &accqsz, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,

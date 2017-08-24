@@ -39,6 +39,42 @@
 #include "preload_internal.h"
 #include "xn_shuffler.h"
 
+void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
+  hg_return_t hret;
+  assert(ctx != NULL);
+
+  assert(ctx->sh != NULL);
+  assert(ctx->nx != NULL);
+
+  hret = shuffler_flush_localqs(ctx->sh);
+  if (hret == HG_SUCCESS) {
+    nexus_local_barrier(ctx->nx);
+    hret = shuffler_flush_remoteqs(ctx->sh);
+  }
+
+  if (hret != HG_SUCCESS) {
+    rpc_abort("xxflush", hret);
+  }
+}
+
+void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
+  hg_return_t hret;
+  assert(ctx != NULL);
+
+  assert(ctx->sh != NULL);
+  assert(ctx->nx != NULL);
+
+  hret = shuffler_flush_localqs(ctx->sh);
+  if (hret == HG_SUCCESS) {
+    nexus_local_barrier(ctx->nx);
+    hret = shuffler_flush_delivery(ctx->sh);
+  }
+
+  if (hret != HG_SUCCESS) {
+    rpc_abort("xxflush", hret);
+  }
+}
+
 void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   char* input;
   size_t input_left;
@@ -397,7 +433,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   }
 }
 
-void xn_shuffler_close(xn_ctx_t* ctx) {
+void xn_shuffler_destroy(xn_ctx_t* ctx) {
   if (ctx != NULL) {
     if (ctx->sh != NULL) {
       shuffler_shutdown(ctx->sh);

@@ -78,6 +78,12 @@ extern void xn_shuffler_init(xn_ctx_t* ctx);
 extern void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data,
                               size_t len, int epoch);
 
+/* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */
+extern void xn_shuffler_epoch_end(xn_ctx_t* ctx);
+
+/* xn_shuffler_epoch_start: do necessary flush at the beginning of an epoch */
+extern void xn_shuffler_epoch_start(xn_ctx_t* ctx);
+
 /* xn_shuffler_destroy: shutdown the shuffler */
 extern void xn_shuffler_destroy(xn_ctx_t* ctx);
 
