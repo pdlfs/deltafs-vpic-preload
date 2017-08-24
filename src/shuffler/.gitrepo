@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = git@dev.pdl.cmu.edu:pdlfs/nexus-runner.git
+	branch = master
+	commit = 11a889204fae60e1184b072c18df0156614219b6
+	parent = 06fc0ba2fd9332ac595f94a2526c34f48e6d94bd
+	cmdver = 0.3.1
