@@ -39,7 +39,7 @@
 #include "preload_internal.h"
 #include "xn_shuffler.h"
 
-void xn_shuffle_deliver(int src, int dst, int type, void* buf, int buf_sz) {
+void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   char* input;
   size_t input_left;
   char path[PATH_MAX];
@@ -390,7 +390,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
                           lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
-                          deliverq_max, xn_shuffle_deliver);
+                          deliverq_max, xn_shuffler_deliver);
 
   if (ctx->sh == NULL) {
     msg_abort("shuffler_init");
