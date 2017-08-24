@@ -82,6 +82,7 @@ static void _3h_shuffle_deliver(int src, int dst, int type, void* buf,
   char msg[200];
   const char* fname;
   size_t fname_len;
+  uint32_t r;
   uint16_t e;
   int ha;
   int epoch;
@@ -94,6 +95,19 @@ static void _3h_shuffle_deliver(int src, int dst, int type, void* buf,
   input_left = static_cast<size_t>(buf_sz);
   input = static_cast<char*>(buf);
   assert(input != NULL);
+
+  /* rank */
+  if (input_left < 8) {
+    msg_abort("rpc_corruption");
+  }
+  memcpy(&r, input, 4);
+  if (src != ntohl(r)) msg_abort("bad src");
+  input_left -= 4;
+  input += 4;
+  memcpy(&r, input, 4);
+  if (dst != ntohl(r)) msg_abort("bad dst");
+  input_left -= 4;
+  input += 4;
 
   /* vpic fname */
   if (input_left < 1) {
@@ -161,6 +175,7 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
   unsigned long target;
   const char* fname;
   size_t fname_len;
+  uint32_t r;
   uint16_t e;
   int ha;
   int src;
@@ -169,9 +184,11 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
   int sz;
   int n;
 
+  /* sanity checks */
+  assert(ctx != NULL);
+  assert(ctx->nx != NULL);
   src = nexus_global_rank(ctx->nx);
 
-  /* sanity checks */
   assert(pctx.len_plfsdir != 0);
   assert(pctx.plfsdir != NULL);
   assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
@@ -209,14 +226,23 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
     errno = 0;
   }
 
-  rpc_sz = 0;
+  sz = rpc_sz = 0;
+
   /* get an estimated size of the rpc */
+  rpc_sz += 4;                 /* src rank */
+  rpc_sz += 4;                 /* dst rank */
   rpc_sz += 1 + fname_len + 1; /* vpic fname */
   rpc_sz += 1 + len;           /* vpic data */
   rpc_sz += 2;                 /* epoch */
   assert(rpc_sz <= sizeof(buf));
-  sz = 0;
 
+  /* rank */
+  r = htonl(src);
+  memcpy(buf + sz, &r, 4);
+  sz += 4;
+  r = htonl(dst);
+  memcpy(buf + sz, &r, 4);
+  sz += 4;
   /* vpic fname */
   buf[sz] = static_cast<unsigned char>(fname_len);
   sz += 1;
@@ -233,10 +259,10 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
   e = htons(epoch);
   memcpy(buf + sz, &e, 2);
   sz += 2;
-
   assert(sz == rpc_sz);
 
-  // shuffler_send(ctx->sh, dst, 0, buf, sz);
+  assert(ctx->sh != NULL);
+  hret = shuffler_send(ctx->sh, dst, 0, buf, sz);
 
   if (hret != HG_SUCCESS) {
     rpc_abort("xxsend", hret);
@@ -248,6 +274,7 @@ static int _3h_shuffle_write(_3h_ctx_t* ctx, const char* fn, char* data,
 int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
                   int epoch) {
   if (ctx->type == SHUFFLE_3HOP) {
+    assert(ctx != NULL);
     return _3h_shuffle_write(static_cast<_3h_ctx_t*>(ctx->rep), fn, d, n,
                              epoch);
   } else {
