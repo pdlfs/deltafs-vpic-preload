@@ -37,6 +37,8 @@
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
+#include "shuffler/shuffler.h"
+
 #include <ch-placement.h>
 typedef struct ch_placement_instance* ch_t;
 #include <deltafs-nexus/deltafs-nexus_api.h>
@@ -44,7 +46,6 @@ typedef struct ch_placement_instance* ch_t;
 #include <pdlfs-common/xxhash.h>
 
 #include "common.h"
-#include "shuffler.h"
 
 /* shuffle context for the 3-hop shuffler. */
 typedef struct _3h_ctx {
