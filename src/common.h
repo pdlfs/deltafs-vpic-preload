@@ -191,18 +191,24 @@ inline void softlink(const char* src, const char* dst) {
 /* print a human-readable time duration. */
 inline std::string pretty_dura(double us) {
   char tmp[100];
+#ifndef NDEBUG
+  snprintf(tmp, sizeof(tmp), "%.0f us", us);
+#else
   if (us >= 1000000) {
     snprintf(tmp, sizeof(tmp), "%.3f s", us / 1000000.0);
   } else {
     snprintf(tmp, sizeof(tmp), "%.3f ms", us / 1000.0);
   }
-
+#endif
   return tmp;
 }
 
 /* print a human-readable integer number. */
 inline std::string pretty_num(double num) {
   char tmp[100];
+#ifndef NDEBUG
+  snprintf(tmp, sizeof(tmp), "%.0f", num);
+#else
 #if defined(PRELOAD_PRETTY_USE_BINARY)
   if (num >= 1099511627776.0) {
     num /= 1099511627776.0;
@@ -236,7 +242,7 @@ inline std::string pretty_num(double num) {
     snprintf(tmp, sizeof(tmp), "%.0f", num);
   }
 #endif
-
+#endif
   return tmp;
 }
 
@@ -244,6 +250,9 @@ inline std::string pretty_num(double num) {
 inline std::string pretty_tput(double ops, double us) {
   char tmp[100];
   double ops_per_s = ops / us * 1000000;
+#ifndef NDEBUG
+  snprintf(tmp, sizeof(tmp), "%.0f", ops_per_s);
+#else
 #if defined(PRELOAD_PRETTY_USE_BINARY)
   if (ops_per_s >= 1099511627776.0) {
     ops_per_s /= 1099511627776.0;
@@ -277,13 +286,16 @@ inline std::string pretty_tput(double ops, double us) {
     snprintf(tmp, sizeof(tmp), "%.0f op/s", ops_per_s);
   }
 #endif
-
+#endif
   return tmp;
 }
 
 /* print a human-readable I/O size. */
 inline std::string pretty_size(double size) {
   char tmp[100];
+#ifndef NDEBUG
+  snprintf(tmp, sizeof(tmp), "%.0f bytes", size);
+#else
 #if defined(PRELOAD_PRETTY_SIZE_USE_BINARY)
   if (size >= 1099511627776.0) {
     size /= 1099511627776.0;
@@ -317,7 +329,7 @@ inline std::string pretty_size(double size) {
     snprintf(tmp, sizeof(tmp), "%.0f bytes", size);
   }
 #endif
-
+#endif
   return tmp;
 }
 
@@ -325,6 +337,9 @@ inline std::string pretty_size(double size) {
 inline std::string pretty_bw(double bytes, double us) {
   char tmp[100];
   double bytes_per_s = bytes / us * 1000000;
+#ifndef NDEBUG
+  snprintf(tmp, sizeof(tmp), "%.0f bytes/s", bytes_per_s);
+#else
 #if defined(PRELOAD_PRETTY_SIZE_USE_BINARY)
   if (bytes_per_s >= 1099511627776.0) {
     bytes_per_s /= 1099511627776.0;
@@ -358,7 +373,7 @@ inline std::string pretty_bw(double bytes, double us) {
     snprintf(tmp, sizeof(tmp), "%.3f bytes/s", bytes_per_s);
   }
 #endif
-
+#endif
   return tmp;
 }
 
