@@ -1275,6 +1275,12 @@ int MPI_Finalize(void) {
 
           if (go) {
             if (pctx.my_rank == 0) {
+              if (pctx.paranoid_checks && glob.nlw + glob.nfw != glob.nw)
+                msg_abort("lost writes");
+              if (pctx.paranoid_checks && glob.nms != glob.nmd)
+                msg_abort("lost rpc replies");
+              if (pctx.paranoid_checks && glob.nmr != glob.nms)
+                msg_abort("lost rpcs");
               if (mon_dump_txt) mon_dumpstate(fd2, &glob);
               if (mon_dump_bin) {
                 memset(buf, 0, sizeof(buf));
