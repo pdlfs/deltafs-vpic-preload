@@ -1239,12 +1239,8 @@ void nn_shuffler_init_ssg() {
   int size; /* ssg */
   int vf;
 
-  env = maybe_getenv("SHUFFLE_Virtual_factor");
-  if (env == NULL) {
-    vf = DEFAULT_VIRTUAL_FACTOR;
-  } else {
-    vf = atoi(env);
-  }
+  assert(nnctx.hg_clz != NULL);
+  assert(nnctx.hg_ctx != NULL);
 
   nnctx.ssg = ssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD);
   if (nnctx.ssg == SSG_NULL) msg_abort("ssg_init_mpi");
@@ -1261,23 +1257,34 @@ void nn_shuffler_init_ssg() {
     }
   }
 
-  proto = maybe_getenv("SHUFFLE_Placement_protocol");
-  if (proto == NULL) {
-    proto = DEFAULT_PLACEMENT_PROTO;
-  }
+  if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
+    env = maybe_getenv("SHUFFLE_Virtual_factor");
+    if (env == NULL) {
+      vf = DEFAULT_VIRTUAL_FACTOR;
+    } else {
+      vf = atoi(env);
+    }
 
-  nnctx.chp = ch_placement_initialize(proto, size, vf /* vir factor */,
-                                      0 /* hash seed */);
-  if (!nnctx.chp) msg_abort("ch_init");
+    proto = maybe_getenv("SHUFFLE_Placement_protocol");
+    if (proto == NULL) {
+      proto = DEFAULT_PLACEMENT_PROTO;
+    }
+
+    nnctx.chp = ch_placement_initialize(proto, size, vf /* vir factor */,
+                                        0 /* hash seed */);
+    if (nnctx.chp == NULL) {
+      msg_abort("ch_init");
+    }
+  }
 
   if (pctx.my_rank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
       snprintf(msg, sizeof(msg),
-               "ch/p group size: %s (vir-factor: %s, proto: %s)",
+               "ch-placement group size: %s (vir-factor: %s, proto: %s)",
                pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
       info(msg);
     } else {
-      warn("ch/p bypassed");
+      warn("ch-placement bypassed");
     }
   }
 }
