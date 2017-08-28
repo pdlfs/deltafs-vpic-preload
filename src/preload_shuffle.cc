@@ -153,6 +153,7 @@ char* shuffle_prepare_uri(char* buf) {
   for (; port <= max_port; port += size) {
     so = socket(PF_INET, SOCK_STREAM, 0);
     if (so != -1) {
+      memset(&addr, 0, sizeof(addr));
       addr.sin_family = AF_INET;
       addr.sin_addr.s_addr = INADDR_ANY;
       addr.sin_port = htons(port);
@@ -175,10 +176,11 @@ char* shuffle_prepare_uri(char* buf) {
         "auto detecting ports ...");
     so = socket(PF_INET, SOCK_STREAM, 0);
     if (so != -1) {
+      memset(&addr, 0, sizeof(addr));
       addr.sin_family = AF_INET;
       addr.sin_addr.s_addr = INADDR_ANY;
       addr.sin_port = htons(0);
-      opt = 1;
+      opt = 0; /* do not reuse ports */
       setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
       n = bind(so, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
       if (n == 0) {
