@@ -50,6 +50,10 @@
  *    Max num of outstanding rpcs allowed for the local hops
  *  SHUFFLE_Max_deliverq
  *    Queue size for final rpc delivery
+ *  SHUFFLE_Min_port
+ *    The min port number we can use
+ *  SHUFFLE_Max_port
+ *    The max port number we can use
  *  SHUFFLE_Subnet
  *    IP prefix of the subnet
  */

@@ -321,47 +321,6 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
   }
 }
 
-void xn_shuffler_init_nx(xn_ctx_t* ctx) {
-  const char* subnet;
-  const char* proto;
-  char msg[100];
-
-  assert(ctx != NULL);
-
-  subnet = maybe_getenv("SHUFFLE_Subnet");
-  if (subnet == NULL) {
-    subnet = DEFAULT_SUBNET;
-  }
-
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
-    if (strcmp(subnet, "127.0.0.1") == 0) {
-      warn(msg);
-    } else {
-      info(msg);
-    }
-  }
-
-  proto = maybe_getenv("SHUFFLE_Mercury_proto");
-  if (proto == NULL) {
-    proto = DEFAULT_HG_PROTO;
-  }
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using %s", proto);
-    if (strstr(proto, "tcp") != NULL) {
-      warn(msg);
-    } else {
-      info(msg);
-    }
-  }
-
-  ctx->nx =
-      nexus_bootstrap(const_cast<char*>(subnet), const_cast<char*>(proto));
-  if (ctx->nx == NULL) {
-    msg_abort("nexus_bootstrap");
-  }
-}
-
 void xn_shuffler_init(xn_ctx_t* ctx) {
   int deliverq_max;
   int lmaxrpc;
@@ -369,9 +328,13 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   int rmaxrpc;
   int rbuftarget;
   const char* env;
+  char uri[100];
 
   assert(ctx != NULL);
-  xn_shuffler_init_nx(ctx);
+
+  shuffle_prepare_uri(uri);
+  ctx->nx = nexus_bootstrap_uri(uri);
+  if (ctx->nx == NULL) msg_abort("nexus_bootstrap_uri");
   xn_shuffler_init_ch_placement(ctx);
 
   env = maybe_getenv("SHUFFLE_Max_locals");

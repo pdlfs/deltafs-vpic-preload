@@ -32,7 +32,6 @@
 #include <assert.h>
 #include <dirent.h>
 #include <errno.h>
-#include <ifaddrs.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -43,15 +42,20 @@
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
-#include <string>
 #include <vector>
 
 /*
- * a set of mutex shared among the main thread and the bg threads.
+ * a set of mutex shared among the main thread and the bg shuffle threads.
  */
-static pthread_mutex_t mtx[5] = {0};
+static pthread_mutex_t mtx[5] = {
+    PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
+    PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER,
+    PTHREAD_MUTEX_INITIALIZER};
 
-static pthread_cond_t cv[5] = {0};
+static pthread_cond_t cv[5] = {
+    PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER,
+    PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER,
+    PTHREAD_COND_INITIALIZER};
 
 /* used when waiting for all bg threads to terminate */
 static const int bg_cv = 0;
@@ -99,193 +103,6 @@ static int cb_flags[MAX_OUTSTANDING_RPC] = {0};
 static int cb_allowed = 1; /* soft limit */
 static int cb_left = 1;
 
-/*
- * prepare_addr: obtain the mercury addr to bootstrap the rpc
- *
- * Write the server uri into *buf on success.
- *
- * Abort on errors.
- */
-static const char* prepare_addr(char* buf) {
-  int family;
-  int port;
-  const char* env;
-  int min_port;
-  int max_port;
-  struct ifaddrs *ifaddr, *cur;
-  struct sockaddr_in addr;
-  socklen_t addr_len;
-  MPI_Comm comm;
-  int rank;
-  int size;
-  const char* subnet;
-  char msg[100];
-  char ip[50];  // ip
-  int opt;
-  int so;
-  int rv;
-  int n;
-
-  subnet = maybe_getenv("SHUFFLE_Subnet");
-  if (subnet == NULL) {
-    subnet = DEFAULT_SUBNET;
-  }
-
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
-    if (strcmp(subnet, "127.0.0.1") == 0) {
-      warn(msg);
-    } else {
-      info(msg);
-    }
-  }
-
-  /* settle down an ip addr to use */
-  if (getifaddrs(&ifaddr) == -1) {
-    msg_abort("getifaddrs");
-  }
-
-  for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
-    if (cur->ifa_addr != NULL) {
-      family = cur->ifa_addr->sa_family;
-
-      if (family == AF_INET) {
-        if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in), ip,
-                        sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
-          msg_abort("getnameinfo");
-
-        if (strncmp(subnet, ip, strlen(subnet)) == 0) {
-          break;
-        } else {
-#ifndef NDEBUG
-          if (pctx.verr || pctx.my_rank == 0) {
-            snprintf(msg, sizeof(msg), "[ip] skip %s (rank %d)", ip,
-                     pctx.my_rank);
-            info(msg);
-          }
-#endif
-        }
-      }
-    }
-  }
-
-  if (cur == NULL) /* maybe a wrong subnet has been specified */
-    msg_abort("no ip addr");
-
-  freeifaddrs(ifaddr);
-
-  /* get port through MPI rank */
-
-  env = maybe_getenv("SHUFFLE_Min_port");
-  if (env == NULL) {
-    min_port = DEFAULT_MIN_PORT;
-  } else {
-    min_port = atoi(env);
-  }
-
-  env = maybe_getenv("SHUFFLE_Max_port");
-  if (env == NULL) {
-    max_port = DEFAULT_MAX_PORT;
-  } else {
-    max_port = atoi(env);
-  }
-
-  /* sanity check on port range */
-  if (max_port - min_port < 0) msg_abort("bad min-max port");
-  if (min_port < 1) msg_abort("bad min port");
-  if (max_port > 65535) msg_abort("bad max port");
-
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
-    info(msg);
-  }
-
-#if MPI_VERSION >= 3
-  rv = MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0,
-                           MPI_INFO_NULL, &comm);
-  if (rv != MPI_SUCCESS) msg_abort("MPI_Comm_split_type");
-#else
-  comm = MPI_COMM_WORLD;
-#endif
-  MPI_Comm_rank(comm, &rank);
-  MPI_Comm_size(comm, &size);
-
-  /* try and test port availability */
-  port = min_port + (rank % (1 + max_port - min_port));
-  for (; port <= max_port; port += size) {
-    so = socket(PF_INET, SOCK_STREAM, 0);
-    if (so != -1) {
-      addr.sin_family = AF_INET;
-      addr.sin_addr.s_addr = INADDR_ANY;
-      addr.sin_port = htons(port);
-      opt = 1;
-      setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-      n = bind(so, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
-      close(so);
-      if (n == 0) {
-        break;
-      }
-    } else {
-      msg_abort("socket");
-    }
-  }
-
-  if (port > max_port) {
-    port = 0;
-    warn(
-        "no free ports available within the specified range\n>>> "
-        "auto detecting ports ...");
-    so = socket(PF_INET, SOCK_STREAM, 0);
-    if (so != -1) {
-      addr.sin_family = AF_INET;
-      addr.sin_addr.s_addr = INADDR_ANY;
-      addr.sin_port = htons(0);
-      opt = 1;
-      setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-      n = bind(so, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
-      if (n == 0) {
-        addr_len = sizeof(addr);
-        n = getsockname(so, reinterpret_cast<struct sockaddr*>(&addr),
-                        &addr_len);
-        if (n == 0) {
-          port = ntohs(addr.sin_port);
-        }
-      }
-      close(so);
-    } else {
-      msg_abort("socket");
-    }
-  }
-
-  errno = 0;
-
-  if (port == 0) /* maybe a wrong port range has been specified */
-    msg_abort("no free ports");
-
-  /* add proto */
-
-  env = maybe_getenv("SHUFFLE_Mercury_proto");
-  if (env == NULL) env = DEFAULT_HG_PROTO;
-  sprintf(buf, "%s://%s:%d", env, ip, port);
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using %s", env);
-    if (strstr(env, "tcp") != NULL) {
-      warn(msg);
-    } else {
-      info(msg);
-    }
-  }
-
-#ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);
-    info(msg);
-  }
-#endif
-
-  return buf;
-}
-
 #if defined(__x86_64__) && defined(__GNUC__)
 static inline bool is_shuttingdown() {
   bool r = shutting_down;
@@ -305,7 +122,9 @@ static inline bool is_shuttingdown() {
 }
 #endif
 
-/* main shuffle code */
+/*
+ * main shuffle code
+ */
 
 static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
@@ -1300,7 +1119,7 @@ void nn_shuffler_init() {
   int rv;
   int i;
 
-  prepare_addr(nnctx.my_addr);
+  shuffle_prepare_uri(nnctx.my_addr);
 
   env = maybe_getenv("SHUFFLE_Timeout");
   if (env == NULL) {

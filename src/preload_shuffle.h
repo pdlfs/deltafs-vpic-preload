@@ -46,6 +46,12 @@ typedef struct shuffle_ctx {
 } shuffle_ctx_t;
 
 /*
+ * shuffle_prepare_uri: obtain the mercury server uri to bootstrap the rpc.
+ * write the server uri into *buf on success, or abort on errors.
+ */
+extern char* shuffle_prepare_uri(char* buf);
+
+/*
  * shuffle_write: shuffle a write request through an underlying transport.
  *
  * shuffle may be bypassed if destination is local.
