@@ -1081,13 +1081,16 @@ int MPI_Finalize(void) {
       /* ensures all peer messages are received */
       preload_barrier(MPI_COMM_WORLD);
       /* shuffle flush */
-      if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-        shuffle_epoch_start(&pctx.sctx);
+      if (pctx.my_rank == 0) {
+        info("flushing shuffle ... (rank 0)");
+      }
+      shuffle_epoch_start(&pctx.sctx);
+      if (pctx.my_rank == 0) {
+        info("flushing done");
       }
       shuffle_finalize(&pctx.sctx);
-
       if (pctx.my_rank == 0) {
-        info("shuffle closed");
+        info("shuffle off");
       }
     }
 
@@ -1567,7 +1570,13 @@ DIR* opendir(const char* dir) {
 
   /* shuffle flush */
   if (num_epochs != 0 && !IS_BYPASS_SHUFFLE(pctx.mode)) {
+    if (pctx.my_rank == 0) {
+      info("flushing shuffle ... (rank 0)");
+    }
     shuffle_epoch_start(&pctx.sctx);
+    if (pctx.my_rank == 0) {
+      info("flushing done");
+    }
   }
 
   /* epoch flush */
@@ -1722,7 +1731,13 @@ int closedir(DIR* dirp) {
 
   /* drain on-going rpc */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+    if (pctx.my_rank == 0) {
+      info("flushing shuffle ... (rank 0)");
+    }
     shuffle_epoch_end(&pctx.sctx);
+    if (pctx.my_rank == 0) {
+      info("flushing done");
+    }
   }
 
   /* this ensures we have received all peer messages */
