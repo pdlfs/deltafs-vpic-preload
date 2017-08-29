@@ -659,7 +659,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (rank == 0) {
 #if MPI_VERSION < 3
-    warn(
+    WARN(
         "using non-recent MPI release: some features disabled\n>>> "
         "MPI ver 3 is suggested in production mode");
 #else
@@ -701,7 +701,7 @@ int MPI_Init(int* argc, char*** argv) {
           "MPI_WTIME_IS_GLOBAL not set");
     }
 #else
-    warn(
+    WARN(
         "cannot determine if MPI_Wtime() is global\n>>> "
         "MPI_WTIME_IS_GLOBAL undefined");
 #endif
@@ -719,7 +719,7 @@ int MPI_Init(int* argc, char*** argv) {
     snprintf(msg + n, sizeof(msg) - n, "\n>>> with gcc %d.%d.%d compatibility",
              __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #endif
-    info(msg);
+    INFO(msg);
 #elif defined(_CRAYC)
     n = snprintf(msg, sizeof(msg),
                  "[cc] compiled by Cray (crayc/crayc++) %d.%d on %s %s "
@@ -729,7 +729,7 @@ int MPI_Init(int* argc, char*** argv) {
     snprintf(msg + n, sizeof(msg) - n, "\n>>> with gcc %d.%d.%d compatibility",
              __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #endif
-    info(msg);
+    INFO(msg);
 #elif defined(__clang__)
     n = snprintf(
         msg, sizeof(msg),
@@ -748,7 +748,7 @@ int MPI_Init(int* argc, char*** argv) {
              "(__cplusplus: %ld)",
              __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __DATE__, __TIME__,
              __cplusplus);
-    info(msg);
+    INFO(msg);
 #endif
 #if defined(__GNUC__) && !defined(__OPTIMIZE__)
     WARN(
