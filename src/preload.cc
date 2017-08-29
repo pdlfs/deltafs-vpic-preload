@@ -1007,6 +1007,8 @@ int MPI_Finalize(void) {
   unsigned long long num_writes;
   unsigned long long min_writes;
   unsigned long long max_writes;
+  uint64_t flush_start;
+  uint64_t flush_end;
   uint64_t finish_start;
   uint64_t finish_end;
   std::string tmp;
@@ -1082,11 +1084,15 @@ int MPI_Finalize(void) {
       preload_barrier(MPI_COMM_WORLD);
       /* shuffle flush */
       if (pctx.my_rank == 0) {
+        flush_start = now_micros();
         info("flushing shuffle ... (rank 0)");
       }
       shuffle_epoch_start(&pctx.sctx);
       if (pctx.my_rank == 0) {
-        info("flushing done");
+        flush_end = now_micros();
+        snprintf(msg, sizeof(msg), "flushing done %s",
+                 pretty_dura(flush_end - flush_start).c_str());
+        info(msg);
       }
       shuffle_finalize(&pctx.sctx);
       if (pctx.my_rank == 0) {
@@ -1571,11 +1577,15 @@ DIR* opendir(const char* dir) {
   /* shuffle flush */
   if (num_epochs != 0 && !IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
+      flush_start = now_micros();
       info("flushing shuffle ... (rank 0)");
     }
     shuffle_epoch_start(&pctx.sctx);
     if (pctx.my_rank == 0) {
-      info("flushing done");
+      flush_end = now_micros();
+      snprintf(msg, sizeof(msg), "flushing done %s",
+               pretty_dura(flush_end - flush_start).c_str());
+      info(msg);
     }
   }
 
@@ -1732,11 +1742,15 @@ int closedir(DIR* dirp) {
   /* drain on-going rpc */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
-      info("flushing shuffle ... (rank 0)");
+      flush_start = now_micros();
+      info("pre-flushing shuffle ... (rank 0)");
     }
     shuffle_epoch_end(&pctx.sctx);
     if (pctx.my_rank == 0) {
-      info("flushing done");
+      flush_end = now_micros();
+      snprintf(msg, sizeof(msg), "pre-flushing done %s",
+               pretty_dura(flush_end - flush_start).c_str());
+      info(msg);
     }
   }
 
