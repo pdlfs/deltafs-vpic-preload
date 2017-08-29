@@ -223,7 +223,7 @@ static void* rpc_work(void* arg) {
         if (h != NULL) {
           hret = nn_shuffler_write_rpc_handler(h);
           if (hret != HG_SUCCESS) {
-            RPC_FAILED("HG_Respond", hret);
+            RPC_FAILED("fail to exec rpc", hret);
           }
         }
       }

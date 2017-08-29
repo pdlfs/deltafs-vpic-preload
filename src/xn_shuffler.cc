@@ -98,7 +98,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* rank */
   if (input_left < 8) {
-    ABORT("rpc_corruption");
+    ABORT("rpc msg corrupted");
   }
   memcpy(&r, input, 4);
   if (src != ntohl(r)) ABORT("bad src");
@@ -111,13 +111,13 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* vpic fname */
   if (input_left < 1) {
-    ABORT("rpc_corruption");
+    ABORT("rpc msg corrupted");
   }
   fname_len = static_cast<unsigned char>(input[0]);
   input_left -= 1;
   input += 1;
   if (input_left < fname_len + 1) {
-    ABORT("rpc_corruption");
+    ABORT("rpc msg corrupted");
   }
   fname = input;
   assert(strlen(fname) == fname_len);
@@ -126,13 +126,13 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* vpic data */
   if (input_left < 1) {
-    ABORT("rpc_corruption");
+    ABORT("rpc msg corrupted");
   }
   len = static_cast<unsigned char>(input[0]);
   input_left -= 1;
   input += 1;
   if (input_left < len) {
-    ABORT("rpc_corruption");
+    ABORT("rpc msg corrupted");
   }
   data = input;
   input_left -= len;
@@ -140,7 +140,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* epoch */
   if (input_left < 2) {
-    ABORT("rpc_corruption");
+    ABORT("rpc msg corrupted");
   }
   memcpy(&e, input, 2);
   epoch = ntohs(e);
