@@ -1147,10 +1147,20 @@ static void *network_main(void *arg) {
       ret = HG_Trigger(oset->mctx, 0, 1, &actual); /* triggers all callbacks */
       shufcount(&oset->ntrigger);
     } while (ret == HG_SUCCESS && actual);
+    if (ret != HG_SUCCESS && ret != HG_TIMEOUT) {
+      fprintf(stderr, "ERROR! calling HG_Trigger returning error: %s(%d)\n",
+          HG_Error_to_string(ret), int(ret));
+      abort();
+    }
 
-    HG_Progress(oset->mctx, 100);
+    ret = HG_Progress(oset->mctx, 100);
+    if (ret != HG_SUCCESS && ret != HG_TIMEOUT) {
+      fprintf(stderr, "ERROR! calling HG_Progress returning error: %s(%d)\n",
+              HG_Error_to_string(ret), int(ret));
+      abort();
+    }
+
     shufcount(&oset->nprogress);
-
   }
   mlog(SHUF_CALL, "network_main exiting (local=%d)",
        (oset == &oset->shuf->localq));
