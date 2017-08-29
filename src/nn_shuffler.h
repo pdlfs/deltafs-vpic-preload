@@ -83,11 +83,11 @@ extern void nn_shuffler_init();
 extern int nn_shuffler_write(const char* path, char* data, size_t len,
                              int epoch);
 
-/* nn_shuffler_wait: wait for all outstanding rpcs to finish. */
-extern void nn_shuffler_wait();
+/* nn_shuffler_waitcb: wait for all outstanding rpcs to finish. */
+extern void nn_shuffler_waitcb();
 
-/* nn_shuffler_flush_rpcq: force flushing local rpc queues. */
-extern void nn_shuffler_flush_rpcq();
+/* nn_shuffler_flushq: force flushing local rpc queues. */
+extern void nn_shuffler_flushq();
 
 /* nn_shuffler_bgwait: wait for all background rpc work to finish */
 extern void nn_shuffler_bgwait();

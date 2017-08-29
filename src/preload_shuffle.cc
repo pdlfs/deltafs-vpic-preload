@@ -240,10 +240,10 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
     assert(ctx != NULL);
     xn_shuffler_epoch_end(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
-    nn_shuffler_flush_rpcq(); /* flush rpc queues */
+    nn_shuffler_flushq(); /* flush rpc queues */
     if (!nnctx.force_sync) {
       /* wait for rpc replies */
-      nn_shuffler_wait();
+      nn_shuffler_waitcb();
     }
   }
 }
