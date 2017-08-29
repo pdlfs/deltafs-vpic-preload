@@ -1542,6 +1542,7 @@ DIR* opendir(const char* dir) {
   uint64_t flush_start;
   uint64_t flush_end;
   DIR* rv;
+  int s;
 
   int ret = pthread_once(&init_once, preload_init);
   if (ret) ABORT("pthread_once");
@@ -1616,7 +1617,8 @@ DIR* opendir(const char* dir) {
           flush_start = now_micros();
           info("flushing plfsdir ... (rank 0)");
         }
-        deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_epochs - 1);
+        s = deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_epochs - 1);
+        if (s != 0) ABORT("fail to flush plfsdir");
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
           snprintf(msg, sizeof(msg), "flushing done %s",
@@ -1699,6 +1701,7 @@ int closedir(DIR* dirp) {
   uint64_t flush_end;
   char msg[100];
   int rv;
+  int s;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -1770,7 +1773,8 @@ int closedir(DIR* dirp) {
           flush_start = now_micros();
           info("pre-flushing plfsdir ... (rank 0)");
         }
-        deltafs_plfsdir_flush(pctx.plfshdl, num_epochs - 1);
+        s = deltafs_plfsdir_flush(pctx.plfshdl, num_epochs - 1);
+        if (s != 0) ABORT("fail to flush plfsdir");
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
           snprintf(msg, sizeof(msg), "pre-flushing done %s",
@@ -1905,13 +1909,13 @@ int fclose(FILE* stream) {
     rv = shuffle_write(&pctx.sctx, ff->file_name(), ff->data(), ff->size(),
                        num_epochs - 1);
     if (rv) {
-      ABORT("xxshuffle");
+      ABORT("plfsdir shuffler write failed");
     }
   } else {
     rv = preload_local_write(ff->file_name(), ff->data(), ff->size(),
                              num_epochs - 1);
     if (rv) {
-      ABORT("xxwrite");
+      ABORT("plfsdir write failed");
     }
   }
 
