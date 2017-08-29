@@ -73,10 +73,15 @@ inline void log(int fd, const char* fmt, ...) {
   errno = 0;
 }
 
-inline void info(const char* msg) { log(fileno(stderr), "-INFO- %s\n", msg); }
-inline void warn(const char* msg) {
-  log(fileno(stderr), "++ WARN ++ %s\n", msg);
-}
+/*
+ * logger helpers/utilities
+ */
+#define ABORT(msg) msg_abort(msg, __func__, __FILE__, __LINE__)
+#define LOG_SINK fileno(stderr)
+
+inline void info(const char* msg) { log(LOG_SINK, "-INFO- %s\n", msg); }
+
+inline void warn(const char* msg) { log(LOG_SINK, "++ WARN ++ %s\n", msg); }
 
 inline void error(const char* msg) {
   if (errno != 0) {
@@ -86,11 +91,18 @@ inline void error(const char* msg) {
   }
 }
 
-inline void msg_abort(const char* msg) {
+inline void msg_abort(const char* msg, const char* func, const char* file,
+                      int line) {
   if (errno != 0) {
-    log(fileno(stderr), "*** ABORT *** %s: %s\n", msg, strerror(errno));
+    log(fileno(stderr),
+        "*** ABORT ***"
+        " [%s (%s:%d)] %s: %s(%d)\n",
+        func, file, line, msg, strerror(errno), errno);
   } else {
-    log(fileno(stderr), "*** ABORT *** %s\n", msg);
+    log(fileno(stderr),
+        "*** ABORT ***"
+        " [%s (%s:%d)] %s\n",
+        func, file, line, msg);
   }
 
   abort();
@@ -125,7 +137,7 @@ inline int pthread_cv_notifyall(pthread_cond_t* cv) {
   int r = pthread_cond_broadcast(cv);
   if (r != 0) {
     errno = r;
-    msg_abort("cv_sigall");
+    ABORT("cv_sigall");
   }
 
   return 0;
@@ -140,7 +152,7 @@ inline int pthread_cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
   }
   if (r != 0) {
     errno = r;
-    msg_abort("cv_timedwait");
+    ABORT("cv_timedwait");
   }
 
   return 0;
@@ -151,7 +163,7 @@ inline int pthread_cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
   int r = pthread_cond_wait(cv, mtx);
   if (r != 0) {
     errno = r;
-    msg_abort("cv_wait");
+    ABORT("cv_wait");
   }
 
   return 0;
@@ -162,7 +174,7 @@ inline int pthread_mtx_lock(pthread_mutex_t* mtx) {
   int r = pthread_mutex_lock(mtx);
   if (r != 0) {
     errno = r;
-    msg_abort("mtx_lock");
+    ABORT("mtx_lock");
   }
 
   return 0;
@@ -173,7 +185,7 @@ inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
   int r = pthread_mutex_unlock(mtx);
   if (r != 0) {
     errno = r;
-    msg_abort("mtx_unlock");
+    ABORT("mtx_unlock");
   }
 
   return 0;

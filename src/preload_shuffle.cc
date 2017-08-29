@@ -80,7 +80,7 @@ char* shuffle_prepare_uri(char* buf) {
 
   /* settle down an ip addr to use */
   if (getifaddrs(&ifaddr) == -1) {
-    msg_abort("getifaddrs");
+    ABORT("getifaddrs");
   }
 
   for (cur = ifaddr; cur != NULL; cur = cur->ifa_next) {
@@ -90,7 +90,7 @@ char* shuffle_prepare_uri(char* buf) {
       if (family == AF_INET) {
         if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in), ip,
                         sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
-          msg_abort("getnameinfo");
+          ABORT("getnameinfo");
 
         if (strncmp(subnet, ip, strlen(subnet)) == 0) {
           break;
@@ -108,7 +108,7 @@ char* shuffle_prepare_uri(char* buf) {
   }
 
   if (cur == NULL) /* maybe a wrong subnet has been specified */
-    msg_abort("no ip addr");
+    ABORT("no ip addr");
 
   freeifaddrs(ifaddr);
 
@@ -129,9 +129,9 @@ char* shuffle_prepare_uri(char* buf) {
   }
 
   /* sanity check on port range */
-  if (max_port - min_port < 0) msg_abort("bad min-max port");
-  if (min_port < 1) msg_abort("bad min port");
-  if (max_port > 65535) msg_abort("bad max port");
+  if (max_port - min_port < 0) ABORT("bad min-max port");
+  if (min_port < 1) ABORT("bad min port");
+  if (max_port > 65535) ABORT("bad max port");
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
@@ -141,7 +141,7 @@ char* shuffle_prepare_uri(char* buf) {
 #if MPI_VERSION >= 3
   rv = MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0,
                            MPI_INFO_NULL, &comm);
-  if (rv != MPI_SUCCESS) msg_abort("MPI_Comm_split_type");
+  if (rv != MPI_SUCCESS) ABORT("MPI_Comm_split_type");
 #else
   comm = MPI_COMM_WORLD;
 #endif
@@ -165,7 +165,7 @@ char* shuffle_prepare_uri(char* buf) {
         break;
       }
     } else {
-      msg_abort("socket");
+      ABORT("socket");
     }
   }
 
@@ -193,14 +193,14 @@ char* shuffle_prepare_uri(char* buf) {
       }
       close(so);
     } else {
-      msg_abort("socket");
+      ABORT("socket");
     }
   }
 
   errno = 0;
 
   if (port == 0) /* maybe a wrong port range has been specified */
-    msg_abort("no free ports");
+    ABORT("no free ports");
 
   /* add proto */
 

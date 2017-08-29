@@ -464,7 +464,7 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
     if (hret == HG_SUCCESS) {
       rv = write_out.rv;
       if (rv != 0) {
-        msg_abort("xxreply");
+        ABORT("xxreply");
       }
     }
     HG_Free_output(h, &write_out);
@@ -552,7 +552,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 
       e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
-        msg_abort("timeout");
+        ABORT("timeout");
       }
     }
   }
@@ -572,7 +572,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   /* go */
   peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) {
-    msg_abort("ssg_get_addr");
+    ABORT("ssg_get_addr");
   }
   assert(nnctx.hg_ctx != NULL);
   h = hg_hdls[slot];
@@ -636,7 +636,7 @@ void nn_shuffler_wait() {
 
       e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
-        msg_abort("timeout");
+        ABORT("timeout");
       }
     }
   }
@@ -697,7 +697,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
   peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) {
-    msg_abort("ssg_get_addr");
+    ABORT("ssg_get_addr");
   }
   assert(nnctx.hg_ctx != NULL);
   hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
@@ -736,7 +736,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
         e = pthread_cv_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
         if (e == ETIMEDOUT) {
-          msg_abort("timeout");
+          ABORT("timeout");
         }
       }
     }
@@ -865,7 +865,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
       e = pthread_cv_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
       if (e == ETIMEDOUT) {
-        msg_abort("timeout");
+        ABORT("timeout");
       }
     }
   }
@@ -882,7 +882,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     if (rpcq->sz > MAX_RPC_MESSAGE) {
       /* happens when the total size of queued data is greater than
        * the size limit for an rpc message */
-      msg_abort("rpc overflow");
+      ABORT("rpc overflow");
     } else {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
@@ -899,7 +899,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
         shuffle_msg_replied(arg1, arg2);
       }
       if (rv != 0) {
-        msg_abort("xxsend");
+        ABORT("xxsend");
       }
       pthread_mtx_lock(&mtx[qu_cv]);
       pthread_cv_notifyall(&cv[qu_cv]);
@@ -912,7 +912,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   if (rpcq->sz + rpc_sz > max_rpcq_sz) {
     /* happens when the memory reserved for the queue is smaller than
      * a single write */
-    msg_abort("rpc overflow");
+    ABORT("rpc overflow");
   } else {
     /* rank */
     nrank = htonl(rank);
@@ -963,7 +963,7 @@ void nn_shuffler_flush_rpcq() {
     if (rpcq->sz == 0) { /* skip empty queue */
       continue;
     } else if (rpcq->sz > MAX_RPC_MESSAGE) {
-      msg_abort("rpc overflow");
+      ABORT("rpc overflow");
     } else {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
@@ -980,7 +980,7 @@ void nn_shuffler_flush_rpcq() {
         shuffle_msg_replied(arg1, arg2);
       }
       if (rv != 0) {
-        msg_abort("xxsend");
+        ABORT("xxsend");
       }
       pthread_mtx_lock(&mtx[qu_cv]);
       pthread_cv_notifyall(&cv[qu_cv]);
@@ -1062,17 +1062,17 @@ void nn_shuffler_init_ssg() {
   assert(nnctx.hg_ctx != NULL);
 
   nnctx.ssg = ssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD);
-  if (nnctx.ssg == SSG_NULL) msg_abort("ssg_init_mpi");
+  if (nnctx.ssg == SSG_NULL) ABORT("ssg_init_mpi");
 
   hret = ssg_lookup(nnctx.ssg, nnctx.hg_ctx);
-  if (hret != HG_SUCCESS) msg_abort("ssg_lookup");
+  if (hret != HG_SUCCESS) ABORT("ssg_lookup");
 
   size = ssg_get_count(nnctx.ssg);
   rank = ssg_get_rank(nnctx.ssg);
 
   if (pctx.paranoid_checks) {
     if (size != pctx.comm_sz || rank != pctx.my_rank) {
-      msg_abort("ssg-mpi disagree");
+      ABORT("ssg-mpi disagree");
     }
   }
 
@@ -1092,7 +1092,7 @@ void nn_shuffler_init_ssg() {
     nnctx.chp = ch_placement_initialize(proto, size, vf /* vir factor */,
                                         0 /* hash seed */);
     if (nnctx.chp == NULL) {
-      msg_abort("ch_init");
+      ABORT("ch_init");
     }
   }
 
@@ -1170,17 +1170,17 @@ void nn_shuffler_init() {
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
 
   nnctx.hg_clz = HG_Init(nnctx.my_addr, HG_TRUE);
-  if (!nnctx.hg_clz) msg_abort("HG_Init");
+  if (!nnctx.hg_clz) ABORT("HG_Init");
 
   nnctx.hg_id = HG_Register_name(
       nnctx.hg_clz, "shuffle_rpc_write", nn_shuffler_write_in_proc,
       nn_shuffler_write_out_proc, nn_shuffler_write_rpc_handler_wrapper);
 
   hret = HG_Register_data(nnctx.hg_clz, nnctx.hg_id, &nnctx, NULL);
-  if (hret != HG_SUCCESS) msg_abort("HG_Register_data");
+  if (hret != HG_SUCCESS) ABORT("HG_Register_data");
 
   nnctx.hg_ctx = HG_Context_create(nnctx.hg_clz);
-  if (!nnctx.hg_ctx) msg_abort("HG_Context_create");
+  if (!nnctx.hg_ctx) ABORT("HG_Context_create");
 
   nn_shuffler_init_ssg();
 
@@ -1213,22 +1213,22 @@ void nn_shuffler_init() {
 
   for (i = 0; i < 5; i++) {
     rv = pthread_mutex_init(&mtx[i], NULL);
-    if (rv) msg_abort("pthread_mutex_init");
+    if (rv) ABORT("pthread_mutex_init");
     rv = pthread_cond_init(&cv[i], NULL);
-    if (rv) msg_abort("pthread_cond_init");
+    if (rv) ABORT("pthread_cond_init");
   }
 
   shutting_down = 0;
   num_bg++;
   rv = pthread_create(&pid, NULL, bg_work, NULL);
-  if (rv) msg_abort("pthread_create");
+  if (rv) ABORT("pthread_create");
   pthread_detach(pid);
 
   if (is_envset("SHUFFLE_Use_worker_thread")) {
     wk_items.reserve(MAX_WORK_ITEM);
     num_wk++;
     rv = pthread_create(&pid, NULL, rpc_work, NULL);
-    if (rv) msg_abort("pthread_create");
+    if (rv) ABORT("pthread_create");
     pthread_detach(pid);
   } else if (pctx.my_rank == 0) {
     warn("rpc worker disabled");

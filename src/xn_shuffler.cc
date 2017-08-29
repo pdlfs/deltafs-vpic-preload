@@ -98,26 +98,26 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* rank */
   if (input_left < 8) {
-    msg_abort("rpc_corruption");
+    ABORT("rpc_corruption");
   }
   memcpy(&r, input, 4);
-  if (src != ntohl(r)) msg_abort("bad src");
+  if (src != ntohl(r)) ABORT("bad src");
   input_left -= 4;
   input += 4;
   memcpy(&r, input, 4);
-  if (dst != ntohl(r)) msg_abort("bad dst");
+  if (dst != ntohl(r)) ABORT("bad dst");
   input_left -= 4;
   input += 4;
 
   /* vpic fname */
   if (input_left < 1) {
-    msg_abort("rpc_corruption");
+    ABORT("rpc_corruption");
   }
   fname_len = static_cast<unsigned char>(input[0]);
   input_left -= 1;
   input += 1;
   if (input_left < fname_len + 1) {
-    msg_abort("rpc_corruption");
+    ABORT("rpc_corruption");
   }
   fname = input;
   assert(strlen(fname) == fname_len);
@@ -126,13 +126,13 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* vpic data */
   if (input_left < 1) {
-    msg_abort("rpc_corruption");
+    ABORT("rpc_corruption");
   }
   len = static_cast<unsigned char>(input[0]);
   input_left -= 1;
   input += 1;
   if (input_left < len) {
-    msg_abort("rpc_corruption");
+    ABORT("rpc_corruption");
   }
   data = input;
   input_left -= len;
@@ -140,7 +140,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
   /* epoch */
   if (input_left < 2) {
-    msg_abort("rpc_corruption");
+    ABORT("rpc_corruption");
   }
   memcpy(&e, input, 2);
   epoch = ntohs(e);
@@ -163,7 +163,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   }
 
   if (rv != 0) {
-    msg_abort("xxwrite");
+    ABORT("xxwrite");
   }
 }
 
@@ -285,7 +285,7 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
 
   if (pctx.paranoid_checks) {
     if (size != pctx.comm_sz || rank != pctx.my_rank) {
-      msg_abort("nx-mpi disagree");
+      ABORT("nx-mpi disagree");
     }
   }
 
@@ -305,7 +305,7 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
     ctx->ch = ch_placement_initialize(proto, size, vf /* vir factor */,
                                       0 /* hash seed */);
     if (ctx->ch == NULL) {
-      msg_abort("ch_init");
+      ABORT("ch_init");
     }
   }
 
@@ -334,7 +334,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   shuffle_prepare_uri(uri);
   ctx->nx = nexus_bootstrap_uri(uri);
-  if (ctx->nx == NULL) msg_abort("nexus_bootstrap_uri");
+  if (ctx->nx == NULL) ABORT("nexus_bootstrap_uri");
   xn_shuffler_init_ch_placement(ctx);
 
   env = maybe_getenv("SHUFFLE_Max_locals");
@@ -392,7 +392,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
                           deliverq_max, xn_shuffler_deliver);
 
   if (ctx->sh == NULL) {
-    msg_abort("shuffler_init");
+    ABORT("shuffler_init");
   }
 }
 

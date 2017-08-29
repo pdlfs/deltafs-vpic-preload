@@ -105,7 +105,7 @@ static pthread_once_t init_once = PTHREAD_ONCE_INIT;
 /* helper: must_getnextdlsym: get next symbol or fail */
 static void must_getnextdlsym(void** result, const char* symbol) {
   *result = dlsym(RTLD_NEXT, symbol);
-  if (*result == NULL) msg_abort(symbol);
+  if (*result == NULL) ABORT(symbol);
 }
 
 /*
@@ -168,7 +168,7 @@ static void preload_init() {
   if (pctx.len_deltafs_mntp != 0) {
     if ((pctx.len_deltafs_mntp == 1 && pctx.deltafs_mntp[0] == '/') ||
         pctx.deltafs_mntp[pctx.len_deltafs_mntp - 1] == '/') {
-      msg_abort("bad deltafs_mntp");
+      ABORT("bad deltafs_mntp");
     }
     /*
      * if deltafs is not mounted, skip plfsdir
@@ -221,9 +221,9 @@ static void preload_init() {
       pctx.ignore_dirs[i] = paths[i].first;
       if (pctx.len_ignore_dirs[i] != 0) {
         if (pctx.len_ignore_dirs[i] == 1 && pctx.ignore_dirs[i][0] == '/')
-          msg_abort("bad ignore_dir");
+          ABORT("bad ignore_dir");
         if (pctx.ignore_dirs[i][pctx.len_ignore_dirs[i] - 1] == '/')
-          msg_abort("bad ignore_dir");
+          ABORT("bad ignore_dir");
       }
     }
   }
@@ -241,7 +241,7 @@ static void preload_init() {
    */
   if (pctx.len_log_home == 0 || pctx.len_log_home == 1 ||
       pctx.log_home[0] != '/' || pctx.log_home[pctx.len_log_home - 1] == '/')
-    msg_abort("bad log_root");
+    ABORT("bad log_root");
 
   /* obtain path to local file system root */
   pctx.local_root = maybe_getenv("PRELOAD_Local_root");
@@ -257,7 +257,7 @@ static void preload_init() {
   if (pctx.len_local_root == 0 || pctx.len_local_root == 1 ||
       pctx.local_root[0] != '/' ||
       pctx.local_root[pctx.len_local_root - 1] == '/')
-    msg_abort("bad local_root");
+    ABORT("bad local_root");
 
   if (is_envset("PRELOAD_Skip_sampling")) pctx.sampling = 0;
 
@@ -630,7 +630,7 @@ int MPI_Init(int* argc, char*** argv) {
   int n;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   rv = nxt.MPI_Init(argc, argv);
   if (rv == MPI_SUCCESS) {
@@ -767,7 +767,7 @@ int MPI_Init(int* argc, char*** argv) {
     n = snprintf(dirpath, sizeof(dirpath), "[cwd] ");
     cwd = getcwd(dirpath + n, sizeof(dirpath) - n);
     if (cwd == NULL) {
-      msg_abort("getcwd");
+      ABORT("getcwd");
     } else {
       info(dirpath);
     }
@@ -790,7 +790,7 @@ int MPI_Init(int* argc, char*** argv) {
     pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 
     if (pctx.logfd == -1) {
-      msg_abort("cannot create log");
+      ABORT("cannot create log");
     } else {
       now = time(NULL);
       n = snprintf(msg, sizeof(msg), "%s\n--- trace ---\n", ctime_r(&now, buf));
@@ -865,7 +865,7 @@ int MPI_Init(int* argc, char*** argv) {
       } else if (!exact) {
         stripped = pctx.plfsdir + pctx.len_deltafs_mntp;
       } else {
-        msg_abort("bad plfsdir");
+        ABORT("bad plfsdir");
       }
 
       if (rank == 0) {
@@ -882,7 +882,7 @@ int MPI_Init(int* argc, char*** argv) {
         }
 
         if (rv != 0) {
-          msg_abort("cannot make plfsdir");
+          ABORT("cannot make plfsdir");
         } else {
           info("plfsdir created (rank 0)");
         }
@@ -904,7 +904,7 @@ int MPI_Init(int* argc, char*** argv) {
 
         rv = deltafs_plfsdir_open(pctx.plfshdl, path);
         if (rv != 0) {
-          msg_abort("cannot open plfsdir");
+          ABORT("cannot open plfsdir");
         } else if (rank == 0) {
           info("plfsdir (via deltafs-LT) opened (rank 0)");
           if (pctx.verr) {
@@ -916,7 +916,7 @@ int MPI_Init(int* argc, char*** argv) {
                  !IS_BYPASS_DELTAFS(pctx.mode)) {
         pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
         if (pctx.plfsfd == -1) {
-          msg_abort("cannot open plfsdir");
+          ABORT("cannot open plfsdir");
         } else if (rank == 0) {
           info("plfsdir opened (rank 0)");
         }
@@ -933,7 +933,7 @@ int MPI_Init(int* argc, char*** argv) {
       pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 
       if (pctx.monfd == -1) {
-        msg_abort("cannot create tmp stats file");
+        ABORT("cannot create tmp stats file");
       } else if (rank == 0) {
         snprintf(msg, sizeof(msg),
                  "in-mem epoch mon stats %d bytes\n>>> MON_BUF_SIZE is %d",
@@ -1028,7 +1028,7 @@ int MPI_Finalize(void) {
   int n;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (pctx.my_rank == 0) {
     info("lib finalizing ... ");
@@ -1285,11 +1285,11 @@ int MPI_Finalize(void) {
           if (go) {
             if (pctx.my_rank == 0) {
               if (pctx.paranoid_checks && glob.nlw + glob.nfw != glob.nw)
-                msg_abort("lost writes");
+                ABORT("lost writes");
               if (pctx.paranoid_checks && glob.nms != glob.nmd)
-                msg_abort("lost rpc replies");
+                ABORT("lost rpc replies");
               if (pctx.paranoid_checks && glob.nmr != glob.nms)
-                msg_abort("lost rpcs");
+                ABORT("lost rpcs");
               if (mon_dump_txt) mon_dumpstate(fd2, &glob);
               if (mon_dump_bin) {
                 memset(buf, 0, sizeof(buf));
@@ -1481,10 +1481,10 @@ int chdir(const char* dir) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   rv = nxt.chdir(dir);
-  if (rv) msg_abort("chdir");
+  if (rv) ABORT("chdir");
 
   return rv;
 }
@@ -1499,7 +1499,7 @@ int mkdir(const char* dir, mode_t mode) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_path(dir, &exact)) {
     return nxt.mkdir(dir, mode);
@@ -1526,7 +1526,7 @@ int mkdir(const char* dir, mode_t mode) {
     rv = deltafs_mkdir(stripped, mode);
   }
 
-  if (rv) msg_abort("xxmkdir");
+  if (rv) ABORT("xxmkdir");
 
   return rv;
 }
@@ -1544,7 +1544,7 @@ DIR* opendir(const char* dir) {
   DIR* rv;
 
   int ret = pthread_once(&init_once, preload_init);
-  if (ret) msg_abort("pthread_once");
+  if (ret) ABORT("pthread_once");
 
   if (!claim_path(dir, &ignored_exact)) {
     return nxt.opendir(dir);
@@ -1624,7 +1624,7 @@ DIR* opendir(const char* dir) {
           info(msg);
         }
       } else {
-        msg_abort("plfsdir not opened");
+        ABORT("plfsdir not opened");
       }
 
     } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
@@ -1635,7 +1635,7 @@ DIR* opendir(const char* dir) {
           info("plfsdir flushed (rank 0)");
         }
       } else {
-        msg_abort("plfsdir not opened");
+        ABORT("plfsdir not opened");
       }
 
     } else {
@@ -1676,7 +1676,7 @@ DIR* opendir(const char* dir) {
     /* take a snapshot of sys usage */
     pctx.last_sys_usage_snaptime = now_micros();
     ret = getrusage(RUSAGE_SELF, &pctx.last_sys_usage);
-    if (ret) msg_abort("getrusage");
+    if (ret) ABORT("getrusage");
   }
 
   if (pctx.my_rank == 0) {
@@ -1701,7 +1701,7 @@ int closedir(DIR* dirp) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
     return nxt.closedir(dirp);
@@ -1713,7 +1713,7 @@ int closedir(DIR* dirp) {
 
   if (pctx.paranoid_checks) {
     if (!pctx.isdeltafs->empty()) {
-      msg_abort("some plfsdir files still open!");
+      ABORT("some plfsdir files still open!");
     }
     pctx.fnames->clear();
   }
@@ -1721,7 +1721,7 @@ int closedir(DIR* dirp) {
   if (!pctx.nomon) {
     tmp_usage_snaptime = now_micros();
     rv = getrusage(RUSAGE_SELF, &tmp_usage);
-    if (rv) msg_abort("getrusage");
+    if (rv) ABORT("getrusage");
     pctx.mctx.cpu_stat.micros =
         pctx.my_cpus * (tmp_usage_snaptime - pctx.last_sys_usage_snaptime);
     pctx.mctx.cpu_stat.sys_micros =
@@ -1778,7 +1778,7 @@ int closedir(DIR* dirp) {
           info(msg);
         }
       } else {
-        msg_abort("plfsdir not opened");
+        ABORT("plfsdir not opened");
       }
 
     } else {
@@ -1814,7 +1814,7 @@ FILE* fopen(const char* fpath, const char* mode) {
   FILE* rv;
 
   int ret = pthread_once(&init_once, preload_init);
-  if (ret) msg_abort("pthread_once");
+  if (ret) ABORT("pthread_once");
 
   if (should_ignore(fpath)) {
     return nxt.fopen("/dev/null", mode);
@@ -1869,7 +1869,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nitems, FILE* stream) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.fwrite(ptr, size, nitems, stream);
@@ -1893,7 +1893,7 @@ int fclose(FILE* stream) {
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.fclose(stream);
@@ -1905,13 +1905,13 @@ int fclose(FILE* stream) {
     rv = shuffle_write(&pctx.sctx, ff->file_name(), ff->data(), ff->size(),
                        num_epochs - 1);
     if (rv) {
-      msg_abort("xxshuffle");
+      ABORT("xxshuffle");
     }
   } else {
     rv = preload_local_write(ff->file_name(), ff->data(), ff->size(),
                              num_epochs - 1);
     if (rv) {
-      msg_abort("xxwrite");
+      ABORT("xxwrite");
     }
   }
 
@@ -1939,14 +1939,14 @@ int fclose(FILE* stream) {
 int feof(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.feof(stream);
   }
 
   errno = ENOTSUP;
-  msg_abort("feof!");
+  ABORT("feof!");
   return 0;
 }
 
@@ -1956,14 +1956,14 @@ int feof(FILE* stream) {
 int ferror(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.ferror(stream);
   }
 
   errno = ENOTSUP;
-  msg_abort("ferror!");
+  ABORT("ferror!");
   return 0;
 }
 
@@ -1973,7 +1973,7 @@ int ferror(FILE* stream) {
 void clearerr(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     nxt.clearerr(stream);
@@ -1981,7 +1981,7 @@ void clearerr(FILE* stream) {
   }
 
   errno = ENOTSUP;
-  msg_abort("clearerr!");
+  ABORT("clearerr!");
 }
 
 /*
@@ -1990,14 +1990,14 @@ void clearerr(FILE* stream) {
 size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.fread(ptr, size, nitems, stream);
   }
 
   errno = ENOTSUP;
-  msg_abort("fread!");
+  ABORT("fread!");
   return 0;
 }
 
@@ -2007,14 +2007,14 @@ size_t fread(void* ptr, size_t size, size_t nitems, FILE* stream) {
 int fseek(FILE* stream, long offset, int whence) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.fseek(stream, offset, whence);
   }
 
   errno = ENOTSUP;
-  msg_abort("fseek!");
+  ABORT("fseek!");
   return 0;
 }
 
@@ -2024,14 +2024,14 @@ int fseek(FILE* stream, long offset, int whence) {
 long ftell(FILE* stream) {
   int rv;
   rv = pthread_once(&init_once, preload_init);
-  if (rv) msg_abort("pthread_once");
+  if (rv) ABORT("pthread_once");
 
   if (!claim_FILE(stream)) {
     return nxt.ftell(stream);
   }
 
   errno = ENOTSUP;
-  msg_abort("ftell!");
+  ABORT("ftell!");
   return 0;
 }
 
@@ -2066,10 +2066,10 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
 
   if (pctx.paranoid_checks) {
     if (len != PRELOAD_PARTICLE_SIZE) {
-      msg_abort("bad write size!");
+      ABORT("bad write size!");
     }
     if (epoch != num_epochs - 1) {
-      msg_abort("bad epoch!");
+      ABORT("bad epoch!");
     }
   }
 
@@ -2093,7 +2093,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
 
   } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
     if (pctx.plfshdl == NULL) {
-      msg_abort("plfsdir not opened");
+      ABORT("plfsdir not opened");
     }
 
     rv = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, len);
@@ -2115,7 +2115,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     }
   } else {
     if (pctx.plfsfd == -1) {
-      msg_abort("plfsdir not opened");
+      ABORT("plfsdir not opened");
     }
 
     fd =
