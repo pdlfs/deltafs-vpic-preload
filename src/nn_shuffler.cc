@@ -223,7 +223,7 @@ static void* rpc_work(void* arg) {
         if (h != NULL) {
           hret = nn_shuffler_write_rpc_handler(h);
           if (hret != HG_SUCCESS) {
-            rpc_abort("HG_Respond", hret);
+            RPC_FAILED("HG_Respond", hret);
           }
         }
       }
@@ -437,7 +437,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   HG_Destroy(h);
 
   if (hret != HG_SUCCESS) {
-    rpc_abort("HG_Respond", hret);
+    RPC_FAILED("HG_Respond", hret);
   }
 
   return hret;
@@ -464,7 +464,7 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
     if (hret == HG_SUCCESS) {
       rv = write_out.rv;
       if (rv != 0) {
-        ABORT("xxreply");
+        ABORT("plfsdir remote write failed");
       }
     }
     HG_Free_output(h, &write_out);
@@ -474,7 +474,7 @@ hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info) {
   if (hret == HG_SUCCESS) {
     shuffle_msg_replied(write_cb->arg1, write_cb->arg2);
   } else {
-    rpc_abort("HG_Forward", hret);
+    RPC_FAILED("HG_Get_output", hret);
   }
 
   /* return rpc callback slot */
@@ -552,7 +552,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 
       e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("timeout");
+        ABORT("rpc timeout");
       }
     }
   }
@@ -579,14 +579,14 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   if (h == NULL) {
     hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
     if (hret != HG_SUCCESS) {
-      rpc_abort("HG_Create", hret);
+      RPC_FAILED("HG_Create", hret);
     } else if (nnctx.cache_hlds) {
       hg_hdls[slot] = h;
     }
   } else {
     hret = HG_Reset(h, peer_addr, nnctx.hg_id);
     if (hret != HG_SUCCESS) {
-      rpc_abort("HG_Reset", hret);
+      RPC_FAILED("HG_Reset", hret);
     }
   }
 
@@ -597,7 +597,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   hret = HG_Forward(h, nn_shuffler_write_async_handler, write_cb, write_in);
 
   if (hret != HG_SUCCESS) {
-    rpc_abort("HG_Forward", hret);
+    RPC_FAILED("HG_Forward", hret);
   }
 
   return 0;
@@ -636,7 +636,7 @@ void nn_shuffler_wait() {
 
       e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("timeout");
+        ABORT("rpc timeout");
       }
     }
   }
@@ -702,7 +702,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   assert(nnctx.hg_ctx != NULL);
   hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
   if (hret != HG_SUCCESS) {
-    rpc_abort("HG_Create", hret);
+    RPC_FAILED("HG_Create", hret);
   }
 
   write_cb.ok = 0;
@@ -736,7 +736,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
         e = pthread_cv_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
         if (e == ETIMEDOUT) {
-          ABORT("timeout");
+          ABORT("rpc timeout");
         }
       }
     }
@@ -754,7 +754,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   HG_Destroy(h);
 
   if (hret != HG_SUCCESS) {
-    rpc_abort("HG_Forward", hret);
+    RPC_FAILED("HG_Forward", hret);
   }
 
   return rv;
@@ -865,7 +865,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
 
       e = pthread_cv_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("timeout");
+        ABORT("rpc timeout");
       }
     }
   }
@@ -899,7 +899,7 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
         shuffle_msg_replied(arg1, arg2);
       }
       if (rv != 0) {
-        ABORT("xxsend");
+        ABORT("plfsdir shuffler send failed");
       }
       pthread_mtx_lock(&mtx[qu_cv]);
       pthread_cv_notifyall(&cv[qu_cv]);
@@ -1013,8 +1013,10 @@ static void* bg_work(void* foo) {
   while (true) {
     do {
       hret = HG_Trigger(nnctx.hg_ctx, 0, 1, &actual_count);
-    } while (hret == HG_SUCCESS && actual_count != 0 && !is_shuttingdown());
-
+    } while (hret == HG_SUCCESS && actual_count != 0);
+    if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
+      RPC_FAILED("HG_Trigger", hret);
+    }
     if (!is_shuttingdown()) {
       now = now_micros_coarse() / 1000;
       if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
@@ -1025,8 +1027,9 @@ static void* bg_work(void* foo) {
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
-      if (hret != HG_SUCCESS && hret != HG_TIMEOUT)
-        rpc_abort("HG_Progress", hret);
+      if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
+        RPC_FAILED("HG_Progress", hret);
+      }
     } else {
       break;
     }

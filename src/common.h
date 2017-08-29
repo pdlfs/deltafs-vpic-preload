@@ -81,7 +81,7 @@ inline void log(int fd, const char* fmt, ...) {
 
 inline void info(const char* msg) { log(LOG_SINK, "-INFO- %s\n", msg); }
 
-inline void warn(const char* msg) { log(LOG_SINK, "++ WARN ++ %s\n", msg); }
+inline void warn(const char* msg) { log(LOG_SINK, "--- WARN --- %s\n", msg); }
 
 inline void error(const char* msg) {
   if (errno != 0) {
@@ -95,13 +95,13 @@ inline void msg_abort(const char* msg, const char* func, const char* file,
                       int line) {
   if (errno != 0) {
     log(LOG_SINK,
-        "*** ABORT ***"
-        " %s (%s:%d)] %s: %s(%d)\n",
+        "*** ABORT ***\n%s (%s:%d)] "
+        "%s: %s(%d)\n",
         func, file, line, msg, strerror(errno), errno);
   } else {
     log(LOG_SINK,
-        "*** ABORT ***"
-        " %s (%s:%d)] %s\n",
+        "*** ABORT ***\n%s (%s:%d)] "
+        "%s\n",
         func, file, line, msg);
   }
 

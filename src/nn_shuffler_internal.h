@@ -54,14 +54,18 @@
  */
 #define MAX_RPC_MESSAGE (65536 - 128)
 
+#define RPC_FAILED(msg, ret) rpc_failed(msg, ret, __func__, __FILE__, __LINE__)
+
 /*
- * rpc_abort: abort with a mercury rpc error
+ * rpc_failed: abort with a mercury rpc error
  */
-static inline void rpc_abort(const char* msg, hg_return_t ret) {
+inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
+                       const char* file, int line) {
   char tmp[500];
   const char* err = HG_Error_to_string(ret);
-  int n = snprintf(tmp, sizeof(tmp), "*** RPC FAILED *** %s: %s\n", msg, err);
-  n = write(fileno(stderr), tmp, n);
+  int n = snprintf(tmp, sizeof(tmp), "*** RPC FAILED ***\n%s (%s:%d)] %s: %s\n",
+                   func, file, line, msg, err);
+  n = write(LOG_SINK, tmp, n);
   abort();
 }
 

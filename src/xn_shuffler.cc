@@ -47,13 +47,13 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   assert(ctx->nx != NULL);
 
   hret = shuffler_flush_localqs(ctx->sh);
-  if (hret == HG_SUCCESS) {
-    nexus_local_barrier(ctx->nx);
-    hret = shuffler_flush_remoteqs(ctx->sh);
-  }
-
   if (hret != HG_SUCCESS) {
-    rpc_abort("xxflush", hret);
+    RPC_FAILED("fail to flush local queues", hret);
+  }
+  nexus_local_barrier(ctx->nx);
+  hret = shuffler_flush_remoteqs(ctx->sh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush remote queues", hret);
   }
 }
 
@@ -65,13 +65,13 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   assert(ctx->nx != NULL);
 
   hret = shuffler_flush_localqs(ctx->sh);
-  if (hret == HG_SUCCESS) {
-    nexus_local_barrier(ctx->nx);
-    hret = shuffler_flush_delivery(ctx->sh);
-  }
-
   if (hret != HG_SUCCESS) {
-    rpc_abort("xxflush", hret);
+    RPC_FAILED("fail to flush local queues", hret);
+  }
+  nexus_local_barrier(ctx->nx);
+  hret = shuffler_flush_delivery(ctx->sh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush delivery", hret);
   }
 }
 
@@ -163,7 +163,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   }
 
   if (rv != 0) {
-    ABORT("xxwrite");
+    ABORT("plfsdir write failed");
   }
 }
 
@@ -265,7 +265,7 @@ void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data, size_t len,
   hret = shuffler_send(ctx->sh, dst, 0, buf, sz);
 
   if (hret != HG_SUCCESS) {
-    rpc_abort("xxsend", hret);
+    RPC_FAILED("plfsdir shuffler send failed", hret);
   }
 }
 
