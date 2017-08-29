@@ -94,13 +94,13 @@ void check_clockres() {
   if (n == 0) {
     snprintf(msg, sizeof(msg), "[clock] CLOCK_MONOTONIC_COARSE: %d us",
              int(res.tv_sec * 1000 * 1000 + res.tv_nsec / 1000));
-    info(msg);
+    INFO(msg);
   }
   n = clock_getres(CLOCK_MONOTONIC, &res);
   if (n == 0) {
     snprintf(msg, sizeof(msg), "[clock] CLOCK_MONOTONIC: %d ns",
              int(res.tv_sec * 1000 * 1000 * 1000 + res.tv_nsec));
-    info(msg);
+    INFO(msg);
   }
 #endif
 }
@@ -136,7 +136,7 @@ void check_sse42() {
     snprintf(msg, sizeof(msg), "[sse] SSE V4.2 is not available");
   }
 
-  info(msg);
+  INFO(msg);
 }
 
 /* read a line from file */
@@ -259,7 +259,7 @@ void try_scan_sysfs() {
            "[sys] %d NUMA nodes / %d CPU cores (L1: %s + %s, L2: %s, L3: %s)",
            nnodes, ncpus, idx[0].c_str(), idx[1].c_str(), idx[2].c_str(),
            idx[3].c_str());
-  info(msg);
+  INFO(msg);
 
   nnics = 0;
   dirname = "/sys/class/net";
@@ -298,7 +298,7 @@ void try_scan_sysfs() {
                  "%5s, mtu %5s, rx-irq: %3d, tx-irq: %3d (%s)",
                  speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx,
                  nic.c_str());
-        info(msg);
+        INFO(msg);
       }
     }
     closedir(d);
@@ -322,7 +322,7 @@ void try_scan_sysfs() {
               snprintf(msg, sizeof(msg),
                        "[slurm] job cgroup cpuset: %s\n>>> %s/%s",
                        jobcpuset.c_str(), dent->d_name, ddent->d_name);
-              info(msg);
+              INFO(msg);
               break;
             }
           }
@@ -381,7 +381,7 @@ void try_scan_procfs() {
     if (num_cpus != 0) {
       snprintf(msg, sizeof(msg), "[cpu] %d x %s (L2/L3 cache: %s)", num_cpus,
                cpu_type.c_str(), L1_cache_size.c_str());
-      info(msg);
+      INFO(msg);
     }
   }
 
@@ -390,7 +390,7 @@ void try_scan_procfs() {
     os = readline("/proc/version");
   }
   snprintf(msg, sizeof(msg), "[os] %s", os.c_str());
-  info(msg);
+  INFO(msg);
 
   errno = 0;
 }
@@ -421,9 +421,9 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
              "%lld soft, %lld hard, %lld suggested",
              softnofile, hardnofile, oknofile);
     if (softnofile < oknofile) {
-      warn(msg);
+      WARN(msg);
     } else {
-      info(msg);
+      INFO(msg);
     }
   }
 
@@ -441,7 +441,7 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
              "[ulimit] max memlock size: "
              "%lld soft, %lld hard",
              softmemlock, hardmemlock);
-    info(msg);
+    INFO(msg);
   }
 
   errno = 0;
@@ -458,9 +458,9 @@ void maybe_warn_cpuaffinity() {
     my = my_cpu_cores();
     snprintf(msg, sizeof(msg), "[numa] cpu affinity: %d/%d cores", my, os);
     if (my == os) {
-      warn(msg);
+      WARN(msg);
     } else {
-      info(msg);
+      INFO(msg);
     }
   }
 #endif

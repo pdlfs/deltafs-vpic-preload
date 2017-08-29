@@ -314,9 +314,9 @@ void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
       snprintf(msg, sizeof(msg),
                "ch-placement group size: %s (vir-factor: %s, proto: %s)",
                pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
-      info(msg);
+      INFO(msg);
     } else {
-      warn("ch-placement bypassed");
+      WARN("ch-placement bypassed");
     }
   }
 }

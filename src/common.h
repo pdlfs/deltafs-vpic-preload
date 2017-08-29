@@ -62,12 +62,16 @@ uint64_t now_micros_coarse();
 uint64_t timeval_to_micros(const struct timeval* tv);
 
 /* log message into a given file using unbuffered io. */
-inline void log(int fd, const char* fmt, ...) {
+inline void LOG(int fd, int e, const char* fmt, ...) {
   char tmp[500];
   va_list va;
   int n;
   va_start(va, fmt);
   n = vsnprintf(tmp, sizeof(tmp), fmt, va);
+  if (e != 0) {
+    n += snprintf(tmp + n, sizeof(tmp) - n, ": %s(%d)", strerror(e), e);
+  }
+  n += snprintf(tmp + n, sizeof(tmp) - n, "\n");
   n = write(fd, tmp, n);
   va_end(va);
   errno = 0;
@@ -77,34 +81,20 @@ inline void log(int fd, const char* fmt, ...) {
  * logging facilities and helpers
  */
 #define ABORT(msg) msg_abort(msg, __func__, __FILE__, __LINE__)
+#define ABORT_HEADER "***** ABORT *****"
 #define LOG_SINK fileno(stderr)
 
-inline void info(const char* msg) { log(LOG_SINK, "-INFO- %s\n", msg); }
-
-inline void warn(const char* msg) { log(LOG_SINK, "--- WARN --- %s\n", msg); }
-
-inline void error(const char* msg) {
-  if (errno != 0) {
-    log(LOG_SINK, "!!! ERROR !!! %s: %s\n", msg, strerror(errno));
-  } else {
-    log(LOG_SINK, "!!! ERROR !!! %s\n", msg);
-  }
+inline void INFO(const char* msg) { LOG(LOG_SINK, 0, "-INFO- %s", msg); }
+inline void WARN(const char* msg) { LOG(LOG_SINK, 0, "-- WARNING -- %s", msg); }
+inline void ERROR(const char* msg) {
+  LOG(LOG_SINK, errno, "!!! ERROR !!! %s", msg);
 }
 
 inline void msg_abort(const char* msg, const char* func, const char* file,
                       int line) {
-  if (errno != 0) {
-    log(LOG_SINK,
-        "*** ABORT ***\n%s (%s:%d)] "
-        "%s: %s(%d)\n",
-        func, file, line, msg, strerror(errno), errno);
-  } else {
-    log(LOG_SINK,
-        "*** ABORT ***\n%s (%s:%d)] "
-        "%s\n",
-        func, file, line, msg);
-  }
-
+  LOG(LOG_SINK, 0, ABORT_HEADER);
+  LOG(LOG_SINK, errno, "%s (%s:%d)] %s", func, file, line, msg);
+  LOG(LOG_SINK, 0, ABORT_HEADER);
   abort();
 }
 

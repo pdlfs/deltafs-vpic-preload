@@ -67,7 +67,7 @@ void preload_barrier(MPI_Comm comm) {
   double dura;
 
   if (pctx.my_rank == 0) {
-    info("barrier ...");
+    INFO("barrier ...");
   }
   start.time = MPI_Wtime();
   start.rank = pctx.my_rank;
@@ -83,6 +83,6 @@ void preload_barrier(MPI_Comm comm) {
       snprintf(msg, sizeof(msg), "barrier %s+",
                pretty_dura(dura * 1000000).c_str());
     }
-    info(msg);
+    INFO(msg);
   }
 }

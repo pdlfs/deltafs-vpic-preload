@@ -72,9 +72,9 @@ char* shuffle_prepare_uri(char* buf) {
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
     if (strcmp(subnet, "127.0.0.1") == 0) {
-      warn(msg);
+      WARN(msg);
     } else {
-      info(msg);
+      INFO(msg);
     }
   }
 
@@ -99,7 +99,7 @@ char* shuffle_prepare_uri(char* buf) {
           if (pctx.verr || pctx.my_rank == 0) {
             snprintf(msg, sizeof(msg), "[ip] skip %s (rank %d)", ip,
                      pctx.my_rank);
-            info(msg);
+            INFO(msg);
           }
 #endif
         }
@@ -135,7 +135,7 @@ char* shuffle_prepare_uri(char* buf) {
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
-    info(msg);
+    INFO(msg);
   }
 
 #if MPI_VERSION >= 3
@@ -171,7 +171,7 @@ char* shuffle_prepare_uri(char* buf) {
 
   if (port > max_port) {
     port = 0;
-    warn(
+    WARN(
         "no free ports available within the specified range\n>>> "
         "auto detecting ports ...");
     so = socket(PF_INET, SOCK_STREAM, 0);
@@ -210,16 +210,16 @@ char* shuffle_prepare_uri(char* buf) {
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using %s", env);
     if (strstr(env, "tcp") != NULL) {
-      warn(msg);
+      WARN(msg);
     } else {
-      info(msg);
+      INFO(msg);
     }
   }
 
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);
-    info(msg);
+    INFO(msg);
   }
 #endif
 
@@ -292,7 +292,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                ">>> max: %d - %d, min: %d - %d",
                double(accqsz) / nps, min_maxqsz, max_maxqsz, min_minqsz,
                max_minqsz);
-      info(msg);
+      INFO(msg);
     }
   }
 }
@@ -304,7 +304,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {
       snprintf(msg, sizeof(msg), "using the scalable multi-hop shuffler");
-      info(msg);
+      INFO(msg);
     }
   } else {
     ctx->type = SHUFFLE_NN;
@@ -312,7 +312,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
       snprintf(msg, sizeof(msg),
                "using the default NN shuffler: code might not scale well\n>>> "
                "switch to the multi-hop shuffler for better scalability");
-      warn(msg);
+      WARN(msg);
     }
   }
   if (ctx->type == SHUFFLE_XN) {
@@ -349,7 +349,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 #else
     n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
-    info(msg);
+    INFO(msg);
   }
 }
 

@@ -190,7 +190,7 @@ static void* rpc_work(void* arg) {
   char msg[100];
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc worker up (rank %d)", pctx.my_rank);
-    info(msg);
+    INFO(msg);
   }
 #endif
   min_items = todo.max_size();
@@ -243,7 +243,7 @@ static void* rpc_work(void* arg) {
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc worker down (rank %d)", pctx.my_rank);
-    info(msg);
+    INFO(msg);
   }
 #endif
 
@@ -999,7 +999,7 @@ static void* bg_work(void* foo) {
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc looper up (rank %d)", pctx.my_rank);
-    info(msg);
+    INFO(msg);
   }
 #endif
 
@@ -1019,7 +1019,7 @@ static void* bg_work(void* foo) {
         snprintf(msg, sizeof(msg),
                  "calling HG_Progress() with high interval: %d ms (rank %d)",
                  int(now - last_progress), pctx.my_rank);
-        warn(msg);
+        WARN(msg);
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
@@ -1040,7 +1040,7 @@ static void* bg_work(void* foo) {
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc looper down (rank %d)", pctx.my_rank);
-    info(msg);
+    INFO(msg);
   }
 #endif
 
@@ -1100,9 +1100,9 @@ void nn_shuffler_init_ssg() {
       snprintf(msg, sizeof(msg),
                "ch-placement group size: %s (vir-factor: %s, proto: %s)",
                pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
-      info(msg);
+      INFO(msg);
     } else {
-      warn("ch-placement bypassed");
+      WARN("ch-placement bypassed");
     }
   }
 }
@@ -1207,7 +1207,7 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg), "rpc buffer: %s x %s (%s total)",
              pretty_num(nrpcqs).c_str(), pretty_size(max_rpcq_sz).c_str(),
              pretty_size(nrpcqs * max_rpcq_sz).c_str());
-    info(msg);
+    INFO(msg);
   }
 
   for (i = 0; i < 5; i++) {
@@ -1230,7 +1230,7 @@ void nn_shuffler_init() {
     if (rv) ABORT("pthread_create");
     pthread_detach(pid);
   } else if (pctx.my_rank == 0) {
-    warn("rpc worker disabled");
+    WARN("rpc worker disabled");
   }
 
   if (pctx.my_rank == 0) {
@@ -1242,7 +1242,7 @@ void nn_shuffler_init() {
              nnctx.hg_max_interval, /* ms */
              nnctx.timeout, nnctx.force_rpc ? "TRUE" : "FALSE",
              nnctx.cache_hlds ? "TRUE" : "FALSE");
-    info(msg);
+    INFO(msg);
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
       osz = HG_Class_get_output_eager_size(nnctx.hg_clz);
@@ -1252,9 +1252,9 @@ void nn_shuffler_init() {
                pretty_size(isz).c_str(), /* server-side rpc input buf */
                pretty_size(osz).c_str(), /* rpc output buf */
                cb_left);
-      info(msg);
+      INFO(msg);
     } else {
-      warn("async rpc disabled");
+      WARN("async rpc disabled");
     }
   }
 }
