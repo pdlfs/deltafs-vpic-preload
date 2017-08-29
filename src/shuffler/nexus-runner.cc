@@ -65,12 +65,13 @@
  * options:
  *  -c count     number of shuffle send ops to perform
  *  -l           loop through dsts rather than random sends
+ *  -n minsndr   rank must be >= minsndr to send requests
  *  -o m         add 'm' msec output delay to delivery
  *  -p baseport  base port number
  *  -q           quiet mode - don't print during RPCs
  *  -r n         enable tag suffix with this run number
  *  -R n         only send to rank 'n'
- *  -s maxsndr   only ranks <= maxsndr send requests
+ *  -s maxsndr   rank must be <= maxsndr to send requests
  *  -t secs      timeout (alarm)
  *
  * shuffler queue config:
@@ -284,6 +285,7 @@ struct gs {
     int count;               /* number of msgs to send/recv in a run */
     int deliverq_max;        /* max# reqs in deliverq before waitq */
     int loop;                /* loop through dsts rather than random sends */
+    int minsndr;             /* rank must be >= minsndr to send requests */
     int odelay;              /* delay delivery output this many msec */
     struct timespec odspec;  /* odelay in a timespec for nanosleep(3) */
     int maxrpcs_net;         /* max # outstanding RPCs, network */
@@ -292,7 +294,7 @@ struct gs {
     int rflag;               /* -r tag suffix spec'd */
     int rflagval;            /* value for -r */
     int rcvr_only;           /* only send to this rank (if >0) */
-    int maxsndr;             /* only ranks <= maxsndr send requests */
+    int maxsndr;             /* rank must be <= maxsndr to send requests */
     int timeout;             /* alarm timeout */
     char tagsuffix[64];      /* tag suffix: ninst-count-mode-limit-run# */
 
@@ -361,12 +363,13 @@ static void usage(const char *msg) {
     fprintf(stderr, "\noptions:\n");
     fprintf(stderr, "\t-c count    number of shuffle send ops to perform\n");
     fprintf(stderr, "\t-l          loop through dsts (no random sends)\n");
+    fprintf(stderr, "\t-n minsndr  rank must be >= minsndr to send requests\n");
     fprintf(stderr, "\t-o m        add 'm' msec output delay to delivery\n");
     fprintf(stderr, "\t-p port     base port number\n");
     fprintf(stderr, "\t-q          quiet mode\n");
     fprintf(stderr, "\t-r n        enable tag suffix with this run number\n");
     fprintf(stderr, "\t-R rank     only do sends to this rank\n");
-    fprintf(stderr, "\t-s maxsndr  only ranks <= maxsndr send requests\n");
+    fprintf(stderr, "\t-s maxsndr  rank must be <= maxsndr to send requests\n");
     fprintf(stderr, "\t-t sec      timeout (alarm), in seconds\n");
     fprintf(stderr, "shuffler queue config:\n");
     fprintf(stderr, "\t-B bytes    batch buf target for network\n");
@@ -441,6 +444,7 @@ int main(int argc, char **argv) {
     g.maxrpcs_net = DEF_MAXRPCS;
     g.maxrpcs_shm = DEF_MAXRPCS;
     g.rcvr_only = -1;            /* disable by default */
+    g.minsndr = 0;
     g.maxsndr = g.size - 1;      /* everyone sends by default */
     g.timeout = DEF_TIMEOUT;
 
@@ -449,7 +453,7 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-            "B:b:C:c:D:d:E:F:I:i:LlM:m:O:o:p:qR:r:S:s:t:X:")) != -1) {
+            "B:b:C:c:D:d:E:F:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:")) != -1) {
         switch (ch) {
             case 'B':
                 g.buftarg_net = atoi(optarg);
@@ -500,6 +504,11 @@ int main(int argc, char **argv) {
             case 'm':
                 g.maxrpcs_shm = atoi(optarg);
                 if (g.maxrpcs_shm < 1) usage("bad maxrpc shm");
+                break;
+            case 'n':
+                g.minsndr = atoi(optarg);
+                if (g.minsndr < 0 || g.minsndr >= g.size)
+                    usage("bad min sender");
                 break;
             case 'O':
                 g.o_alllogs = (strchr(optarg, 'a') != NULL);
@@ -574,6 +583,7 @@ int main(int argc, char **argv) {
             printf("\tsuffix     = %s\n", g.tagsuffix);
         if (g.rcvr_only >= 0)
             printf("\trcvr_only  = %d\n", g.rcvr_only);
+        printf("\tminsndr    = %d\n", g.minsndr);
         printf("\tmaxsndr    = %d\n", g.maxsndr);
         printf("\ttimeout    = %d\n", g.timeout);
         printf("sizes:\n");
@@ -684,7 +694,7 @@ void *run_instance(void *arg) {
                    g.buftarg_shm, g.maxrpcs_net, g.buftarg_net,
                    g.deliverq_max, do_delivery);
 
-    if (myrank <= g.maxsndr) {
+    if (myrank >= g.minsndr && myrank <= g.maxsndr) {
         for (lcv = 0 ; lcv < g.count ; lcv++) {
             if (g.loop) {
                 sendto = lcv % g.size;

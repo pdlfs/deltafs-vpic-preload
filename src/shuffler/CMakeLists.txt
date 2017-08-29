@@ -23,7 +23,8 @@ find_package (Threads REQUIRED)
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
 
-add_executable (nexus-runner nexus-runner.cc shuf_mlog.cc shuffler.cc)
+add_executable (nexus-runner acnt_wrap.c nexus-runner.cc
+                shuf_mlog.cc shuffler.cc)
 target_include_directories (nexus-runner PUBLIC ${MERCURY_INCLUDE_DIR})
 target_link_libraries (nexus-runner deltafs-nexus Threads::Threads)
 

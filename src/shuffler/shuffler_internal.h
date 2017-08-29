@@ -39,6 +39,7 @@
 
 #include <map>
 #include <queue>
+#include "acnt_wrap.h"
 #include "xqueue.h"
 
 struct req_parent;                  /* forward decl, see below */
@@ -111,7 +112,7 @@ typedef struct {
  * HG_SUCCESS on an error to give a hint on what the problem was...
  */
 struct req_parent {
-  hg_atomic_int32_t nrefs;          /* atomic ref counter */
+  acnt32_t nrefs;                   /* atomic ref counter */
   hg_return_t ret;                  /* return status (HG_SUCCESS, normally) */
   int32_t rpcin_seq;                /* saved copy of rpcin.seq */
   hg_handle_t input;                /* RPC input, or NULL for app input */
@@ -203,7 +204,7 @@ struct outset {
 
   /* state for tracking a flush op (locked w/"flushlock") */
   int oqflushing;                   /* non-zero if flush in progress */
-  hg_atomic_int32_t oqflush_counter;/* #qs flushing (hold flushlock to init) */
+  acnt32_t oqflush_counter;         /* #qs flushing (hold flushlock to init) */
 
 #ifdef SHUFFLER_COUNT
   /* stats (only modified/updated by ntask) */
@@ -245,7 +246,7 @@ struct shuffler {
   /* output queues */
   struct outset localq;             /* for na+sm to local procs */
   struct outset remoteq;            /* for network to remote nodes */
-  hg_atomic_int32_t seqsrc;         /* source for seq# */
+  acnt32_t seqsrc;                  /* source for seq# */
 
   /* delivery queue cfg */
   int deliverq_max;                 /* max #reqs we queue before blocking */

@@ -43,7 +43,6 @@
 #include <sys/types.h>
 
 #include <mercury.h>
-#include <mercury_atomic.h>
 #include <mercury_macros.h>
 #include <deltafs-nexus/deltafs-nexus_api.h>
 
@@ -230,7 +229,7 @@ static void shuffler_closelog() {
 #ifdef SHUFFLER_COUNT
 #define shufadd(X,V)  do { (*X) += (V); } while (0)
 #define shufcount(X)  do { (*X)++; } while (0)
-#define shufcounta(X) do { hg_atomic_incr32(&parent->nrefs); } while (0)
+#define shufcounta(X) do { acnt32_incr(parent->nrefs); } while (0)
 #define shufmax(X,V)  do { if ((V) > (*X)) (*X) = (V); } while (0)
 #define shufzero(X) do { (*X) = 0; } while (0)
 #else
@@ -443,6 +442,8 @@ static void shuffler_outset_discard(struct outset *oset) {
   }
 
   oset->oqs.clear();
+  if (oset->oqflush_counter)
+    acnt32_free(&oset->oqflush_counter);
 }
 
 /*
@@ -480,6 +481,9 @@ static int shuffler_init_outset(struct outset *oset, int maxrpc, int buftarget,
   /* oqs init'd by ctor */
   shufzero(&oset->nprogress);
   shufzero(&oset->ntrigger);
+  oset->oqflush_counter = acnt32_alloc();
+  if (oset->oqflush_counter == NULL)
+    goto err;
 
   /* now populate the oqs */
   for (/*null*/ ; nexus_iter_atend(nit) == 0 ; nexus_iter_advance(nit)) {
@@ -600,6 +604,11 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
        lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
 
   sh = new shuffler;    /* aborts w/std::bad_alloc on failure */
+
+  /* make sure these oqflush_counters are not pointing at garbage */
+  sh->localq.oqflush_counter = NULL;
+  sh->remoteq.oqflush_counter = NULL;
+
   sh->grank = myrank;
   for (lcv = 0 ; lcv < FLUSH_NTYPES ; lcv++) {
     shufzero(&sh->cntflush[lcv]);
@@ -616,7 +625,8 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
 
   sh->nxp = nxp;
   sh->funname = strdup(funname);
-  if (!sh->funname)
+  sh->seqsrc = acnt32_alloc();
+  if (!sh->funname || !sh->seqsrc)
     goto err;
   sh->disablesend = 0;
 
@@ -635,7 +645,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
           nit, shuffler_rpchand);
   nexus_iter_free(&nit);
   if (rv < 0) goto err;
-  hg_atomic_set32(&sh->seqsrc, 0);
+  acnt32_set(sh->seqsrc, 0);
 
   sh->deliverq_max = deliverq_max;
   sh->delivercb = delivercb;
@@ -668,6 +678,7 @@ err:
   mlog(SHUF_D1, "shuffler_init: FAILED!!!");
   shuffler_outset_discard(&sh->localq);     /* ensures maps are empty */
   shuffler_outset_discard(&sh->remoteq);
+  if (sh->seqsrc) acnt32_free(&sh->seqsrc);
   if (sh->funname) free(sh->funname);
   delete sh;
   shuffler_closelog();
@@ -835,7 +846,7 @@ static int purge_reqs_outset(struct shuffler *sh, int local) {
      oq->oqflushing = 0;
      oq->oqflush_waitcounter = 0;
      oq->oqflush_output = NULL;
-     hg_atomic_decr32(&oset->oqflush_counter);
+     acnt32_decr(oset->oqflush_counter);
    }
 
    /* zap the wait queue */
@@ -991,7 +1002,7 @@ static void parent_dref_stopwait(struct shuffler *sh, struct req_parent *parent,
   }
 
   /* atomically drop the reference counter and get new value */
-  nw = hg_atomic_decr32(&parent->nrefs);
+  nw = acnt32_decr(parent->nrefs);
   mlog(SHUF_CALL, "parent_dref_stopwait %p new-nref=%d", parent, nw);
 
 
@@ -1108,6 +1119,7 @@ static hg_return_t shuffler_respond_cb(const struct hg_cb_info *cbi) {
    */
 
   HG_Destroy(parent->input);
+  acnt32_free(&parent->nrefs);
   free(parent);
 
   return(HG_SUCCESS);
@@ -1154,8 +1166,8 @@ static void *network_main(void *arg) {
  * req's owner.   otherwise, we are starting a new req_parent.
  * this happens when we send a req on a full queue and need to wait
  * on a waitq or on dwaitq.  it also happens when we recv an inbound
- * RPC handle that contains a req that needs to wait on a waitq or on
- * dwaitq (e.g. before doing HG_Respond()).
+ * RPC handle (i.e. input != NULL) that contains a req that needs to
+ * wait on a waitq or on dwaitq (e.g. before doing HG_Respond()).
  *
  * note: "parentp" is a pointer to a pointer.  if *parentp is NULL, we
  * will malloc a new req_parent structure.
@@ -1170,47 +1182,62 @@ static hg_return_t req_parent_init(struct req_parent **parentp,
                                    struct request *req, hg_handle_t input,
                                    int32_t rpcin_seq) {
   struct req_parent *parent;
-  int did_malloc = 0;
 
   parent = *parentp;
   mlog(SHUF_CALL, "req_parent_init: parent=%p req=%p", parent, req);
 
   /* can just bump nrefs for RPCs w/previously allocated parent */
   if (input && parent) {
-    hg_atomic_incr32(&parent->nrefs);  /* just add a reference */
+    acnt32_incr(parent->nrefs);  /* just add a reference */
     req->owner = parent;
     return(HG_SUCCESS);
   }
 
+  /* parent should be NULL only if we are handling an inbound RPC in input */
   if (parent == NULL) {
-    if (input == NULL) {  /* "send" ops should provide this for us */
+    if (input == NULL) {   /* sanity check: should be an input RPC */
       fprintf(stderr, "shuffler: req_parent_init usage error\n");
       return(HG_INVALID_PARAM);  /* should never happen */
     }
+    /* NOTE: we only malloc() parent if input != NULL */
     parent = (struct req_parent *)malloc(sizeof(*parent));
+    if (parent) {
+      parent->nrefs = acnt32_alloc();
+      if (parent->nrefs == NULL) {
+        free(parent);
+        parent = NULL;
+      }
+    }
     mlog(SHUF_D1, "req_parent_init: malloc parent=%p for %p", parent, req);
     if (parent == NULL) {
       return(HG_NOMEM_ERROR);
     }
     *parentp = parent;
-    did_malloc = 1;
   }
 
   /*
-   * we only need pcv/pcvlock if we are in a shuffler_send() op.
-   * if input is !NULL, then we are working on responding to an
-   * inbound RPC call...
+   * if we are doing a shuffler_send(), then input is NULL and the
+   * caller has provided us a parent structure (we never malloc it
+   * in this case).   we need to init nrefs.  also, we need pcv/pcvlock
+   * setup in this case (they are only used when input == NULL).
    */
   if (input == NULL) {
     mlog(SHUF_D1, "req_parent_init: caller parent=%p for %p", parent, req);
+
+    /* setup nrefs */
+    parent->nrefs = acnt32_alloc();
+    if (parent->nrefs == NULL) {
+      return(HG_OTHER_ERROR);
+    }
+
     /* set up mutex/cv */
     if (pthread_mutex_init(&parent->pcvlock, NULL)) {  /* only for pcv */
-      if (did_malloc) free(parent);
+      acnt32_free(&parent->nrefs);
       return(HG_OTHER_ERROR);
     }
     if (pthread_cond_init(&parent->pcv, NULL)) {
       pthread_mutex_destroy(&parent->pcvlock);
-      if (did_malloc) free(parent);
+      acnt32_free(&parent->nrefs);
       return(HG_OTHER_ERROR);
     }
   }
@@ -1222,7 +1249,7 @@ static hg_return_t req_parent_init(struct req_parent **parentp,
    * (want to avoid unlikely case where RPC completes before we
    * start waiting for the result..)
    */
-  hg_atomic_set32(&parent->nrefs, 2);
+  acnt32_set(parent->nrefs, 2);
   parent->ret = HG_SUCCESS;
   parent->rpcin_seq = rpcin_seq;
   parent->input = input;
@@ -1296,6 +1323,7 @@ hg_return_t shuffler_send(shuffler_t sh, int dst, int type,
   if (nexus == NX_DONE || req->src == dst) {
 
     parent = &parent_store;
+    parent->nrefs = NULL;
     mlog(CLNT_D1, "shuffler_send: req=%p to self", req);
     rv = req_to_self(sh, req, NULL, 0, &parent);  /* can block */
     return(rv);
@@ -1330,6 +1358,7 @@ hg_return_t shuffler_send(shuffler_t sh, int dst, int type,
   oq = it->second;    /* now we have the correct output queue */
 
   parent = &parent_store;
+  parent->nrefs = NULL;
   rv = req_via_mercury(sh, oset, oq, req, NULL, 0, &parent);  /* can block */
 
   return(rv);
@@ -1420,8 +1449,8 @@ static hg_return_t req_to_self(struct shuffler *sh, struct request *req,
 
     pthread_mutex_lock(&parent->pcvlock);
     /* drop extra parent ref created by req_parent_init() before waiting */
-    hg_atomic_decr32(&parent->nrefs);
-    while (hg_atomic_get32(&parent->nrefs) > 0) {
+    acnt32_decr(parent->nrefs);
+    while (acnt32_get(parent->nrefs) > 0) {
       mlog(CLNT_D1, "req_to_self: blocked! req=%p, parent=%p", req, parent);
       pthread_cond_wait(&parent->pcv, &parent->pcvlock);  /*BLOCK HERE*/
       mlog(CLNT_D1, "req_to_self: UNblocked! req=%p, parent=%p", req, parent);
@@ -1434,6 +1463,7 @@ static hg_return_t req_to_self(struct shuffler *sh, struct request *req,
      * the delivery queue.
      */
 
+    acnt32_free(&parent->nrefs);
     pthread_cond_destroy(&parent->pcv);
     pthread_mutex_destroy(&parent->pcvlock);
   }
@@ -1513,8 +1543,8 @@ static hg_return_t req_via_mercury(struct shuffler *sh, struct outset *oset,
 
     pthread_mutex_lock(&parent->pcvlock);
     /* drop extra parent ref created by req_parent_init() before waiting */
-    hg_atomic_decr32(&parent->nrefs);
-    while (hg_atomic_get32(&parent->nrefs) > 0) {
+    acnt32_decr(parent->nrefs);
+    while (acnt32_get(parent->nrefs) > 0) {
       mlog(CLNT_D1, "req_via_mercury: blocking req=%p, parent=%p", req, parent);
       pthread_cond_wait(&parent->pcv, &parent->pcvlock);  /* BLOCK HERE */
       mlog(CLNT_D1, "req_via_mercury: UNblock req=%p, parent=%p", req, parent);
@@ -1527,6 +1557,7 @@ static hg_return_t req_via_mercury(struct shuffler *sh, struct outset *oset,
      * for sending.
      */
 
+    acnt32_free(&parent->nrefs);
     pthread_cond_destroy(&parent->pcv);
     pthread_mutex_destroy(&parent->pcvlock);
     mlog(CLNT_D1, "req_via_mercury: req=%p complete", req);
@@ -1641,7 +1672,7 @@ static hg_return_t forward_reqs_now(struct request_queue *tosend,
    */
 
   if (oput != NULL) {
-    in.seq = hg_atomic_incr32(&sh->seqsrc);
+    in.seq = acnt32_incr(sh->seqsrc);
     mlog(SHUF_D1, "forward_now: HG_Forward seq=%d to [%d,%d] dst=%p", in.seq,
          oq->grank, oq->subrank, oq->dst);
     rv = HG_Forward(oput->outhand, forw_cb, oput, &in);
@@ -1797,7 +1828,7 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
       /* should never happen */
       fprintf(stderr, "shuffle: forw_cb: waitq req w/o owner?!?!\n");
 
-    } else if (hg_atomic_decr32(&parent->nrefs) < 1) {   /* drop reference */
+    } else if (acnt32_decr(parent->nrefs) < 1) {   /* drop reference */
 
       if (parent->onfq) {               /* onfq is a sanity check */
         /* should never happen */
@@ -2114,7 +2145,7 @@ static hg_return_t aquire_flush(struct shuffler *sh, struct flush_op *fop,
   /* if we have an oset, then additional work todo while holding flushlock */
   if (oset) {
     oset->oqflushing = 1;
-    hg_atomic_set32(&oset->oqflush_counter, 1);
+    acnt32_set(oset->oqflush_counter, 1);
   }
 
   pthread_mutex_unlock(&sh->flushlock);
@@ -2244,7 +2275,7 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int islocal) {
      * (keeping track of the number of outqueues being flushed).
      */
     if (start_qflush(sh, oset, oq)) {
-      hg_atomic_incr32(&oset->oqflush_counter);
+      acnt32_incr(oset->oqflush_counter);
     }
   }
 
@@ -2253,7 +2284,7 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int islocal) {
    * since the outset structure doesn't have a lock
    */
   pthread_mutex_lock(&sh->flushlock);
-  r = hg_atomic_decr32(&oset->oqflush_counter);  /* drop our reference */
+  r = acnt32_decr(oset->oqflush_counter);  /* drop our reference */
   if (r == 0)
     oset->oqflushing = 0;
 
@@ -2377,7 +2408,7 @@ static void clean_qflush(struct shuffler *sh, struct outset *oset) {
   }
 
   oset->oqflushing = 0;
-  hg_atomic_set32(&oset->oqflush_counter, 0);
+  acnt32_set(oset->oqflush_counter, 0);
 }
 
 /*
@@ -2391,7 +2422,7 @@ static void done_oq_flush(struct outqueue *oq) {
   struct shuffler *sh = oset->shuf;
   int r;
 
-  r = hg_atomic_decr32(&oset->oqflush_counter);
+  r = acnt32_decr(oset->oqflush_counter);
   mlog(UTIL_CALL, "done_oq_flush: oq=%p, newrefcnt=%d", oq, r);
 
   /* signal main flusher if we dropped the last reference */
@@ -2479,6 +2510,7 @@ hg_return_t shuffler_shutdown(shuffler_t sh) {
   shuffler_outset_discard(&sh->localq);     /* ensures maps are empty */
   shuffler_outset_discard(&sh->remoteq);
   if (sh->funname) free(sh->funname);
+  if (sh->seqsrc) acnt32_free(&sh->seqsrc);
   pthread_mutex_destroy(&sh->deliverlock);
   pthread_cond_destroy(&sh->delivercv);
   pthread_mutex_destroy(&sh->flushlock);
