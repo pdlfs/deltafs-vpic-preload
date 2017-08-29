@@ -74,7 +74,7 @@ inline void log(int fd, const char* fmt, ...) {
 }
 
 /*
- * logger helpers/utilities
+ * logging facilities and helpers
  */
 #define ABORT(msg) msg_abort(msg, __func__, __FILE__, __LINE__)
 #define LOG_SINK fileno(stderr)
@@ -85,23 +85,23 @@ inline void warn(const char* msg) { log(LOG_SINK, "++ WARN ++ %s\n", msg); }
 
 inline void error(const char* msg) {
   if (errno != 0) {
-    log(fileno(stderr), "!!! ERROR !!! %s: %s\n", msg, strerror(errno));
+    log(LOG_SINK, "!!! ERROR !!! %s: %s\n", msg, strerror(errno));
   } else {
-    log(fileno(stderr), "!!! ERROR !!! %s\n", msg);
+    log(LOG_SINK, "!!! ERROR !!! %s\n", msg);
   }
 }
 
 inline void msg_abort(const char* msg, const char* func, const char* file,
                       int line) {
   if (errno != 0) {
-    log(fileno(stderr),
+    log(LOG_SINK,
         "*** ABORT ***"
-        " [%s (%s:%d)] %s: %s(%d)\n",
+        " %s (%s:%d)] %s: %s(%d)\n",
         func, file, line, msg, strerror(errno), errno);
   } else {
-    log(fileno(stderr),
+    log(LOG_SINK,
         "*** ABORT ***"
-        " [%s (%s:%d)] %s\n",
+        " %s (%s:%d)] %s\n",
         func, file, line, msg);
   }
 
