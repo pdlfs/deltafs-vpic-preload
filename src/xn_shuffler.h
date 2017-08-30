@@ -65,11 +65,13 @@
 #include <ch-placement.h>
 typedef struct ch_placement_instance* ch_t;
 #include <deltafs-nexus/deltafs-nexus_api.h>
+#include <mercury_types.h>
 
 #include "shuffler/shuffler.h"
 
 /* shuffle context for the multi-hop shuffler */
 typedef struct xn_ctx {
+  hg_uint64_t rpcs[2]; /* total local/remote rpcs received */
   shuffler_t sh;
   nexus_ctx_t nx;
   ch_t ch;

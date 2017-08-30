@@ -261,18 +261,32 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
   char msg[200];
-  unsigned long long accqsz;
-  unsigned long long nps;
-  int min_maxqsz;
-  int max_maxqsz;
-  int min_minqsz;
-  int max_minqsz;
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
+    unsigned long long sum_rpcs[0];
+    unsigned long long rpcs[0];
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_destroy(rep);
+    rpcs[0] = rep->rpcs[0];
+    rpcs[1] = rep->rpcs[1];
     free(rep);
+    MPI_Reduce(rpcs, sum_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+               MPI_COMM_WORLD);
+    if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
+      snprintf(msg, sizeof(msg),
+               "[xn] %s intra-node + %s inter-node = %s total rpcs",
+               pretty_size(sum_rpcs[0]).c_str(),
+               pretty_size(sum_rpcs[1]).c_str(),
+               pretty_size(sum_rpcs[0] + sum_rpcs[1]).c_str());
+      INFO(msg);
+    }
   } else {
+    unsigned long long accqsz;
+    unsigned long long nps;
+    int min_maxqsz;
+    int max_maxqsz;
+    int min_minqsz;
+    int max_minqsz;
     nn_shuffler_destroy();
     MPI_Reduce(&nnctx.accqsz, &accqsz, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
