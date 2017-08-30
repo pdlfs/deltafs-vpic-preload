@@ -388,6 +388,11 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
+  if (is_envset("SHUFFLE_Debug_logging")) {
+    shuffler_cfglog(-1, "INFO", "WARN", NULL, NULL, "/tmp/vpic-deltafs-sh.log",
+                    1, 0, 0, 0);
+  }
+
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
                           lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
                           deliverq_max, xn_shuffler_deliver);
