@@ -275,9 +275,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
       snprintf(msg, sizeof(msg),
                "[xn] %s intra-node + %s inter-node = %s total rpcs",
-               pretty_size(sum_rpcs[0]).c_str(),
-               pretty_size(sum_rpcs[1]).c_str(),
-               pretty_size(sum_rpcs[0] + sum_rpcs[1]).c_str());
+               pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
+               pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str());
       INFO(msg);
     }
   } else {

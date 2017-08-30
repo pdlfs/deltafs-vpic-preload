@@ -1336,101 +1336,109 @@ int MPI_Finalize(void) {
                          pretty_num(min_writes).c_str(),
                          pretty_num(max_writes).c_str());
                 INFO(msg);
-                snprintf(
-                    msg, sizeof(msg),
-                    "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
-                    " %s bloom filter (+%.3f%%)",
-                    pretty_size(glob.dir_stat.total_dblksz).c_str(),
-                    glob.dir_stat.total_datasz
-                        ? (1.0 * glob.dir_stat.total_dblksz /
-                               glob.dir_stat.total_datasz -
-                           1.0) *
-                              100.0
-                        : 0,
-                    pretty_size(glob.dir_stat.total_iblksz).c_str(),
-                    glob.dir_stat.total_datasz
-                        ? (1.0 * glob.dir_stat.total_iblksz /
-                           glob.dir_stat.total_datasz) *
-                              100.0
-                        : 0,
-                    pretty_size(glob.dir_stat.total_fblksz).c_str(),
-                    glob.dir_stat.total_datasz
-                        ? (1.0 * glob.dir_stat.total_fblksz /
-                           glob.dir_stat.total_datasz) *
-                              100.0
-                        : 0);
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg),
-                    "           > %s sst, %s per rank, %.1f per mem partition",
-                    pretty_num(glob.dir_stat.num_sstables).c_str(),
-                    pretty_num(double(glob.dir_stat.num_sstables) /
-                               pctx.comm_sz)
-                        .c_str(),
-                    pctx.plfsparts
-                        ? double(glob.dir_stat.num_sstables) / pctx.comm_sz /
-                              pctx.plfsparts
-                        : 0);
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg),
-                    "     > %s keys (%s dropped),"
-                    " %s per rank (min: %s, max %s)",
-                    pretty_num(glob.dir_stat.num_keys).c_str(),
-                    pretty_num(glob.dir_stat.num_dropped_keys).c_str(),
-                    pretty_num(double(glob.dir_stat.num_keys) / pctx.comm_sz)
-                        .c_str(),
-                    pretty_num(glob.dir_stat.min_num_keys).c_str(),
-                    pretty_num(glob.dir_stat.max_num_keys).c_str());
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg),
-                    "         > %s table data, %s, %s per rank",
-                    pretty_size(glob.dir_stat.total_datasz).c_str(),
-                    pretty_bw(glob.dir_stat.total_datasz, glob.max_dura)
-                        .c_str(),
-                    pretty_bw(double(glob.dir_stat.total_datasz) / pctx.comm_sz,
-                              glob.max_dura)
-                        .c_str());
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg), "             > %s per op",
-                    pretty_dura(double(glob.max_dura) / glob.nw * pctx.comm_sz)
-                        .c_str());
-                INFO(msg);
-                snprintf(msg, sizeof(msg),
-                         "   > %s rpc sent (%s replied), %s per rank "
-                         "(min: %s, max: %s)",
-                         pretty_num(glob.nms).c_str(),
-                         pretty_num(glob.nmd).c_str(),
-                         pretty_num(double(glob.nms) / pctx.comm_sz).c_str(),
-                         pretty_num(glob.min_nms).c_str(),
-                         pretty_num(glob.max_nms).c_str());
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg), "       > %s, %s per rank",
-                    pretty_tput(glob.nms, glob.max_dura).c_str(),
-                    pretty_tput(double(glob.nms) / pctx.comm_sz, glob.max_dura)
-                        .c_str());
-                INFO(msg);
-                snprintf(msg, sizeof(msg),
-                         "   > %s rpc recv, %s per rank (min: %s, max: %s)",
-                         pretty_num(glob.nmr).c_str(),
-                         pretty_num(double(glob.nmr) / pctx.comm_sz).c_str(),
-                         pretty_num(glob.min_nmr).c_str(),
-                         pretty_num(glob.max_nmr).c_str());
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg), "       > %s, %s per rank",
-                    pretty_tput(glob.nmr, glob.max_dura).c_str(),
-                    pretty_tput(double(glob.nmr) / pctx.comm_sz, glob.max_dura)
-                        .c_str());
-                INFO(msg);
-                snprintf(
-                    msg, sizeof(msg), "           > %s per rpc",
-                    pretty_dura(double(glob.max_dura) / glob.nmr * pctx.comm_sz)
-                        .c_str());
-                INFO(msg);
+                if (glob.dir_stat.num_sstables != 0) {
+                  snprintf(
+                      msg, sizeof(msg),
+                      "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
+                      " %s bloom filter (+%.3f%%)",
+                      pretty_size(glob.dir_stat.total_dblksz).c_str(),
+                      glob.dir_stat.total_datasz
+                          ? (1.0 * glob.dir_stat.total_dblksz /
+                                 glob.dir_stat.total_datasz -
+                             1.0) *
+                                100.0
+                          : 0,
+                      pretty_size(glob.dir_stat.total_iblksz).c_str(),
+                      glob.dir_stat.total_datasz
+                          ? (1.0 * glob.dir_stat.total_iblksz /
+                             glob.dir_stat.total_datasz) *
+                                100.0
+                          : 0,
+                      pretty_size(glob.dir_stat.total_fblksz).c_str(),
+                      glob.dir_stat.total_datasz
+                          ? (1.0 * glob.dir_stat.total_fblksz /
+                             glob.dir_stat.total_datasz) *
+                                100.0
+                          : 0);
+                  INFO(msg);
+                  snprintf(msg, sizeof(msg),
+                           "           > %s sst, %s per rank, %.1f per mem "
+                           "partition",
+                           pretty_num(glob.dir_stat.num_sstables).c_str(),
+                           pretty_num(double(glob.dir_stat.num_sstables) /
+                                      pctx.comm_sz)
+                               .c_str(),
+                           pctx.plfsparts
+                               ? double(glob.dir_stat.num_sstables) /
+                                     pctx.comm_sz / pctx.plfsparts
+                               : 0);
+                  INFO(msg);
+                }
+                if (glob.dir_stat.num_keys != 0) {
+                  snprintf(
+                      msg, sizeof(msg),
+                      "     > %s keys (%s dropped),"
+                      " %s per rank (min: %s, max %s)",
+                      pretty_num(glob.dir_stat.num_keys).c_str(),
+                      pretty_num(glob.dir_stat.num_dropped_keys).c_str(),
+                      pretty_num(double(glob.dir_stat.num_keys) / pctx.comm_sz)
+                          .c_str(),
+                      pretty_num(glob.dir_stat.min_num_keys).c_str(),
+                      pretty_num(glob.dir_stat.max_num_keys).c_str());
+                  INFO(msg);
+                  snprintf(msg, sizeof(msg),
+                           "         > %s table data, %s, %s per rank",
+                           pretty_size(glob.dir_stat.total_datasz).c_str(),
+                           pretty_bw(glob.dir_stat.total_datasz, glob.max_dura)
+                               .c_str(),
+                           pretty_bw(double(glob.dir_stat.total_datasz) /
+                                         pctx.comm_sz,
+                                     glob.max_dura)
+                               .c_str());
+                  INFO(msg);
+                  snprintf(msg, sizeof(msg), "             > %s per op",
+                           pretty_dura(double(glob.max_dura) /
+                                       glob.dir_stat.num_keys * pctx.comm_sz)
+                               .c_str());
+                  INFO(msg);
+                }
+                if (glob.nms != 0) {
+                  snprintf(msg, sizeof(msg),
+                           "   > %s rpc sent (%s replied), %s per rank "
+                           "(min: %s, max: %s)",
+                           pretty_num(glob.nms).c_str(),
+                           pretty_num(glob.nmd).c_str(),
+                           pretty_num(double(glob.nms) / pctx.comm_sz).c_str(),
+                           pretty_num(glob.min_nms).c_str(),
+                           pretty_num(glob.max_nms).c_str());
+                  INFO(msg);
+                  snprintf(msg, sizeof(msg), "       > %s, %s per rank",
+                           pretty_tput(glob.nms, glob.max_dura).c_str(),
+                           pretty_tput(double(glob.nms) / pctx.comm_sz,
+                                       glob.max_dura)
+                               .c_str());
+                  INFO(msg);
+                }
+                if (glob.nmr != 0) {
+                  snprintf(msg, sizeof(msg),
+                           "   > %s rpc recv, %s per rank (min: %s, max: %s)",
+                           pretty_num(glob.nmr).c_str(),
+                           pretty_num(double(glob.nmr) / pctx.comm_sz).c_str(),
+                           pretty_num(glob.min_nmr).c_str(),
+                           pretty_num(glob.max_nmr).c_str());
+                  INFO(msg);
+                  snprintf(msg, sizeof(msg), "       > %s, %s per rank",
+                           pretty_tput(glob.nmr, glob.max_dura).c_str(),
+                           pretty_tput(double(glob.nmr) / pctx.comm_sz,
+                                       glob.max_dura)
+                               .c_str());
+                  INFO(msg);
+                  snprintf(msg, sizeof(msg), "           > %s per rpc",
+                           pretty_dura(double(glob.max_dura) / glob.nmr *
+                                       pctx.comm_sz)
+                               .c_str());
+                  INFO(msg);
+                }
               }
 
               errno = 0;
