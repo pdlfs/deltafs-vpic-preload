@@ -2490,6 +2490,17 @@ static void dumpstats(shuffler_t sh) {
 }
 
 /*
+ * shuffler_stats: report statistics of an active shuffler.
+ */
+int shuffler_stats(shuffler_t sh, hg_uint64_t* lrpcs, hg_uint64_t* rrpcs) {
+#ifdef SHUFFLER_COUNT
+  *lrpcs = static_cast<hg_uint64_t>(sh->cntrpcinshm);
+  *rrpcs = static_cast<hg_uint64_t>(sh->cntrpcinnet);
+#endif
+  return(0);
+}
+
+/*
  * shuffler_shutdown: stop all threads, release all memory.
  * does not shutdown mercury (since we didn't start it, nexus did),
  * but mercury should not be restarted once we call this.

@@ -110,6 +110,8 @@
 
 #include <deltafs-nexus/deltafs-nexus_api.h> /* for nexus_ctx_t */
 
+#include <mercury_types.h>
+
 /*
  * shuffler_t: handle to shuffler state (a pointer)
  */
@@ -246,3 +248,13 @@ int shuffler_cfglog(int max_xtra_rank, const char *defpri,
                     int alllogs, int msgbufsz, int stderrlog,
                     int xtra_stderrlog);
 
+
+/*
+ * shuffler_stats: retrieve statistics from an open shuffler service handle.
+ * @param sh shuffler service handle
+ * @param rrpcs accumulated number of remote rpcs received
+ * @param lrpcs accumulated number of local rpcs received
+ * @return 0 on success or -1 on errors.
+ */
+int shuffler_stats(shuffler_t sh, hg_uint64_t* lrpcs,
+                   hg_uint64_t* rrpcs);
