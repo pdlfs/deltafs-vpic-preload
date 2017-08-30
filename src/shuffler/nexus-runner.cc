@@ -82,15 +82,14 @@
  *  -m count     maxrpcs for shared memory output queues
  *
  * size related options:
- * -i size     input req size (> 24 if specified)
+ * -i size     input req size (> 12 if specified)
  *
  * the input reqs contain:
  *
- *  <seq,xlen,src,dest><extra bytes...>
+ *  <seq,src,dest><extra bytes...>
  *
- * (so 4*sizeof(int) == 16, assuming 32 bit ints).  the "-i" flag can
+ * (so 3*sizeof(int) == 12, assuming 32 bit ints).  the "-i" flag can
  * be used to add additional un-used data to the payload if desired.
- * (this is the "xlen" --- number of extra bytes at end)
  *
  * logging related options (rank <= max can have xtra logging, use -X):
  *  -C mask      mask cfg for non-extra rank procs
@@ -299,9 +298,9 @@ struct gs {
     char tagsuffix[64];      /* tag suffix: ninst-count-mode-limit-run# */
 
     /*
-     * inreq size includes bytes used for seq,xlen,src,dest.
-     * if is zero then we just have those four numbers.  otherwise
-     * it must be >= 40 to account for the header (we pad the rest).
+     * inreq size includes bytes used for seq,src,dest.
+     * if is zero then we just have those three numbers.  otherwise
+     * it must be > 12 to account for the header (we pad the rest).
      */
     int inreqsz;             /* input request size */
 
@@ -378,8 +377,8 @@ static void usage(const char *msg) {
     fprintf(stderr, "\t-M count    maxrpcs for network output queues\n");
     fprintf(stderr, "\t-m count    maxrpcs for shm output queues\n");
     fprintf(stderr, "\nsize related options:\n");
-    fprintf(stderr, "\t-i size     input req size (>= 24 if specified)\n");
-    fprintf(stderr, "\ndefault payload size is 24.\n\n");
+    fprintf(stderr, "\t-i size     input req size (> 12 if specified)\n");
+    fprintf(stderr, "\ndefault payload size is 12.\n\n");
     fprintf(stderr,
      "logging related options (rank <= max can have xtra logging, use -X):\n");
     fprintf(stderr, "\t-C mask      mask cfg for non-extra rank procs\n");
@@ -489,7 +488,7 @@ int main(int argc, char **argv) {
                 break;
             case 'i':
                 g.inreqsz = getsize(optarg);
-                if (g.inreqsz <= 16) usage("bad inreqsz (must be > 16)");
+                if (g.inreqsz <= 12) usage("bad inreqsz (must be > 12)");
                 break;
             case 'L':
                 g.lenable = 1;
@@ -594,7 +593,7 @@ int main(int argc, char **argv) {
         printf("\tdeliverqmx = %d\n", g.deliverq_max);
         if (g.odelay > 0)
             printf("\tout_delay  = %d msec\n", g.odelay);
-        printf("\tinput      = %d\n", (g.inreqsz == 0) ? 4 : g.inreqsz);
+        printf("\tinput      = %d\n", (g.inreqsz == 0) ? 12 : g.inreqsz);
         if (!g.lenable) {
             printf("\tlogging    = disabled\n");
         } else {
@@ -658,7 +657,8 @@ int main(int argc, char **argv) {
 
     if (myrank == 0) printf("main: collection done.\n");
     snprintf(mytag, sizeof(mytag), "ALL%s", g.tagsuffix);
-    useprobe_print(stdout, &mainuse, mytag, -1);
+    if (myrank == 0 || !g.quiet)
+        useprobe_print(stdout, &mainuse, mytag, -1);
 
     MPI_Barrier(MPI_COMM_WORLD);
     if (myrank == 0) printf("main exiting...\n");
@@ -675,12 +675,23 @@ void *run_instance(void *arg) {
     struct is *isp = (struct is *)arg;
     int n = isp->n;               /* recover n from isp */
     nexus_ret_t nrv;
-    int lcv, sendto;
+    int lcv, sendto, mylen;
     hg_return_t ret;
-    uint32_t msg[3];
+    uint32_t *msg, msg_store[3];
 
     printf("%d: instance running\n", myrank);
     isa[n].n = n;    /* make it easy to map 'is' structure back to n */
+
+    /* setup send buffer based on requested size (-i) */
+    if (g.inreqsz <= 12) {
+        msg = msg_store;
+        mylen = 12;
+    } else {
+        msg = (uint32_t *)calloc(1, g.inreqsz);
+        if (msg == NULL)
+            complain(1, 0, "malloc of inreq failed");
+        mylen = g.inreqsz;
+    }
 
     isa[n].nxp = nexus_bootstrap(g.hgsubnet, g.hgproto);
     if (!isa[n].nxp)
@@ -709,11 +720,12 @@ void *run_instance(void *arg) {
             msg[0] = htonl(lcv);
             msg[1] = htonl(myrank);
             msg[2] = htonl(sendto);
-            printf("%d: snd msg %d->%d, t=%d, lcv=%d\n",
-                   myrank, myrank, sendto, lcv % 4, lcv);
+            if (!g.quiet)
+                printf("%d: snd msg %d->%d, t=%d, lcv=%d, sz=%d\n",
+                       myrank, myrank, sendto, lcv % 4, lcv, mylen);
             /* vary type value by mod'ing lcv by 4 */
             ret = shuffler_send(isa[n].shand, sendto, lcv % 4,
-                                msg, sizeof(msg));
+                                msg, mylen);
             if (ret != HG_SUCCESS)
                 fprintf(stderr, "shuffler_send failed(%d)\n", ret);
         }
@@ -759,6 +771,7 @@ void *run_instance(void *arg) {
     printf("%d: shuf shutdown.\n", myrank);
 
     nexus_destroy(isa[n].nxp);
+    if (msg != msg_store) free(msg);
 
     return(NULL);
 }
@@ -781,9 +794,10 @@ static void do_delivery(int src, int dst, int type, void *d, int datalen) {
     else
         memset(msg, 0, sizeof(msg));
 
-    printf("%d: got msg %d->%d, t=%d, len=%d [%d %d %d]\n",
-           myrank, src, dst, type, datalen,
-           ntohl(msg[0]), ntohl(msg[1]), ntohl(msg[2]));
+    if (!g.quiet)
+        printf("%d: got msg %d->%d, t=%d, len=%d [%d %d %d]\n",
+               myrank, src, dst, type, datalen,
+               ntohl(msg[0]), ntohl(msg[1]), ntohl(msg[2]));
 
     if (g.odelay > 0)    /* add some fake processing delay if requested */
         nanosleep(&g.odspec, &rem);
