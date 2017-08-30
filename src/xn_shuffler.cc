@@ -329,6 +329,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   int rbuftarget;
   const char* env;
   char uri[100];
+  char msg[100];
 
   assert(ctx != NULL);
 
@@ -393,6 +394,11 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
+  } else {
+    snprintf(msg, sizeof(msg),
+             "shuffler: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dqmax=%d", lmaxrpc,
+             rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
+    INFO(msg);
   }
 }
 
