@@ -263,8 +263,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   char msg[200];
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    unsigned long long sum_rpcs[0];
-    unsigned long long rpcs[0];
+    unsigned long long sum_rpcs[2];
+    unsigned long long rpcs[2];
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_destroy(rep);
     rpcs[0] = rep->rpcs[0];
@@ -274,7 +274,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
       snprintf(msg, sizeof(msg),
-               "shuffler: %s intra-node + %s inter-node = %s total rpcs",
+               "[rpc] recvs: %s intra-node + %s inter-node = %s total",
                pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
                pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str());
       INFO(msg);

@@ -337,8 +337,8 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   int rbuftarget;
   const char* logfile;
   const char* env;
+  char msg[5000];
   char uri[100];
-  char msg[100];
   int n;
 
   assert(ctx != NULL);
@@ -416,12 +416,11 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
                  lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
     if (logfile != NULL && logfile[0] != 0) {
       snprintf(msg + n, sizeof(msg) - n,
-               "\n>>> LOGGING is ON, will log to ...");
+               "\n>>> LOGGING is ON, will log to ..."
+               "\n ------> %s.[0-%d]",
+               logfile, pctx.comm_sz);
     }
     INFO(msg);
-    if (logfile != NULL && logfile[0] != 0) {
-      INFO(logfile);
-    }
   }
 
   if (is_envset("SHUFFLE_Force_global_barrier")) {
