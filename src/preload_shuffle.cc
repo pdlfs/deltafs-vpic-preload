@@ -274,7 +274,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
       snprintf(msg, sizeof(msg),
-               "[xn] %s intra-node + %s inter-node = %s total rpcs",
+               "shuffler: %s intra-node + %s inter-node = %s total rpcs",
                pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
                pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str());
       INFO(msg);
@@ -313,7 +313,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
 void shuffle_init(shuffle_ctx_t* ctx) {
   char msg[200];
   int n;
-  if (is_envset("SHUFFLE_Use_xn")) {
+  if (is_envset("SHUFFLE_Use_multihop")) {
     ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {
       snprintf(msg, sizeof(msg), "using the scalable multi-hop shuffler");
