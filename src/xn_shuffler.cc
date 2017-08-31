@@ -327,9 +327,11 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   int lbuftarget;
   int rmaxrpc;
   int rbuftarget;
+  const char* logfile;
   const char* env;
   char uri[100];
   char msg[100];
+  int n;
 
   assert(ctx != NULL);
 
@@ -388,13 +390,13 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
-  env = maybe_getenv("SHUFFLE_Log_file");
+  logfile = maybe_getenv("SHUFFLE_Log_file");
 #define DEF_CFGLOG_ARGS(log) NULL, NULL, log, 1, 0, 0, 0
-  if (env != NULL && env[0] != 0) {
+  if (logfile != NULL && logfile[0] != 0) {
 #ifndef NDEBUG
-    shuffler_cfglog(-1, "DEBUG", "WARN", DEF_CFGLOG_ARGS(env));
+    shuffler_cfglog(-1, "DEBUG", "WARN", DEF_CFGLOG_ARGS(logfile));
 #else
-    shuffler_cfglog(-1, "INFO", "WARN", DEF_CFGLOG_ARGS(env));
+    shuffler_cfglog(-1, "INFO", "WARN", DEF_CFGLOG_ARGS(logfile));
 #endif
   }
 
@@ -405,9 +407,14 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "shuffler: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dqmax=%d", lmaxrpc,
-             rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
+    n = snprintf(msg, sizeof(msg),
+                 "shuffler: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dqmax=%d",
+                 lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
+    if (logfile != NULL && logfile[0] != 0) {
+      snprintf(msg + n, sizeof(msg) - n,
+               "\n>>> LOGGING is ON, will log to %s.[0-%d]", logfile,
+               pctx.comm_sz);
+    }
     INFO(msg);
   }
 }
