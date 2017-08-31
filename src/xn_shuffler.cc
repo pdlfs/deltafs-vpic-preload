@@ -338,7 +338,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   if (ctx->nx == NULL) ABORT("nexus_bootstrap_uri");
   xn_shuffler_init_ch_placement(ctx);
 
-  env = maybe_getenv("SHUFFLE_Max_locals");
+  env = maybe_getenv("SHUFFLE_Local_maxrpc");
   if (env == NULL) {
     lmaxrpc = DEFAULT_OUTSTANDING_RPC;
   } else {
@@ -348,7 +348,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
-  env = maybe_getenv("SHUFFLE_Max_remotes");
+  env = maybe_getenv("SHUFFLE_Remote_maxrpc");
   if (env == NULL) {
     rmaxrpc = DEFAULT_OUTSTANDING_RPC;
   } else {
@@ -358,23 +358,23 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
-  env = maybe_getenv("SHUFFLE_Buf_localq");
+  env = maybe_getenv("SHUFFLE_Local_buftarget");
   if (env == NULL) {
     lbuftarget = DEFAULT_BUFFER_PER_QUEUE;
   } else {
     lbuftarget = atoi(env);
-    if (lbuftarget < 128) {
-      lbuftarget = 128;
+    if (lbuftarget < 24) {
+      lbuftarget = 24;
     }
   }
 
-  env = maybe_getenv("SHUFFLE_Buf_remoteq");
+  env = maybe_getenv("SHUFFLE_Remote_buftarget");
   if (env == NULL) {
     rbuftarget = DEFAULT_BUFFER_PER_QUEUE;
   } else {
     rbuftarget = atoi(env);
-    if (rbuftarget < 128) {
-      rbuftarget = 128;
+    if (rbuftarget < 24) {
+      rbuftarget = 24;
     }
   }
 
@@ -388,9 +388,14 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
-  if (is_envset("SHUFFLE_Debug_logging")) {
-    shuffler_cfglog(-1, "INFO", "WARN", NULL, NULL, "/tmp/vpic-deltafs-sh.log",
-                    1, 0, 0, 0);
+  env = maybe_getenv("SHUFFLE_Log_file");
+#define DEF_CFGLOG_ARGS(log) NULL, NULL, log, 1, 0, 0, 0
+  if (env != NULL && env[0] != 0) {
+#ifndef NDEBUG
+    shuffler_cfglog(-1, "DEBUG", "WARN", DEF_CFGLOG_ARGS(env));
+#else
+    shuffler_cfglog(-1, "INFO", "WARN", DEF_CFGLOG_ARGS(env));
+#endif
   }
 
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
@@ -399,7 +404,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
-  } else {
+  } else if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
              "shuffler: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dqmax=%d", lmaxrpc,
              rmaxrpc, lbuftarget, rbuftarget, deliverq_max);

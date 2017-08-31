@@ -40,13 +40,15 @@
  *      such as hash_spooky, hash_lookup3, xor, as well as ring
  *  SHUFFLE_Virtual_factor
  *    Virtual factor used by nodes in a placement group
- *  SHUFFLE_Buf_remoteq
+ *  SHUFFLE_Log_file
+ *    Log file to store shuffler stats
+ *  SHUFFLE_Remote_buftarget
  *    Memory allocated for each remote rpc queue
- *  SHUFFLE_Max_remotes
+ *  SHUFFLE_Remote_maxrpc
  *    Max num of outstanding rpcs allowed for the remote hop
- *  SHUFFLE_Buf_localq
+ *  SHUFFLE_Local_buftarget
  *    Memory allocated for each local rpc queue
- *  SHUFFLE_Max_locals
+ *  SHUFFLE_Local_maxrpc
  *    Max num of outstanding rpcs allowed for the local hops
  *  SHUFFLE_Max_deliverq
  *    Queue size for final rpc delivery
