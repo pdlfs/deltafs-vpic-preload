@@ -1094,6 +1094,11 @@ int MPI_Finalize(void) {
                  pretty_dura(flush_end - flush_start).c_str());
         INFO(msg);
       }
+      /*
+       * ensures everyone has the flushing done before finalizing so we can get
+       * up-to-date and consistent shuffle stats
+       */
+      preload_barrier(MPI_COMM_WORLD);
       shuffle_finalize(&pctx.sctx);
       if (pctx.my_rank == 0) {
         INFO("shuffle off");
