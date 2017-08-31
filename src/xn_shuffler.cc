@@ -399,13 +399,9 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   }
 
   logfile = maybe_getenv("SHUFFLE_Log_file");
-#define DEF_CFGLOG_ARGS(log) NULL, NULL, log, 1, 0, 0, 0
+#define DEF_CFGLOG_ARGS(log) -1, "INFO", "WARN", NULL, NULL, log, 1, 0, 0, 0
   if (logfile != NULL && logfile[0] != 0) {
-#ifndef NDEBUG
-    shuffler_cfglog(-1, "DEBUG", "WARN", DEF_CFGLOG_ARGS(logfile));
-#else
-    shuffler_cfglog(-1, "INFO", "WARN", DEF_CFGLOG_ARGS(logfile));
-#endif
+    shuffler_cfglog(DEF_CFGLOG_ARGS(logfile));
   }
 
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
@@ -420,10 +416,12 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
                  lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
     if (logfile != NULL && logfile[0] != 0) {
       snprintf(msg + n, sizeof(msg) - n,
-               "\n>>> LOGGING is ON, will log to %s.[0-%d]", logfile,
-               pctx.comm_sz);
+               "\n>>> LOGGING is ON, will log to ...");
     }
     INFO(msg);
+    if (logfile != NULL && logfile[0] != 0) {
+      INFO(logfile);
+    }
   }
 
   if (is_envset("SHUFFLE_Force_global_barrier")) {
