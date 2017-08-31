@@ -50,7 +50,11 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local queues", hret);
   }
-  nexus_local_barrier(ctx->nx);
+  if (ctx->global_barrier) {
+    nexus_global_barrier(ctx->nx);
+  } else {
+    nexus_local_barrier(ctx->nx);
+  }
   hret = shuffler_flush_remoteqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush remote queues", hret);
@@ -68,7 +72,11 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local queues", hret);
   }
-  nexus_local_barrier(ctx->nx);
+  if (ctx->global_barrier) {
+    nexus_global_barrier(ctx->nx);
+  } else {
+    nexus_local_barrier(ctx->nx);
+  }
   hret = shuffler_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush delivery", hret);
@@ -416,6 +424,13 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
                pctx.comm_sz);
     }
     INFO(msg);
+  }
+
+  if (is_envset("SHUFFLE_Force_global_barrier")) {
+    ctx->global_barrier = 1;
+    if (pctx.my_rank == 0) {
+      WARN("force global barriers");
+    }
   }
 }
 

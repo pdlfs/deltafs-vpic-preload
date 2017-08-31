@@ -73,6 +73,7 @@ typedef struct ch_placement_instance* ch_t;
 
 /* shuffle context for the multi-hop shuffler */
 typedef struct xn_ctx {
+  int global_barrier;  /* replace all local barriers with global barriers */
   hg_uint64_t rpcs[2]; /* total local/remote rpcs received */
   shuffler_t sh;
   nexus_ctx_t nx;
