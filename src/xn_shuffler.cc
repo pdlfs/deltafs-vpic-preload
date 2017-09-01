@@ -417,7 +417,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     if (logfile != NULL && logfile[0] != 0) {
       snprintf(msg + n, sizeof(msg) - n,
                "\n>>> LOGGING is ON, will log to ..."
-               "\n ------> %s.[0-%d]",
+               "\n -----------> %s.[0-%d]",
                logfile, pctx.comm_sz);
     }
     INFO(msg);

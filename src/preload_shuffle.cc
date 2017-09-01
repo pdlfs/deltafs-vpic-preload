@@ -264,6 +264,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
     unsigned long long sum_rpcs[2];
+    unsigned long long min_rpcs[2];
+    unsigned long long max_rpcs[2];
     unsigned long long rpcs[2];
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_destroy(rep);
@@ -272,11 +274,22 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     free(rep);
     MPI_Reduce(rpcs, sum_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
+    MPI_Reduce(rpcs, min_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0,
+               MPI_COMM_WORLD);
+    MPI_Reduce(rpcs, max_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
+               MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
       snprintf(msg, sizeof(msg),
-               "[rpc] recvs: %s intra-node + %s inter-node = %s total",
+               "[rpc] recvs: %s intra-node + %s inter-node = %s total .....\n"
+               " // intra-node: %s per rank (min: %s, max: %s)\n"
+               " // inter-node: %s per rank (min: %s, max: %s)",
                pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
-               pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str());
+               pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str(),
+               pretty_num(double(sum_rpcs[0]) / pctx.comm_sz).c_str(),
+               pretty_num(min_rpcs[0]).c_str(), pretty_num(max_rpcs[0]).c_str(),
+               pretty_num(double(sum_rpcs[1]) / pctx.comm_sz).c_str(),
+               pretty_num(min_rpcs[1]).c_str(),
+               pretty_num(max_rpcs[1]).c_str());
       INFO(msg);
     }
   } else {
