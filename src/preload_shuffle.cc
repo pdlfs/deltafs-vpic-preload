@@ -280,9 +280,11 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
       snprintf(msg, sizeof(msg),
-               "[rpc] recvs: %s intra-node + %s inter-node = %s total .....\n"
-               " // intra-node: %s per rank (min: %s, max: %s)\n"
-               " // inter-node: %s per rank (min: %s, max: %s)",
+               "[rpc] total recvs: %s intra-node + %s inter-node = %s overall "
+               ".....\n"
+               " -> intra-node: %s per rank (min: %s, max: %s)\n"
+               " -> inter-node: %s per rank (min: %s, max: %s)\n"
+               " //",
                pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
                pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str(),
                pretty_num(double(sum_rpcs[0]) / pctx.comm_sz).c_str(),
