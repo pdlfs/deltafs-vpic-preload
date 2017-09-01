@@ -64,6 +64,7 @@
  *
  * options:
  *  -c count     number of shuffle send ops to perform
+ *  -e           exclude sending to ourself (skip those sends)
  *  -l           loop through dsts rather than random sends
  *  -n minsndr   rank must be >= minsndr to send requests
  *  -o m         add 'm' msec output delay to delivery
@@ -282,6 +283,7 @@ struct gs {
     int buftarg_net;         /* batch target for network queues */
     int buftarg_shm;         /* batch target for shared memory queues */
     int count;               /* number of msgs to send/recv in a run */
+    int excludeself;         /* exclude sending to self (skip those sends) */
     int deliverq_max;        /* max# reqs in deliverq before waitq */
     int loop;                /* loop through dsts rather than random sends */
     int minsndr;             /* rank must be >= minsndr to send requests */
@@ -295,6 +297,7 @@ struct gs {
     int rcvr_only;           /* only send to this rank (if >0) */
     int maxsndr;             /* rank must be <= maxsndr to send requests */
     int timeout;             /* alarm timeout */
+
     char tagsuffix[64];      /* tag suffix: ninst-count-mode-limit-run# */
 
     /*
@@ -361,6 +364,7 @@ static void usage(const char *msg) {
     fprintf(stderr, "usage: %s [options] mercury-protocol subnet\n", argv0);
     fprintf(stderr, "\noptions:\n");
     fprintf(stderr, "\t-c count    number of shuffle send ops to perform\n");
+    fprintf(stderr, "\t-e          exclude sending to elf (skip sends)\n");
     fprintf(stderr, "\t-l          loop through dsts (no random sends)\n");
     fprintf(stderr, "\t-n minsndr  rank must be >= minsndr to send requests\n");
     fprintf(stderr, "\t-o m        add 'm' msec output delay to delivery\n");
@@ -370,6 +374,7 @@ static void usage(const char *msg) {
     fprintf(stderr, "\t-R rank     only do sends to this rank\n");
     fprintf(stderr, "\t-s maxsndr  rank must be <= maxsndr to send requests\n");
     fprintf(stderr, "\t-t sec      timeout (alarm), in seconds\n");
+
     fprintf(stderr, "shuffler queue config:\n");
     fprintf(stderr, "\t-B bytes    batch buf target for network\n");
     fprintf(stderr, "\t-b bytes    batch buf target for shm\n");
@@ -452,7 +457,7 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-            "B:b:C:c:D:d:E:F:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:")) != -1) {
+            "B:b:C:c:D:d:E:eF:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:")) != -1) {
         switch (ch) {
             case 'B':
                 g.buftarg_net = atoi(optarg);
@@ -478,6 +483,9 @@ int main(int argc, char **argv) {
                 break;
             case 'E':
                 g.emask = optarg;
+                break;
+            case 'e':
+                g.excludeself = 1;
                 break;
             case 'F':
                 g.logfile = optarg;
@@ -576,6 +584,7 @@ int main(int argc, char **argv) {
         printf("\thgsubnet   = %s\n", g.hgsubnet);
         printf("\tbaseport   = %d\n", g.baseport);
         printf("\tcount      = %d\n", g.count);
+        printf("\texcludeself= %d\n", g.excludeself);
         printf("\tloop       = %d\n", g.loop);
         printf("\tquiet      = %d\n", g.quiet);
         if (g.rflag)
@@ -708,13 +717,15 @@ void *run_instance(void *arg) {
     if (myrank >= g.minsndr && myrank <= g.maxsndr) {
         for (lcv = 0 ; lcv < g.count ; lcv++) {
             if (g.loop) {
-                sendto = lcv % g.size;
+                sendto = (myrank + lcv) % g.size;
             } else {
                 sendto = random() % g.size;
             }
 
             /* skip sendto if we've limited who we send to */
             if (g.rcvr_only >= 0 && sendto != g.rcvr_only)
+                continue;
+            if (g.excludeself && sendto == myrank)
                 continue;
 
             msg[0] = htonl(lcv);
