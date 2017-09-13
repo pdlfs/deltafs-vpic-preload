@@ -248,13 +248,23 @@ int shuffler_cfglog(int max_xtra_rank, const char *defpri,
                     int alllogs, int msgbufsz, int stderrlog,
                     int xtra_stderrlog);
 
+/*
+ * shuffler_send_stats: retrieve shuffle sender statistics
+ * @param sh shuffler service handle
+ * @param local accumulated number of remote sends
+ * @param remote accumulated number of local sends
+ * @return status
+ */
+hg_return_t shuffler_send_stats(shuffler_t sh, hg_uint64_t* local,
+                                hg_uint64_t* remote);
 
 /*
- * shuffler_stats: retrieve statistics from an open shuffler service handle.
+ * shuffler_recv_stats: retrieve shuffler receiver statistics
  * @param sh shuffler service handle
- * @param rrpcs accumulated number of remote rpcs received
- * @param lrpcs accumulated number of local rpcs received
- * @return 0 on success or -1 on errors.
+ * @param rrpcs accumulated number of remote receives
+ * @param lrpcs accumulated number of local receives
+ * @return status
  */
-int shuffler_stats(shuffler_t sh, hg_uint64_t* lrpcs,
-                   hg_uint64_t* rrpcs);
+hg_return_t shuffler_recv_stats(shuffler_t sh, hg_uint64_t* local,
+                                hg_uint64_t* remote);
+

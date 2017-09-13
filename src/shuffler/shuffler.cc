@@ -2500,14 +2500,32 @@ static void dumpstats(shuffler_t sh) {
 }
 
 /*
- * shuffler_stats: report statistics of an active shuffler.
+ * shuffler_send_stats: report number of rpcs sent.
  */
-int shuffler_stats(shuffler_t sh, hg_uint64_t* lrpcs, hg_uint64_t* rrpcs) {
+hg_return_t shuffler_send_stats(shuffler_t sh, hg_uint64_t* local,
+                                hg_uint64_t* remote) {
+  *local = *remote = 0;
 #ifdef SHUFFLER_COUNT
-  *lrpcs = static_cast<hg_uint64_t>(sh->cntrpcinshm);
-  *rrpcs = static_cast<hg_uint64_t>(sh->cntrpcinnet);
+  std::map<hg_addr_t,struct outqueue *>::iterator oqit;
+  struct outset *o[2] = { &sh->localq, &sh->remoteq };
+  for (oqit = o[0]->oqs.begin() ; oqit != o[0]->oqs.end() ; oqit++)
+    *local += static_cast<hg_uint64_t>(oqit->second->cntoqsends);
+  for (oqit = o[1]->oqs.begin() ; oqit != o[1]->oqs.end() ; oqit++)
+    *remote += static_cast<hg_uint64_t>(oqit->second->cntoqsends);
 #endif
-  return(0);
+  return(HG_SUCCESS);
+}
+
+/*
+ * shuffler_recv_stats: report number of rpcs received.
+ */
+hg_return_t shuffler_recv_stats(shuffler_t sh, hg_uint64_t* local,
+                                hg_uint64_t* remote) {
+#ifdef SHUFFLER_COUNT
+  *local = static_cast<hg_uint64_t>(sh->cntrpcinshm);
+  *remote = static_cast<hg_uint64_t>(sh->cntrpcinnet);
+#endif
+  return(HG_SUCCESS);
 }
 
 /*

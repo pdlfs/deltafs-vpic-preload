@@ -434,7 +434,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 void xn_shuffler_destroy(xn_ctx_t* ctx) {
   if (ctx != NULL) {
     if (ctx->sh != NULL) {
-      shuffler_stats(ctx->sh, &ctx->rpcs[0], &ctx->rpcs[1]);
+      shuffler_recv_stats(ctx->sh, &ctx->rpcs[0], &ctx->rpcs[1]);
       shuffler_shutdown(ctx->sh);
       ctx->sh = NULL;
     }
