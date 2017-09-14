@@ -180,6 +180,8 @@ static void* rpc_work(void* arg) {
   std::vector<void*>::iterator it;
   hg_return_t hret;
   hg_handle_t h;
+  char msg[100];
+  int s;
 
   num_items = 0;
   num_loops = 0;
@@ -191,7 +193,6 @@ static void* rpc_work(void* arg) {
    */
   todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
-  char msg[100];
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc worker up (rank %d)", pctx.my_rank);
     INFO(msg);
@@ -201,36 +202,63 @@ static void* rpc_work(void* arg) {
   max_items = 0;
   sum_items = 0;
 
-  while (is_shuttingdown() == 0) {
+  while (true) {
     todo.clear();
     pthread_mtx_lock(&mtx[wk_cv]);
     items_completed += num_items;
     if (items_completed == items_submitted) {
       pthread_cv_notifyall(&cv[wk_cv]);
     }
-    num_items = 0;
-    while (wk_items.empty() && is_shuttingdown() == 0) {
-      pthread_cv_wait(&cv[wk_cv], &mtx[wk_cv]);
-    }
-    todo.swap(wk_items);
     pthread_mtx_unlock(&mtx[wk_cv]);
-    if (!todo.empty()) {
-      num_items = todo.size();
-      num_loops++;
+    num_items = 0;
+    s = is_shuttingdown();
+    if (s == 0) {
+      pthread_mtx_lock(&mtx[wk_cv]);
+      while (wk_items.empty() && is_shuttingdown() == 0) {
+        pthread_cv_wait(&cv[wk_cv], &mtx[wk_cv]);
+      }
+      todo.swap(wk_items);
+      pthread_mtx_unlock(&mtx[wk_cv]);
+      if (!todo.empty()) {
+        num_items = todo.size();
+        num_loops++;
 
-      min_items = std::min(todo.size(), min_items);
-      max_items = std::max(todo.size(), max_items);
-      sum_items += num_items;
+        min_items = std::min(todo.size(), min_items);
+        max_items = std::max(todo.size(), max_items);
+        sum_items += num_items;
 
-      for (it = todo.begin(); it != todo.end(); ++it) {
-        h = static_cast<hg_handle_t>(*it);
-        if (h != NULL) {
-          hret = nn_shuffler_write_rpc_handler(h);
-          if (hret != HG_SUCCESS) {
-            RPC_FAILED("fail to exec rpc", hret);
+        for (it = todo.begin(); it != todo.end(); ++it) {
+          h = static_cast<hg_handle_t>(*it);
+          if (h != NULL) {
+            hret = nn_shuffler_write_rpc_handler(h);
+            if (hret != HG_SUCCESS) {
+              RPC_FAILED("fail to exec rpc", hret);
+            }
           }
         }
       }
+    } else if (s < 0) {
+#ifndef NDEBUG
+      if (pctx.verr || pctx.my_rank == 0) {
+        snprintf(msg, sizeof(msg), "[bg] rpc worker will pause ... (rank %d)",
+                 pctx.my_rank);
+        INFO(msg);
+      }
+#endif
+      pthread_mtx_lock(&mtx[bg_cv]);
+      while (shutting_down < 0) {
+        pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
+      }
+      pthread_mtx_unlock(&mtx[bg_cv]);
+#ifndef NDEBUG
+      if (pctx.verr || pctx.my_rank == 0) {
+        snprintf(msg, sizeof(msg), "[bg] rpc worker resumed (rank %d)",
+                 pctx.my_rank);
+        INFO(msg);
+      }
+#endif
+    } else {
+      break;
     }
   }
 
