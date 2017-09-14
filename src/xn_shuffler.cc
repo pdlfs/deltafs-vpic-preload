@@ -92,6 +92,7 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   } else {
     nexus_local_barrier(ctx->nx);
   }
+  ctx->last_stat = ctx->stat;
   shuffler_send_stats(ctx->sh, &ctx->stat.local.sends, &ctx->stat.remote.sends);
   shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
   hret = shuffler_flush_delivery(ctx->sh);

@@ -229,7 +229,18 @@ char* shuffle_prepare_uri(char* buf) {
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
     assert(ctx != NULL);
-    xn_shuffler_epoch_start(static_cast<xn_ctx_t*>(ctx->rep));
+    xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
+    xn_shuffler_epoch_start(rep);
+    pctx.mctx.nlmr = rep->stat.local.recvs - rep->last_stat.local.recvs;
+    pctx.mctx.min_nlmr = pctx.mctx.max_nlmr = pctx.mctx.nlmr;
+    pctx.mctx.nlms = rep->stat.local.sends - rep->last_stat.local.sends;
+    pctx.mctx.min_nlms = pctx.mctx.max_nlms = pctx.mctx.nlms;
+    pctx.mctx.nlmd = pctx.mctx.nlms;
+    pctx.mctx.nmr = rep->stat.remote.recvs - rep->last_stat.remote.recvs;
+    pctx.mctx.min_nmr = pctx.mctx.max_nmr = pctx.mctx.nmr;
+    pctx.mctx.nms = rep->stat.remote.sends - rep->last_stat.remote.sends;
+    pctx.mctx.min_nms = pctx.mctx.max_nms = pctx.mctx.nms;
+    pctx.mctx.nmd = pctx.mctx.nms;
   } else {
     nn_shuffler_bgwait();
   }

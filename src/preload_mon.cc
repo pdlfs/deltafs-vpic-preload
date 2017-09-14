@@ -195,11 +195,27 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nms), &sum->max_nms, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nlmd), &sum->nlmd, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nlms), &sum->nlms, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->min_nlms), &sum->min_nlms, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->max_nlms), &sum->max_nlms, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
   MPI_Reduce(const_cast<unsigned long long*>(&src->nmr), &sum->nmr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->min_nmr), &sum->min_nmr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->max_nmr), &sum->max_nmr, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  MPI_Reduce(const_cast<unsigned long long*>(&src->nlmr), &sum->nlmr, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->min_nlmr), &sum->min_nlmr, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->max_nlmr), &sum->max_nlmr, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
 
   MPI_Reduce(const_cast<unsigned long long*>(&src->nfw), &sum->nfw, 1,

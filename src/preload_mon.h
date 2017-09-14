@@ -95,11 +95,25 @@ typedef struct mon_ctx {
   /* total num of messages delivered */
   unsigned long long nmd;
 
+  /* num of local messages sent per rank */
+  unsigned long long max_nlms;
+  unsigned long long min_nlms;
+  /* total num of local messages being shuffled out */
+  unsigned long long nlms;
+  /* total num of local messages delivered */
+  unsigned long long nlmd;
+
   /* num of messages received per rank */
   unsigned long long max_nmr;
   unsigned long long min_nmr;
   /* total num of messages being shuffled in */
   unsigned long long nmr;
+
+  /* num of local messages received per rank */
+  unsigned long long max_nlmr;
+  unsigned long long min_nlmr;
+  /* total num of local messages being shuffled in */
+  unsigned long long nlmr;
 
   /* total num of foreign writes */
   unsigned long long nfw;
