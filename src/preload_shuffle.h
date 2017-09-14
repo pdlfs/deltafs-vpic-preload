@@ -92,6 +92,16 @@ extern void shuffle_finalize(shuffle_ctx_t* ctx);
 extern void shuffle_init(shuffle_ctx_t* ctx);
 
 /*
+ * shuffle_pause: temporarily stop running background threads.
+ */
+extern void shuffle_pause(shuffle_ctx_t* ctx);
+
+/*
+ * shuffle_resume: resume stopped background threads.
+ */
+extern void shuffle_resume(shuffle_ctx_t* ctx);
+
+/*
  * shuffle_msg_sent: callback for a shuffle sender to
  * notify the main system of the sending of an rpc request.
  *

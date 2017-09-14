@@ -233,8 +233,8 @@ char* shuffle_prepare_uri(char* buf) {
  * internal stats counters into preload's global mon context.
  */
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    assert(ctx != NULL);
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_epoch_start(rep);
     pctx.mctx.nlmr = rep->stat.local.recvs - rep->last_stat.local.recvs;
@@ -253,8 +253,8 @@ void shuffle_epoch_start(shuffle_ctx_t* ctx) {
 }
 
 void shuffle_epoch_end(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    assert(ctx != NULL);
     xn_shuffler_epoch_end(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
     nn_shuffler_flushq(); /* flush rpc queues */
@@ -267,8 +267,8 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 
 int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
                   int epoch) {
+  assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    assert(ctx != NULL);
     xn_shuffler_write(static_cast<xn_ctx_t*>(ctx->rep), fn, d, n, epoch);
     return 0;
   } else {
@@ -348,6 +348,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
 void shuffle_init(shuffle_ctx_t* ctx) {
   char msg[200];
   int n;
+  assert(ctx != NULL);
   if (is_envset("SHUFFLE_Use_multihop")) {
     ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {
@@ -398,6 +399,24 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
     INFO(msg);
+  }
+}
+
+void shuffle_resume(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  if (ctx->type == SHUFFLE_XN) {
+    // TODO
+  } else {
+    nn_shuffler_wakeup();
+  }
+}
+
+void shuffle_pause(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  if (ctx->type == SHUFFLE_XN) {
+    // TODO
+  } else {
+    nn_shuffler_sleep();
   }
 }
 

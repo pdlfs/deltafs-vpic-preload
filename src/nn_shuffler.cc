@@ -1041,7 +1041,9 @@ static void* bg_work(void* foo) {
       }
 #endif
       pthread_mtx_lock(&mtx[bg_cv]);
-      pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
+      while (shutting_down < 0) {
+        pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
+      }
       pthread_mtx_unlock(&mtx[bg_cv]);
 #ifndef NDEBUG
       if (pctx.verr || pctx.my_rank == 0) {
@@ -1070,6 +1072,25 @@ static void* bg_work(void* foo) {
 #endif
 
   return NULL;
+}
+
+/* nn_shuffler_sleep: force the background rpc looper to stop running */
+void nn_shuffler_sleep() {
+  if (is_shuttingdown() == 0) {
+    pthread_mtx_lock(&mtx[bg_cv]);
+    if (shutting_down == 0) shutting_down = -1;
+    pthread_mtx_unlock(&mtx[bg_cv]);
+  }
+}
+
+/* nn_shuffler_wakeup: signal a sleeping looper to resume work */
+void nn_shuffler_wakeup() {
+  if (is_shuttingdown() < 0) {
+    pthread_mtx_lock(&mtx[bg_cv]);
+    if (shutting_down < 0) shutting_down = 0;
+    pthread_cv_notifyall(&cv[bg_cv]);
+    pthread_mtx_unlock(&mtx[bg_cv]);
+  }
 }
 
 /* nn_shuffler_init_ssg: init the ssg sublayer */

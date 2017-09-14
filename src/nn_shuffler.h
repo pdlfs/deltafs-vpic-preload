@@ -89,11 +89,17 @@ extern void nn_shuffler_waitcb();
 /* nn_shuffler_flushq: force flushing local rpc queues. */
 extern void nn_shuffler_flushq();
 
-/* nn_shuffler_bgwait: wait for all background rpc work to finish */
+/* nn_shuffler_bgwait: wait for all background rpc work to finish. */
 extern void nn_shuffler_bgwait();
 
 /* nn_shuffler_destroy: close the shuffler. */
 extern void nn_shuffler_destroy();
+
+/* nn_shuffler_sleep: put the background looper to sleep. */
+extern void nn_shuffler_sleep();
+
+/* nn_shuffler_wakeup: wake up a sleeping looper. */
+extern void nn_shuffler_wakeup();
 
 /*
  * The default min.
