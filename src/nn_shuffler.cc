@@ -104,19 +104,18 @@ static int cb_allowed = 1; /* soft limit */
 static int cb_left = 1;
 
 #if defined(__x86_64__) && defined(__GNUC__)
-static inline bool is_shuttingdown() {
-  bool r = shutting_down;
+static inline int is_shuttingdown() {
+  int r = shutting_down;
   // See http://en.wikipedia.org/wiki/Memory_ordering.
   __asm__ __volatile__("" : : : "memory");
 
   return r;
 }
 #else
-static inline bool is_shuttingdown() {
-  /* XXX: enforce memory order via mutex */
-  pthread_mtx_lock(&mtx);
-  bool r = shutting_down;
-  pthread_mtx_unlock(&mtx);
+static inline int is_shuttingdown() {
+  pthread_mtx_lock(&mtx[bg_cv]);
+  int r = shutting_down;
+  pthread_mtx_unlock(&mtx[bg_cv]);
 
   return r;
 }
@@ -185,6 +184,11 @@ static void* rpc_work(void* arg) {
   num_items = 0;
   num_loops = 0;
 
+  /*
+   * mercury by default will only pull at most 256 incoming requests from the
+   * underlying network transport so here we also reserve 256 slots. This 256
+   * limit can be removed from mercury at the compile time.
+   */
   todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
   char msg[100];
@@ -197,7 +201,7 @@ static void* rpc_work(void* arg) {
   max_items = 0;
   sum_items = 0;
 
-  while (!is_shuttingdown()) {
+  while (is_shuttingdown() == 0) {
     todo.clear();
     pthread_mtx_lock(&mtx[wk_cv]);
     items_completed += num_items;
@@ -205,7 +209,7 @@ static void* rpc_work(void* arg) {
       pthread_cv_notifyall(&cv[wk_cv]);
     }
     num_items = 0;
-    while (wk_items.empty() && !is_shuttingdown()) {
+    while (wk_items.empty() && is_shuttingdown() == 0) {
       pthread_cv_wait(&cv[wk_cv], &mtx[wk_cv]);
     }
     todo.swap(wk_items);
@@ -995,6 +999,7 @@ static void* bg_work(void* foo) {
   uint64_t last_progress;
   uint64_t now;
   char msg[100];
+  int s;
 
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
@@ -1013,7 +1018,8 @@ static void* bg_work(void* foo) {
     if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
       RPC_FAILED("HG_Trigger", hret);
     }
-    if (!is_shuttingdown()) {
+    s = is_shuttingdown();
+    if (s == 0) {
       now = now_micros_coarse() / 1000;
       if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
         snprintf(msg, sizeof(msg),
@@ -1026,6 +1032,25 @@ static void* bg_work(void* foo) {
       if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
         RPC_FAILED("HG_Progress", hret);
       }
+    } else if (s < 0) {
+#ifndef NDEBUG
+      if (pctx.verr || pctx.my_rank == 0) {
+        snprintf(msg, sizeof(msg), "[bg] rpc looper will pause ... (rank %d)",
+                 pctx.my_rank);
+        INFO(msg);
+      }
+#endif
+      pthread_mtx_lock(&mtx[bg_cv]);
+      pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
+      pthread_mtx_unlock(&mtx[bg_cv]);
+#ifndef NDEBUG
+      if (pctx.verr || pctx.my_rank == 0) {
+        snprintf(msg, sizeof(msg), "[bg] rpc looper resumed (rank %d)",
+                 pctx.my_rank);
+        INFO(msg);
+      }
+#endif
+      last_progress = 0;
     } else {
       break;
     }
@@ -1262,15 +1287,13 @@ void nn_shuffler_init() {
 /* nn_shuffler_destroy: finalize the shuffle layer */
 void nn_shuffler_destroy() {
   int i;
-
   pthread_mtx_lock(&mtx[bg_cv]);
   pthread_mtx_lock(&mtx[wk_cv]);
   shutting_down = 1;
-
-  /* shutting down */
-  pthread_cv_notifyall(&cv[wk_cv]); /* notify the rpc worker */
+  pthread_cv_notifyall(&cv[wk_cv]);
   pthread_mtx_unlock(&mtx[wk_cv]);
-  while (num_bg != 0 || num_wk != 0) {
+  pthread_cv_notifyall(&cv[bg_cv]);
+  while (num_bg + num_wk != 0) {
     pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
   }
   pthread_mtx_unlock(&mtx[bg_cv]);
