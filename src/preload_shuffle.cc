@@ -269,8 +269,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     unsigned long long rpcs[2];
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_destroy(rep);
-    rpcs[0] = rep->rpcs[0];
-    rpcs[1] = rep->rpcs[1];
+    rpcs[0] = rep->stat.local.sends;
+    rpcs[1] = rep->stat.remote.sends;
     free(rep);
     MPI_Reduce(rpcs, sum_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
@@ -280,7 +280,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
       snprintf(msg, sizeof(msg),
-               "[rpc] total recvs: %s intra-node + %s inter-node = %s overall "
+               "[rpc] total sends: %s intra-node + %s inter-node = %s overall "
                ".....\n"
                " -> intra-node: %s per rank (min: %s, max: %s)\n"
                " -> inter-node: %s per rank (min: %s, max: %s)\n"

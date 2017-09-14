@@ -71,10 +71,21 @@ typedef struct ch_placement_instance* ch_t;
 
 #include "shuffler/shuffler.h"
 
+typedef struct xn_stat {
+  struct {
+    hg_uint64_t recvs; /* total rpcs received */
+    hg_uint64_t sends; /* total rpcs sent */
+  } local;
+  struct {
+    hg_uint64_t recvs; /* total rpcs received */
+    hg_uint64_t sends; /* total rpcs sent */
+  } remote;
+} xn_stat_t;
+
 /* shuffle context for the multi-hop shuffler */
 typedef struct xn_ctx {
-  int global_barrier;  /* replace all local barriers with global barriers */
-  hg_uint64_t rpcs[2]; /* total local/remote rpcs received */
+  int global_barrier; /* replace all local barriers with global barriers */
+  xn_stat_t stat;
   shuffler_t sh;
   nexus_ctx_t nx;
   ch_t ch;

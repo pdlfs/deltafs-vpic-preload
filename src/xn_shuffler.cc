@@ -39,6 +39,14 @@
 #include "preload_internal.h"
 #include "xn_shuffler.h"
 
+/*
+ * This function is called at the end of each epoch. We expect there is a long
+ * computation phase between two epochs that can serve as a virtual barrier. As
+ * such, here we first do a collective local-node flush, and then do a remote
+ * flush. Each flush ensures all buffered (or waiting-listed) requests are sent
+ * out and their replies received. At the end of this function, however, we
+ * still have no idea if we have received all remote requests.
+ */
 void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   hg_return_t hret;
   assert(ctx != NULL);
@@ -61,6 +69,13 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   }
 }
 
+/*
+ * This function is called at the beginning of each epoch. Since we assume there
+ * is a long computation phase that can serve as a virtual barrier, we may now
+ * consider all remote requests sent by other folks at the end of the previous
+ * epoch have now been received by us. What we need to do is another collective
+ * local flush to forward them to their final destinations.
+ */
 void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   hg_return_t hret;
   assert(ctx != NULL);
@@ -77,6 +92,8 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   } else {
     nexus_local_barrier(ctx->nx);
   }
+  shuffler_send_stats(ctx->sh, &ctx->stat.local.sends, &ctx->stat.remote.sends);
+  shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
   hret = shuffler_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush delivery", hret);
@@ -434,7 +451,10 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 void xn_shuffler_destroy(xn_ctx_t* ctx) {
   if (ctx != NULL) {
     if (ctx->sh != NULL) {
-      shuffler_recv_stats(ctx->sh, &ctx->rpcs[0], &ctx->rpcs[1]);
+      shuffler_send_stats(ctx->sh, &ctx->stat.local.sends,
+                          &ctx->stat.remote.sends);
+      shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs,
+                          &ctx->stat.remote.recvs);
       shuffler_shutdown(ctx->sh);
       ctx->sh = NULL;
     }
