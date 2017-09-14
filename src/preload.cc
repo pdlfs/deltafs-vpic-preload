@@ -283,6 +283,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Skip_mon_dist")) pctx.nodist = 1;
   if (is_envset("PRELOAD_Enable_verbose_mon")) pctx.vmon = 1;
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
+  if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
 
   if (is_envset("PRELOAD_No_paranoid_checks")) pctx.paranoid_checks = 0;
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
@@ -971,6 +972,19 @@ int MPI_Init(int* argc, char*** argv) {
         WARN("deltafs bypassed");
       }
     }
+
+    /* force background activities to stop */
+    if (pctx.bgpause) {
+      if (pctx.my_rank == 0) {
+        INFO("pausing background activities ... (rank 0)");
+      }
+      if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+        shuffle_pause(&pctx.sctx);
+      }
+      if (pctx.my_rank == 0) {
+        INFO("OK!");
+      }
+    }
   }
 
   srand(rank);
@@ -1029,6 +1043,19 @@ int MPI_Finalize(void) {
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
+
+  /* resuming background activities */
+  if (pctx.bgpause) {
+    if (pctx.my_rank == 0) {
+      INFO("resuming background activities ... (rank 0)");
+    }
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+      shuffle_resume(&pctx.sctx);
+    }
+    if (pctx.my_rank == 0) {
+      INFO("OK!");
+    }
+  }
 
   if (pctx.my_rank == 0) {
     INFO("lib finalizing ... ");
@@ -1604,6 +1631,19 @@ DIR* opendir(const char* dir) {
     INFO(msg);
   }
 
+  /* resuming background activities */
+  if (pctx.bgpause) {
+    if (pctx.my_rank == 0) {
+      INFO("resuming background activities ... (rank 0)");
+    }
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+      shuffle_resume(&pctx.sctx);
+    }
+    if (pctx.my_rank == 0) {
+      INFO("OK!");
+    }
+  }
+
   if (num_epochs != 0 && pctx.paranoid_barrier) {
     /*
      * this ensures we have received all peer writes and no more
@@ -1824,6 +1864,19 @@ int closedir(DIR* dirp) {
 
     } else {
       /* XXX */
+    }
+  }
+
+  /* force background activities to stop */
+  if (pctx.bgpause) {
+    if (pctx.my_rank == 0) {
+      INFO("pausing background activities ... (rank 0)");
+    }
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+      shuffle_pause(&pctx.sctx);
+    }
+    if (pctx.my_rank == 0) {
+      INFO("OK!");
     }
   }
 

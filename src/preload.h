@@ -61,6 +61,8 @@
  *    Print mon info at the end of each epoch
  *  PRELOAD_Enable_verbose_error
  *    Print error info when write op fails
+ *  PRELOAD_Enable_bg_pause
+ *    Pause background threads between I/O phases
  *  PRELOAD_No_sys_probing
  *    Do not scan operating system or device settings
  *  PRELOAD_No_paranoid_checks
