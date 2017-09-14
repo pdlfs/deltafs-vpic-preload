@@ -289,6 +289,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     rpcs[0] = rep->stat.local.sends;
     rpcs[1] = rep->stat.remote.sends;
     free(rep);
+#ifndef NDEBUG
     MPI_Reduce(rpcs, sum_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
     MPI_Reduce(rpcs, min_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0,
@@ -311,6 +312,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                pretty_num(max_rpcs[1]).c_str());
       INFO(msg);
     }
+#endif
   } else {
     unsigned long long accqsz;
     unsigned long long nps;
