@@ -226,6 +226,12 @@ char* shuffle_prepare_uri(char* buf) {
   return buf;
 }
 
+/*
+ * This function is called at the beginning of each epoch but before the epoch
+ * really starts and before the final stats for the previous epoch are collected
+ * and dumped. Therefore, this is a good time for us to copy xn_shuffler's
+ * internal stats counters into preload's global mon context.
+ */
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
     assert(ctx != NULL);

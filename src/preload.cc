@@ -1407,38 +1407,60 @@ int MPI_Finalize(void) {
                                .c_str());
                   INFO(msg);
                 }
-                if (glob.nms != 0) {
-                  snprintf(msg, sizeof(msg),
-                           "   > %s rpc sent (%s replied), %s per rank "
-                           "(min: %s, max: %s)",
-                           pretty_num(glob.nms).c_str(),
-                           pretty_num(glob.nmd).c_str(),
-                           pretty_num(double(glob.nms) / pctx.comm_sz).c_str(),
-                           pretty_num(glob.min_nms).c_str(),
-                           pretty_num(glob.max_nms).c_str());
+                if (glob.nlms + glob.nms != 0) {
+                  snprintf(
+                      msg, sizeof(msg),
+                      "   > %s/%s rpc sent (%s/%s replied), %s/%s per rank "
+                      "(min: %s/%s, max: %s/%s)",
+                      pretty_num(glob.nlms).c_str(),
+                      pretty_num(glob.nms).c_str(),
+                      pretty_num(glob.nlmd).c_str(),
+                      pretty_num(glob.nmd).c_str(),
+                      pretty_num(double(glob.nlms) / pctx.comm_sz).c_str(),
+                      pretty_num(double(glob.nms) / pctx.comm_sz).c_str(),
+                      pretty_num(glob.min_nlms).c_str(),
+                      pretty_num(glob.min_nms).c_str(),
+                      pretty_num(glob.max_nlms).c_str(),
+                      pretty_num(glob.max_nms).c_str());
                   INFO(msg);
-                  snprintf(msg, sizeof(msg), "       > %s, %s per rank",
+                  snprintf(msg, sizeof(msg), "       > %s/%s, %s/%s per rank",
+                           pretty_tput(glob.nlms, glob.max_dura).c_str(),
                            pretty_tput(glob.nms, glob.max_dura).c_str(),
+                           pretty_tput(double(glob.nlms) / pctx.comm_sz,
+                                       glob.max_dura)
+                               .c_str(),
                            pretty_tput(double(glob.nms) / pctx.comm_sz,
                                        glob.max_dura)
                                .c_str());
                   INFO(msg);
                 }
-                if (glob.nmr != 0) {
+                if (glob.nlmr + glob.nmr != 0) {
                   snprintf(msg, sizeof(msg),
-                           "   > %s rpc recv, %s per rank (min: %s, max: %s)",
+                           "   > %s/%s rpc recv, %s/%s per rank (min: %s/%s, "
+                           "max: %s/%s)",
+                           pretty_num(glob.nlmr).c_str(),
                            pretty_num(glob.nmr).c_str(),
+                           pretty_num(double(glob.nlmr) / pctx.comm_sz).c_str(),
                            pretty_num(double(glob.nmr) / pctx.comm_sz).c_str(),
+                           pretty_num(glob.min_nlmr).c_str(),
                            pretty_num(glob.min_nmr).c_str(),
+                           pretty_num(glob.max_nlmr).c_str(),
                            pretty_num(glob.max_nmr).c_str());
                   INFO(msg);
-                  snprintf(msg, sizeof(msg), "       > %s, %s per rank",
+                  snprintf(msg, sizeof(msg), "       > %s/%s, %s/%s per rank",
+                           pretty_tput(glob.nlmr, glob.max_dura).c_str(),
                            pretty_tput(glob.nmr, glob.max_dura).c_str(),
+                           pretty_tput(double(glob.nlmr) / pctx.comm_sz,
+                                       glob.max_dura)
+                               .c_str(),
                            pretty_tput(double(glob.nmr) / pctx.comm_sz,
                                        glob.max_dura)
                                .c_str());
                   INFO(msg);
-                  snprintf(msg, sizeof(msg), "           > %s per rpc",
+                  snprintf(msg, sizeof(msg), "           > %s/%s per rpc",
+                           pretty_dura(double(glob.max_dura) / glob.nlmr *
+                                       pctx.comm_sz)
+                               .c_str(),
                            pretty_dura(double(glob.max_dura) / glob.nmr *
                                        pctx.comm_sz)
                                .c_str());
