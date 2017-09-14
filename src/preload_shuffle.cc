@@ -279,17 +279,16 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
 void shuffle_finalize(shuffle_ctx_t* ctx) {
   char msg[200];
   assert(ctx != NULL);
-  if (ctx->type == SHUFFLE_XN) {
+  if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
+    xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
+    xn_shuffler_destroy(rep);
+#ifndef NDEBUG
     unsigned long long sum_rpcs[2];
     unsigned long long min_rpcs[2];
     unsigned long long max_rpcs[2];
     unsigned long long rpcs[2];
-    xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
-    xn_shuffler_destroy(rep);
     rpcs[0] = rep->stat.local.sends;
     rpcs[1] = rep->stat.remote.sends;
-    free(rep);
-#ifndef NDEBUG
     MPI_Reduce(rpcs, sum_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                MPI_COMM_WORLD);
     MPI_Reduce(rpcs, min_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_MIN, 0,
@@ -313,6 +312,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       INFO(msg);
     }
 #endif
+    ctx->rep = NULL;
+    free(rep);
   } else {
     unsigned long long accqsz;
     unsigned long long nps;

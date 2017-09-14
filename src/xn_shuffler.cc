@@ -452,10 +452,12 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 void xn_shuffler_destroy(xn_ctx_t* ctx) {
   if (ctx != NULL) {
     if (ctx->sh != NULL) {
+#ifndef NDEBUG
       shuffler_send_stats(ctx->sh, &ctx->stat.local.sends,
                           &ctx->stat.remote.sends);
       shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs,
                           &ctx->stat.remote.recvs);
+#endif
       shuffler_shutdown(ctx->sh);
       ctx->sh = NULL;
     }
