@@ -757,6 +757,7 @@ void *run_instance(void *arg) {
                                 msg, mylen);
             if (ret != HG_SUCCESS)
                 fprintf(stderr, "shuffler_send failed(%d)\n", ret);
+            isa[n].nsends++;
         }
 
     } else if (g.flushrate) {
@@ -773,7 +774,8 @@ void *run_instance(void *arg) {
     }
 
     /* done sending */
-    printf("%d: sends complete (flcnt=%d)!\n", myrank, flcnt);
+    printf("%d: sends complete (nsends=%d,flcnt=%d)!\n", myrank,
+           isa[n].nsends, flcnt);
     MPI_Barrier(MPI_COMM_WORLD);
     if (myrank == 0)
         printf("%d: crossed send barrier.\n", myrank);
@@ -805,6 +807,7 @@ static void do_delivery(int src, int dst, int type, void *d, int datalen) {
     uint32_t msg[3];
     struct timespec rem;
 
+    isa[0].ncallbacks++;          /* assume only 1 instance */
     if (datalen == sizeof(msg))
         memcpy(msg, d, datalen);  /* just copy the data since it is small */
     else
