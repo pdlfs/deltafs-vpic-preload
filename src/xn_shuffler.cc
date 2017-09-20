@@ -195,19 +195,13 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
 
 void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data, size_t len,
                        int epoch) {
-  char buf[200];
   char msg[200];
-  hg_return_t hret;
   unsigned long target;
   const char* fname;
-  size_t fname_len;
-  uint32_t r;
-  uint16_t e;
+  unsigned char fname_len;
   int ha;
   int src;
   int dst;
-  int rpc_sz;
-  int sz;
   int n;
 
   /* sanity checks */
@@ -252,7 +246,24 @@ void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data, size_t len,
     errno = 0;
   }
 
-  sz = rpc_sz = 0;
+  xn_shuffler_enqueue(ctx, fname, fname_len, data, len, epoch, dst, src);
+}
+
+void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
+                         unsigned char fname_len, char* data, size_t len,
+                         int epoch, int dst, int src) {
+  char buf[200];
+  hg_return_t hret;
+  uint32_t r;
+  uint16_t e;
+  int rpc_sz;
+  int off;
+
+  assert(fname != NULL);
+  assert(fname_len != 0);
+  assert(len < 256);
+
+  off = rpc_sz = 0;
 
   /* get an estimated size of the rpc */
   rpc_sz += 4;                 /* src rank */
@@ -264,31 +275,31 @@ void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data, size_t len,
 
   /* rank */
   r = htonl(src);
-  memcpy(buf + sz, &r, 4);
-  sz += 4;
+  memcpy(buf + off, &r, 4);
+  off += 4;
   r = htonl(dst);
-  memcpy(buf + sz, &r, 4);
-  sz += 4;
+  memcpy(buf + off, &r, 4);
+  off += 4;
   /* vpic fname */
-  buf[sz] = static_cast<unsigned char>(fname_len);
-  sz += 1;
-  memcpy(buf + sz, fname, fname_len);
-  sz += fname_len;
-  buf[sz] = 0;
-  sz += 1;
+  buf[off] = fname_len;
+  off += 1;
+  memcpy(buf + off, fname, fname_len);
+  off += fname_len;
+  buf[off] = 0;
+  off += 1;
   /* vpic data */
-  buf[sz] = static_cast<unsigned char>(len);
-  sz += 1;
-  memcpy(buf + sz, data, len);
-  sz += len;
+  buf[off] = static_cast<unsigned char>(len);
+  off += 1;
+  memcpy(buf + off, data, len);
+  off += len;
   /* epoch */
   e = htons(epoch);
-  memcpy(buf + sz, &e, 2);
-  sz += 2;
-  assert(sz == rpc_sz);
+  memcpy(buf + off, &e, 2);
+  off += 2;
+  assert(off == rpc_sz);
 
   assert(ctx->sh != NULL);
-  hret = shuffler_send(ctx->sh, dst, 0, buf, sz);
+  hret = shuffler_send(ctx->sh, dst, 0, buf, off);
 
   if (hret != HG_SUCCESS) {
     RPC_FAILED("plfsdir shuffler send failed", hret);
@@ -447,6 +458,22 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
       WARN("force global barriers");
     }
   }
+}
+
+int xn_shuffler_world_size(xn_ctx_t* ctx) {
+  assert(ctx != NULL);
+  assert(ctx->nx != NULL);
+  int rv = nexus_global_size(ctx->nx);
+  assert(rv > 0);
+  return rv;
+}
+
+int xn_shuffler_my_rank(xn_ctx_t* ctx) {
+  assert(ctx != NULL);
+  assert(ctx->nx != NULL);
+  int rv = nexus_global_rank(ctx->nx);
+  assert(rv >= 0);
+  return rv;
 }
 
 void xn_shuffler_destroy(xn_ctx_t* ctx) {

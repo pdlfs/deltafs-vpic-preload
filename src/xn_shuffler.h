@@ -95,6 +95,16 @@ typedef struct xn_ctx {
 /* xn_shuffler_init: init the shuffler or die */
 extern void xn_shuffler_init(xn_ctx_t* ctx);
 
+/* xn_shuffler_world_size: return comm world size */
+extern int xn_shuffler_world_size(xn_ctx_t* ctx);
+
+/* xn_shuffler_my_rank: return my rank id */
+extern int xn_shuffler_my_rank(xn_ctx_t* ctx);
+
+void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
+                         unsigned char fname_len, char* data, size_t len,
+                         int epoch, int dst, int src);
+
 /* xn_shuffler_write: shuffle a file write or die */
 extern void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data,
                               size_t len, int epoch);
