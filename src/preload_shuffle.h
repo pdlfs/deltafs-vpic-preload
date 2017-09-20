@@ -39,6 +39,13 @@
 typedef struct shuffle_ctx {
   /* internal shuffle impl */
   void* rep;
+  /* whether shuffle should never be bypassed
+   * even when destination is local. it is often necessary to
+   * avoid bypassing the shuffle. this is because the main thread
+   * will be used to do the final write to the memtable if shuffle
+   * is bypassed and destination is local. so there is a chance where the main
+   * thread is blocked and cannot go send more writes. */
+  int force_rpc;
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */

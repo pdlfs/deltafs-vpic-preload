@@ -41,6 +41,7 @@
 #include "xn_shuffler.h"
 
 #include <mercury_config.h>
+#include <pdlfs-common/xxhash.h>
 
 #include "common.h"
 
@@ -265,15 +266,79 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   }
 }
 
-int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
+int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
                   int epoch) {
+  int rv;
+  char msg[200];
+  const char* fname;
+  unsigned char fname_len;
+  unsigned long target;
+  int ha;
+  int world_sz;
+  int peer_rank;
+  int rank;
+  int n;
+
   assert(ctx != NULL);
+  assert(pctx.len_plfsdir != 0);
+  assert(pctx.plfsdir != NULL);
+  assert(path != NULL);
+
+  fname = path + pctx.len_plfsdir + 1; /* remove parent path */
+  assert(strlen(fname) < 256);
+  fname_len = static_cast<unsigned char>(strlen(fname));
+  assert(len < 256);
+
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffler_write(static_cast<xn_ctx_t*>(ctx->rep), fn, d, n, epoch);
-    return 0;
+    world_sz = xn_shuffler_world_size(static_cast<xn_ctx_t*>(ctx->rep));
+    rank = xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
-    return nn_shuffler_write(fn, d, n, epoch);
+    world_sz = nn_shuffler_world_size(NULL);
+    rank = nn_shuffler_my_rank(NULL);
   }
+
+  if (world_sz != 1) {
+    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+      peer_rank = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
+    } else {
+      // TODO
+    }
+  } else {
+    peer_rank = rank;
+  }
+
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.logfd != -1) {
+    if (rank != peer_rank || ctx->force_rpc) {
+      ha = pdlfs::xxhash32(data, len, 0); /* checksum */
+      n = snprintf(msg, sizeof(msg),
+                   "[SEND] %s %d bytes (e%d) r%d >> "
+                   "r%d (hash=%08x)\n",
+                   path, int(len), epoch, rank, peer_rank, ha);
+    } else {
+      n = snprintf(msg, sizeof(msg), "[LO] %s %d bytes (e%d)\n", path, int(len),
+                   epoch);
+    }
+
+    n = write(pctx.logfd, msg, n);
+
+    errno = 0;
+  }
+
+  /* bypass rpc if target is local */
+  if (peer_rank == rank && !ctx->force_rpc) {
+    rv = preload_local_write(path, data, len, epoch);
+    return rv;
+  }
+
+  if (ctx->type == SHUFFLE_XN) {
+    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), fname, fname_len,
+                        data, len, epoch, peer_rank, rank);
+  } else {
+    nn_shuffler_enqueue(fname, fname_len, data, len, epoch, peer_rank, rank);
+  }
+
+  return 0;
 }
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
