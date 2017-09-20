@@ -75,10 +75,10 @@
 extern void nn_shuffler_init();
 
 /* nn_shuffler_world_size: return comm world size */
-extern int nn_shuffler_world_size(void*);
+extern int nn_shuffler_world_size();
 
 /* nn_shuffler_my_rank: return my rank */
-extern int nn_shuffler_my_rank(void*);
+extern int nn_shuffler_my_rank();
 
 /* nn_shuffler_enqueue: insert an incoming write into an rpc queue. */
 extern void nn_shuffler_enqueue(const char* fname, unsigned char fname_len,

@@ -1346,7 +1346,7 @@ void nn_shuffler_init() {
 }
 
 /* nn_shuffler_world_size: return comm world size */
-int nn_shuffler_world_size(void*) {
+int nn_shuffler_world_size() {
   assert(nnctx.ssg != NULL);
   int rv = ssg_get_count(nnctx.ssg);
   assert(rv > 0);
@@ -1354,7 +1354,7 @@ int nn_shuffler_world_size(void*) {
 }
 
 /* nn_shuffler_my_rank: return my rank */
-int nn_shuffler_my_rank(void*) {
+int nn_shuffler_my_rank() {
   assert(nnctx.ssg != NULL);
   int rv = ssg_get_rank(nnctx.ssg);
   assert(rv >= 0);

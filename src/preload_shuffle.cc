@@ -293,15 +293,18 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
     world_sz = xn_shuffler_world_size(static_cast<xn_ctx_t*>(ctx->rep));
     rank = xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
-    world_sz = nn_shuffler_world_size(NULL);
-    rank = nn_shuffler_my_rank(NULL);
+    world_sz = nn_shuffler_world_size();
+    rank = nn_shuffler_my_rank();
   }
 
   if (world_sz != 1) {
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
       peer_rank = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
     } else {
-      // TODO
+      assert(ctx->chp != NULL);
+      ch_placement_find_closest(ctx->chp, pdlfs::xxhash64(fname, fname_len, 0),
+                                1, &target);
+      peer_rank = int(target);
     }
   } else {
     peer_rank = rank;
@@ -309,15 +312,14 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
+    ha = pdlfs::xxhash32(data, len, 0); /* checksum */
     if (rank != peer_rank || ctx->force_rpc) {
-      ha = pdlfs::xxhash32(data, len, 0); /* checksum */
       n = snprintf(msg, sizeof(msg),
-                   "[SEND] %s %d bytes (e%d) r%d >> "
-                   "r%d (hash=%08x)\n",
-                   path, int(len), epoch, rank, peer_rank, ha);
+                   "[SEND] %s %d bytes (e%d) r%d >> r%d (hash=%08x)\n", path,
+                   int(len), epoch, rank, peer_rank, ha);
     } else {
-      n = snprintf(msg, sizeof(msg), "[LO] %s %d bytes (e%d)\n", path, int(len),
-                   epoch);
+      n = snprintf(msg, sizeof(msg), "[LO] %s %d bytes (e%d) (hash=%08x)\n",
+                   path, int(len), epoch, ha);
     }
 
     n = write(pctx.logfd, msg, n);
@@ -408,10 +410,18 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       INFO(msg);
     }
   }
+  if (ctx->chp != NULL) {
+    ch_placement_finalize(ctx->chp);
+    ctx->chp = NULL;
+  }
 }
 
 void shuffle_init(shuffle_ctx_t* ctx) {
+  int vf;
+  int world_sz;
   char msg[200];
+  const char* proto;
+  const char* env;
   int n;
   assert(ctx != NULL);
   if (is_envset("SHUFFLE_Use_multihop")) {
@@ -433,10 +443,44 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
     xn_shuffler_init(rep);
+    world_sz = xn_shuffler_world_size(rep);
     ctx->rep = rep;
   } else {
     nn_shuffler_init();
+    world_sz = nn_shuffler_world_size();
   }
+
+  if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
+    env = maybe_getenv("SHUFFLE_Virtual_factor");
+    if (env == NULL) {
+      vf = DEFAULT_VIRTUAL_FACTOR;
+    } else {
+      vf = atoi(env);
+    }
+
+    proto = maybe_getenv("SHUFFLE_Placement_protocol");
+    if (proto == NULL) {
+      proto = DEFAULT_PLACEMENT_PROTO;
+    }
+
+    ctx->chp = ch_placement_initialize(proto, world_sz, vf /* vir factor */,
+                                       0 /* hash seed */);
+    if (ctx->chp == NULL) {
+      ABORT("ch_init");
+    }
+  }
+
+  if (pctx.my_rank == 0) {
+    if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
+      snprintf(msg, sizeof(msg),
+               "ch-placement group size: %s (vir-factor: %s, proto: %s)",
+               pretty_num(world_sz).c_str(), pretty_num(vf).c_str(), proto);
+      INFO(msg);
+    } else {
+      WARN("ch-placement bypassed");
+    }
+  }
+
   if (pctx.my_rank == 0) {
     n = 0;
     n += snprintf(msg + n, sizeof(msg) - n, "HG_HAS_POST_LIMIT is ");
