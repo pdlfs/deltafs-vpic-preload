@@ -74,8 +74,19 @@
 /* nn_shuffler_init: initialize the shuffle service or die. */
 extern void nn_shuffler_init();
 
+/* nn_shuffler_world_size: return comm world size */
+extern int nn_shuffler_world_size(void*);
+
+/* nn_shuffler_my_rank: return my rank */
+extern int nn_shuffler_my_rank(void*);
+
+/* nn_shuffler_enqueue: insert an incoming write into an rpc queue. */
+extern void nn_shuffler_enqueue(const char* fname, unsigned char fname_len,
+                                char* data, size_t len, int epoch,
+                                int peer_rank, int rank);
+
 /*
- * nn_shuffler_write: add an incoming write into an rpc queue.
+ * nn_shuffler_write: route and add an incoming write into an rpc queue.
  * rpc maybe bypassed if write destination is local.
  *
  * return 0 on success, or EOF on errors.

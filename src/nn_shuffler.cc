@@ -790,30 +790,18 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
 /* nn_shuffler_write: add an incoming write into an rpc queue */
 int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
-  write_in_t write_in;
-  uint16_t nepoch;
-  uint32_t nrank;
-  rpcq_t* rpcq;
-  int rpcq_idx;
-  size_t rpc_sz;
-  time_t now;
-  struct timespec abstime;
-  useconds_t delay;
-  char buf[200];
   int rv;
-  void* arg1;
-  void* arg2;
+  char msg[200];
   const char* fname;
   unsigned char fname_len;
   unsigned long target;
   int ha;
   int peer_rank;
   int rank;
-  int e;
   int n;
 
   assert(nnctx.ssg != NULL);
-  assert(ssg_get_count(nnctx.ssg) != 0);
+  assert(pctx.len_plfsdir != 0);
   assert(pctx.plfsdir != NULL);
   assert(path != NULL);
 
@@ -840,16 +828,16 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   if (pctx.testin && pctx.logfd != -1) {
     if (rank != peer_rank || nnctx.force_rpc) {
       ha = pdlfs::xxhash32(data, len, 0); /* checksum */
-      n = snprintf(buf, sizeof(buf),
+      n = snprintf(msg, sizeof(msg),
                    "[SEND] %s %d bytes (e%d) r%d >> "
                    "r%d (hash=%08x)\n",
                    path, int(len), epoch, rank, peer_rank, ha);
     } else {
-      n = snprintf(buf, sizeof(buf), "[LO] %s %d bytes (e%d)\n", path, int(len),
+      n = snprintf(msg, sizeof(msg), "[LO] %s %d bytes (e%d)\n", path, int(len),
                    epoch);
     }
 
-    n = write(pctx.logfd, buf, n);
+    n = write(pctx.logfd, msg, n);
 
     errno = 0;
   }
@@ -859,6 +847,32 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     rv = preload_local_write(path, data, len, epoch);
     return (rv);
   }
+
+  nn_shuffler_enqueue(fname, fname_len, data, len, epoch, peer_rank, rank);
+
+  return 0;
+}
+
+/* nn_shuffler_enqueue: encode and add an incoming write into an rpc queue */
+void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
+                         size_t len, int epoch, int peer_rank, int rank) {
+  write_in_t write_in;
+  uint16_t nepoch;
+  uint32_t nrank;
+  rpcq_t* rpcq;
+  int rpcq_idx;
+  size_t rpc_sz;
+  time_t now;
+  struct timespec abstime;
+  useconds_t delay;
+  char msg[200];
+  int rv;
+  void* arg1;
+  void* arg2;
+  int e;
+  int n;
+
+  assert(fname != NULL);
 
   pthread_mtx_lock(&mtx[qu_cv]);
 
@@ -876,8 +890,8 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[qu_cv]);
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[BLOCK-QUEUE] %d us\n", int(delay));
-        n = write(pctx.logfd, buf, n);
+        n = snprintf(msg, sizeof(msg), "[BLOCK-QUEUE] %d us\n", int(delay));
+        n = write(pctx.logfd, msg, n);
 
         errno = 0;
       }
@@ -966,8 +980,6 @@ int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
   }
 
   pthread_mtx_unlock(&mtx[qu_cv]);
-
-  return 0;
 }
 
 /* nn_shuffler_flushq: force flushing all rpc queue */
@@ -1331,6 +1343,22 @@ void nn_shuffler_init() {
       WARN("async rpc disabled");
     }
   }
+}
+
+/* nn_shuffler_world_size: return comm world size */
+int nn_shuffler_world_size(void*) {
+  assert(nnctx.ssg != NULL);
+  int rv = ssg_get_count(nnctx.ssg);
+  assert(rv > 0);
+  return rv;
+}
+
+/* nn_shuffler_my_rank: return my rank */
+int nn_shuffler_my_rank(void*) {
+  assert(nnctx.ssg != NULL);
+  int rv = ssg_get_rank(nnctx.ssg);
+  assert(rv >= 0);
+  return rv;
 }
 
 /* nn_shuffler_destroy: finalize the shuffle layer */
