@@ -80,19 +80,10 @@ extern int nn_shuffler_world_size();
 /* nn_shuffler_my_rank: return my rank */
 extern int nn_shuffler_my_rank();
 
-/* nn_shuffler_enqueue: insert an incoming write into an rpc queue. */
+/* nn_shuffler_enqueue: put an incoming write into an rpc queue. */
 extern void nn_shuffler_enqueue(const char* fname, unsigned char fname_len,
                                 char* data, size_t len, int epoch,
                                 int peer_rank, int rank);
-
-/*
- * nn_shuffler_write: route and add an incoming write into an rpc queue.
- * rpc maybe bypassed if write destination is local.
- *
- * return 0 on success, or EOF on errors.
- */
-extern int nn_shuffler_write(const char* path, char* data, size_t len,
-                             int epoch);
 
 /* nn_shuffler_waitcb: wait for all outstanding rpcs to finish. */
 extern void nn_shuffler_waitcb();

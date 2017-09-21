@@ -424,6 +424,18 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   const char* env;
   int n;
   assert(ctx != NULL);
+  if (is_envset("SHUFFLE_Force_rpc")) {
+    ctx->force_rpc = 1;
+  }
+  if (pctx.my_rank == 0) {
+    if (!ctx->force_rpc) {
+      WARN(
+          "shuffle force_rpc is OFF\n>>> main thread may be blocked on "
+          "writing");
+    } else {
+      INFO("shuffle force_rpc is ON");
+    }
+  }
   if (is_envset("SHUFFLE_Use_multihop")) {
     ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {

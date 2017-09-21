@@ -788,71 +788,6 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   return rv;
 }
 
-/* nn_shuffler_write: add an incoming write into an rpc queue */
-int nn_shuffler_write(const char* path, char* data, size_t len, int epoch) {
-  int rv;
-  char msg[200];
-  const char* fname;
-  unsigned char fname_len;
-  unsigned long target;
-  int ha;
-  int peer_rank;
-  int rank;
-  int n;
-
-  assert(nnctx.ssg != NULL);
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
-  assert(path != NULL);
-
-  fname = path + pctx.len_plfsdir + 1; /* remove parent path */
-  assert(strlen(fname) < 256);
-  fname_len = static_cast<unsigned char>(strlen(fname));
-  rank = ssg_get_rank(nnctx.ssg); /* my rank */
-
-  if (ssg_get_count(nnctx.ssg) != 1) {
-    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      peer_rank =
-          pdlfs::xxhash32(fname, strlen(fname), 0) % ssg_get_count(nnctx.ssg);
-    } else {
-      assert(nnctx.chp != NULL);
-      ch_placement_find_closest(
-          nnctx.chp, pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
-      peer_rank = target;
-    }
-  } else {
-    peer_rank = rank;
-  }
-
-  /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
-    if (rank != peer_rank || nnctx.force_rpc) {
-      ha = pdlfs::xxhash32(data, len, 0); /* checksum */
-      n = snprintf(msg, sizeof(msg),
-                   "[SEND] %s %d bytes (e%d) r%d >> "
-                   "r%d (hash=%08x)\n",
-                   path, int(len), epoch, rank, peer_rank, ha);
-    } else {
-      n = snprintf(msg, sizeof(msg), "[LO] %s %d bytes (e%d)\n", path, int(len),
-                   epoch);
-    }
-
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
-  }
-
-  /* bypass rpc if target is local */
-  if (peer_rank == rank && !nnctx.force_rpc) {
-    rv = preload_local_write(path, data, len, epoch);
-    return (rv);
-  }
-
-  nn_shuffler_enqueue(fname, fname_len, data, len, epoch, peer_rank, rank);
-
-  return 0;
-}
-
 /* nn_shuffler_enqueue: encode and add an incoming write into an rpc queue */
 void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
                          size_t len, int epoch, int peer_rank, int rank) {
@@ -1135,13 +1070,9 @@ void nn_shuffler_wakeup() {
 
 /* nn_shuffler_init_ssg: init the ssg sublayer */
 void nn_shuffler_init_ssg() {
-  char msg[100];
   hg_return_t hret;
-  const char* proto;
-  const char* env;
   int rank; /* ssg */
   int size; /* ssg */
-  int vf;
 
   assert(nnctx.hg_clz != NULL);
   assert(nnctx.hg_ctx != NULL);
@@ -1158,37 +1089,6 @@ void nn_shuffler_init_ssg() {
   if (pctx.paranoid_checks) {
     if (size != pctx.comm_sz || rank != pctx.my_rank) {
       ABORT("ssg-mpi disagree");
-    }
-  }
-
-  if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-    env = maybe_getenv("SHUFFLE_Virtual_factor");
-    if (env == NULL) {
-      vf = DEFAULT_VIRTUAL_FACTOR;
-    } else {
-      vf = atoi(env);
-    }
-
-    proto = maybe_getenv("SHUFFLE_Placement_protocol");
-    if (proto == NULL) {
-      proto = DEFAULT_PLACEMENT_PROTO;
-    }
-
-    nnctx.chp = ch_placement_initialize(proto, size, vf /* vir factor */,
-                                        0 /* hash seed */);
-    if (nnctx.chp == NULL) {
-      ABORT("ch_init");
-    }
-  }
-
-  if (pctx.my_rank == 0) {
-    if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-      snprintf(msg, sizeof(msg),
-               "ch-placement group size: %s (vir-factor: %s, proto: %s)",
-               pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
-      INFO(msg);
-    } else {
-      WARN("ch-placement bypassed");
     }
   }
 }
@@ -1251,7 +1151,6 @@ void nn_shuffler_init() {
   cb_left = cb_allowed;
 
   if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
-  if (is_envset("SHUFFLE_Force_rpc")) nnctx.force_rpc = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
 
   nnctx.hg_clz = HG_Init(nnctx.my_addr, HG_TRUE);
@@ -1323,10 +1222,8 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
-             "force rpc: %s, cache hg_handle_t: %s",
-             nnctx.hg_timeout,      /* ms */
-             nnctx.hg_max_interval, /* ms */
-             nnctx.timeout, nnctx.force_rpc ? "TRUE" : "FALSE",
+             "cache hg_handle_t: %s",
+             nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
              nnctx.cache_hlds ? "TRUE" : "FALSE");
     INFO(msg);
     if (!nnctx.force_sync) {
@@ -1384,10 +1281,6 @@ void nn_shuffler_destroy() {
     }
 
     free(rpcqs);
-  }
-
-  if (nnctx.chp != NULL) {
-    ch_placement_finalize(nnctx.chp);
   }
 
   if (nnctx.ssg != NULL) {

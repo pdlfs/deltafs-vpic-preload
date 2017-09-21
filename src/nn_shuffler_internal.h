@@ -86,14 +86,10 @@ typedef struct nn_ctx {
 
   int timeout;    /* rpc timeout (in secs) */
   int force_sync; /* avoid async rpc */
-  int force_rpc;  /* send rpc even if addr is local */
   int cache_hlds; /* cache mercury rpc handles */
 
   /* SSG context */
   ssg_t ssg;
-
-  /* ch-placement context */
-  struct ch_placement_instance* chp;
 
   /* rpc incoming queue depth */
   unsigned long long accqsz; /* accumulated queue size */
