@@ -557,15 +557,27 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 }
 
-int shuffle_is_receiver(shuffle_ctx_t* ctx) {
+int shuffle_rank(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    int my_rank = xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
-    return (my_rank & ctx->receiver_mask) == my_rank;
+    return xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
-    int my_rank = nn_shuffler_my_rank();
-    return (my_rank & ctx->receiver_mask) == my_rank;
+    return nn_shuffler_my_rank();
   }
+}
+
+int shuffle_is_receiver(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  int my_rank = shuffle_rank(ctx);
+  int rv = ((my_rank & ctx->receiver_mask) == my_rank);
+  return rv;
+}
+
+int shuffle_receiver_rank(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  int my_rank = shuffle_rank(ctx);
+  my_rank >>= (32 - bits_count(ctx->receiver_mask));
+  return my_rank;
 }
 
 void shuffle_resume(shuffle_ctx_t* ctx) {

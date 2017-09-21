@@ -76,7 +76,13 @@ typedef struct shuffle_ctx {
 extern char* shuffle_prepare_uri(char* buf);
 
 /* return 0 if the calling rank is a non-receiver, 1 otherwise. */
-extern int shuffle_is_receiver();
+extern int shuffle_is_receiver(shuffle_ctx_t* ctx);
+
+/* return the index for a shuffle receiver within the receiver group. */
+extern int shuffle_receiver_rank(shuffle_ctx_t* ctx);
+
+/* return the global index for a shuffle participant. */
+extern int shuffle_rank(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_write: shuffle a write request through an underlying transport.
