@@ -42,8 +42,6 @@
  *      to cause warning messages
  *  SHUFFLE_Mercury_cache_handles
  *    Reuse mercury handles to avoid freq mallocs
- *  SHUFFLE_Force_rpc
- *    Send rpcs even if target is local
  *  SHUFFLE_Force_sync_rpc
  *    Disallow async rpcs
  *  SHUFFLE_Num_outstanding_rpc
@@ -56,11 +54,6 @@
  *    The min port number we can use
  *  SHUFFLE_Max_port
  *    The max port number we can use
- *  SHUFFLE_Placement_protocol
- *    Protocol name for initializing placement groups
- *      such as hash_spooky, hash_lookup3, xor, as well as ring
- *  SHUFFLE_Virtual_factor
- *    Virtual factor used by nodes in a placement group
  *  SHUFFLE_Buffer_per_queue
  *    Memory allocated for each rpc queue
  *  SHUFFLE_Timeout

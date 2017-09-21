@@ -30,6 +30,19 @@
 
 /*
  * preload_shuffle.h  abstract shuffle service api.
+ *
+ * A list of all environmental variables used by us:
+ *
+ *  SHUFFLE_Use_multihop
+ *    Use the three-hop shuffler instead of the default NN shuffler
+ *  SHUFFLE_Force_rpc
+ *    Send rpcs even if target is local
+ *  SHUFFLE_Placement_protocol
+ *    Protocol name for initializing placement groups
+ *      such as hash_spooky, hash_lookup3, xor, as well as ring
+ *  SHUFFLE_Virtual_factor
+ *    Virtual factor used by nodes in a placement group
+ *
  */
 
 #pragma once
