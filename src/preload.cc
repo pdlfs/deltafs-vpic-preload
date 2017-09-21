@@ -33,6 +33,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <math.h>
 #include <mpi.h>
 #include <pthread.h>
@@ -1018,7 +1019,8 @@ int MPI_Finalize(void) {
   char path[PATH_MAX];
   char suffix[100];
   char msg[200];
-  unsigned long long num_writes;
+  unsigned long long num_writes_min; /* per rank */
+  unsigned long long num_writes_max; /* per rank */
   unsigned long long min_writes;
   unsigned long long max_writes;
   uint64_t flush_start;
@@ -1026,7 +1028,8 @@ int MPI_Finalize(void) {
   uint64_t finish_start;
   uint64_t finish_end;
   std::string tmp;
-  unsigned long long num_samples[2];
+  /* 0 -> total, 1 -> valid */
+  unsigned long long num_samples[2]; /* per rank */
   unsigned long long sum_samples[2];
   size_t num_names;
   double ucpu;
@@ -1297,10 +1300,10 @@ int MPI_Finalize(void) {
 
           if (go) {
             /* per-rank total writes = local writes + foreign writes */
-            num_writes = local.nlw + local.nfw;
-            MPI_Reduce(&num_writes, &min_writes, 1, MPI_UNSIGNED_LONG_LONG,
+            num_writes_min = num_writes_max = local.nlw + local.nfw;
+            MPI_Reduce(&num_writes_min, &min_writes, 1, MPI_UNSIGNED_LONG_LONG,
                        MPI_MIN, 0, MPI_COMM_WORLD);
-            MPI_Reduce(&num_writes, &max_writes, 1, MPI_UNSIGNED_LONG_LONG,
+            MPI_Reduce(&num_writes_max, &max_writes, 1, MPI_UNSIGNED_LONG_LONG,
                        MPI_MAX, 0, MPI_COMM_WORLD);
             mon_reinit(&glob);
             mon_reduce(&local, &glob);

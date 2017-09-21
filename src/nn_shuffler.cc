@@ -200,7 +200,7 @@ static void* rpc_work(void* arg) {
     INFO(msg);
   }
 #endif
-  min_items = todo.max_size();
+  min_items = INT32_MAX;
   max_items = 0;
   sum_items = 0;
 
