@@ -37,9 +37,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <ch-placement.h>
 #include <mercury.h>
-#include <mercury_proc_string.h>
 #include <mpi.h>
 #include <ssg-mpi.h>
 #include <ssg.h>

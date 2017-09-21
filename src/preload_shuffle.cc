@@ -40,6 +40,7 @@
 #include "nn_shuffler_internal.h"
 #include "xn_shuffler.h"
 
+#include <ch-placement.h>
 #include <mercury_config.h>
 #include <pdlfs-common/xxhash.h>
 

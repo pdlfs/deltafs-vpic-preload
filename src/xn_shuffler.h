@@ -35,11 +35,6 @@
  *
  *  SHUFFLE_Mercury_proto
  *    Mercury rpc proto for the remote hop
- *  SHUFFLE_Placement_protocol
- *    Protocol name for initializing placement groups
- *      such as hash_spooky, hash_lookup3, xor, as well as ring
- *  SHUFFLE_Virtual_factor
- *    Virtual factor used by nodes in a placement group
  *  SHUFFLE_Log_file
  *    Log file to store shuffler stats
  *  SHUFFLE_Remote_buftarget
@@ -64,8 +59,6 @@
 
 #include <stddef.h>
 
-#include <ch-placement.h>
-typedef struct ch_placement_instance* ch_t;
 #include <deltafs-nexus/deltafs-nexus_api.h>
 #include <mercury_types.h>
 
@@ -89,7 +82,6 @@ typedef struct xn_ctx {
   xn_stat_t stat;
   shuffler_t sh;
   nexus_ctx_t nx;
-  ch_t ch;
 } xn_ctx_t;
 
 /* xn_shuffler_init: init the shuffler or die */
@@ -104,10 +96,6 @@ extern int xn_shuffler_my_rank(xn_ctx_t* ctx);
 void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
                          unsigned char fname_len, char* data, size_t len,
                          int epoch, int dst, int src);
-
-/* xn_shuffler_write: shuffle a file write or die */
-extern void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data,
-                              size_t len, int epoch);
 
 /* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */
 extern void xn_shuffler_epoch_end(xn_ctx_t* ctx);

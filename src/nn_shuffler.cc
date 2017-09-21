@@ -36,6 +36,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include <mercury_proc.h>
+#include <mercury_proc_string.h>
 #include <pdlfs-common/xxhash.h>
 
 #include "common.h"

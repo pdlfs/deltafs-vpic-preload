@@ -193,62 +193,6 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   }
 }
 
-void xn_shuffler_write(xn_ctx_t* ctx, const char* fn, char* data, size_t len,
-                       int epoch) {
-  char msg[200];
-  unsigned long target;
-  const char* fname;
-  unsigned char fname_len;
-  int ha;
-  int src;
-  int dst;
-  int n;
-
-  /* sanity checks */
-  assert(ctx != NULL);
-  assert(ctx->nx != NULL);
-  src = nexus_global_rank(ctx->nx);
-
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
-  assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
-  assert(fn != NULL);
-
-  fname = fn + pctx.len_plfsdir + 1; /* remove parent path */
-  assert(strlen(fname) < 256);
-  fname_len = strlen(fname);
-  assert(len < 256);
-
-  if (nexus_global_size(ctx->nx) != 1) {
-    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      dst =
-          pdlfs::xxhash32(fname, strlen(fname), 0) % nexus_global_size(ctx->nx);
-    } else {
-      assert(ctx->ch != NULL);
-      ch_placement_find_closest(
-          ctx->ch, pdlfs::xxhash64(fname, strlen(fname), 0), 1, &target);
-      dst = int(target);
-    }
-  } else {
-    dst = src;
-  }
-
-  /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
-    ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
-    n = snprintf(msg, sizeof(msg),
-                 "[SEND] %s %d bytes (e%d) r%d >> "
-                 "r%d (hash=%08x)\n",
-                 fn, int(len), epoch, src, dst, ha);
-
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
-  }
-
-  xn_shuffler_enqueue(ctx, fname, fname_len, data, len, epoch, dst, src);
-}
-
 void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
                          unsigned char fname_len, char* data, size_t len,
                          int epoch, int dst, int src) {
@@ -306,58 +250,6 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
   }
 }
 
-void xn_shuffler_init_ch_placement(xn_ctx_t* ctx) {
-  char msg[100];
-  const char* proto;
-  const char* env;
-  int rank; /* nx */
-  int size; /* nx */
-  int vf;
-
-  assert(ctx != NULL);
-  assert(ctx->nx != NULL);
-
-  rank = nexus_global_rank(ctx->nx);
-  size = nexus_global_size(ctx->nx);
-
-  if (pctx.paranoid_checks) {
-    if (size != pctx.comm_sz || rank != pctx.my_rank) {
-      ABORT("nx-mpi disagree");
-    }
-  }
-
-  if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-    env = maybe_getenv("SHUFFLE_Virtual_factor");
-    if (env == NULL) {
-      vf = DEFAULT_VIRTUAL_FACTOR;
-    } else {
-      vf = atoi(env);
-    }
-
-    proto = maybe_getenv("SHUFFLE_Placement_protocol");
-    if (proto == NULL) {
-      proto = DEFAULT_PLACEMENT_PROTO;
-    }
-
-    ctx->ch = ch_placement_initialize(proto, size, vf /* vir factor */,
-                                      0 /* hash seed */);
-    if (ctx->ch == NULL) {
-      ABORT("ch_init");
-    }
-  }
-
-  if (pctx.my_rank == 0) {
-    if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-      snprintf(msg, sizeof(msg),
-               "ch-placement group size: %s (vir-factor: %s, proto: %s)",
-               pretty_num(size).c_str(), pretty_num(vf).c_str(), proto);
-      INFO(msg);
-    } else {
-      WARN("ch-placement bypassed");
-    }
-  }
-}
-
 void xn_shuffler_init(xn_ctx_t* ctx) {
   int deliverq_max;
   int lmaxrpc;
@@ -374,8 +266,15 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   shuffle_prepare_uri(uri);
   ctx->nx = nexus_bootstrap_uri(uri);
-  if (ctx->nx == NULL) ABORT("nexus_bootstrap_uri");
-  xn_shuffler_init_ch_placement(ctx);
+  if (ctx->nx == NULL) {
+    ABORT("nexus_bootstrap_uri");
+  }
+  if (pctx.paranoid_checks) {
+    if (nexus_global_size(ctx->nx) != pctx.comm_sz ||
+        nexus_global_rank(ctx->nx) != pctx.my_rank) {
+      ABORT("nx-mpi disagree");
+    }
+  }
 
   env = maybe_getenv("SHUFFLE_Local_maxrpc");
   if (env == NULL) {
@@ -487,10 +386,6 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
 #endif
       shuffler_shutdown(ctx->sh);
       ctx->sh = NULL;
-    }
-    if (ctx->ch != NULL) {
-      ch_placement_finalize(ctx->ch);
-      ctx->ch = NULL;
     }
     if (ctx->nx != NULL) {
       nexus_destroy(ctx->nx);
