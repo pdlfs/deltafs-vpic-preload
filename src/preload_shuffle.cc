@@ -46,6 +46,17 @@
 
 #include "common.h"
 
+#if defined(__GNUC__)
+static int bits_count(unsigned int v) { return __builtin_popcount(v); }
+#else
+static int bits_count(unsigned int v) {
+  v = v - ((v >> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  int rv = ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
+  return rv;
+}
+#endif
+
 char* shuffle_prepare_uri(char* buf) {
   int family;
   int port;
@@ -311,6 +322,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
     peer_rank = rank;
   }
 
+  /* skip non-receivers */
+  peer_rank &= ctx->receiver_mask;
+
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
     ha = pdlfs::xxhash32(data, len, 0); /* checksum */
@@ -494,6 +508,25 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     }
   }
 
+  ctx->receiver_mask = ~static_cast<unsigned int>(0);
+  env = maybe_getenv("SHUFFLE_Recv_radix");
+  if (env != NULL) {
+    n = atoi(env);
+    if (n > 8) n = 8;
+    if (n > 0) {
+      ctx->receiver_mask <<= n;
+    }
+  }
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg),
+             "shuffle receiver mask = %d (32 - %d)\n>>> "
+             "%u senders per receiver",
+             bits_count(ctx->receiver_mask),
+             32 - bits_count(ctx->receiver_mask),
+             1U << (32 - bits_count(ctx->receiver_mask)));
+    INFO(msg);
+  }
+
   if (pctx.my_rank == 0) {
     n = 0;
     n += snprintf(msg + n, sizeof(msg) - n, "HG_HAS_POST_LIMIT is ");
@@ -521,6 +554,17 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
 #endif
     INFO(msg);
+  }
+}
+
+int shuffle_is_receiver(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  if (ctx->type == SHUFFLE_XN) {
+    int my_rank = xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
+    return (my_rank & ctx->receiver_mask) == my_rank;
+  } else {
+    int my_rank = nn_shuffler_my_rank();
+    return (my_rank & ctx->receiver_mask) == my_rank;
   }
 }
 

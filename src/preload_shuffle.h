@@ -42,7 +42,8 @@
  *      such as hash_spooky, hash_lookup3, xor, as well as ring
  *  SHUFFLE_Virtual_factor
  *    Virtual factor used by nodes in a placement group
- *
+ *  SHUFFLE_Recv_radix
+ *    Number of senders (1**radix) per receiver
  */
 
 #pragma once
@@ -61,6 +62,7 @@ typedef struct shuffle_ctx {
    * is bypassed and destination is local. so there is a chance where the main
    * thread is blocked and cannot go send more writes. */
   int force_rpc;
+  unsigned int receiver_mask;
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
@@ -72,6 +74,9 @@ typedef struct shuffle_ctx {
  * write the server uri into *buf on success, or abort on errors.
  */
 extern char* shuffle_prepare_uri(char* buf);
+
+/* return 0 if the calling rank is a non-receiver, 1 otherwise. */
+extern int shuffle_is_receiver();
 
 /*
  * shuffle_write: shuffle a write request through an underlying transport.
