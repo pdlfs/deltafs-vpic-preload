@@ -36,7 +36,6 @@
 #include "common.h"
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
-#include "preload_internal.h"
 #include "xn_shuffler.h"
 
 /*
@@ -58,7 +57,7 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local queues", hret);
   }
-  if (ctx->global_barrier) {
+  if (ctx->force_global_barrier) {
     nexus_global_barrier(ctx->nx);
   } else {
     nexus_local_barrier(ctx->nx);
@@ -87,7 +86,7 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local queues", hret);
   }
-  if (ctx->global_barrier) {
+  if (ctx->force_global_barrier) {
     nexus_global_barrier(ctx->nx);
   } else {
     nexus_local_barrier(ctx->nx);
@@ -352,7 +351,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   }
 
   if (is_envset("SHUFFLE_Force_global_barrier")) {
-    ctx->global_barrier = 1;
+    ctx->force_global_barrier = 1;
     if (pctx.my_rank == 0) {
       WARN("force global barriers");
     }

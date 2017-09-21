@@ -77,11 +77,12 @@ typedef struct xn_stat {
 
 /* shuffle context for the multi-hop shuffler */
 typedef struct xn_ctx {
-  int global_barrier; /* replace all local barriers with global barriers */
+  /* replace all local barriers with global barriers */
+  int force_global_barrier;
   xn_stat_t last_stat;
   xn_stat_t stat;
+  nexus_ctx_t nx; /* nexus handle */
   shuffler_t sh;
-  nexus_ctx_t nx;
 } xn_ctx_t;
 
 /* xn_shuffler_init: init the shuffler or die */
