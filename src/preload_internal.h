@@ -80,6 +80,10 @@ typedef struct preload_ctx {
   int comm_sz; /* my MPI world size */
   int my_cpus; /* num of available cpu cores */
 
+  MPI_Comm recv_comm; /* dedicated communicator for receivers */
+  int recv_rank;
+  int recv_sz;
+
   const char* plfsdir;  /* path to the plfsdir */
   size_t len_plfsdir;   /* strlen */
   deltafs_tp_t* plfstp; /* opaque handle to a dedicated bg compaction pool */

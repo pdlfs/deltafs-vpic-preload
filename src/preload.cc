@@ -155,6 +155,9 @@ static void preload_init() {
   pctx.pre_flushing = 1;
   pctx.my_rank = 0;
   pctx.comm_sz = 1;
+  pctx.recv_comm = MPI_COMM_NULL;
+  pctx.recv_rank = -1;
+  pctx.recv_sz = -1;
 
   /* obtain deltafs mount point */
   pctx.deltafs_mntp = maybe_getenv("PRELOAD_Deltafs_mntp");
@@ -852,10 +855,36 @@ int MPI_Init(int* argc, char*** argv) {
       if (rank == 0) {
         INFO("shuffle started");
       }
+      /* rank 0 must be a receiver */
+      if (rank == 0) {
+        assert(shuffle_is_receiver(&pctx.sctx) != 0);
+      }
+      rv = MPI_Comm_split(
+          MPI_COMM_WORLD,
+          shuffle_is_receiver(&pctx.sctx) != 0 ? 1 : MPI_UNDEFINED,
+          shuffle_receiver_rank(&pctx.sctx), &pctx.recv_comm);
+      if (rv != MPI_SUCCESS) {
+        ABORT("MPI_Comm_split");
+      }
     } else {
+      pctx.recv_comm = MPI_COMM_WORLD;
       if (rank == 0) {
         WARN("shuffle bypassed");
       }
+    }
+    if (pctx.recv_comm != MPI_COMM_NULL) {
+      MPI_Comm_rank(pctx.recv_comm, &pctx.recv_rank);
+      MPI_Comm_size(pctx.recv_comm, &pctx.recv_sz);
+    }
+    if (rank == 0) {
+      /* the 0th rank must also be the 0th rank
+       * in the receiver group */
+      assert(pctx.recv_rank == 0);
+      assert(pctx.recv_sz != -1);
+      snprintf(msg, sizeof(msg),
+               "****** receiver MPI_Comm formed >>> size=%d ******",
+               pctx.recv_sz);
+      INFO(msg);
     }
 
     /* pre-create plfsdirs if there is any */
