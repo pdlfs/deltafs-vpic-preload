@@ -37,8 +37,10 @@
  * internal data structures for the 3 hop shuffler.
  */
 
+#include <time.h>
+
 #include <map>
-#include <queue>
+#include <deque>
 #include "acnt_wrap.h"
 #include "xqueue.h"
 
@@ -82,7 +84,8 @@ XSIMPLEQ_HEAD(request_queue, request);
  * hg_proc_get_size_left()?).
  */
 typedef struct {
-  int32_t seq;                      /* seq# (echoed back), for debugging */
+  int32_t iseq;                     /* seq# (echoed back), for debugging */
+  int32_t forwardrank;              /* rank of proc that initiated rpc */
   struct request_queue inreqs;      /* list of malloc'd requests */
 } rpcin_t;
 
@@ -90,8 +93,8 @@ typedef struct {
  * rpcout_t: return value from the server.
  */
 typedef struct {
-  int32_t seq;                      /* seq# (echoed back), for debugging */
-  int32_t from;                     /* rank of proc sending reply */
+  int32_t oseq;                     /* seq# (echoed back), for debugging */
+  int32_t respondrank;              /* rank of proc sending response */
   int32_t ret;                      /* return value */
 } rpcout_t;
 
@@ -115,7 +118,9 @@ struct req_parent {
   acnt32_t nrefs;                   /* atomic ref counter */
   hg_return_t ret;                  /* return status (HG_SUCCESS, normally) */
   int32_t rpcin_seq;                /* saved copy of rpcin.seq */
+  int32_t rpcin_forwrank;           /* saved copy of rpcin.forwardrank */
   hg_handle_t input;                /* RPC input, or NULL for app input */
+  int32_t timewstart;               /* time wait started */
   /* next three only used if input == NULL (thus via shuffler_send()) */
   pthread_mutex_t pcvlock;          /* lock for pcv */
   pthread_cond_t pcv;               /* app may block here for flow ctl */
@@ -134,6 +139,12 @@ struct req_parent {
 struct output {
   struct outqueue *oqp;             /* owning output queue */
   hg_handle_t outhand;              /* out handle used with HG_Forward() */
+  int ostep;                        /* output step */
+  int32_t outseq;                   /* output seq# to use for this output */
+  int32_t timestart;                /* time we started output */
+#define OSTEP_PREP 0                /* prepare, not at forward_reqs_now yet */
+#define OSTEP_SEND 1                /* forward_reqs_now sending */
+#define OSTEP_CANCEL (-1)           /* trying to cancel request */
   XTAILQ_ENTRY(output) q;           /* linkage (locked by oqlock) */
 };
 
@@ -163,7 +174,7 @@ struct outqueue {
   struct sending_outputs outs;      /* outputs currently being sent to dst */
   int nsending;                     /* #of sends in progress for dst */
 
-  std::queue<request *> oqwaitq;    /* if queue full, waitq of reqs */
+  std::deque<request *> oqwaitq;    /* if queue full, waitq of reqs */
 
   /* fields for flushing an output queue */
   int oqflushing;                   /* 1 if oq is flushing */
@@ -242,6 +253,7 @@ struct shuffler {
   int grank;                        /* my global rank */
   char *funname;                    /* strdup'd copy of mercury func. name */
   int disablesend;                  /* disable new sends (for shutdown) */
+  time_t boottime;                  /* time we started */
 
   /* output queues */
   struct outset localq;             /* for na+sm to local procs */
@@ -255,8 +267,8 @@ struct shuffler {
   /* delivery thread and queue itself */
   pthread_mutex_t deliverlock;      /* locks this block of fields */
   pthread_cond_t delivercv;         /* deliver thread blocks on this */
-  std::queue<request *> deliverq;   /* acked reqs being delivered */
-  std::queue<request *> dwaitq;     /* unacked reqs waiting for deliver */
+  std::deque<request *> deliverq;   /* acked reqs being delivered */
+  std::deque<request *> dwaitq;     /* unacked reqs waiting for deliver */
   int dflush_counter;               /* #of req's flush is waiting for */
   int dshutdown;                    /* to signal dtask to shutdown */
   int drunning;                     /* dtask is valid and running */

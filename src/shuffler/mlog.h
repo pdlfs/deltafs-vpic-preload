@@ -36,6 +36,8 @@
 #ifndef _MLOG_H_
 #define _MLOG_H_
 
+#include <stdarg.h>    /* need va_list for vmlog */
+
 /*
  * mlog flag values
  */
@@ -154,6 +156,17 @@ extern "C" {   /* __BEGIN_DECLS */
          */
         return( (lvl & mask) == 0 ? 0 : 1);
     }
+
+    /**
+     * vmlog: core log function, normally front-ended by
+     * mlog/mlog_abort/mlog_exit.   we expose it here to allow
+     * users to create additional frontends.
+     *
+     * @param flags the flags (mainly fac+pri) for this log message
+     * @param fmt the printf(3) format to use
+     * @param ap the stdargs va_list to use for the printf format
+     */
+    void vmlog(int flags, const char *fmt, va_list ap);
 
     /**
      * mlog: multilog a message... generic wrapper for the the core vmlog

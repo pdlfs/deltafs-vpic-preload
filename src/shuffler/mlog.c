@@ -160,7 +160,6 @@ static const char *mlog_pristr(int);
 static int mlog_resolvhost(struct sockaddr_in *, char *, char *);
 static int mlog_setnfac(int);
 static uint32_t wswap(uint32_t);
-static void vmlog(int, const char *, va_list);
 
 /*
  * local helper functions
@@ -498,18 +497,14 @@ static void mlog_cleanout()
 }
 
 
-/**
+/*
  * vmlog: core log function, front-ended by mlog/mlog_abort/mlog_exit.
  * we vsnprintf the message into a holding buffer to format it.  then we
  * send it to all target output logs.  the holding buffer is set to
  * MLOG_TBSIZ, if the message is too long it will be silently truncated.
  * caller should not hold mlog_lock, vmlog will grab it as needed.
- *
- * @param flags the flags (mainly fac+pri) for this log message
- * @param fmt the printf(3) format to use
- * @param ap the stdargs va_list to use for the printf format
  */
-static void vmlog(int flags, const char *fmt, va_list ap)
+void vmlog(int flags, const char *fmt, va_list ap)
 {
 #define MLOG_TBSIZ    4096    /* bigger than any line should be */
     int fac, lvl, msk;

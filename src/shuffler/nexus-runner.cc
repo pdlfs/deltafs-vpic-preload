@@ -348,6 +348,8 @@ void sigalarm(int foo) {
         fprintf(stderr, "%d: %d: @alarm: ", myrank, lcv);
         fprintf(stderr, "nsends=%d, ncallbacks=%d\n",
                 isa[lcv].nsends, isa[lcv].ncallbacks);
+        /* only force to stderr if nprocs <= 4 */
+        shuffler_statedump(isa[lcv].shand, (g.size <= 4) ? 1 : 0);
     }
     fprintf(stderr, "Alarm clock\n");
     MPI_Finalize();

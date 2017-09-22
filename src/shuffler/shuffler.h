@@ -268,3 +268,12 @@ hg_return_t shuffler_send_stats(shuffler_t sh, hg_uint64_t* local,
 hg_return_t shuffler_recv_stats(shuffler_t sh, hg_uint64_t* local,
                                 hg_uint64_t* remote);
 
+
+/*
+ * shuffler_statedump: dump out the current state of the shuffle
+ * for diagnostics
+ *
+ * @param sh shuffler service handle
+ * @param tostderr make sure it goes to stderr too
+ */
+void shuffler_statedump(shuffler_t sh, int tostderr);
