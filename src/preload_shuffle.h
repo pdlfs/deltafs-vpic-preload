@@ -75,6 +75,9 @@ typedef struct shuffle_ctx {
  */
 extern char* shuffle_prepare_uri(char* buf);
 
+/* return 0 if some ranks are sender-only, 1 otherwise. */
+extern int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx);
+
 /* return 0 if the calling rank is a non-receiver, 1 otherwise. */
 extern int shuffle_is_receiver(shuffle_ctx_t* ctx);
 

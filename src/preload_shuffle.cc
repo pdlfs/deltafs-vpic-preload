@@ -557,6 +557,12 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 }
 
+int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  int rv = int(32 == bits_count(ctx->receiver_mask));
+  return rv;
+}
+
 int shuffle_rank(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
@@ -569,7 +575,7 @@ int shuffle_rank(shuffle_ctx_t* ctx) {
 int shuffle_is_receiver(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   int my_rank = shuffle_rank(ctx);
-  int rv = ((my_rank & ctx->receiver_mask) == my_rank);
+  int rv = int((my_rank & ctx->receiver_mask) == my_rank);
   return rv;
 }
 

@@ -855,16 +855,18 @@ int MPI_Init(int* argc, char*** argv) {
       if (rank == 0) {
         INFO("shuffle started");
       }
-      /* rank 0 must be a receiver */
-      if (rank == 0) {
-        assert(shuffle_is_receiver(&pctx.sctx) != 0);
-      }
-      rv = MPI_Comm_split(
-          MPI_COMM_WORLD,
-          shuffle_is_receiver(&pctx.sctx) != 0 ? 1 : MPI_UNDEFINED,
-          shuffle_receiver_rank(&pctx.sctx), &pctx.recv_comm);
-      if (rv != MPI_SUCCESS) {
-        ABORT("MPI_Comm_split");
+      if (!shuffle_is_everyone_receiver(&pctx.sctx)) {
+        /* rank 0 must be a receiver */
+        if (rank == 0) assert(shuffle_is_receiver(&pctx.sctx) != 0);
+        rv = MPI_Comm_split(
+            MPI_COMM_WORLD,
+            shuffle_is_receiver(&pctx.sctx) != 0 ? 1 : MPI_UNDEFINED,
+            shuffle_receiver_rank(&pctx.sctx), &pctx.recv_comm);
+        if (rv != MPI_SUCCESS) {
+          ABORT("MPI_Comm_split");
+        }
+      } else {
+        pctx.recv_comm = MPI_COMM_WORLD;
       }
     } else {
       pctx.recv_comm = MPI_COMM_WORLD;
@@ -882,8 +884,8 @@ int MPI_Init(int* argc, char*** argv) {
       assert(pctx.recv_rank == 0);
       assert(pctx.recv_sz != -1);
       snprintf(msg, sizeof(msg),
-               "****** receiver MPI_Comm formed >>> size=%d ******",
-               pctx.recv_sz);
+               "****** receiver MPI_Comm formed >>> sz=%d / world_sz=%d ******",
+               pctx.recv_sz, pctx.comm_sz);
       INFO(msg);
     }
 
@@ -1561,6 +1563,11 @@ int MPI_Finalize(void) {
   if (pctx.logfd != -1) {
     close(pctx.logfd);
     pctx.logfd = -1;
+  }
+
+  /* release the receiver communicator */
+  if (pctx.recv_comm != MPI_COMM_NULL && pctx.recv_comm != MPI_COMM_WORLD) {
+    MPI_Comm_free(&pctx.recv_comm);
   }
 
   /* !!! OK !!! */
