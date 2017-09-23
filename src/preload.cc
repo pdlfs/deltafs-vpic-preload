@@ -845,6 +845,10 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
+    /* everyone is a receiver by default. when shuffle is enabled, some ranks
+     * may become sender-only */
+    pctx.recv_comm = MPI_COMM_WORLD;
+
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (rank == 0) {
         INFO("shuffle starting ...");
@@ -865,20 +869,19 @@ int MPI_Init(int* argc, char*** argv) {
         if (rv != MPI_SUCCESS) {
           ABORT("MPI_Comm_split");
         }
-      } else {
-        pctx.recv_comm = MPI_COMM_WORLD;
       }
     } else {
-      pctx.recv_comm = MPI_COMM_WORLD;
       if (rank == 0) {
         WARN("shuffle bypassed");
       }
     }
+
     if (pctx.recv_comm != MPI_COMM_NULL) {
       MPI_Comm_rank(pctx.recv_comm, &pctx.recv_rank);
       MPI_Comm_size(pctx.recv_comm, &pctx.recv_sz);
     }
     if (rank == 0) {
+      assert(pctx.recv_comm != MPI_COMM_NULL);
       /* the 0th rank must also be the 0th rank
        * in the receiver group */
       assert(pctx.recv_rank == 0);
@@ -901,6 +904,8 @@ int MPI_Init(int* argc, char*** argv) {
         ABORT("bad plfsdir");
       }
 
+      /* rank 0 creates the dir.
+       * note that rank 0 is always a receiver. */
       if (rank == 0) {
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode) ||
             IS_BYPASS_DELTAFS(pctx.mode)) {
@@ -924,34 +929,37 @@ int MPI_Init(int* argc, char*** argv) {
       /* so everyone sees the dir created */
       preload_barrier(MPI_COMM_WORLD);
 
-      /* everyone opens it */
-      if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-        snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
-        conf = gen_plfsdir_conf(rank);
+      /* every receiver opens it */
+      if (pctx.recv_comm != MPI_COMM_NULL) {
+        if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+          snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
+          assert(pctx.recv_rank != -1);
+          conf = gen_plfsdir_conf(pctx.recv_rank);
 
-        pctx.plfshdl = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
-        deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 0);
-        pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
-        pctx.plfstp = deltafs_tp_init(pctx.plfsparts);
-        deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
+          pctx.plfshdl = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
+          deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 0);
+          pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
+          pctx.plfstp = deltafs_tp_init(pctx.plfsparts);
+          deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
 
-        rv = deltafs_plfsdir_open(pctx.plfshdl, path);
-        if (rv != 0) {
-          ABORT("cannot open plfsdir");
-        } else if (rank == 0) {
-          INFO("plfsdir (via deltafs-LT) opened (rank 0)");
-          if (pctx.verr) {
-            pretty_plfsdir_conf(conf);
-            INFO(conf.c_str());
+          rv = deltafs_plfsdir_open(pctx.plfshdl, path);
+          if (rv != 0) {
+            ABORT("cannot open plfsdir");
+          } else if (rank == 0) {
+            INFO("plfsdir (via deltafs-LT) opened (rank 0)");
+            if (pctx.verr) {
+              pretty_plfsdir_conf(conf);
+              INFO(conf.c_str());
+            }
           }
-        }
-      } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
-                 !IS_BYPASS_DELTAFS(pctx.mode)) {
-        pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
-        if (pctx.plfsfd == -1) {
-          ABORT("cannot open plfsdir");
-        } else if (rank == 0) {
-          INFO("plfsdir opened (rank 0)");
+        } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
+                   !IS_BYPASS_DELTAFS(pctx.mode)) {
+          pctx.plfsfd = deltafs_open(stripped, O_WRONLY | O_DIRECTORY, 0);
+          if (pctx.plfsfd == -1) {
+            ABORT("cannot open plfsdir");
+          } else if (rank == 0) {
+            INFO("plfsdir opened (rank 0)");
+          }
         }
       }
     }
@@ -1166,7 +1174,9 @@ int MPI_Finalize(void) {
       }
     }
 
-    /* all writes are concluded, time to close all plfsdirs */
+    /* all writes are concluded, do the last flush, finish the directory,
+     * retrieve final mon stats, and free the directory. note that the mon stats
+     * must be retrieved before the directory is destroyed. */
     if (pctx.plfshdl != NULL) {
       if (pctx.my_rank == 0) {
         finish_start = now_micros();
@@ -1210,7 +1220,7 @@ int MPI_Finalize(void) {
     }
 
     /* conclude sampling */
-    if (pctx.sampling) {
+    if (pctx.sampling && pctx.recv_comm != MPI_COMM_NULL) {
       num_samples[0] = num_samples[1] = 0;
       for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
            it != pctx.smap->end(); ++it) {
@@ -1220,7 +1230,7 @@ int MPI_Finalize(void) {
         num_samples[0]++;
       }
       MPI_Reduce(num_samples, sum_samples, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
-                 0, MPI_COMM_WORLD);
+                 0, pctx.recv_comm);
       if (pctx.my_rank == 0) {
         snprintf(msg, sizeof(msg),
                  "########## | >>> total particles sampled: %s (%s valid)",
@@ -1231,7 +1241,7 @@ int MPI_Finalize(void) {
       if (!pctx.nodist) {
         num_names = 0;
         snprintf(path, sizeof(path), "%s/NAMES-%07d.txt", pctx.log_home,
-                 pctx.my_rank);
+                 pctx.recv_rank);
         if (pctx.my_rank == 0) {
           INFO("dumping valid particle names to ...");
           INFO(path);
@@ -1268,7 +1278,7 @@ int MPI_Finalize(void) {
         }
         num_samples[0] = num_names;
         MPI_Reduce(num_samples, sum_samples, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
-                   0, MPI_COMM_WORLD);
+                   0, pctx.recv_comm);
         if (pctx.my_rank == 0) {
           snprintf(msg, sizeof(msg), "dumping ok (%s names)",
                    pretty_num(sum_samples[0]).c_str());
@@ -1707,11 +1717,9 @@ DIR* opendir(const char* dir) {
   }
 
   /* epoch flush */
-  if (num_epochs != 0) {
+  if (num_epochs != 0 && pctx.recv_comm != MPI_COMM_NULL) {
     /*
-     * XXX: explicit epoch flush.
-     *
-     * unable to perform this at closedir() time because we are
+     * unable to perform epoch flush at closedir() time because we are
      * likely to progress faster than some peers, causing
      * an epoch to be flushed prematurely and confusing
      * deltafs.
@@ -1720,8 +1728,6 @@ DIR* opendir(const char* dir) {
      *
      * epoch flush may also be triggered by an unexpected
      * write from a remote peer.
-     *
-     * XXX: need to send the epoch num to deltafs.
      *
      */
     if (IS_BYPASS_WRITE(pctx.mode)) {
@@ -1797,10 +1803,11 @@ DIR* opendir(const char* dir) {
     if (ret) ABORT("getrusage");
   }
 
-  if (pctx.my_rank == 0) {
+  if (pctx.my_rank == 0) { 
     INFO("dumping particles ... (rank 0)");
   }
 
+  /* restart paranoid checking status */
   pctx.fnames->clear();
 
   return rv;
@@ -1879,7 +1886,7 @@ int closedir(DIR* dirp) {
   }
 
   /* epoch pre-flush */
-  if (pctx.pre_flushing) {
+  if (pctx.pre_flushing && pctx.recv_comm != MPI_COMM_NULL) {
     if (IS_BYPASS_WRITE(pctx.mode)) {
       /* noop */
 
@@ -2182,7 +2189,10 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   int fd;
   int k;
 
+  assert(fn != NULL);
+  assert(pctx.len_plfsdir != 0);
   assert(pctx.plfsdir != NULL);
+  assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
   /* remove parent directory path */
   fname = fn + pctx.len_plfsdir + 1;
   errno = 0;
@@ -2207,6 +2217,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   }
 
   if (pctx.sampling) {
+    assert(pctx.smap != NULL);
     if (epoch == 0) {
       /* during the initial epoch, we accept as many names as possible */
       if (getr(0, 1000000 - 1) < pctx.sthres) {

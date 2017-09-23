@@ -80,6 +80,11 @@ typedef struct preload_ctx {
   int comm_sz; /* my MPI world size */
   int my_cpus; /* num of available cpu cores */
 
+  /* since some ranks may be sender-only, so we have a dedicated MPI
+   * communicator formed specifically for receivers. note that each receiver may
+   * be a sender as well. for those sender-only ranks, their receiver
+   * communicators will be defined as MPI_COMM_NULL. */
+
   MPI_Comm recv_comm; /* dedicated communicator for receivers */
   int recv_rank;
   int recv_sz;
