@@ -1803,7 +1803,7 @@ DIR* opendir(const char* dir) {
     if (ret) ABORT("getrusage");
   }
 
-  if (pctx.my_rank == 0) { 
+  if (pctx.my_rank == 0) {
     INFO("dumping particles ... (rank 0)");
   }
 
