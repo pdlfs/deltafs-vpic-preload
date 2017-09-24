@@ -281,15 +281,18 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
                   int epoch) {
   int rv;
-  char msg[200];
   const char* fname;
   unsigned char fname_len;
   unsigned long target;
-  int ha;
   int world_sz;
   int peer_rank;
   int rank;
+
+#ifndef NDEBUG
+  char msg[200];
+  int ha;
   int n;
+#endif
 
   assert(ctx != NULL);
   assert(pctx.len_plfsdir != 0);
@@ -325,6 +328,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
   /* skip non-receivers */
   peer_rank &= ctx->receiver_mask;
 
+#ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
     ha = pdlfs::xxhash32(data, len, 0); /* checksum */
@@ -341,6 +345,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 
     errno = 0;
   }
+#endif
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
@@ -360,18 +365,26 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 
 int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
                    size_t len, int epoch, int peer_rank, int rank) {
+  /* here we assume we will only get called by a single thread.
+   * this thread is usually a dedicated thread for executing writes into a
+   * blocking memtable. we usually refer to this thread as the "write" thread or
+   * the "deliver" thread. */
+  static char path[PATH_MAX];
+
+#ifndef NDEBUG
   char msg[200];
-  char path[PATH_MAX];
-  int rv;
   int ha;
   int n;
+#endif
+
+  int rv;
 
   assert(fname != NULL);
   assert(pctx.len_plfsdir != 0);
   assert(pctx.plfsdir != NULL);
   snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
   rv = preload_foreign_write(path, data, len, epoch);
-
+#ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
     ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
@@ -383,7 +396,7 @@ int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
 
     errno = 0;
   }
-
+#endif
   return rv;
 }
 
