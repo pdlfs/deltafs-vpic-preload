@@ -886,9 +886,10 @@ int MPI_Init(int* argc, char*** argv) {
        * in the receiver group */
       assert(pctx.recv_rank == 0);
       assert(pctx.recv_sz != -1);
-      snprintf(msg, sizeof(msg),
-               "****** receiver MPI_Comm formed >>> sz=%d / world_sz=%d ******",
-               pctx.recv_sz, pctx.comm_sz);
+      snprintf(
+          msg, sizeof(msg),
+          "****** receiver MPI_Comm formed ---> sz=%d (world_sz=%d) ******",
+          pctx.recv_sz, pctx.comm_sz);
       INFO(msg);
     }
 
