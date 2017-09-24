@@ -1067,10 +1067,12 @@ int MPI_Finalize(void) {
   uint64_t finish_start;
   uint64_t finish_end;
   std::string tmp;
-  /* 0 -> total, 1 -> valid */
+  /* num names sampled: 0 -> total, 1 -> valid */
   unsigned long long num_samples[2]; /* per rank */
   unsigned long long sum_samples[2];
-  size_t num_names;
+  /* num names dumped */
+  unsigned long long num_names; /* per rank */
+  unsigned long long sum_names;
   double ucpu;
   double scpu;
   time_t now;
@@ -1133,7 +1135,7 @@ int MPI_Finalize(void) {
           n = snprintf(msg, sizeof(msg), "skip_checksums=%d\n",
                        dirc.skip_checksums);
           n = write(fd0, msg, n);
-          n = snprintf(msg, sizeof(msg), "comm_sz=%d\n", pctx.comm_sz);
+          n = snprintf(msg, sizeof(msg), "comm_sz=%d\n", pctx.recv_sz);
           n = write(fd0, msg, n);
           close(fd0);
           errno = 0;
@@ -1276,12 +1278,11 @@ int MPI_Finalize(void) {
         } else {
           ERROR("open");
         }
-        num_samples[0] = num_names;
-        MPI_Reduce(num_samples, sum_samples, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
+        MPI_Reduce(&num_names, &sum_names, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
                    0, pctx.recv_comm);
         if (pctx.my_rank == 0) {
           snprintf(msg, sizeof(msg), "dumping ok (%s names)",
-                   pretty_num(sum_samples[0]).c_str());
+                   pretty_num(sum_names).c_str());
           INFO(msg);
         }
       }
