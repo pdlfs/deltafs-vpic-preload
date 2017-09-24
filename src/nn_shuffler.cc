@@ -38,7 +38,6 @@
 
 #include <mercury_proc.h>
 #include <mercury_proc_string.h>
-#include <pdlfs-common/xxhash.h>
 
 #include "common.h"
 #include "nn_shuffler.h"
@@ -336,17 +335,15 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   uint32_t nrank;
   uint16_t nepoch;
   hg_return_t hret;
-  char msg[MAX_RPC_MESSAGE];
+  char buf[MAX_RPC_MESSAGE];
   write_out_t write_out;
   write_in_t write_in;
   char* data;
   size_t len;
   const char* fname;
   unsigned char fname_len;
-  char path[PATH_MAX];
-  char buf[200];
+  char msg[200];
   int rv;
-  int ha;
   int epoch;
   int src;
   int dst;
@@ -356,10 +353,8 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
 
   assert(nnctx.ssg != NULL);
   rank = ssg_get_rank(nnctx.ssg); /* my rank */
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
 
-  write_in.msg = msg;
+  write_in.msg = buf;
   write_in.sz = 0;
 
   hret = HG_Get_input(h, &write_in);
@@ -372,9 +367,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   /* write trace if we are in testing mode */
   if (pctx.testin) {
     if (pctx.logfd != -1) {
-      n = snprintf(buf, sizeof(buf), "[IN] %d bytes r%d << r%d\n",
+      n = snprintf(msg, sizeof(msg), "[IN] %d bytes r%d << r%d\n",
                    int(write_in.sz), rank, peer_rank);
-      n = write(pctx.logfd, buf, n);
+      n = write(pctx.logfd, msg, n);
 
       errno = 0;
     }
@@ -383,7 +378,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   write_out.rv = 0;
 
   input_left = write_in.sz;
-  input = msg;
+  input = buf;
 
   /* decode and execute writes */
   while (input_left != 0) {
@@ -440,22 +435,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
 
     if (dst != rank) ABORT("bad dst");
     if (src != peer_rank) ABORT("bad src");
-    snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
-    rv = preload_foreign_write(path, data, len, epoch);
+    rv = shuffle_handle(fname, fname_len, data, len, epoch, peer_rank, rank);
     if (write_out.rv == 0) {
       write_out.rv = rv;
-    }
-
-    /* write trace if we are in testing mode */
-    if (pctx.testin && pctx.logfd != -1) {
-      ha = pdlfs::xxhash32(data, len, 0); /* checksum */
-      n = snprintf(buf, sizeof(buf),
-                   "[RECV] %s %d bytes (e%d) r%d "
-                   "<< r%d (hash=%08x)\n",
-                   path, int(len), epoch, dst, src, ha);
-      n = write(pctx.logfd, buf, n);
-
-      errno = 0;
     }
   }
 

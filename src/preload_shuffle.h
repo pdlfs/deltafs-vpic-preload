@@ -138,6 +138,16 @@ extern void shuffle_pause(shuffle_ctx_t* ctx);
 extern void shuffle_resume(shuffle_ctx_t* ctx);
 
 /*
+ * shuffle_handle: process an incoming shuffled write. here "peer_rank" refers
+ * to the original sender, and "rank" refers to us.
+ *
+ * return 0 on success, or EOF on errors.
+ */
+extern int shuffle_handle(const char* fname, unsigned char fname_len,
+                          char* data, size_t len, int epoch, int peer_rank,
+                          int rank);
+
+/*
  * shuffle_msg_sent: callback for a shuffle sender to
  * notify the main system of the sending of an rpc request.
  *

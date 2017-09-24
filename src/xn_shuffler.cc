@@ -31,8 +31,6 @@
 #include <arpa/inet.h>
 #include <assert.h>
 
-#include <pdlfs-common/xxhash.h>
-
 #include "common.h"
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
@@ -103,18 +101,14 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
 void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   char* input;
   size_t input_left;
-  char path[PATH_MAX];
-  char msg[200];
   const char* fname;
-  size_t fname_len;
+  unsigned char fname_len;
   uint32_t r;
   uint16_t e;
-  int ha;
   int epoch;
   char* data;
   size_t len;
   int rv;
-  int n;
 
   assert(buf_sz >= 0);
   input_left = static_cast<size_t>(buf_sz);
@@ -170,22 +164,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   memcpy(&e, input, 2);
   epoch = ntohs(e);
 
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
-  snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
-  rv = preload_foreign_write(path, data, len, epoch);
-
-  /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
-    ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
-    n = snprintf(msg, sizeof(msg),
-                 "[RECV] %s %d bytes (e%d) r%d "
-                 "<< r%d (hash=%08x)\n",
-                 path, int(len), epoch, dst, src, ha);
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
-  }
+  rv = shuffle_handle(fname, fname_len, data, len, epoch, src, dst);
 
   if (rv != 0) {
     ABORT("plfsdir write failed");

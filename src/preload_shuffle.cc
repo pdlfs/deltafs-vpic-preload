@@ -358,6 +358,35 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
   return 0;
 }
 
+int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
+                   size_t len, int epoch, int peer_rank, int rank) {
+  char msg[200];
+  char path[PATH_MAX];
+  int rv;
+  int ha;
+  int n;
+
+  assert(fname != NULL);
+  assert(pctx.len_plfsdir != 0);
+  assert(pctx.plfsdir != NULL);
+  snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
+  rv = preload_foreign_write(path, data, len, epoch);
+
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.logfd != -1) {
+    ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
+    n = snprintf(msg, sizeof(msg),
+                 "[RECV] %s %d bytes (e%d) r%d "
+                 "<< r%d (hash=%08x)\n",
+                 path, int(len), epoch, rank, peer_rank, ha);
+    n = write(pctx.logfd, msg, n);
+
+    errno = 0;
+  }
+
+  return rv;
+}
+
 void shuffle_finalize(shuffle_ctx_t* ctx) {
   char msg[200];
   assert(ctx != NULL);
