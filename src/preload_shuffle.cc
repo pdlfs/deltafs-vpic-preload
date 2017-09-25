@@ -366,9 +366,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
                    size_t len, int epoch, int peer_rank, int rank) {
   /* here we assume we will only get called by a single thread.
-   * this thread is usually a dedicated thread for executing writes into a
-   * blocking memtable. we usually refer to this thread as the "write" thread or
-   * the "deliver" thread. */
+   * this thread is either a dedicate mercury progressing thread, or a separate
+   * rpc worker thread. in the 2nd case, we usually label this thread as the
+   * "writing" thread or the "delivery" thread. */
   static char path[PATH_MAX];
 
 #ifndef NDEBUG

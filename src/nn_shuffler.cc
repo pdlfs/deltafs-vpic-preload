@@ -231,7 +231,7 @@ static void* rpc_work(void* arg) {
         for (it = todo.begin(); it != todo.end(); ++it) {
           h = static_cast<hg_handle_t>(*it);
           if (h != NULL) {
-            hret = nn_shuffler_write_rpc_handler(h);
+            hret = nn_shuffler_write_rpc_handler(h, NULL);
             if (hret != HG_SUCCESS) {
               RPC_FAILED("fail to exec rpc", hret);
             }
@@ -315,8 +315,9 @@ void nn_shuffler_bgwait() {
 
 /* nn_shuffler_write_rpc_handler_wrapper: server-side rpc handler wrapper */
 hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
-  if (num_wk == 0) return (nn_shuffler_write_rpc_handler(h));
-
+  if (num_wk == 0) {
+    return nn_shuffler_write_rpc_handler(h, NULL);
+  }
   pthread_mtx_lock(&mtx[wk_cv]);
   wk_items.push_back(static_cast<void*>(h));
   if (wk_items.size() == 1) {
@@ -329,27 +330,35 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
 }
 
 /* nn_shuffler_write_rpc_handler: server-side rpc handler */
-hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
+hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
+  /* here we assume we will only get called by a single thread.
+   * this thread is either a dedicated mercury progressing thread, or a separate
+   * rpc worker thread. */
+  static char buf[MAX_RPC_MESSAGE];
+
   char* input;
   uint16_t input_left;
   uint32_t nrank;
   uint16_t nepoch;
   hg_return_t hret;
-  char buf[MAX_RPC_MESSAGE];
   write_out_t write_out;
   write_in_t write_in;
+  write_info_t write_info;
   char* data;
   size_t len;
   const char* fname;
   unsigned char fname_len;
-  char msg[200];
-  int rv;
   int epoch;
   int src;
   int dst;
   int peer_rank;
   int rank;
+  int rv;
+
+#ifndef NDEBUG
+  char msg[200];
   int n;
+#endif
 
   assert(nnctx.ssg != NULL);
   rank = ssg_get_rank(nnctx.ssg); /* my rank */
@@ -363,6 +372,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   }
 
   shuffle_msg_received();
+#ifndef NDEBUG
   peer_rank = ntohl(write_in.owner);
   /* write trace if we are in testing mode */
   if (pctx.testin) {
@@ -374,7 +384,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
       errno = 0;
     }
   }
-
+#endif
+  write_info.sz = write_in.sz;
+  write_info.num_writes = 0;
   write_out.rv = 0;
 
   input_left = write_in.sz;
@@ -436,6 +448,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
     if (dst != rank) ABORT("bad dst");
     if (src != peer_rank) ABORT("bad src");
     rv = shuffle_handle(fname, fname_len, data, len, epoch, peer_rank, rank);
+    write_info.num_writes++;
     if (write_out.rv == 0) {
       write_out.rv = rv;
     }
@@ -444,6 +457,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h) {
   hret = HG_Respond(h, NULL, NULL, &write_out);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("HG_Respond", hret);
+  }
+  if (info != NULL) {
+    *info = write_info;
   }
 
   HG_Free_input(h, &write_in);

@@ -121,7 +121,13 @@ typedef struct write_async_cb {
   int slot; /* cb slot used */
 } write_async_cb_t;
 
-extern hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t handle);
+typedef struct write_info {
+  /* number of writes sent within an rpc msg */
+  hg_uint16_t num_writes;
+  hg_uint16_t sz; /* msg size */
+} write_info_t;
+
+extern hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t*);
 extern hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t handle);
 extern hg_return_t nn_shuffler_write_async_handler(
     const struct hg_cb_info* info);
