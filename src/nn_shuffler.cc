@@ -170,22 +170,29 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
   return hret;
 }
 
-/* rpc_work(): dedicated thread function to process rpc */
+/* rpc_work(): dedicated thread function to process rpc. each work item
+ * represents an incoming rpc (encoding a batch of writes). */
 static void* rpc_work(void* arg) {
+  write_info info;
+  size_t total_writes; /* total individual writes processed */
+  size_t total_bytes;  /* total rpc msg size */
   size_t num_loops;
   size_t num_items;
   std::vector<void*> todo;
-  std::vector<void*>::size_type sum_items;
-  std::vector<void*>::size_type max_items;
-  std::vector<void*>::size_type min_items;
+  std::vector<void*>::size_type sum_items; /* total num of rpc msgs handled */
+  std::vector<void*>::size_type max_items; /* max per loop */
+  std::vector<void*>::size_type min_items; /* min per loop */
   std::vector<void*>::iterator it;
   hg_return_t hret;
   hg_handle_t h;
-  char msg[100];
   int s;
 
-  num_items = 0;
-  num_loops = 0;
+#ifndef NDEBUG
+  char msg[100];
+#endif
+
+  total_writes = total_bytes = 0;
+  num_items = num_loops = 0;
 
   /*
    * mercury by default will only pull at most 256 incoming requests from the
@@ -231,10 +238,12 @@ static void* rpc_work(void* arg) {
         for (it = todo.begin(); it != todo.end(); ++it) {
           h = static_cast<hg_handle_t>(*it);
           if (h != NULL) {
-            hret = nn_shuffler_write_rpc_handler(h, NULL);
+            hret = nn_shuffler_write_rpc_handler(h, &info);
             if (hret != HG_SUCCESS) {
               RPC_FAILED("fail to exec rpc", hret);
             }
+            total_writes += info.num_writes;
+            total_bytes += info.sz;
           }
         }
       }
@@ -268,6 +277,9 @@ static void* rpc_work(void* arg) {
   num_wk--;
   pthread_cv_notifyall(&cv[bg_cv]);
   pthread_mtx_unlock(&mtx[bg_cv]);
+
+  nnctx.totalnw = total_writes;
+  nnctx.totalsz = total_bytes;
 
   nnctx.accqsz = sum_items;
   nnctx.minqsz = int(min_items);

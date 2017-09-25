@@ -89,6 +89,10 @@ typedef struct nn_ctx {
   /* SSG context */
   ssg_t ssg;
 
+  /* rpc stats */
+  unsigned long long totalnw; /* total number of writes shuffled */
+  unsigned long long totalsz; /* total rpc msg size */
+
   /* rpc incoming queue depth */
   unsigned long long accqsz; /* accumulated queue size */
   unsigned long long nps;    /* total number of queue passes */
