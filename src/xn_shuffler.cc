@@ -36,6 +36,20 @@
 #include "nn_shuffler_internal.h"
 #include "xn_shuffler.h"
 
+/* xn_local_barrier: perform a barrier across all node-local ranks. */
+void xn_local_barrier(xn_ctx_t* ctx) {
+  nexus_ret_t nret;
+  assert(ctx != NULL && ctx->nx != NULL);
+  if (ctx->force_global_barrier) {
+    nret = nexus_global_barrier(ctx->nx);
+  } else {
+    nret = nexus_local_barrier(ctx->nx);
+  }
+  if (nret != NX_SUCCESS) {
+    ABORT("nexus_barrier");
+  }
+}
+
 /*
  * This function is called at the end of each epoch. We expect there is a long
  * computation phase between two epochs that can serve as a virtual barrier. As
@@ -46,20 +60,12 @@
  */
 void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   hg_return_t hret;
-  assert(ctx != NULL);
-
-  assert(ctx->sh != NULL);
-  assert(ctx->nx != NULL);
-
-  hret = shuffler_flush_localqs(ctx->sh);
+  assert(ctx != NULL && ctx->sh != NULL);
+  hret = shuffler_flush_originqs(ctx->sh);
   if (hret != HG_SUCCESS) {
-    RPC_FAILED("fail to flush local queues", hret);
+    RPC_FAILED("fail to flush local origin queues", hret);
   }
-  if (ctx->force_global_barrier) {
-    nexus_global_barrier(ctx->nx);
-  } else {
-    nexus_local_barrier(ctx->nx);
-  }
+  xn_local_barrier(ctx);
   hret = shuffler_flush_remoteqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush remote queues", hret);
@@ -75,22 +81,17 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
  */
 void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   hg_return_t hret;
-  assert(ctx != NULL);
-
-  assert(ctx->sh != NULL);
-  assert(ctx->nx != NULL);
-
-  hret = shuffler_flush_localqs(ctx->sh);
+  hg_uint64_t tmpori;
+  hg_uint64_t tmprl;
+  assert(ctx != NULL && ctx->sh != NULL);
+  hret = shuffler_flush_relayqs(ctx->sh);
   if (hret != HG_SUCCESS) {
-    RPC_FAILED("fail to flush local queues", hret);
+    RPC_FAILED("fail to flush local relay queues", hret);
   }
-  if (ctx->force_global_barrier) {
-    nexus_global_barrier(ctx->nx);
-  } else {
-    nexus_local_barrier(ctx->nx);
-  }
+  xn_local_barrier(ctx);
   ctx->last_stat = ctx->stat;
-  shuffler_send_stats(ctx->sh, &ctx->stat.local.sends, &ctx->stat.remote.sends);
+  shuffler_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
+  ctx->stat.local.sends = tmpori + tmprl;
   shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
   hret = shuffler_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
@@ -311,8 +312,8 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   }
 
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
-                          lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
-                          deliverq_max, xn_shuffler_deliver);
+                          lmaxrpc, lbuftarget, lmaxrpc, lbuftarget, rmaxrpc,
+                          rbuftarget, deliverq_max, xn_shuffler_deliver);
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
@@ -357,8 +358,10 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
   if (ctx != NULL) {
     if (ctx->sh != NULL) {
 #ifndef NDEBUG
-      shuffler_send_stats(ctx->sh, &ctx->stat.local.sends,
-                          &ctx->stat.remote.sends);
+      hg_uint64_t tmpori;
+      hg_uint64_t tmprl;
+      shuffler_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
+      ctx->stat.local.sends = tmpori + tmprl;
       shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs,
                           &ctx->stat.remote.recvs);
 #endif
