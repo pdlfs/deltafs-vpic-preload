@@ -439,6 +439,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     ctx->rep = NULL;
     free(rep);
   } else {
+    unsigned long long total_writes;
+    unsigned long long total_msgsz;
     unsigned long long accqsz;
     unsigned long long nps;
     int min_maxqsz;
@@ -447,6 +449,10 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     int max_minqsz;
     nn_shuffler_destroy();
     if (pctx.recv_comm != MPI_COMM_NULL) {
+      MPI_Reduce(&nnctx.total_writes, &total_writes, 1, MPI_UNSIGNED_LONG_LONG,
+                 MPI_SUM, 0, pctx.recv_comm);
+      MPI_Reduce(&nnctx.total_msgsz, &total_msgsz, 1, MPI_UNSIGNED_LONG_LONG,
+                 MPI_SUM, 0, pctx.recv_comm);
       MPI_Reduce(&nnctx.accqsz, &accqsz, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
                  pctx.recv_comm);
       MPI_Reduce(&nnctx.nps, &nps, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
@@ -461,8 +467,11 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                  pctx.recv_comm);
       if (pctx.my_rank == 0 && nps != 0) {
         snprintf(msg, sizeof(msg),
-                 "[rpc] incoming queue depth: %.3f per rank\n"
+                 "[rpc] avg rpc size: %s (%s writes per rpc), "
+                 "incoming queue depth: %.3f per rank\n"
                  ">>> max: %d - %d, min: %d - %d",
+                 pretty_size(double(total_msgsz) / accqsz).c_str(),
+                 pretty_num(double(total_writes) / accqsz).c_str(),
                  double(accqsz) / nps, min_maxqsz, max_maxqsz, min_minqsz,
                  max_minqsz);
         INFO(msg);

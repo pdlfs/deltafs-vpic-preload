@@ -278,8 +278,8 @@ static void* rpc_work(void* arg) {
   pthread_cv_notifyall(&cv[bg_cv]);
   pthread_mtx_unlock(&mtx[bg_cv]);
 
-  nnctx.totalnw = total_writes;
-  nnctx.totalsz = total_bytes;
+  nnctx.total_writes = total_writes;
+  nnctx.total_msgsz = total_bytes;
 
   nnctx.accqsz = sum_items;
   nnctx.minqsz = int(min_items);
@@ -1227,7 +1227,7 @@ void nn_shuffler_init() {
     if (rv) ABORT("pthread_create");
     pthread_detach(pid);
   } else if (pctx.my_rank == 0) {
-    WARN("rpc worker disabled");
+    WARN("rpc worker disabled\n>>> some rpc stats collection not available");
   }
 
   if (pctx.my_rank == 0) {
