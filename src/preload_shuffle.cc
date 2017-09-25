@@ -466,12 +466,13 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       MPI_Reduce(&nnctx.minqsz, &max_minqsz, 1, MPI_INT, MPI_MAX, 0,
                  pctx.recv_comm);
       if (pctx.my_rank == 0 && nps != 0) {
-        snprintf(msg, sizeof(msg),
-                 "[rpc] avg rpc size: %s (%s writes per rpc), "
-                 "incoming queue depth: %.3f per rank\n"
-                 ">>> max: %d - %d, min: %d - %d",
+        snprintf(msg, sizeof(msg), "[rpc] avg rpc size: %s (%s writes per rpc)",
                  pretty_size(double(total_msgsz) / accqsz).c_str(),
-                 pretty_num(double(total_writes) / accqsz).c_str(),
+                 pretty_num(double(total_writes) / accqsz).c_str());
+        INFO(msg);
+        snprintf(msg, sizeof(msg),
+                 "[rpc] incoming queue depth: %.3f per rank\n"
+                 ">>> max: %d - %d, min: %d - %d",
                  double(accqsz) / nps, min_maxqsz, max_maxqsz, min_minqsz,
                  max_minqsz);
         INFO(msg);
