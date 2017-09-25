@@ -46,6 +46,7 @@
 
 struct req_parent;                  /* forward decl, see below */
 struct outset;                      /* forward decl, see below */
+struct hgthread;                    /* forward decl, see below */
 
 /*
  * request: a structure to describe a single write request.
@@ -200,15 +201,11 @@ struct outset {
   /* config */
   int maxrpc;                       /* max# of outstanding sent RPCs */
   int buftarget;                    /* target size of an RPC (in bytes) */
+  int settype;                      /* remote, origin, or relay */
 
   /* general state */
   shuffler_t shuf;                  /* shuffler that owns us */
-  hg_class_t *mcls;                 /* mercury class */
-  hg_context_t *mctx;               /* mercury context */
-  hg_id_t rpcid;                    /* id of this RPC */
-  int nshutdown;                    /* to signal ntask to shutdown */
-  int nrunning;                     /* ntask is valid and running */
-  pthread_t ntask;                  /* network thread */
+  struct hgthread *myhgt;           /* mercury thread that services us */
 
   /* a map of all the output queues we known about */
   std::map<hg_addr_t,struct outqueue *> oqs;
@@ -216,12 +213,6 @@ struct outset {
   /* state for tracking a flush op (locked w/"flushlock") */
   int osetflushing;                 /* non-zero if flush in progress */
   acnt32_t oqflush_counter;         /* #qs flushing (hold flushlock to init) */
-
-#ifdef SHUFFLER_COUNT
-  /* stats (only modified/updated by ntask) */
-  int nprogress;                    /* mercury progress fn counter */
-  int ntrigger;                     /* mercury trigger fn counter */
-#endif
 };
 
 /*
@@ -245,6 +236,25 @@ struct flush_op {
 XSIMPLEQ_HEAD(flush_queue, flush_op);
 
 /*
+ * hgthread: state for a mercury progress/trigger thread
+ */
+struct hgthread {
+  struct shuffler *hgshuf;          /* shuffler that owns us */
+  hg_class_t *mcls;                 /* mercury class */
+  hg_context_t *mctx;               /* mercury context */
+  hg_id_t rpcid;                    /* id of this RPC */
+  int nshutdown;                    /* to signal ntask to shutdown */
+  int nrunning;                     /* ntask is valid and running */
+  pthread_t ntask;                  /* network thread */
+
+#ifdef SHUFFLER_COUNT
+  /* stats (only modified/updated by ntask) */
+  int nprogress;                    /* mercury progress fn counter */
+  int ntrigger;                     /* mercury trigger fn counter */
+#endif
+};
+
+/*
  * shuffler: top-level shuffler structure
  */
 struct shuffler {
@@ -255,8 +265,13 @@ struct shuffler {
   int disablesend;                  /* disable new sends (for shutdown) */
   time_t boottime;                  /* time we started */
 
+  /* mercury threads */
+  struct hgthread hgt_local;        /* local thread (na+sm) */
+  struct hgthread hgt_remote;       /* network thread (bmi+tcp, etc.) */
+
   /* output queues */
-  struct outset localq;             /* for na+sm to local procs */
+  struct outset local_orq;          /* for origin/client na+sm to local procs */
+  struct outset local_rlq;          /* for relay na+sm to local procs */
   struct outset remoteq;            /* for network to remote nodes */
   acnt32_t seqsrc;                  /* source for seq# */
 
@@ -282,11 +297,12 @@ struct shuffler {
   int flushtype;                    /* current flush's type (for diag/logs) */
   struct outset *flushoset;         /* flush outset if local/remote */
 /* possible flush types */
-#define FLUSH_NONE    0
-#define FLUSH_LOCALQ  1             /* flushing local na+sm queues */
-#define FLUSH_REMOTEQ 2             /* flushing remote network queues */
-#define FLUSH_DELIVER 3             /* flushing delivery queue */
-#define FLUSH_NTYPES  4             /* number of types */
+#define FLUSH_NONE       0
+#define FLUSH_LOCAL_ORQ  1          /* flushing local origin na+sm queues */
+#define FLUSH_LOCAL_RLQ  2          /* flushing local relay na+sm queues */
+#define FLUSH_REMOTEQ    3          /* flushing remote network queues */
+#define FLUSH_DELIVER    4          /* flushing delivery queue */
+#define FLUSH_NTYPES     5          /* number of types */
 
 #ifdef SHUFFLER_COUNT
   /* lock by flushlock */

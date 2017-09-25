@@ -70,13 +70,16 @@
  * a msg from a SRC to a remote DST on node N flows like this:
  *  1. SRC find the local proc responsible for talking to N.  this is
  *     the SRCREP.   it forward the msg to the SRCREP over na+sm.
+ *     this first local hop is the origin or client hop.
  *  2. the SRCREP forwards all messages for node N to one process on
  *     node N over the network.   this is the DSTREP.
  *  3. the DSTREP receives the message and looks for its na+sm connection
  *     to the DST (which is also on node N) and sends the msg to DST.
- * at that point the DST will deliver the msg.   note that it is
- * possible to skip hops (e.g. if SRC==SRCREP, the first hop can be
- * skipped).
+ *     this final local hop is the relay hop (DSTREP locally relays the
+ *     msg to the final DST process via mercury)
+ * once the msg reaches the DST it can be delivered to the application.
+ * note that it is possible to skip hops (e.g. if SRC==SRCREP, the first
+ * hop can be skipped).
  *
  * the shuffler library manages this three hop communication.  it
  * has support for batching multiple messages into a larger batch
@@ -133,8 +136,10 @@ typedef void (*shuffler_deliver_t)(int src, int dst, int type,
  *
  * @param nxp the nexus context (routing info, already init'd)
  * @param funname rpc function name (for making a mercury RPC id number)
- * @param lmaxrpc max# of outstanding local na+sm RPCs
- * @param lbuftarget target number of bytes in batch na+sm RPC
+ * @param lomaxrpc max# of outstanding origin/client local na+sm RPCs
+ * @param lobuftarget target number of origin/client bytes in batch na+sm RPC
+ * @param lrmaxrpc max# of outstanding relay local na+sm RPCs
+ * @param lrbuftarget target number of relay bytes in batch na+sm RPC
  * @param rmaxrpc max# of outstanding remote RPCs
  * @param rbuftarget target number of bytes in remote batch RPC
  * @param deliverq_max max# reqs in deliverq before we switch to deliver waitq
@@ -142,8 +147,9 @@ typedef void (*shuffler_deliver_t)(int src, int dst, int type,
  * @return handle to shuffler (a pointer) or NULL on error
  */
 shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
-           int lmaxrpc, int lbuftarget, int rmaxrpc, int rbuftarget,
-           int deliverq_max, shuffler_deliver_t delivercb);
+           int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
+           int rmaxrpc, int rbuftarget, int deliverq_max,
+           shuffler_deliver_t delivercb);
 
 
 /*
@@ -177,26 +183,44 @@ hg_return_t shuffler_send(shuffler_t sh, int dst, int type,
 hg_return_t shuffler_flush_delivery(shuffler_t sh);
 
 /*
- * shuffler_flush_qs: flush either local or remote output queues.
+ * defines for which queue set to flush
+ */
+#define SHUFFLER_REMOTE_QUEUES 0    /* network queues (between nodes) */
+#define SHUFFLER_ORIGIN_QUEUES 1    /* origin/client queues (local, na+sm) */
+#define SHUFFLER_RELAY_QUEUES  2    /* relay queues (local, na+sm) */
+
+/*
+ * shuffler_flush_qs: flush the specified output queues.
  * this function blocks until all requests currently in the specified
  * output queues are delivered. We make no claims about requests that
  * arrive after the flush has been started.
  *
  * @param sh shuffler service handle
- * @param islocal set for localq, zero for remoteqs
+ * @param whichqs which queues to flush (see defines above)
  * @return status
  */
-hg_return_t shuffler_flush_qs(shuffler_t sh, int islocal);
+hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs);
 
 
 /*
- * shuffler_flush_localqs: flush localqs (wrapper for shuffler_flush_qs)
+ * shuffler_flush_originqs: flush client/origin qs (wrap for shuffler_flush_qs)
  *
  * @param sh shuffler service handle
  * @return status
  */
-static hg_return_t shuffler_flush_localqs(shuffler_t sh) {
-  return(shuffler_flush_qs(sh, 1));
+static hg_return_t shuffler_flush_originqs(shuffler_t sh) {
+  return(shuffler_flush_qs(sh, SHUFFLER_ORIGIN_QUEUES));
+}
+
+
+/*
+ * shuffler_flush_relayqs: flush relay qs (wrap for shuffler_flush_qs)
+ *
+ * @param sh shuffler service handle
+ * @return status
+ */
+static hg_return_t shuffler_flush_relayqs(shuffler_t sh) {
+  return(shuffler_flush_qs(sh, SHUFFLER_RELAY_QUEUES));
 }
 
 
@@ -207,7 +231,7 @@ static hg_return_t shuffler_flush_localqs(shuffler_t sh) {
  * @return status
  */
 static hg_return_t shuffler_flush_remoteqs(shuffler_t sh) {
-  return(shuffler_flush_qs(sh, 0));
+  return(shuffler_flush_qs(sh, SHUFFLER_REMOTE_QUEUES));
 }
 
 
@@ -251,12 +275,13 @@ int shuffler_cfglog(int max_xtra_rank, const char *defpri,
 /*
  * shuffler_send_stats: retrieve shuffle sender statistics
  * @param sh shuffler service handle
- * @param local accumulated number of remote sends
- * @param remote accumulated number of local sends
+ * @param local_origin accumulated number of local origin sends
+ * @param local_relay accumulated number of local relay sends
+ * @param remote accumulated number of remote sends
  * @return status
  */
-hg_return_t shuffler_send_stats(shuffler_t sh, hg_uint64_t* local,
-                                hg_uint64_t* remote);
+hg_return_t shuffler_send_stats(shuffler_t sh, hg_uint64_t* local_origin,
+                                hg_uint64_t* local_relay, hg_uint64_t* remote);
 
 /*
  * shuffler_recv_stats: retrieve shuffler receiver statistics

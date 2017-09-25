@@ -78,10 +78,12 @@
  *
  * shuffler queue config:
  *  -B bytes     batch buffer target for network output queues
- *  -b bytes     batch buffer target for shared memory output queues
+ *  -a bytes     batch buffer target for origin/client local output queues
+ *  -b bytes     batch buffer target for relayed local output queues (to dst)
  *  -d count     delivery queue limit
  *  -M count     maxrpcs for network output queues
- *  -m count     maxrpcs for shared memory output queues
+ *  -m count     maxrpcs for origin/client local output queues
+ *  -y count     maxrpcs for relayed local output queues (to dst)
  *
  * size related options:
  *  -i size      input req size (> 12 if specified)
@@ -282,7 +284,8 @@ struct gs {
     char *hgsubnet;          /* subnet to use (XXX: assumes IP) */
     int baseport;            /* base port number */
     int buftarg_net;         /* batch target for network queues */
-    int buftarg_shm;         /* batch target for shared memory queues */
+    int buftarg_origin;      /* batch target for origin/client local shm q's */
+    int buftarg_relay;       /* batch target for relayed local shm q's */
     int count;               /* number of msgs to send/recv in a run */
     int excludeself;         /* exclude sending to self (skip those sends) */
     int flushrate;           /* do extra flushes while sending */
@@ -292,7 +295,8 @@ struct gs {
     int odelay;              /* delay delivery output this many msec */
     struct timespec odspec;  /* odelay in a timespec for nanosleep(3) */
     int maxrpcs_net;         /* max # outstanding RPCs, network */
-    int maxrpcs_shm;         /* max # outstanding RPCs, shared memory */
+    int maxrpcs_origin;      /* max # outstanding RPCs, origin/cli shm q's */
+    int maxrpcs_relay;       /* max # outstanding RPCs, relayed shm q's */
     int quiet;               /* don't print so much */
     int rflag;               /* -r tag suffix spec'd */
     int rflagval;            /* value for -r */
@@ -382,10 +386,12 @@ static void usage(const char *msg) {
 
     fprintf(stderr, "shuffler queue config:\n");
     fprintf(stderr, "\t-B bytes    batch buf target for network\n");
-    fprintf(stderr, "\t-b bytes    batch buf target for shm\n");
+    fprintf(stderr, "\t-a bytes    batch buf target for client/origin shm\n");
+    fprintf(stderr, "\t-b bytes    batch buf target for relayed shm\n");
     fprintf(stderr, "\t-d count    delivery queue size limit\n");
     fprintf(stderr, "\t-M count    maxrpcs for network output queues\n");
-    fprintf(stderr, "\t-m count    maxrpcs for shm output queues\n");
+    fprintf(stderr, "\t-m count    maxrpcs for shm client/origin queues\n");
+    fprintf(stderr, "\t-y count    maxrpcs for shm relayed queues\n");
     fprintf(stderr, "\nsize related options:\n");
     fprintf(stderr, "\t-i size     input req size (> 12 if specified)\n");
     fprintf(stderr, "\ndefault payload size is 12.\n\n");
@@ -448,11 +454,13 @@ int main(int argc, char **argv) {
         complain(1, 0, "unable to get MPI size");
     g.baseport = DEF_BASEPORT;
     g.buftarg_net = DEF_BUFTARGET;
-    g.buftarg_shm = DEF_BUFTARGET;
+    g.buftarg_origin = DEF_BUFTARGET;
+    g.buftarg_relay = DEF_BUFTARGET;
     g.count = DEF_COUNT;
     g.deliverq_max = DEF_DELIVERQMAX;
     g.maxrpcs_net = DEF_MAXRPCS;
-    g.maxrpcs_shm = DEF_MAXRPCS;
+    g.maxrpcs_origin = DEF_MAXRPCS;
+    g.maxrpcs_relay = DEF_MAXRPCS;
     g.rcvr_only = -1;            /* disable by default */
     g.minsndr = 0;
     g.maxsndr = g.size - 1;      /* everyone sends by default */
@@ -463,15 +471,19 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-            "B:b:C:c:D:d:E:eF:f:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:")) != -1) {
+            "a:B:b:C:c:D:d:E:eF:f:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:y:")) != -1) {
         switch (ch) {
+            case 'a':
+                g.buftarg_origin = atoi(optarg);
+                if (g.buftarg_origin < 1) usage("bad buftarget origin");
+                break;
             case 'B':
                 g.buftarg_net = atoi(optarg);
                 if (g.buftarg_net < 1) usage("bad buftarget net");
                 break;
             case 'b':
-                g.buftarg_shm = atoi(optarg);
-                if (g.buftarg_shm < 1) usage("bad buftarget shm");
+                g.buftarg_relay = atoi(optarg);
+                if (g.buftarg_relay < 1) usage("bad buftarget relay");
                 break;
             case 'C':
                 g.cmask = optarg;
@@ -519,8 +531,8 @@ int main(int argc, char **argv) {
                 if (g.maxrpcs_net < 1) usage("bad maxrpc net");
                 break;
             case 'm':
-                g.maxrpcs_shm = atoi(optarg);
-                if (g.maxrpcs_shm < 1) usage("bad maxrpc shm");
+                g.maxrpcs_origin = atoi(optarg);
+                if (g.maxrpcs_origin < 1) usage("bad maxrpc origin");
                 break;
             case 'n':
                 g.minsndr = atoi(optarg);
@@ -569,6 +581,10 @@ int main(int argc, char **argv) {
             case 'X':
                 g.max_xtra = atoi(optarg);
                 break;
+            case 'y':
+                g.maxrpcs_relay = atoi(optarg);
+                if (g.maxrpcs_relay < 1) usage("bad maxrpc relay");
+                break;
             default:
                 usage(NULL);
         }
@@ -607,10 +623,10 @@ int main(int argc, char **argv) {
         printf("\tmaxsndr    = %d\n", g.maxsndr);
         printf("\ttimeout    = %d\n", g.timeout);
         printf("sizes:\n");
-        printf("\tbuftarget  = %d / %d (net/shm)\n", g.buftarg_net,
-               g.buftarg_shm);
-        printf("\tmaxrpcs    = %d / %d (net/shm)\n", g.maxrpcs_net,
-               g.maxrpcs_shm);
+        printf("\tbuftarget  = %d / %d / %d (net/origin/relay)\n",
+               g.buftarg_net, g.buftarg_origin, g.buftarg_relay);
+        printf("\tmaxrpcs    = %d / %d / %d (net/origin/relay)\n",
+               g.maxrpcs_net, g.maxrpcs_origin, g.maxrpcs_relay);
         printf("\tdeliverqmx = %d\n", g.deliverq_max);
         if (g.odelay > 0)
             printf("\tout_delay  = %d msec\n", g.odelay);
@@ -722,9 +738,9 @@ void *run_instance(void *arg) {
     /* make a funcion name and register it in both HGs */
     snprintf(isa[n].myfun, sizeof(isa[n].myfun), "f%d", n);
 
-    isa[n].shand = shuffler_init(isa[n].nxp, isa[n].myfun, g.maxrpcs_shm,
-                   g.buftarg_shm, g.maxrpcs_net, g.buftarg_net,
-                   g.deliverq_max, do_delivery);
+    isa[n].shand = shuffler_init(isa[n].nxp, isa[n].myfun, g.maxrpcs_origin,
+                   g.buftarg_origin, g.maxrpcs_relay, g.buftarg_relay,
+                   g.maxrpcs_net, g.buftarg_net, g.deliverq_max, do_delivery);
     flcnt = 0;
 
     if (myrank >= g.minsndr && myrank <= g.maxsndr) {   /* are we a sender? */
@@ -833,7 +849,7 @@ static void do_delivery(int src, int dst, int type, void *d, int datalen) {
 static void do_flush(shuffler_t sh, int verbo) {
     hg_return_t ret;
 
-    ret = shuffler_flush_localqs(sh);  /* clear out SRC->SRCREP */
+    ret = shuffler_flush_originqs(sh);  /* clear out SRC->SRCREP */
     if (ret != HG_SUCCESS)
             fprintf(stderr, "shuffler_flush local failed(%d)\n", ret);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -847,7 +863,7 @@ static void do_flush(shuffler_t sh, int verbo) {
     if (verbo && myrank == 0)
         printf("%d: flushed remote (hop2).\n", myrank);
 
-    ret = shuffler_flush_localqs(sh);  /* clear DSTREP->DST */
+    ret = shuffler_flush_relayqs(sh);  /* clear DSTREP->DST */
     if (ret != HG_SUCCESS)
             fprintf(stderr, "shuffler_flush local2 failed(%d)\n", ret);
     MPI_Barrier(MPI_COMM_WORLD);
