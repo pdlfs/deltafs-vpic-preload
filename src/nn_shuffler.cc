@@ -384,8 +384,8 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   }
 
   shuffle_msg_received();
-#ifndef NDEBUG
   peer_rank = ntohl(write_in.owner);
+#ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin) {
     if (pctx.logfd != -1) {
