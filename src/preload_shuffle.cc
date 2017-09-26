@@ -502,7 +502,9 @@ void shuffle_init(shuffle_ctx_t* ctx) {
           "shuffle force_rpc is OFF\n>>> main thread may be blocked on "
           "writing");
     } else {
-      INFO("shuffle force_rpc is ON");
+      INFO(
+          "shuffle force_rpc is ON (no direct_write)\n>>> "
+          "will invoke shuffle even addr is local");
     }
   }
   if (is_envset("SHUFFLE_Use_multihop")) {
