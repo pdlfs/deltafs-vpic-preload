@@ -125,9 +125,10 @@ typedef struct preload_ctx {
   int logfd; /* descriptor for the testing log file */
   int monfd; /* descriptor for the mon dump file */
 
-  int bgpause; /* no background activities during compuation */
-  int vmon;    /* verbose mon stats */
-  int verr;    /* verbose error */
+  int bgsngcomp; /* use a single background thread for memtable compaction */
+  int bgpause;   /* no background activities during compuation */
+  int vmon;      /* verbose mon stats */
+  int verr;      /* verbose error */
 
 } preload_ctx_t;
 

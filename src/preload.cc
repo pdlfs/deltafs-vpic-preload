@@ -288,6 +288,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_mon")) pctx.vmon = 1;
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
+  if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
 
   if (is_envset("PRELOAD_No_paranoid_checks")) pctx.paranoid_checks = 0;
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
@@ -940,14 +941,18 @@ int MPI_Init(int* argc, char*** argv) {
           pctx.plfshdl = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
           deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 0);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
-          pctx.plfstp = deltafs_tp_init(pctx.plfsparts);
+          pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
 
           rv = deltafs_plfsdir_open(pctx.plfshdl, path);
           if (rv != 0) {
             ABORT("cannot open plfsdir");
           } else if (rank == 0) {
-            INFO("plfsdir (via deltafs-LT) opened (rank 0)");
+            snprintf(msg, sizeof(msg),
+                     "plfsdir (via deltafs-LT) opened (rank 0)\n>>> "
+                     "bg thread pool size: %d",
+                     pctx.bgsngcomp ? 1 : pctx.plfsparts);
+            INFO(msg);
             if (pctx.verr) {
               pretty_plfsdir_conf(conf);
               INFO(conf.c_str());

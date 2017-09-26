@@ -63,6 +63,9 @@
  *    Print error info when write op fails
  *  PRELOAD_Enable_bg_pause
  *    Pause background threads between I/O phases
+ *  PRELOAD_Enable_bg_sngcomp
+ *    Use only a single thread for memtable compaction
+ *      regardless of the actual number of memtable partitions
  *  PRELOAD_No_sys_probing
  *    Do not scan operating system or device settings
  *  PRELOAD_No_paranoid_checks
