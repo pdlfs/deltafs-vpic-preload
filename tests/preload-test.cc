@@ -65,13 +65,12 @@ int main(int argc, char** argv) {
     if (fp == NULL) {
       msg_abort("fopen");
     }
-    fwrite("1234", 4, 1, fp);
+    fwrite("1234", 1, 4, fp);
     fwrite("5678", 1, 4, fp);
-    fwrite("9", 1, 1, fp);
-    fwrite("0", 1, 1, fp);
+    fwrite("90", 1, 2, fp);
     fwrite("abcdefghijk", 1, 11, fp);
     fwrite("lmnopqrstuv", 1, 11, fp);
-    fwrite("~!@#$%^&", 8, 1, fp);
+    fwrite("~!@#$%^&", 1, 8, fp);
     r = fclose(fp);
     if (r != 0) {
       msg_abort("fclose");
