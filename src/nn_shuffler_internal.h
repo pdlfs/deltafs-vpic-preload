@@ -35,6 +35,7 @@
 #include <limits.h>
 #include <netdb.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <mercury.h>
@@ -52,7 +53,10 @@
  */
 #define MAX_RPC_MESSAGE (65536 - 128)
 
-#define RPC_FAILED(msg, ret) rpc_failed(msg, ret, __func__, __FILE__, __LINE__)
+#define RPC_FAILED_FILENAME \
+  (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define RPC_FAILED(msg, ret) \
+  rpc_failed(msg, ret, __func__, RPC_FAILED_FILENAME, __LINE__)
 
 /*
  * rpc_failed: abort with a mercury rpc error
@@ -61,9 +65,10 @@ inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
                        const char* file, int line) {
   char tmp[500];
   const char* err = HG_Error_to_string(ret);
-  int n =
-      snprintf(tmp, sizeof(tmp), "*** RPC FAILED ***\n%s (%s:%d)] %s: %s(%d)\n",
-               func, file, line, msg, err, int(ret));
+  int n = snprintf(tmp, sizeof(tmp),
+                   "*** FATAL *** (%s:%d) %s()] "
+                   "%s: %s(hg_err=%d)\n",
+                   file, line, func, msg, err, int(ret));
   n = write(LOG_SINK, tmp, n);
   abort();
 }

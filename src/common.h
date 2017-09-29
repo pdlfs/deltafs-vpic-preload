@@ -69,7 +69,7 @@ inline void LOG(int fd, int e, const char* fmt, ...) {
   va_start(va, fmt);
   n = vsnprintf(tmp, sizeof(tmp), fmt, va);
   if (e != 0) {
-    n += snprintf(tmp + n, sizeof(tmp) - n, ": %s(%d)", strerror(e), e);
+    n += snprintf(tmp + n, sizeof(tmp) - n, ": %s(err=%d)", strerror(e), e);
   }
   n += snprintf(tmp + n, sizeof(tmp) - n, "\n");
   n = write(fd, tmp, n);
@@ -80,8 +80,9 @@ inline void LOG(int fd, int e, const char* fmt, ...) {
 /*
  * logging facilities and helpers
  */
-#define ABORT(msg) msg_abort(msg, __func__, __FILE__, __LINE__)
-#define ABORT_HEADER "***** ABORT *****"
+#define ABORT_FILENAME \
+  (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#define ABORT(msg) msg_abort(msg, __func__, ABORT_FILENAME, __LINE__)
 #define LOG_SINK fileno(stderr)
 
 inline void INFO(const char* msg) { LOG(LOG_SINK, 0, "-INFO- %s", msg); }
@@ -92,9 +93,7 @@ inline void ERROR(const char* msg) {
 
 inline void msg_abort(const char* msg, const char* func, const char* file,
                       int line) {
-  LOG(LOG_SINK, 0, ABORT_HEADER);
-  LOG(LOG_SINK, errno, "%s (%s:%d)] %s", func, file, line, msg);
-  LOG(LOG_SINK, 0, ABORT_HEADER);
+  LOG(LOG_SINK, errno, "*** ABORT *** (%s:%d) %s()] %s", file, line, func, msg);
   abort();
 }
 
