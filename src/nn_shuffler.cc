@@ -38,6 +38,8 @@
 
 #include <mercury_proc.h>
 #include <mercury_proc_string.h>
+#include <pdlfs-common/xxhash.h>
+#define HASH(msg, sz) pdlfs::xxhash32(msg, sz, 0)
 
 #include "common.h"
 #include "nn_shuffler.h"
@@ -133,6 +135,8 @@ static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   hg_proc_op_t op = hg_proc_get_op(proc);
 
   if (op == HG_ENCODE) {
+    hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
+    if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint32_t(proc, &in->owner);
     if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint16_t(proc, &in->sz);
@@ -140,6 +144,8 @@ static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
     hret = hg_proc_memcpy(proc, in->msg, in->sz);
 
   } else if (op == HG_DECODE) {
+    hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
+    if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint32_t(proc, &in->owner);
     if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint16_t(proc, &in->sz);
@@ -168,6 +174,22 @@ static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
   }
 
   return hret;
+}
+
+/* nn_shuffler_hashsig: generates a 32-bits hash signature for a given input */
+static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
+  char buf[10];
+  uint32_t tmp;
+
+  assert(in != NULL);
+  memcpy(buf + 0, &in->owner, 4);
+  memcpy(buf + 4, &in->sz, 2);
+
+  assert(in->msg != NULL);
+  tmp = HASH(in->msg, in->sz);
+  memcpy(buf + 6, &tmp, 4);
+
+  return HASH(buf, 10);
 }
 
 /* rpc_work(): dedicated thread function to process rpc. each work item
@@ -384,7 +406,10 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   }
 
   shuffle_msg_received();
-  peer_rank = ntohl(write_in.owner);
+  peer_rank = int(write_in.owner);
+  if (write_in.hash_sig != nn_shuffler_hashsig(&write_in)) {
+    ABORT("rpc msg corrupted (hash_sig mismatch)");
+  }
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin) {
@@ -397,18 +422,16 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
     }
   }
 #endif
-  write_info.sz = write_in.sz;
-  write_info.num_writes = 0;
   write_out.rv = 0;
-
-  input_left = write_in.sz;
+  input_left = write_info.sz = write_in.sz;
+  write_info.num_writes = 0;
   input = buf;
 
   /* decode and execute writes */
   while (input_left != 0) {
     /* rank */
     if (input_left < 8) {
-      ABORT("rpc msg corrupted");
+      ABORT("premature end of msg");
     }
     memcpy(&nrank, input, 4);
     src = ntohl(nrank);
@@ -421,13 +444,13 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 
     /* fname */
     if (input_left < 1) {
-      ABORT("rpc msg corrupted");
+      ABORT("premature end of msg");
     }
     fname_len = static_cast<unsigned char>(input[0]);
     input_left -= 1;
     input += 1;
     if (input_left < fname_len + 1) {
-      ABORT("rpc msg corrupted");
+      ABORT("premature end of msg");
     }
     fname = input;
     assert(strlen(fname) == fname_len);
@@ -436,13 +459,13 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 
     /* data */
     if (input_left < 1) {
-      ABORT("rpc msg corrupted");
+      ABORT("premature end of msg");
     }
     len = static_cast<unsigned char>(input[0]);
     input_left -= 1;
     input += 1;
     if (input_left < len) {
-      ABORT("rpc msg corrupted");
+      ABORT("premature end of msg");
     }
     data = input;
     input_left -= len;
@@ -450,7 +473,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 
     /* epoch */
     if (input_left < 2) {
-      ABORT("rpc msg corrupted");
+      ABORT("premature end of msg");
     }
     memcpy(&nepoch, input, 2);
     epoch = ntohs(nepoch);
@@ -545,26 +568,31 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   time_t now;
   struct timespec abstime;
   useconds_t delay;
-  char buf[200];
   int slot;
   int rank;
   int e;
+
+#ifndef NDEBUG
+  char msg[200];
   int n;
+#endif
 
   assert(nnctx.ssg != NULL);
   rank = ssg_get_rank(nnctx.ssg);
   assert(write_in != NULL);
+  assert(int(write_in->owner) == rank);
 
+#ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n",
+    n = snprintf(msg, sizeof(msg), "[OUT] %d bytes r%d >> r%d\n",
                  int(write_in->sz), rank, peer_rank);
 
-    n = write(pctx.logfd, buf, n);
+    n = write(pctx.logfd, msg, n);
 
     errno = 0;
   }
-
+#endif
   delay = 1000; /* 1000 us */
 
   /* wait for slot */
@@ -572,13 +600,14 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   while (cb_left == 0) { /* no slots available */
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[cb_cv]);
+#ifndef NDEBUG
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[BLOCK-SLOT] %d us\n", int(delay));
-        n = write(pctx.logfd, buf, n);
+        n = snprintf(msg, sizeof(msg), "[BLOCK-SLOT] %d us\n", int(delay));
+        n = write(pctx.logfd, msg, n);
 
         errno = 0;
       }
-
+#endif
       usleep(delay);
       delay <<= 1;
 
@@ -713,26 +742,31 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   time_t now;
   struct timespec abstime;
   useconds_t delay;
-  char buf[200];
   int rv;
   int rank;
   int e;
+
+#ifndef NDEBUG
+  char msg[200];
   int n;
+#endif
 
   assert(nnctx.ssg != NULL);
   rank = ssg_get_rank(nnctx.ssg);
   assert(write_in != NULL);
+  assert(int(write_in->owner) == rank);
 
+#ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(buf, sizeof(buf), "[OUT] %d bytes r%d >> r%d\n",
+    n = snprintf(msg, sizeof(msg), "[OUT] %d bytes r%d >> r%d\n",
                  int(write_in->sz), rank, peer_rank);
 
-    n = write(pctx.logfd, buf, n);
+    n = write(pctx.logfd, msg, n);
 
     errno = 0;
   }
-
+#endif
   peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) {
     ABORT("ssg_get_addr");
@@ -757,14 +791,15 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   while (write_cb.ok == 0) { /* rpc not completed */
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[rpc_cv]);
+#ifndef NDEBUG
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[WAIT] r%d >> r%d %d us\n", rank,
+        n = snprintf(msg, sizeof(msg), "[WAIT] r%d >> r%d %d us\n", rank,
                      peer_rank, int(delay));
-        n = write(pctx.logfd, buf, n);
+        n = write(pctx.logfd, msg, n);
 
         errno = 0;
       }
-
+#endif
       usleep(delay);
       delay <<= 1;
 
@@ -812,12 +847,15 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   time_t now;
   struct timespec abstime;
   useconds_t delay;
-  char msg[200];
   int rv;
   void* arg1;
   void* arg2;
   int e;
+
+#ifndef NDEBUG
+  char msg[200];
   int n;
+#endif
 
   assert(fname != NULL);
 
@@ -836,13 +874,14 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   while (rpcq->busy != 0) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[qu_cv]);
+#ifndef NDEBUG
       if (pctx.logfd != -1) {
         n = snprintf(msg, sizeof(msg), "[BLOCK-QUEUE] %d us\n", int(delay));
         n = write(pctx.logfd, msg, n);
 
         errno = 0;
       }
-
+#endif
       usleep(delay);
       delay <<= 1;
 
@@ -876,9 +915,10 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.owner = htonl(rank);
-      write_in.msg = rpcq->buf;
+      write_in.owner = static_cast<hg_uint32_t>(rank);
       write_in.sz = rpcq->sz;
+      write_in.msg = rpcq->buf;
+      write_in.hash_sig = nn_shuffler_hashsig(&write_in);
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
         rv = nn_shuffler_write_send_async(&write_in, peer_rank, arg1, arg2);
@@ -917,7 +957,7 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
     rpcq->buf[rpcq->sz] = 0;
     rpcq->sz += 1;
     /* vpic data */
-    rpcq->buf[rpcq->sz] = len;
+    rpcq->buf[rpcq->sz] = static_cast<unsigned char>(len);
     memcpy(rpcq->buf + rpcq->sz + 1, data, len);
     rpcq->sz += 1 + len;
     /* epoch */
@@ -955,9 +995,10 @@ void nn_shuffler_flushq() {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.owner = htonl(rank);
-      write_in.msg = rpcq->buf;
+      write_in.owner = static_cast<hg_uint32_t>(rank);
       write_in.sz = rpcq->sz;
+      write_in.msg = rpcq->buf;
+      write_in.hash_sig = nn_shuffler_hashsig(&write_in);
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
         rv = nn_shuffler_write_send_async(&write_in, i, arg1, arg2);

@@ -110,7 +110,8 @@ typedef struct nn_ctx {
 extern nn_ctx_t nnctx;
 
 typedef struct write_in {
-  hg_uint32_t owner; /* write initiator */
+  hg_uint32_t hash_sig; /* hash signature of the entire payload */
+  hg_uint32_t owner;    /* write initiator */
   void* msg;
   hg_uint16_t sz; /* msg size */
 } write_in_t;
