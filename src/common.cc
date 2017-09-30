@@ -32,6 +32,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sched.h>
+#include <stdarg.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <time.h>
@@ -481,4 +482,19 @@ int my_cpu_cores() {
   }
 
   return ncpus;
+}
+
+void LOG(int fd, int e, const char* fmt, ...) {
+  char tmp[500];
+  va_list va;
+  int n;
+  va_start(va, fmt);
+  n = vsnprintf(tmp, sizeof(tmp), fmt, va);
+  if (e != 0) {
+    n += snprintf(tmp + n, sizeof(tmp) - n, ": %s(err=%d)", strerror(e), e);
+  }
+  n += snprintf(tmp + n, sizeof(tmp) - n, "\n");
+  n = write(fd, tmp, n);
+  va_end(va);
+  errno = 0;
 }

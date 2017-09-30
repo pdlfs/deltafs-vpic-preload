@@ -1043,8 +1043,11 @@ static void* bg_work(void* foo) {
   unsigned int actual_count;
   uint64_t last_progress;
   uint64_t now;
-  char msg[100];
   int s;
+
+#ifndef NDEBUG
+  char msg[100];
+#endif
 
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
@@ -1067,10 +1070,9 @@ static void* bg_work(void* foo) {
     if (s == 0) {
       now = now_micros_coarse() / 1000;
       if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
-        snprintf(msg, sizeof(msg),
-                 "calling HG_Progress() with high interval: %d ms (rank %d)",
-                 int(now - last_progress), pctx.my_rank);
-        WARN(msg);
+        LOG(LOG_SINK, 0,
+            "!! calling HG_Progress() with high interval: %d ms (rank %d)",
+            int(now - last_progress), pctx.my_rank);
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
@@ -1293,10 +1295,9 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
-             "cache hg_handle_t: %s, hash signature: %s",
+             "cache hg_handle_t: %s, hash sig: %s",
              nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
-             nnctx.cache_hlds ? "TRUE" : "FALSE",
-             nnctx.hash_sig ? "TRUE" : "FALSE");
+             nnctx.cache_hlds ? "YES" : "NO", nnctx.hash_sig ? "YES" : "NO");
     INFO(msg);
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
