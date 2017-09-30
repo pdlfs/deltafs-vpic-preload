@@ -92,6 +92,8 @@ typedef struct nn_ctx {
   int cache_hlds; /* cache mercury rpc handles */
   int hash_sig;   /* generate a hash signature for each rpc */
 
+  int paranoid_checks;
+
   /* SSG context */
   ssg_t ssg;
 

@@ -382,6 +382,8 @@ int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
   assert(fname != NULL);
   assert(pctx.len_plfsdir != 0);
   assert(pctx.plfsdir != NULL);
+
+  assert(fname[fname_len] == 0);
   snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
   rv = preload_foreign_write(path, data, len, epoch);
 #ifndef NDEBUG

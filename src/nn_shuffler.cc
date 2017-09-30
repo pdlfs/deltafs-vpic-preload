@@ -399,6 +399,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   int src;
   int dst;
   int peer_rank;
+  int world_sz;
   int rank;
   int rv;
 
@@ -408,6 +409,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 #endif
 
   assert(nnctx.ssg != NULL);
+  world_sz = ssg_get_count(nnctx.ssg);
   rank = ssg_get_rank(nnctx.ssg); /* my rank */
 
   write_in.msg = buf;
@@ -447,11 +449,11 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
       ABORT("premature end of msg");
     }
     memcpy(&nrank, input, 4);
-    src = ntohl(nrank);
+    src = int(ntohl(nrank));
     input_left -= 4;
     input += 4;
     memcpy(&nrank, input, 4);
-    dst = ntohl(nrank);
+    dst = int(ntohl(nrank));
     input_left -= 4;
     input += 4;
 
@@ -489,9 +491,20 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
       ABORT("premature end of msg");
     }
     memcpy(&nepoch, input, 2);
-    epoch = ntohs(nepoch);
+    epoch = int(ntohs(nepoch));
     input_left -= 2;
     input += 2;
+
+    if (nnctx.paranoid_checks) {
+      if (fname[fname_len] != 0) {
+        ABORT("rpc msg corrupted (bad fname len)");
+      }
+      if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+        if (dst != (pdlfs::xxhash32(fname, fname_len, 0) % world_sz)) {
+          ABORT("rpc msg misdirected (wrong hash)");
+        }
+      }
+    }
 
     if (dst != rank) ABORT("bad dst");
     if (src != peer_rank) ABORT("bad src");
@@ -864,6 +877,7 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   time_t now;
   struct timespec abstime;
   useconds_t delay;
+  int world_sz;
   int rv;
   void* arg1;
   void* arg2;
@@ -875,6 +889,15 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
 #endif
 
   assert(fname != NULL);
+  assert(nnctx.ssg != NULL);
+  assert(rank == ssg_get_rank(nnctx.ssg));
+  world_sz = ssg_get_count(nnctx.ssg);
+
+  if (nnctx.paranoid_checks) {
+    if (peer_rank < 0 || peer_rank >= world_sz) {
+      ABORT("invalid peer rank");
+    }
+  }
 
   pthread_mtx_lock(&mtx[qu_cv]);
 
@@ -1158,7 +1181,7 @@ void nn_shuffler_init_ssg() {
   size = ssg_get_count(nnctx.ssg);
   rank = ssg_get_rank(nnctx.ssg);
 
-  if (pctx.paranoid_checks) {
+  if (nnctx.paranoid_checks) {
     if (size != pctx.comm_sz || rank != pctx.my_rank) {
       ABORT("ssg-mpi disagree");
     }
@@ -1223,6 +1246,7 @@ void nn_shuffler_init() {
   cb_left = cb_allowed;
 
   if (is_envset("SHUFFLE_Hash_sig")) nnctx.hash_sig = 1;
+  if (is_envset("SHUFFLE_Paranoid_checks")) nnctx.paranoid_checks = 1;
   if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
 
@@ -1299,6 +1323,11 @@ void nn_shuffler_init() {
              nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
              nnctx.cache_hlds ? "YES" : "NO", nnctx.hash_sig ? "YES" : "NO");
     INFO(msg);
+    if (nnctx.paranoid_checks) {
+      WARN(
+          "shuffle paranoid checks enabled: benchmarks unnecessarily slow\n>>> "
+          "rerun with \"export SHUFFLE_Paranoid_checks=0\" to disable");
+    }
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
       osz = HG_Class_get_output_eager_size(nnctx.hg_clz);

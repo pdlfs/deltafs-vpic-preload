@@ -44,6 +44,8 @@
  *    Reuse mercury handles to avoid freq mallocs
  *  SHUFFLE_Hash_sig
  *    Generate a hash signature for each rpc message
+ *  SHUFFLE_Paranoid_checks
+ *    Enable paranoid checks on rpc messages
  *  SHUFFLE_Force_sync_rpc
  *    Disallow async rpcs
  *  SHUFFLE_Num_outstanding_rpc
