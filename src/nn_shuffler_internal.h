@@ -86,10 +86,11 @@ typedef struct nn_ctx {
   /* hg_timeouts (in ms) */
   int hg_max_interval;
   int hg_timeout;
+  int timeout; /* rpc timeout (in secs) */
 
-  int timeout;    /* rpc timeout (in secs) */
   int force_sync; /* avoid async rpc */
   int cache_hlds; /* cache mercury rpc handles */
+  int hash_sig;   /* generate a hash signature for each rpc */
 
   /* SSG context */
   ssg_t ssg;

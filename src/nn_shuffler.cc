@@ -192,6 +192,15 @@ static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
   return HASH(buf, 10);
 }
 
+/* nn_shuffler_maybe_hashsig: return the hash signature */
+static hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in) {
+  if (nnctx.hash_sig) {
+    return nn_shuffler_hashsig(in);
+  } else {
+    return 0;
+  }
+}
+
 /* rpc_work(): dedicated thread function to process rpc. each work item
  * represents an incoming rpc (encoding a batch of writes). */
 static void* rpc_work(void* arg) {
@@ -320,8 +329,11 @@ static void* rpc_work(void* arg) {
 /* nn_shuffler_bgwait: wait for background rpc work execution */
 void nn_shuffler_bgwait() {
   useconds_t delay;
-  char buf[50];
+
+#ifndef NDEBUG
+  char msg[50];
   int n;
+#endif
 
   delay = 1000; /* 1000 us */
 
@@ -329,13 +341,14 @@ void nn_shuffler_bgwait() {
   while (items_completed < items_submitted) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[wk_cv]);
+#ifndef NDEBUG
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[BGWAIT] %d us\n", int(delay));
-        n = write(pctx.logfd, buf, n);
+        n = snprintf(msg, sizeof(msg), "[BGWAIT] %d us\n", int(delay));
+        n = write(pctx.logfd, msg, n);
 
         errno = 0;
       }
-
+#endif
       usleep(delay);
       delay <<= 1;
 
@@ -407,7 +420,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 
   shuffle_msg_received();
   peer_rank = int(write_in.owner);
-  if (write_in.hash_sig != nn_shuffler_hashsig(&write_in)) {
+  if (write_in.hash_sig != nn_shuffler_maybe_hashsig(&write_in)) {
     ABORT("rpc msg corrupted (hash_sig mismatch)");
   }
 #ifndef NDEBUG
@@ -675,9 +688,12 @@ void nn_shuffler_waitcb() {
   time_t now;
   struct timespec abstime;
   useconds_t delay;
-  char buf[50];
   int e;
+
+#ifndef NDEBUG
+  char msg[50];
   int n;
+#endif
 
   delay = 1000; /* 1000 us */
 
@@ -685,13 +701,14 @@ void nn_shuffler_waitcb() {
   while (cb_left != cb_allowed) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[cb_cv]);
+#ifndef NDEBUG
       if (pctx.logfd != -1) {
-        n = snprintf(buf, sizeof(buf), "[WAIT] %d us\n", int(delay));
-        n = write(pctx.logfd, buf, n);
+        n = snprintf(msg, sizeof(msg), "[WAIT] %d us\n", int(delay));
+        n = write(pctx.logfd, msg, n);
 
         errno = 0;
       }
-
+#endif
       usleep(delay);
       delay <<= 1;
 
@@ -918,7 +935,7 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
       write_in.owner = static_cast<hg_uint32_t>(rank);
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
-      write_in.hash_sig = nn_shuffler_hashsig(&write_in);
+      write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
         rv = nn_shuffler_write_send_async(&write_in, peer_rank, arg1, arg2);
@@ -998,7 +1015,7 @@ void nn_shuffler_flushq() {
       write_in.owner = static_cast<hg_uint32_t>(rank);
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
-      write_in.hash_sig = nn_shuffler_hashsig(&write_in);
+      write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
         rv = nn_shuffler_write_send_async(&write_in, i, arg1, arg2);
@@ -1203,6 +1220,7 @@ void nn_shuffler_init() {
 
   cb_left = cb_allowed;
 
+  if (is_envset("SHUFFLE_Hash_sig")) nnctx.hash_sig = 1;
   if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
 
@@ -1275,9 +1293,10 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
-             "cache hg_handle_t: %s",
+             "cache hg_handle_t: %s, hash signature: %s",
              nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
-             nnctx.cache_hlds ? "TRUE" : "FALSE");
+             nnctx.cache_hlds ? "TRUE" : "FALSE",
+             nnctx.hash_sig ? "TRUE" : "FALSE");
     INFO(msg);
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
