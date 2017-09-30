@@ -522,14 +522,14 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
         tmp = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
         if (dst != tmp) {
           nn_shuffler_debug(src, dst, rank, tmp, fname);
-          ABORT("rpc msg misdirected (wrong hash)");
+          ABORT("rpc msg misdirected (wrong dst)");
         }
       }
     }
 
     if (dst != rank) {
       nn_shuffler_debug(src, dst, rank, -1, fname);
-      ABORT("bad dst");
+      ABORT("rpc msg misrouted (bad dst)");
     }
     if (src != peer_rank) {
       ABORT("bad src");
