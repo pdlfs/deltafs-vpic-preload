@@ -43,6 +43,8 @@ if [ x"$MPI" = xmpich ]; then
         -env PRELOAD_Deltafs_mntp "$DELTAFS_MNTP" \
         -env PRELOAD_Local_root "$LOCAL_ROOT" \
         -env PRELOAD_Testing "1" \
+        -env SHUFFLE_Paranoid_checks "1" \
+        -env SHUFFLE_Hash_sig "1" \
         $BUILD_PREFIX/tests/preload-test
 
     RC=$?
@@ -55,6 +57,8 @@ elif [ x"$MPI" = xopenmpi ]; then
         -x "PRELOAD_Deltafs_mntp=$DELTAFS_MNTP" \
         -x "PRELOAD_Local_root=$LOCAL_ROOT" \
         -x "PRELOAD_Testing=1" \
+        -x "SHUFFLE_Paranoid_checks=1" \
+        -x "SHUFFLE_Hash_sig=1" \
         $BUILD_PREFIX/tests/preload-test
 
     RC=$?

@@ -376,6 +376,24 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   return HG_SUCCESS;
 }
 
+/* nn_shuffler_debug: print debug information for an incoming write request.
+ * "src" and "dst" are shuffle ids embedded inside the request, "mid" is
+ * my real shuffle id, "pid" is the shuffle id dictated by hash placement.*/
+static void nn_shuffler_debug(int src, int dst, int mid, int pid,
+                              const char* fname) {
+  LOG(LOG_SINK, 0,
+      "!! shuffler %d (%s) just received a problematic write req (%s)\n"
+      "!! the req swears it comes from %d (%s), and was heading to %d (%s)",
+      mid, ssg_get_addr_str(nnctx.ssg, mid),         // myself
+      fname, src, ssg_get_addr_str(nnctx.ssg, src),  // alleged origin
+      dst, ssg_get_addr_str(nnctx.ssg, dst)          // alleged target
+      );
+  if (pid != -1) {
+    LOG(LOG_SINK, 0, "!! we think the req should goto %d (%s)\n", pid,
+        ssg_get_addr_str(nnctx.ssg, pid));
+  }
+}
+
 /* nn_shuffler_write_rpc_handler: server-side rpc handler */
 hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   /* here we assume we will only get called by a single thread.
@@ -400,6 +418,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   int dst;
   int peer_rank;
   int world_sz;
+  int tmp;
   int rank;
   int rv;
 
@@ -500,14 +519,21 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
         ABORT("rpc msg corrupted (bad fname len)");
       }
       if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-        if (dst != (pdlfs::xxhash32(fname, fname_len, 0) % world_sz)) {
+        tmp = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
+        if (dst != tmp) {
+          nn_shuffler_debug(src, dst, rank, tmp, fname);
           ABORT("rpc msg misdirected (wrong hash)");
         }
       }
     }
 
-    if (dst != rank) ABORT("bad dst");
-    if (src != peer_rank) ABORT("bad src");
+    if (dst != rank) {
+      nn_shuffler_debug(src, dst, rank, -1, fname);
+      ABORT("bad dst");
+    }
+    if (src != peer_rank) {
+      ABORT("bad src");
+    }
     rv = shuffle_handle(fname, fname_len, data, len, epoch, peer_rank, rank);
     write_info.num_writes++;
     if (write_out.rv == 0) {
