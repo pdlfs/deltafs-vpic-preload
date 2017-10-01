@@ -382,14 +382,17 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
 static void nn_shuffler_debug(int src, int dst, int mid, int pid,
                               const char* fname) {
   LOG(LOG_SINK, 0,
-      "!! shuffler %d (%s) just received a problematic write req (%s)\n"
-      "!! the req swears it comes from %d (%s), and was heading to %d (%s)",
-      mid, ssg_get_addr_str(nnctx.ssg, mid),         // myself
-      fname, src, ssg_get_addr_str(nnctx.ssg, src),  // alleged origin
-      dst, ssg_get_addr_str(nnctx.ssg, dst)          // alleged target
-      );
+      "!! [%s] (rank %d) shuffler %d (%s) just "
+      "received a problematic write req (%s)\n"
+      "!! [%s] (rank %d) the req swears it comes from %d (%s), "
+      "and was heading to %d (%s)",
+      nnctx.my_uname.nodename, pctx.my_rank, mid,
+      ssg_get_addr_str(nnctx.ssg, mid), fname, nnctx.my_uname.nodename,
+      pctx.my_rank, src, ssg_get_addr_str(nnctx.ssg, src), dst,
+      ssg_get_addr_str(nnctx.ssg, dst));
   if (pid != -1) {
-    LOG(LOG_SINK, 0, "!! we think the req should goto %d (%s)\n", pid,
+    LOG(LOG_SINK, 0, "!! [%s] (rank %d) we think the req should goto %d (%s)",
+        nnctx.my_uname.nodename, pctx.my_rank, pid,
         ssg_get_addr_str(nnctx.ssg, pid));
   }
 }
@@ -1120,8 +1123,8 @@ static void* bg_work(void* foo) {
       now = now_micros_coarse() / 1000;
       if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
         LOG(LOG_SINK, 0,
-            "!! calling HG_Progress() with high interval: %d ms (rank %d)",
-            int(now - last_progress), pctx.my_rank);
+            "!! [%s] (rank %d) calling HG_Progress() with high interval: %d ms",
+            nnctx.my_uname.nodename, pctx.my_rank, int(now - last_progress));
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
@@ -1226,6 +1229,8 @@ void nn_shuffler_init() {
   int i;
 
   shuffle_prepare_uri(nnctx.my_addr);
+  rv = uname(&nnctx.my_uname);
+  if (rv) ABORT("uname");
 
   env = maybe_getenv("SHUFFLE_Timeout");
   if (env == NULL) {

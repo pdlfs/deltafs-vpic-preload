@@ -36,6 +36,7 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 
 #include <mercury.h>
@@ -78,6 +79,7 @@ inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
  */
 typedef struct nn_ctx {
   char my_addr[100]; /* mercury server uri */
+  struct utsname my_uname;
 
   hg_class_t* hg_clz;
   hg_context_t* hg_ctx;
