@@ -1350,7 +1350,7 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
-             "cache hg_handle_t: %s, hash sig: %s",
+             "cache hg_handle_t: %s, hash signature: %s",
              nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
              nnctx.cache_hlds ? "YES" : "NO", nnctx.hash_sig ? "YES" : "NO");
     INFO(msg);
