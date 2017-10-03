@@ -39,7 +39,7 @@
  *    Send rpcs even if target is local
  *  SHUFFLE_Placement_protocol
  *    Protocol name for initializing placement groups
- *      such as hash_spooky, hash_lookup3, xor, as well as ring
+ *      such as static_modulo, hash_spooky, hash_lookup3, xor, as well as ring
  *  SHUFFLE_Virtual_factor
  *    Virtual factor used by nodes in a placement group
  *  SHUFFLE_Recv_radix

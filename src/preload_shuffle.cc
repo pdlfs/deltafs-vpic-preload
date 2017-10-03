@@ -558,7 +558,9 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (pctx.my_rank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
       snprintf(msg, sizeof(msg),
-               "ch-placement group size: %s (vir-factor: %s, proto: %s)",
+               "ch-placement group size: %s (vir-factor: %s, proto: %s)\n>>> "
+               "possible protocols are: "
+               "static_modulo, hash_lookup3, xor, and ring",
                pretty_num(world_sz).c_str(), pretty_num(vf).c_str(), proto);
       INFO(msg);
     } else {
