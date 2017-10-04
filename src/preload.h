@@ -109,6 +109,9 @@
  *    Min write size for each index log
  *  PLFSDIR_Lg_parts
  *    Logarithmic number of memtable partitions
+ *  PLFSDIR_Env_name
+ *    Name of the underlying env
+ *      such as posix.unbufferedio, posix.default, posix.devnull
  *  PLFSDIR_Skip_checksums
  *    Skip generating checksums
  */

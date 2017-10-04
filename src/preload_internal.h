@@ -89,10 +89,12 @@ typedef struct preload_ctx {
   int recv_rank;
   int recv_sz;
 
-  const char* plfsdir;  /* path to the plfsdir */
-  size_t len_plfsdir;   /* strlen */
-  deltafs_tp_t* plfstp; /* opaque handle to a dedicated bg compaction pool */
+  const char* plfsdir; /* path to the plfsdir */
+  size_t len_plfsdir;  /* strlen */
+
   deltafs_plfsdir_t* plfshdl; /* opaque handle to an opened plfsdir */
+  deltafs_env_t* plfsenv;     /* opaque handle to an env instance */
+  deltafs_tp_t* plfstp; /* opaque handle to a dedicated bg compaction pool */
 
   int plfsparts; /* num of memtable partitions */
   int plfsfd;    /* fd for the plfsdir */

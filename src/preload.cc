@@ -611,6 +611,7 @@ extern "C" {
  */
 int MPI_Init(int* argc, char*** argv) {
   int exact;
+  const char* env;
   const char* stripped;
   const char* cwd;
   time_t now;
@@ -937,21 +938,27 @@ int MPI_Init(int* argc, char*** argv) {
           snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
           assert(pctx.recv_rank != -1);
           conf = gen_plfsdir_conf(pctx.recv_rank);
-
+          env = maybe_getenv("PLFSDIR_Env_name");
+          if (env == NULL) {
+            env = "posix.unbufferedio";
+          }
           pctx.plfshdl = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
           deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 0);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
+          pctx.plfsenv = deltafs_env_init(
+              1, reinterpret_cast<void**>(const_cast<char**>(&env)));
+          deltafs_plfsdir_set_env(pctx.plfshdl, pctx.plfsenv);
 
           rv = deltafs_plfsdir_open(pctx.plfshdl, path);
           if (rv != 0) {
             ABORT("cannot open plfsdir");
           } else if (rank == 0) {
             snprintf(msg, sizeof(msg),
-                     "plfsdir (via deltafs-LT) opened (rank 0)\n>>> "
+                     "plfsdir (via deltafs-LT, env=%s) opened (rank 0)\n>>> "
                      "bg thread pool size: %d",
-                     pctx.bgsngcomp ? 1 : pctx.plfsparts);
+                     env, pctx.bgsngcomp ? 1 : pctx.plfsparts);
             INFO(msg);
             if (pctx.verr) {
               pretty_plfsdir_conf(conf);
@@ -1202,10 +1209,15 @@ int MPI_Finalize(void) {
       }
 
       deltafs_plfsdir_free_handle(pctx.plfshdl);
+      if (pctx.plfsenv != NULL) {
+        deltafs_env_close(pctx.plfsenv);
+        pctx.plfsenv = NULL;
+      }
       if (pctx.plfstp != NULL) {
         deltafs_tp_close(pctx.plfstp);
         pctx.plfstp = NULL;
       }
+
       pctx.plfshdl = NULL;
 
       if (pctx.my_rank == 0) {
