@@ -85,6 +85,7 @@ struct next_functions {
   int (*closedir)(DIR* dirp);
   FILE* (*fopen)(const char* filename, const char* mode);
   size_t (*fwrite)(const void* ptr, size_t size, size_t nitems, FILE* stream);
+  int (*fputc)(int character, FILE* stream);
   int (*fclose)(FILE* stream);
 
   /* for error catching we do these */
@@ -127,6 +128,7 @@ static void preload_init() {
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.closedir), "closedir");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.fopen), "fopen");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.fwrite), "fwrite");
+  must_getnextdlsym(reinterpret_cast<void**>(&nxt.fputc), "fputc");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.fclose), "fclose");
 
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.feof), "feof");
@@ -2046,6 +2048,25 @@ size_t fwrite(const void* ptr, size_t size, size_t nitems, FILE* stream) {
    */
 
   return (cnt / size); /* truncates on error */
+}
+
+/*
+ * fputc
+ */
+int fputc(int character, FILE* stream) {
+  int rv;
+
+  rv = pthread_once(&init_once, preload_init);
+  if (rv) ABORT("pthread_once");
+
+  if (!claim_FILE(stream)) {
+    return nxt.fputc(character, stream);
+  }
+
+  fake_file* ff = reinterpret_cast<fake_file*>(stream);
+  ff->add_data(&character, 1);
+
+  return character;
 }
 
 /*
