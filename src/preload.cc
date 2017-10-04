@@ -2055,6 +2055,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nitems, FILE* stream) {
  */
 int fputc(int character, FILE* stream) {
   int rv;
+  char a[1];
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -2063,10 +2064,11 @@ int fputc(int character, FILE* stream) {
     return nxt.fputc(character, stream);
   }
 
+  a[0] = static_cast<char>(character);
   fake_file* ff = reinterpret_cast<fake_file*>(stream);
-  ff->add_data(&character, 1);
+  ff->add_data(a, 1);
 
-  return character;
+  return a[0];
 }
 
 /*
