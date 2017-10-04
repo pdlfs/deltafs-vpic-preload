@@ -450,6 +450,8 @@ struct plfsdir_conf {
 
 static struct plfsdir_conf dirc = {0};
 
+static void plfsdir_error_printer(const char* err, void*) { ERROR(err); }
+
 /*
  * gen_plfsdir_conf: initialize plfsdir conf and obtain it's string literal.
  */
@@ -950,7 +952,8 @@ int MPI_Init(int* argc, char*** argv) {
           pctx.plfsenv = deltafs_env_init(
               1, reinterpret_cast<void**>(const_cast<char**>(&env)));
           deltafs_plfsdir_set_env(pctx.plfshdl, pctx.plfsenv);
-
+          deltafs_plfsdir_set_err_printer(pctx.plfshdl, &plfsdir_error_printer,
+                                          NULL);
           rv = deltafs_plfsdir_open(pctx.plfshdl, path);
           if (rv != 0) {
             ABORT("cannot open plfsdir");
