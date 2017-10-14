@@ -1127,7 +1127,7 @@ static void* bg_work(void* foo) {
             nnctx.my_uname.nodename, pctx.my_rank, int(now - last_progress));
       }
       last_progress = now;
-      hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
+      hret = HG_Progress(nnctx.hg_ctx, unsigned(nnctx.hg_timeout));
       if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
         RPC_FAILED("HG_Progress", hret);
       }
