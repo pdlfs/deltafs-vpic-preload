@@ -57,7 +57,57 @@ static int bits_count(unsigned int v) {
 }
 #endif
 
-char* shuffle_prepare_uri(char* buf) {
+static const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
+  int min_port;
+  int max_port;
+  const char* env;
+  char msg[100];
+
+  assert(strstr(proto, "sm") != NULL);
+
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg),
+             "using %s\n>>> may only be used in single-node tests!!!", proto);
+    WARN(msg);
+  }
+
+  env = maybe_getenv("SHUFFLE_Min_port");
+  if (env == NULL) {
+    min_port = DEFAULT_MIN_PORT;
+  } else {
+    min_port = atoi(env);
+  }
+
+  env = maybe_getenv("SHUFFLE_Max_port");
+  if (env == NULL) {
+    max_port = DEFAULT_MAX_PORT;
+  } else {
+    max_port = atoi(env);
+  }
+
+  /* sanity check on port range */
+  if (max_port - min_port < 0) ABORT("bad min-max port");
+  if (min_port < 1) ABORT("bad min port");
+  if (max_port > 65535) ABORT("bad max port");
+
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
+    INFO(msg);
+  }
+
+  /* finalize uri */
+  sprintf(buf, "%s://%d:%d", proto, int(getpid()), min_port);
+#ifndef NDEBUG
+  if (pctx.verr || pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);
+    INFO(msg);
+  }
+#endif
+
+  return buf;
+}
+
+const char* shuffle_prepare_uri(char* buf) {
   int family;
   int port;
   const char* env;
@@ -70,6 +120,7 @@ char* shuffle_prepare_uri(char* buf) {
   int rank;
   int size;
   const char* subnet;
+  const char* proto;  // mercury proto
   char msg[100];
   char ip[50];  // ip
   int opt;
@@ -77,11 +128,26 @@ char* shuffle_prepare_uri(char* buf) {
   int rv;
   int n;
 
+  proto = maybe_getenv("SHUFFLE_Mercury_proto");
+  if (proto == NULL) {
+    proto = DEFAULT_HG_PROTO;
+  }
+  if (strstr(proto, "sm") != NULL) {
+    return shuffle_prepare_sm_uri(buf, proto);  // special handling for sm addrs
+  }
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "using %s", proto);
+    if (strstr(proto, "tcp") != NULL) {
+      WARN(msg);
+    } else {
+      INFO(msg);
+    }
+  }
+
   subnet = maybe_getenv("SHUFFLE_Subnet");
   if (subnet == NULL) {
     subnet = DEFAULT_SUBNET;
   }
-
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
     if (strcmp(subnet, "127.0.0.1") == 0) {
@@ -154,12 +220,17 @@ char* shuffle_prepare_uri(char* buf) {
 #if MPI_VERSION >= 3
   rv = MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0,
                            MPI_INFO_NULL, &comm);
-  if (rv != MPI_SUCCESS) ABORT("MPI_Comm_split_type");
+  if (rv != MPI_SUCCESS) {
+    ABORT("MPI_Comm_split_type");
+  }
 #else
   comm = MPI_COMM_WORLD;
 #endif
   MPI_Comm_rank(comm, &rank);
   MPI_Comm_size(comm, &size);
+  if (comm != MPI_COMM_WORLD) {
+    MPI_Comm_free(&comm);
+  }
 
   /* try and test port availability */
   port = min_port + (rank % (1 + max_port - min_port));
@@ -215,20 +286,8 @@ char* shuffle_prepare_uri(char* buf) {
   if (port == 0) /* maybe a wrong port range has been specified */
     ABORT("no free ports");
 
-  /* add proto */
-
-  env = maybe_getenv("SHUFFLE_Mercury_proto");
-  if (env == NULL) env = DEFAULT_HG_PROTO;
-  sprintf(buf, "%s://%s:%d", env, ip, port);
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using %s", env);
-    if (strstr(env, "tcp") != NULL) {
-      WARN(msg);
-    } else {
-      INFO(msg);
-    }
-  }
-
+  /* finalize uri */
+  sprintf(buf, "%s://%s:%d", proto, ip, port);
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);

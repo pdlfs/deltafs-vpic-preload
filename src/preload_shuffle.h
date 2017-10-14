@@ -73,7 +73,7 @@ typedef struct shuffle_ctx {
  * shuffle_prepare_uri: obtain the mercury server uri to bootstrap the rpc.
  * write the server uri into *buf on success, or abort on errors.
  */
-extern char* shuffle_prepare_uri(char* buf);
+extern const char* shuffle_prepare_uri(char* buf);
 
 /* return 0 if some ranks are sender-only, 1 otherwise. */
 extern int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx);
