@@ -527,9 +527,12 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       MPI_Reduce(&nnctx.minqsz, &max_minqsz, 1, MPI_INT, MPI_MAX, 0,
                  pctx.recv_comm);
       if (pctx.my_rank == 0 && nps != 0) {
-        snprintf(msg, sizeof(msg), "[rpc] avg rpc size: %s (%s writes per rpc)",
-                 pretty_size(double(total_msgsz) / accqsz).c_str(),
-                 pretty_num(double(total_writes) / accqsz).c_str());
+        snprintf(
+            msg, sizeof(msg),
+            "[rpc] avg rpc size: %s (%s writes per rpc, %s per write)",
+            pretty_size(double(total_msgsz) / accqsz).c_str(),
+            pretty_num(double(total_writes) / accqsz).c_str(),
+            pretty_size(double(total_msgsz) / double(total_writes)).c_str());
         INFO(msg);
         snprintf(msg, sizeof(msg),
                  "[rpc] incoming queue depth: %.3f per rank\n"

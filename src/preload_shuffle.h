@@ -62,7 +62,7 @@ typedef struct shuffle_ctx {
    * is bypassed and destination is local. so there is a chance where the main
    * thread is blocked and cannot go send more writes. */
   int force_rpc;
-  unsigned int receiver_mask;
+  unsigned int receiver_mask; /* (rank & receiver_mask) -> receiver_rank */
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
