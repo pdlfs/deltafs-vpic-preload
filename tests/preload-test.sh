@@ -36,7 +36,7 @@ done
 set -x
 
 if [ x"$MPI" = xmpich ]; then
-    mpirun.mpich -np $MPI_PROCS -prepend-rank -bind-to core \
+    mpirun.mpich -np $MPI_PROCS -prepend-rank -bind-to hwthread \
         -env LD_PRELOAD "$BUILD_PREFIX/src/libdeltafs-preload.so" \
         -env PRELOAD_Bypass_deltafs "1" \
         -env PRELOAD_Bypass_shuffle "0" \
