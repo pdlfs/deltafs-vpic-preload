@@ -497,7 +497,7 @@ int main(int argc, char **argv) {
                 break;
             case 'd':
                 g.deliverq_max = atoi(optarg);
-                if (g.deliverq_max < 1) usage("bad deliverq_max shm");
+                if (g.deliverq_max == 0) usage("bad deliverq_max shm");
                 break;
             case 'E':
                 g.emask = optarg;
