@@ -301,7 +301,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   } else {
     deliverq_max = atoi(env);
     if (deliverq_max <= 0) {
-      deliverq_max = 1;
+      deliverq_max = -1;
     }
   }
 
