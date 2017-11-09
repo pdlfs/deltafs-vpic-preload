@@ -81,6 +81,7 @@
  *  -a bytes     batch buffer target for origin/client local output queues
  *  -b bytes     batch buffer target for relayed local output queues (to dst)
  *  -d count     delivery queue limit
+ *  -h count     delivery thread wakeup threshold
  *  -M count     maxrpcs for network output queues
  *  -m count     maxrpcs for origin/client local output queues
  *  -y count     maxrpcs for relayed local output queues (to dst)
@@ -270,6 +271,7 @@ int64_t getsize(char *from) {
 #define DEF_BUFTARGET 1    /* target #bytes for a batch */
 #define DEF_COUNT 5        /* default # of msgs to send and recv in a run */
 #define DEF_DELIVERQMAX 1  /* max# of reqs in deliverq before using waitq */
+#define DEF_DELIVERQTHR 0  /* delivery thread wakeup threshold */
 #define DEF_MAXRPCS 1      /* max# of outstanding RPCs */
 #define DEF_TIMEOUT 120    /* alarm timeout */
 
@@ -290,6 +292,7 @@ struct gs {
     int excludeself;         /* exclude sending to self (skip those sends) */
     int flushrate;           /* do extra flushes while sending */
     int deliverq_max;        /* max# reqs in deliverq before waitq */
+    int deliverq_thold;      /* delivery thread wakeup threshold */
     int loop;                /* loop through dsts rather than random sends */
     int minsndr;             /* rank must be >= minsndr to send requests */
     int odelay;              /* delay delivery output this many msec */
@@ -389,6 +392,7 @@ static void usage(const char *msg) {
     fprintf(stderr, "\t-a bytes    batch buf target for client/origin shm\n");
     fprintf(stderr, "\t-b bytes    batch buf target for relayed shm\n");
     fprintf(stderr, "\t-d count    delivery queue size limit\n");
+    fprintf(stderr, "\t-h count    delivery thread wakeup threshold\n");
     fprintf(stderr, "\t-M count    maxrpcs for network output queues\n");
     fprintf(stderr, "\t-m count    maxrpcs for shm client/origin queues\n");
     fprintf(stderr, "\t-y count    maxrpcs for shm relayed queues\n");
@@ -458,6 +462,7 @@ int main(int argc, char **argv) {
     g.buftarg_relay = DEF_BUFTARGET;
     g.count = DEF_COUNT;
     g.deliverq_max = DEF_DELIVERQMAX;
+    g.deliverq_thold = DEF_DELIVERQTHR;
     g.maxrpcs_net = DEF_MAXRPCS;
     g.maxrpcs_origin = DEF_MAXRPCS;
     g.maxrpcs_relay = DEF_MAXRPCS;
@@ -471,7 +476,7 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-            "a:B:b:C:c:D:d:E:eF:f:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:y:")) != -1) {
+          "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:y:")) != -1) {
         switch (ch) {
             case 'a':
                 g.buftarg_origin = atoi(optarg);
@@ -511,6 +516,10 @@ int main(int argc, char **argv) {
             case 'f':
                 g.flushrate = atoi(optarg);
                 if (g.flushrate < 0) usage("bad flush rate");
+                break;
+            case 'h':
+                g.deliverq_thold = atoi(optarg);
+                if (g.deliverq_thold < 0) usage("bad deliver threshold");
                 break;
             case 'I':
                 g.msgbufsz = getsize(optarg);
@@ -628,6 +637,7 @@ int main(int argc, char **argv) {
         printf("\tmaxrpcs    = %d / %d / %d (net/origin/relay)\n",
                g.maxrpcs_net, g.maxrpcs_origin, g.maxrpcs_relay);
         printf("\tdeliverqmx = %d\n", g.deliverq_max);
+        printf("\tdeliverthd = %d\n", g.deliverq_thold);
         if (g.odelay > 0)
             printf("\tout_delay  = %d msec\n", g.odelay);
         printf("\tinput      = %d\n", (g.inreqsz == 0) ? 12 : g.inreqsz);
@@ -740,7 +750,8 @@ void *run_instance(void *arg) {
 
     isa[n].shand = shuffler_init(isa[n].nxp, isa[n].myfun, g.maxrpcs_origin,
                    g.buftarg_origin, g.maxrpcs_relay, g.buftarg_relay,
-                   g.maxrpcs_net, g.buftarg_net, g.deliverq_max, do_delivery);
+                   g.maxrpcs_net, g.buftarg_net, g.deliverq_max,
+                   g.deliverq_thold, do_delivery);
     flcnt = 0;
 
     if (myrank >= g.minsndr && myrank <= g.maxsndr) {   /* are we a sender? */

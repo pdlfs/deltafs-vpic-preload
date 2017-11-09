@@ -98,10 +98,16 @@
  *               "buftarget" bytes in the batch.  setting this value
  *               small effectively disables batching.
  *
- * also for delivery, we have a "deliverq_max" which is the max
- * number of delivery requests we will buffer before we start
- * putting additional requests on the waitq (waitq requests are
- * not ack'd until space is available... this triggers flow control).
+ * for delivery, we have:
+ *  - deliverq_max:       the max number of delivery requests we will buffer
+ *                        before we start putting additional requests on the
+ *                        waitq (waitq requests are not ack'd until space
+ *                        is available... this triggers flow control).
+ *  - deliverq_threshold: we delay waking up the delivery thread until
+ *                        more than threshold reqs are on the deliveryq.
+ *                        this allows requests to be delivered in larger
+ *                        batches (to avoid context switching overhead
+ *                        when the request size is small).
  *
  * note that we identify endpoints by a global rank number (the
  * rank number is assigned by MPI... MPI is also used to determine
@@ -143,13 +149,14 @@ typedef void (*shuffler_deliver_t)(int src, int dst, int type,
  * @param rmaxrpc max# of outstanding remote RPCs
  * @param rbuftarget target number of bytes in remote batch RPC
  * @param deliverq_max max# reqs in deliverq before we switch to deliver waitq
+ * @param deliverq_threshold wake delivery when #reqs on deliverq > threshold
  * @param delivercb application callback to deliver data
  * @return handle to shuffler (a pointer) or NULL on error
  */
 shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
            int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
            int rmaxrpc, int rbuftarget, int deliverq_max,
-           shuffler_deliver_t delivercb);
+           int deliverq_threshold, shuffler_deliver_t delivercb);
 
 
 /*

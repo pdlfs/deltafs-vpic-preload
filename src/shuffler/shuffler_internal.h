@@ -277,6 +277,7 @@ struct shuffler {
 
   /* delivery queue cfg */
   int deliverq_max;                 /* max #reqs we queue before blocking */
+  int deliverq_threshold;           /* wake dlvr when #reqs on q > threshold */
   shuffler_deliver_t delivercb;     /* callback function ptr */
 
   /* delivery thread and queue itself */
