@@ -230,6 +230,7 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
 }
 
 void xn_shuffler_init(xn_ctx_t* ctx) {
+  int deliverq_min;
   int deliverq_max;
   int lmaxrpc;
   int lbuftarget;
@@ -295,7 +296,17 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
-  env = maybe_getenv("SHUFFLE_Max_deliverq");
+  env = maybe_getenv("SHUFFLE_Dq_min");
+  if (env == NULL) {
+    deliverq_min = 0;
+  } else {
+    deliverq_min = atoi(env);
+    if (deliverq_min < 0) {
+      deliverq_min = 0;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Dq_max");
   if (env == NULL) {
     deliverq_max = DEFAULT_DELIVER_MAX;
   } else {
@@ -311,9 +322,10 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     shuffler_cfglog(DEF_CFGLOG_ARGS(logfile));
   }
 
-  ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
-                          lmaxrpc, lbuftarget, lmaxrpc, lbuftarget, rmaxrpc,
-                          rbuftarget, deliverq_max, xn_shuffler_deliver);
+  ctx->sh =
+      shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"), lmaxrpc,
+                    lbuftarget, lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
+                    deliverq_max, deliverq_min, xn_shuffler_deliver);
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");

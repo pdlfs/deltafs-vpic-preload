@@ -45,8 +45,12 @@
  *    Memory allocated for each local rpc queue
  *  SHUFFLE_Local_maxrpc
  *    Max num of outstanding rpcs allowed for the local hops
- *  SHUFFLE_Max_deliverq
- *    Queue size for final rpc delivery
+ *  SHUFFLE_Dq_min
+ *    Min queue size for the final delivery queue
+ *      Delay flushing the queue until queue size exceeds the minimum
+ *  SHUFFLE_Dq_max
+ *    Max queue size for the final delivery queue
+ *      Set to "-1" to disable msg delivery so all msgs will be discarded
  *  SHUFFLE_Min_port
  *    The min port number we can use
  *  SHUFFLE_Max_port
