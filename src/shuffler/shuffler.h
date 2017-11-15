@@ -117,9 +117,11 @@
 
 #pragma once
 
-#include <deltafs-nexus/deltafs-nexus_api.h> /* for nexus_ctx_t */
+#include <stddef.h>
+#include <stdint.h>
 
-#include <mercury_types.h>
+#include <deltafs-nexus/deltafs-nexus_api.h> /* for nexus_ctx_t */
+#include <mercury_types.h>                   /* for hg_return_t */
 
 /*
  * shuffler_t: handle to shuffler state (a pointer)
@@ -131,8 +133,8 @@ typedef struct shuffler *shuffler_t;
  * deliver a msg to the DST.  this function may block if the
  * DST is busy/full.
  */
-typedef void (*shuffler_deliver_t)(int src, int dst, int type,
-                                   void *d, int datalen);
+typedef void (*shuffler_deliver_t)(int src, int dst, uint32_t type,
+                                   void *d, uint32_t datalen);
 
 
 /*
@@ -174,8 +176,8 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
  * @param datalen length of data
  * @return status (success if we've queued the data)
  */
-hg_return_t shuffler_send(shuffler_t sh, int dst, int type,
-                          void *d, int datalen);
+hg_return_t shuffler_send(shuffler_t sh, int dst, uint32_t type,
+                          void *d, uint32_t datalen);
 
 
 /*
@@ -215,10 +217,8 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs);
  * @param sh shuffler service handle
  * @return status
  */
-static hg_return_t shuffler_flush_originqs(shuffler_t sh) {
-  return(shuffler_flush_qs(sh, SHUFFLER_ORIGIN_QUEUES));
-}
-
+#define shuffler_flush_originqs(S) \
+        shuffler_flush_qs((S), SHUFFLER_ORIGIN_QUEUES)
 
 /*
  * shuffler_flush_relayqs: flush relay qs (wrap for shuffler_flush_qs)
@@ -226,9 +226,8 @@ static hg_return_t shuffler_flush_originqs(shuffler_t sh) {
  * @param sh shuffler service handle
  * @return status
  */
-static hg_return_t shuffler_flush_relayqs(shuffler_t sh) {
-  return(shuffler_flush_qs(sh, SHUFFLER_RELAY_QUEUES));
-}
+#define shuffler_flush_relayqs(S) \
+        shuffler_flush_qs((S), SHUFFLER_RELAY_QUEUES)
 
 
 /*
@@ -237,9 +236,8 @@ static hg_return_t shuffler_flush_relayqs(shuffler_t sh) {
  * @param sh shuffler service handle
  * @return status
  */
-static hg_return_t shuffler_flush_remoteqs(shuffler_t sh) {
-  return(shuffler_flush_qs(sh, SHUFFLER_REMOTE_QUEUES));
-}
+#define shuffler_flush_remoteqs(S) \
+        shuffler_flush_qs((S), SHUFFLER_REMOTE_QUEUES)
 
 
 /*

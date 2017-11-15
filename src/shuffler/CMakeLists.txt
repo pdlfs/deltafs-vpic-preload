@@ -23,8 +23,15 @@ find_package (Threads REQUIRED)
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
 
+include (CheckCXXCompilerFlag)
+check_cxx_compiler_flag (-Wall flagWall)
+if (flagWall)
+    add_compile_options (-Wall)
+endif ()
+
 add_executable (nexus-runner acnt_wrap.c nexus-runner.cc
                 shuf_mlog.cc shuffler.cc)
+target_include_directories (nexus-runner PUBLIC ${MERCURY_INCLUDE_DIR})
 target_link_libraries (nexus-runner deltafs-nexus Threads::Threads)
 
 #

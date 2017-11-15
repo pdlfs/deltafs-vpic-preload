@@ -74,6 +74,7 @@
  *  -r n         enable tag suffix with this run number
  *  -R n         only send to rank 'n'
  *  -s maxsndr   rank must be <= maxsndr to send requests
+ *  -T           report extra time/usage stats info for instance thread
  *  -t secs      timeout (alarm)
  *
  * shuffler queue config:
@@ -185,6 +186,12 @@ struct useprobe {
     struct rusage r0, r1;
 };
 
+#ifdef RUSAGE_THREAD
+#define USEPROBE_THREAD RUSAGE_THREAD   /* linux-specific? */
+#else
+#define USEPROBE_THREAD RUSAGE_SELF     /* fallback if THREAD not available */
+#endif
+
 /* load starting values into useprobe */
 static void useprobe_start(struct useprobe *up, int who) {
     up->who = who;
@@ -201,7 +208,7 @@ static void useprobe_end(struct useprobe *up) {
 
 /* print useprobe info */
 void useprobe_print(FILE *out, struct useprobe *up, const char *tag, int n) {
-    char nstr[32];
+    char nstr[32], msg[256];
     double start, end;
     double ustart, uend, sstart, send;
     long nminflt, nmajflt, ninblock, noublock, nnvcsw, nnivcsw;
@@ -228,11 +235,11 @@ void useprobe_print(FILE *out, struct useprobe *up, const char *tag, int n) {
     nnvcsw = up->r1.ru_nvcsw - up->r0.ru_nvcsw;
     nnivcsw = up->r1.ru_nivcsw - up->r0.ru_nivcsw;
 
-    fprintf(out, "%s%s: times: wall=%f, usr=%f, sys=%f (secs)\n", nstr, tag,
-        end - start, uend - ustart, send - sstart);
-    fprintf(out,
-      "%s%s: minflt=%ld, majflt=%ld, inb=%ld, oub=%ld, vcw=%ld, ivcw=%ld\n",
-      nstr, tag, nminflt, nmajflt, ninblock, noublock, nnvcsw, nnivcsw);
+    snprintf(msg, sizeof(msg), "%s%s: times: wall=%f, usr=%f, sys=%f (secs)\n"
+        "%s%s: minflt=%ld, majflt=%ld, inb=%ld, oub=%ld, vcw=%ld, ivcw=%ld",
+         nstr, tag, end - start, uend - ustart, send - sstart,
+        nstr, tag, nminflt, nmajflt, ninblock, noublock, nnvcsw, nnivcsw);
+    puts(msg);
 }
 
 /*
@@ -305,6 +312,7 @@ struct gs {
     int rflagval;            /* value for -r */
     int rcvr_only;           /* only send to this rank (if >0) */
     int maxsndr;             /* rank must be <= maxsndr to send requests */
+    int timestats;           /* report extra time/usage stats for instance */
     int timeout;             /* alarm timeout */
 
     char tagsuffix[64];      /* tag suffix: ninst-count-mode-limit-run# */
@@ -385,6 +393,7 @@ static void usage(const char *msg) {
     fprintf(stderr, "\t-r n        enable tag suffix with this run number\n");
     fprintf(stderr, "\t-R rank     only do sends to this rank\n");
     fprintf(stderr, "\t-s maxsndr  rank must be <= maxsndr to send requests\n");
+    fprintf(stderr, "\t-T          extra time/usage stats for instance\n");
     fprintf(stderr, "\t-t sec      timeout (alarm), in seconds\n");
 
     fprintf(stderr, "shuffler queue config:\n");
@@ -420,7 +429,8 @@ skip_prints:
  * forward prototype decls.
  */
 static void *run_instance(void *arg);   /* run one instance */
-static void do_delivery(int src, int dst, int type, void *d, int datalen);
+static void do_delivery(int src, int dst, uint32_t type,
+    void *d, uint32_t datalen);
 static void do_flush(shuffler_t sh, int verbo);
 
 /*
@@ -476,7 +486,7 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-          "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:n:O:o:p:qR:r:S:s:t:X:y:")) != -1) {
+        "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:n:O:o:p:qR:r:S:s:Tt:X:y:")) != -1) {
         switch (ch) {
             case 'a':
                 g.buftarg_origin = atoi(optarg);
@@ -583,6 +593,9 @@ int main(int argc, char **argv) {
                 if (g.maxsndr < 0 || g.maxsndr >= g.size)
                     usage("bad max sender");
                 break;
+            case 'T':
+                g.timestats = 1;
+                break;
             case 't':
                 g.timeout = atoi(optarg);
                 if (g.timeout < 0) usage("bad timeout");
@@ -630,6 +643,7 @@ int main(int argc, char **argv) {
             printf("\trcvr_only  = %d\n", g.rcvr_only);
         printf("\tminsndr    = %d\n", g.minsndr);
         printf("\tmaxsndr    = %d\n", g.maxsndr);
+        printf("\ttimestats  = %s\n", (g.timestats) ? "on" : "off");
         printf("\ttimeout    = %d\n", g.timeout);
         printf("sizes:\n");
         printf("\tbuftarget  = %d / %d / %d (net/origin/relay)\n",
@@ -721,11 +735,12 @@ int main(int argc, char **argv) {
 void *run_instance(void *arg) {
     struct is *isp = (struct is *)arg;
     int n = isp->n;               /* recover n from isp */
-    nexus_ret_t nrv;
+    struct useprobe instuse;
     int flcnt, lcv, sendto, mylen;
     hg_return_t ret;
     uint32_t *msg, msg_store[3];
 
+    useprobe_start(&instuse, USEPROBE_THREAD);
     printf("%d: instance running\n", myrank);
     isa[n].n = n;    /* make it easy to map 'is' structure back to n */
 
@@ -805,7 +820,15 @@ void *run_instance(void *arg) {
     /* done sending */
     printf("%d: sends complete (nsends=%d,flcnt=%d)!\n", myrank,
            isa[n].nsends, flcnt);
+    if (g.timestats) {
+        useprobe_end(&instuse);
+        useprobe_print(stdout, &instuse, "instance-prebar", myrank);
+    }
     MPI_Barrier(MPI_COMM_WORLD);
+    if (g.timestats) {
+        useprobe_end(&instuse);
+        useprobe_print(stdout, &instuse, "instance-postbar", myrank);
+    }
     if (myrank == 0)
         printf("%d: crossed send barrier.\n", myrank);
 
@@ -820,6 +843,11 @@ void *run_instance(void *arg) {
     nexus_destroy(isa[n].nxp);
     if (msg != msg_store) free(msg);
 
+    useprobe_end(&instuse);
+    if (g.quiet == 0 || g.size <= 4) {
+        useprobe_print(stdout, &instuse, "instance", myrank);
+    }
+
     return(NULL);
 }
 
@@ -832,7 +860,8 @@ void *run_instance(void *arg) {
  * @param d data buffer
  * @param datalen length of data buffer
  */
-static void do_delivery(int src, int dst, int type, void *d, int datalen) {
+static void do_delivery(int src, int dst, uint32_t type,
+    void *d, uint32_t datalen) {
     uint32_t msg[3];
     struct timespec rem;
 
