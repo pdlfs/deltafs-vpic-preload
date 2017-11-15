@@ -99,7 +99,8 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   }
 }
 
-void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
+static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
+                                uint32_t buf_sz) {
   char* input;
   size_t input_left;
   const char* fname;
@@ -111,8 +112,7 @@ void xn_shuffler_deliver(int src, int dst, int type, void* buf, int buf_sz) {
   size_t len;
   int rv;
 
-  assert(buf_sz >= 0);
-  input_left = static_cast<size_t>(buf_sz);
+  input_left = buf_sz;
   input = static_cast<char*>(buf);
   assert(input != NULL);
 
