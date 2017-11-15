@@ -330,9 +330,10 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
-    n = snprintf(msg, sizeof(msg),
-                 "shuffler: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dqmax=%d",
-                 lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_max);
+    n = snprintf(
+        msg, sizeof(msg),
+        "3-HOP SH: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dq(min/max)=%d/%d",
+        lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_min, deliverq_max);
     if (logfile != NULL && logfile[0] != 0) {
       snprintf(msg + n, sizeof(msg) - n,
                "\n>>> LOGGING is ON, will log to ..."
