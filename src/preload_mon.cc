@@ -165,6 +165,10 @@ static void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
 }
 
 static void cpu_stat_reduce(const cpu_stat_t* src, cpu_stat_t* sum) {
+  MPI_Reduce(const_cast<unsigned long long*>(&src->vcs), &sum->vcs, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<unsigned long long*>(&src->ics), &sum->ics, 1,
+             MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->sys_micros),
              &sum->sys_micros, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
              MPI_COMM_WORLD);

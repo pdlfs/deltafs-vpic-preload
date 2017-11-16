@@ -1404,10 +1404,13 @@ int MPI_Finalize(void) {
                 scpu = 100 * double(glob.cpu_stat.sys_micros) /
                        glob.cpu_stat.micros;
                 snprintf(msg, sizeof(msg),
-                         " @ epoch #%-3d %s - %s  (%d%% - %d%% cpu usage)",
+                         " @ epoch #%-3d %s - %s "
+                         "(%d%% - %d%% cpu usage, %s v/cs, %s i/cs)",
                          epoch + 1, pretty_dura(glob.min_dura).c_str(),
                          pretty_dura(glob.max_dura).c_str(),
-                         glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu);
+                         glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu,
+                         pretty_num(glob.cpu_stat.vcs).c_str(),
+                         pretty_num(glob.cpu_stat.ics).c_str());
                 INFO(msg);
                 snprintf(msg, sizeof(msg),
                          "       > avg cpu: %.2f%% user + %.2f%% system ="
@@ -1880,6 +1883,11 @@ int closedir(DIR* dirp) {
     pctx.mctx.cpu_stat.usr_micros =
         timeval_to_micros(&tmp_usage.ru_utime) -
         timeval_to_micros(&pctx.last_sys_usage.ru_utime);
+
+    pctx.mctx.cpu_stat.vcs = static_cast<unsigned long long>(
+        tmp_usage.ru_nvcsw - pctx.last_sys_usage.ru_nvcsw);
+    pctx.mctx.cpu_stat.ics = static_cast<unsigned long long>(
+        tmp_usage.ru_nivcsw - pctx.last_sys_usage.ru_nivcsw);
 
     cpu = 100 * double(pctx.mctx.cpu_stat.sys_micros +
                        pctx.mctx.cpu_stat.usr_micros) /

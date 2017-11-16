@@ -64,8 +64,11 @@ typedef struct dir_stat {
 } dir_stat_t;
 
 typedef struct cpu_stat {
-  unsigned long long sys_micros; /* system-level cpu time */
-  unsigned long long usr_micros; /* user-level cpu time */
+  unsigned long long vcs; /* voluntary context switches */
+  unsigned long long ics; /* involuntary context switches */
+
+  unsigned long long sys_micros; /* sys-level cpu time */
+  unsigned long long usr_micros; /* usr-level cpu time */
 
   unsigned long long micros; /* real time */
 
