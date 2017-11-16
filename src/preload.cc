@@ -1404,18 +1404,19 @@ int MPI_Finalize(void) {
                 scpu = 100 * double(glob.cpu_stat.sys_micros) /
                        glob.cpu_stat.micros;
                 snprintf(msg, sizeof(msg),
-                         " @ epoch #%-3d %s - %s "
-                         "(%d%% - %d%% cpu usage, %s v/cs, %s i/cs)",
+                         " @ epoch #%-3d  %s - %s  (%d%% - %d%% cpu usage)",
                          epoch + 1, pretty_dura(glob.min_dura).c_str(),
                          pretty_dura(glob.max_dura).c_str(),
-                         glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu,
-                         pretty_num(glob.cpu_stat.vcs).c_str(),
-                         pretty_num(glob.cpu_stat.ics).c_str());
+                         glob.cpu_stat.min_cpu, glob.cpu_stat.max_cpu);
                 INFO(msg);
                 snprintf(msg, sizeof(msg),
                          "       > avg cpu: %.2f%% user + %.2f%% system ="
                          " %.2f%% total",
                          ucpu, scpu, ucpu + scpu);
+                INFO(msg);
+                snprintf(msg, sizeof(msg), "           > %s v/cs, %s i/cs",
+                         pretty_num(glob.cpu_stat.vcs).c_str(),
+                         pretty_num(glob.cpu_stat.ics).c_str());
                 INFO(msg);
                 snprintf(msg, sizeof(msg),
                          "   > %s particle writes (%s collisions), %s per rank "
