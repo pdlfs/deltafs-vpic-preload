@@ -125,7 +125,7 @@ struct req_parent {
   /* next three only used if input == NULL (thus via shuffler_send()) */
   pthread_mutex_t pcvlock;          /* lock for pcv */
   pthread_cond_t pcv;               /* app may block here for flow ctl */
-  int need_wakeup;                  /* need wakeup when nwaiting cleared */
+  int need_wakeup;                  /* need wakeup when nrefs cleared */
   /* used when building a list of zero-ref'd req_parent's to free */
   int onfq;                         /* non-zero on an fq list (to be safe) */
   struct req_parent *fqnext;        /* free queue next */

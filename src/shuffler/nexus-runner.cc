@@ -372,6 +372,21 @@ void sigalarm(int foo) {
 }
 
 /*
+ * sigusr1 signal handler
+ */
+void sigusr1(int foo) {
+    int lcv;
+    fprintf(stderr, "SIGUSR1 detected (%d)\n", myrank);
+    for (lcv = 0 ; lcv < g.ninst ; lcv++) {
+        fprintf(stderr, "%d: %d: @usr1: ", myrank, lcv);
+        fprintf(stderr, "nsends=%d, ncallbacks=%d\n",
+                isa[lcv].nsends, isa[lcv].ncallbacks);
+        /* only force to stderr if nprocs <= 4 */
+        shuffler_statedump(isa[lcv].shand, (g.size <= 4) ? 1 : 0);
+    }
+}
+
+/*
  * usage
  */
 static void usage(const char *msg) {
@@ -691,6 +706,7 @@ int main(int argc, char **argv) {
     }
 
     signal(SIGALRM, sigalarm);
+    signal(SIGUSR1, sigusr1);
     alarm(g.timeout);
     if (myrank == 0) printf("main: starting ...\n");
 
