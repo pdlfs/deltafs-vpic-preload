@@ -92,10 +92,10 @@ static size_t items_completed = 0;
 typedef struct rpcq {
   uint16_t sz; /* current queue size */
   int busy;    /* non-0 if queue is locked and is being flushed */
-  char* buf;   /* dedicated memory for the queue */
+  char* buf;   /* heap-allocated memory for the queue */
 } rpcq_t;
 static rpcq_t* rpcqs = NULL;
-static size_t max_rpcq_sz = 0; /* bytes allocated for each queue */
+static size_t max_rpcq_sz = 0; /* buffer size per rpc queue */
 static int nrpcqs = 0;         /* number of queues */
 
 /* rpc callback slots */
@@ -199,6 +199,16 @@ static hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in) {
   } else {
     return 0;
   }
+}
+
+/* rpc_explain_timeout: print rpc stats before we abort */
+static void rpc_explain_timeout() {
+  LOG(LOG_SINK, 0,
+      "!! [%s] (rank %d) shuffler %d (%s) is about to timeout: "
+      "rpc out %d (%d replied), rpc in %d",
+      nnctx.my_uname.nodename, pctx.my_rank, ssg_get_rank(nnctx.ssg),
+      ssg_get_addr_str(nnctx.ssg, ssg_get_rank(nnctx.ssg)), int(pctx.mctx.nms),
+      int(pctx.mctx.nmd), int(pctx.mctx.nmr));
 }
 
 /* rpc_work(): dedicated thread function to process rpc. each work item
@@ -674,7 +684,8 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 
       e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("rpc timeout");
+        rpc_explain_timeout();
+        ABORT("timeout waiting for rpc slot");
       }
     }
   }
@@ -762,7 +773,8 @@ void nn_shuffler_waitcb() {
 
       e = pthread_cv_timedwait(&cv[cb_cv], &mtx[cb_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("rpc timeout");
+        rpc_explain_timeout();
+        ABORT("timeout waiting for all outstanding rpcs to complete");
       }
     }
   }
@@ -870,7 +882,8 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
       e = pthread_cv_timedwait(&cv[rpc_cv], &mtx[rpc_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("rpc timeout");
+        rpc_explain_timeout();
+        ABORT("timeout waiting for rpc reply");
       }
     }
   }
@@ -962,7 +975,8 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
 
       e = pthread_cv_timedwait(&cv[qu_cv], &mtx[qu_cv], &abstime);
       if (e == ETIMEDOUT) {
-        ABORT("rpc timeout");
+        rpc_explain_timeout();
+        ABORT("timeout waiting for rpc queue to flush");
       }
     }
   }
