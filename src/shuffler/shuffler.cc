@@ -2471,7 +2471,7 @@ static hg_return_t shuffler_desthand_cb(const struct hg_cb_info *cbi) {
  * blocks until a flush can run...  flush type is one of localq,
  * remoteq, or deliver.
  *
- * for localq/remoteq if we are successful we set oqflushing=1
+ * for localq/remoteq if we are successful we set osetflushing=1
  * and init the oqflush_counter to 1 (to hold it until the caller
  * can sleep).
  *
@@ -2659,7 +2659,7 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs) {
   mlog(CLNT_D1, "shuffler_flush_qs: type=%s AQUIRED!", outset_typstr(whichqs));
 
   /*
-   * we've aquired the flush, including setting oqflushing and
+   * we've aquired the flush, including setting osetflushing and
    * oqflush_counter both to 1.  (initing oqflush_counter to 1
    * rather than 0 keeps the flush active while we are setting
    * it up -- we'll drop the extra reference before we block).
@@ -2681,16 +2681,22 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs) {
    * now wait for the flush to finish ... we use the flushlock here,
    * since the outset structure doesn't have a lock
    */
-  pthread_mutex_lock(&sh->flushlock);
+  pthread_mutex_lock(&sh->flushlock); /* blks cond_signal in done_oq_flush */
   r = acnt32_decr(oset->oqflush_counter);  /* drop our reference */
   if (r == 0)
-    oset->osetflushing = 0;
+    oset->osetflushing = 0;  /* nothing left to wait for */
 
   mlog(CLNT_D1, "shuffler_flush_qs: waiting... type=%s osetflushing=%d!",
        outset_typstr(whichqs), oset->osetflushing);
   while (oset->osetflushing != 0 && fop.status == FLUSHQ_READY) {
     pthread_cond_wait(&fop.flush_waitcv, &sh->flushlock);  /* BLOCK HERE */
   }
+  /*
+   * clear osetflushing (may be >0 if fop.status != READY [cancel?]).
+   * this prevents callbacks from trying to pthread_cond_signal us
+   * after we've left the above while loop...
+   */
+  oset->osetflushing = 0;
   pthread_mutex_unlock(&sh->flushlock);
   mlog(CLNT_D1, "shuffler_flush_qs: wait done!");
 
@@ -2808,8 +2814,11 @@ static void clean_qflush(struct shuffler *sh, struct outset *oset) {
     pthread_mutex_unlock(&oq->oqlock);
   }
 
-  oset->osetflushing = 0;
-  acnt32_set(oset->oqflush_counter, 0);
+  if (oset->osetflushing != 0) {  /* prev. cleared in shuffler_flush_qs */
+    notify(UTIL_CRIT, "clean_flushq called with nonzero osetflushing?");
+    abort();
+  }
+  acnt32_set(oset->oqflush_counter, 0); /* shouldn't matter */
 }
 
 /*
@@ -2830,9 +2839,15 @@ static void done_oq_flush(struct outqueue *oq) {
   if (r == 0) {
     mlog(UTIL_CALL, "done_oq_flush: dropped last oq ref, flush done!");
     pthread_mutex_lock(&sh->flushlock);  /* protects oqflushing */
-    oset->osetflushing = 0;
-    assert(sh->curflush != NULL);
-    pthread_cond_broadcast(&sh->curflush->flush_waitcv);
+    /*
+     * we check osetflushing != 0 to ensure flusher is blocked on flush_waitcv
+     * before sending a wakeup on flush_waitcv
+     */
+    if (oset->osetflushing != 0) {
+      assert(sh->curflush != NULL);
+      oset->osetflushing = 0;
+      pthread_cond_broadcast(&sh->curflush->flush_waitcv);
+    }
     pthread_mutex_unlock(&sh->flushlock);
   }
 }
