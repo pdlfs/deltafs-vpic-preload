@@ -318,7 +318,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   logfile = maybe_getenv("SHUFFLE_Log_file");
 #define DEF_CFGLOG_ARGS(log) -1, "INFO", "WARN", NULL, NULL, log, 1, 0, 0, 0
-  if (logfile != NULL && logfile[0] != 0) {
+  if (logfile != NULL && logfile[0] != 0 && strcmp(logfile, "/") != 0) {
     shuffler_cfglog(DEF_CFGLOG_ARGS(logfile));
   }
 
