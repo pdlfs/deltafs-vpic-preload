@@ -90,7 +90,7 @@ static void complain(int ret, int r0only, const char* format, ...) {
 /*
  * default values
  */
-#define DEF_STEPTIME 2      /* secs per vpic timestep */
+#define DEF_STEPTIME 1.0    /* secs per vpic timestep */
 #define DEF_NSTEPS 15       /* total steps */
 #define DEF_NDUMPS 3        /* total epoch dumps */
 #define DEF_PARTICLESIZE 40 /* bytes per particle */
@@ -104,7 +104,7 @@ static struct gs {
   char pdir[128]; /* particle dirname */
   /* note: MPI rank stored in global "myrank" */
   int size;           /* world size (from MPI) */
-  int steptime;       /* computation time per vpic timestep (sec) */
+  double steptime;    /* computation time per vpic timestep (sec) */
   int p[3];           /* particles on x,y,z dimension */
   int t[3];           /* topology on x,y,z dimension  */
   const char* deckid; /* vpic deck id (vpic app name) */
@@ -214,7 +214,7 @@ int main(int argc, char* argv[]) {
         if (g.nsteps < 0) usage("bad num steps");
         break;
       case 'T':
-        g.steptime = atoi(optarg);
+        g.steptime = atof(optarg);
         if (g.steptime < 0) usage("bad steptime");
         break;
       case 't':
@@ -244,32 +244,32 @@ int main(int argc, char* argv[]) {
   }
 
   if (myrank == 0) {
-    printf("\n%s options:\n", argv0);
-    printf("\tMPI_rank   = %d\n", myrank);
-    printf("\tMPI_size   = %d\n", g.size);
-    printf("\tdeck       = %s\n", g.deck);
-    printf("\tdeckid     = %s\n", g.deckid);
-    printf("\t@p         = [ %d x %d x %d ]\n", g.p[0], g.p[1], g.p[2]);
-    printf("\t@t         = [ %d x %d x %d ]\n", g.t[0], g.t[1], g.t[2]);
-    printf("\toutput_dir = %s\n", g.pdir);
-    printf("\ttime_per_step       = %d secs\n", g.steptime);
-    printf("\tbytes_per_particle  = %d bytes\n", g.psize);
-    printf("\tnum particles       = %d\n", g.nps);
-    printf("\tnum_dumps  = %d\n", g.ndumps);
-    printf("\tnum_steps  = %d\n", g.nsteps);
-    printf("\ttimeout    = %d secs\n", g.timeout);
+    printf("== VPIC options:\n");
+    printf(" > MPI_rank   = %d\n", myrank);
+    printf(" > MPI_size   = %d\n", g.size);
+    printf(" > deck       = %s\n", g.deck);
+    printf(" > deckid     = %s\n", g.deckid);
+    printf(" > @p         = [ %d x %d x %d ]\n", g.p[0], g.p[1], g.p[2]);
+    printf(" > @t         = [ %d x %d x %d ]\n", g.t[0], g.t[1], g.t[2]);
+    printf(" > output_dir = %s\n", g.pdir);
+    printf(" > time_per_step       = %.3f secs\n", g.steptime);
+    printf(" > bytes_per_particle  = %d bytes\n", g.psize);
+    printf(" > num particles       = %d per rank\n", g.nps);
+    printf(" > num_dumps  = %d\n", g.ndumps);
+    printf(" > num_steps  = %d\n", g.nsteps);
+    printf(" > timeout    = %d secs\n", g.timeout);
     printf("\n");
   }
 
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
-  if (myrank == 0) printf("<VPIC> Starting ...\n");
+  if (myrank == 0) printf("== VPIC Starting ...\n");
 
   pdata = (char*)malloc(g.psize);
   if (!pdata) complain(EXIT_FAILURE, 0, "malloc pdata failed");
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
-  if (myrank == 0) printf("<VPIC> Exiting...\n");
+  if (myrank == 0) printf("== VPIC Exiting...\n");
   free(pdata);
 
   MPI_Finalize();
@@ -286,9 +286,9 @@ static void run_vpic_app() {
   }
   for (int epoch = 0; epoch < g.ndumps; epoch++) {
     MPI_Barrier(MPI_COMM_WORLD);
-    if (myrank == 0) printf("<VPIC> Epoch %d ...\n", epoch);
+    if (myrank == 0) printf("== VPIC Epoch %d ...\n", epoch);
     int steps = g.nsteps / g.ndumps;  // vpic timesteps per epoch
-    sleep(g.steptime * steps);
+    usleep(int(g.steptime * steps * 1000 * 1000));
     do_dump();
   }
 }
