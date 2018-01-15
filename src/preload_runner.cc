@@ -103,13 +103,17 @@ static void complain(int ret, int r0only, const char* format, ...) {
 static struct gs {
   char pdir[128]; /* particle dirname */
   /* note: MPI rank stored in global "myrank" */
-  int size;     /* world size (from MPI) */
-  int steptime; /* computation time per vpic timestep (sec) */
-  int nsteps;   /* total vpic timesteps to execute */
-  int ndumps;   /* total dumps to perform */
-  int psz;      /* total state per vpic particle (bytes) */
-  int nps;      /* number of particles per rank */
-  int timeout;  /* alarm timeout */
+  int size;           /* world size (from MPI) */
+  int steptime;       /* computation time per vpic timestep (sec) */
+  int p[3];           /* particles on x,y,z dimension */
+  int t[3];           /* topology on x,y,z dimension  */
+  const char* deckid; /* vpic deck id (vpic app name) */
+  const char* deck;   /* vpic deck (run time) */
+  int nsteps;         /* total vpic timesteps to execute */
+  int ndumps;         /* total dumps to perform */
+  int psize;          /* total state per vpic particle (bytes) */
+  int nps;            /* number of particles per rank */
+  int timeout;        /* alarm timeout */
 } g;
 
 /*
@@ -130,11 +134,15 @@ static void usage(const char* msg) {
   if (myrank) goto skip_prints;
 
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
-  fprintf(stderr, "usage: %s [options] particle-dir\n", argv0);
+  fprintf(stderr,
+          "usage: %s [options] [deck deck_id px py pz tx ty tz"
+          "num_dumps num_steps]\n",
+          argv0);
   fprintf(stderr, "\noptions:\n");
   fprintf(stderr, "\t-b bytes    bytes for each particle\n");
   fprintf(stderr, "\t-c count    number of particles to simulate per rank\n");
   fprintf(stderr, "\t-d dump     number of frame dumps\n");
+  fprintf(stderr, "\t-o output   particle output dir (can be relative)\n");
   fprintf(stderr, "\t-s step     number of steps to perform\n");
   fprintf(stderr, "\t-T time     step time in seconds\n");
   fprintf(stderr, "\t-t sec      timeout (alarm), in seconds\n");
@@ -154,7 +162,7 @@ static void do_dump();
  * main program.
  */
 int main(int argc, char* argv[]) {
-  int rv, ch;
+  int ch;
 
   argv0 = argv[0];
 
@@ -172,18 +180,23 @@ int main(int argc, char* argv[]) {
     complain(EXIT_FAILURE, 0, "unable to get MPI rank");
   if (MPI_Comm_size(MPI_COMM_WORLD, &g.size) != MPI_SUCCESS)
     complain(EXIT_FAILURE, 0, "unable to get MPI size");
+
+  strcpy(g.pdir, "particle");
+  g.p[0] = g.p[1] = g.p[2] = g.t[0] = g.t[1] = g.t[2] = -1;
+  g.deckid = g.deck = "unknown";
+
   g.steptime = DEF_STEPTIME;
   g.nsteps = DEF_NSTEPS;
   g.ndumps = DEF_NDUMPS;
-  g.psz = DEF_PARTICLESIZE;
+  g.psize = DEF_PARTICLESIZE;
   g.nps = DEF_NPARTICLES;
   g.timeout = DEF_TIMEOUT;
 
-  while ((ch = getopt(argc, argv, "b:c:d:s:T:t:")) != -1) {
+  while ((ch = getopt(argc, argv, "b:c:d:o:s:T:t:")) != -1) {
     switch (ch) {
       case 'b':
-        g.psz = atoi(optarg);
-        if (g.psz < 0) usage("bad particle bytes");
+        g.psize = atoi(optarg);
+        if (g.psize < 0) usage("bad particle bytes");
         break;
       case 'c':
         g.nps = atoi(optarg);
@@ -192,6 +205,9 @@ int main(int argc, char* argv[]) {
       case 'd':
         g.ndumps = atoi(optarg);
         if (g.ndumps < 0) usage("bad num dumps");
+        break;
+      case 'o':
+        strncpy(g.pdir, optarg, sizeof(g.pdir));
         break;
       case 's':
         g.nsteps = atoi(optarg);
@@ -212,18 +228,35 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
-  if (argc != 1) usage("bad args");
-  strcpy(g.pdir, argv[0]);
+  if (argc > 0) g.deck = argv[0];
+  if (argc > 1) g.deckid = argv[1];
+  if (argc > 2) g.p[0] = atoi(argv[2]);
+  if (argc > 3) g.p[1] = atoi(argv[3]);
+  if (argc > 4) g.p[2] = atoi(argv[4]);
+  if (argc > 5) g.t[0] = atoi(argv[5]);
+  if (argc > 6) g.t[1] = atoi(argv[6]);
+  if (argc > 7) g.t[2] = atoi(argv[7]);
+  if (argc > 8) g.ndumps = atoi(argv[8]);
+  if (argc > 9) g.nsteps = atoi(argv[9]);
+
+  if (g.p[0] != -1 && g.p[1] != -1 && g.p[2] != -1) {
+    g.nps = 100LL * g.p[0] * g.p[1] * g.p[2] / g.size;
+  }
 
   if (myrank == 0) {
     printf("\n%s options:\n", argv0);
     printf("\tMPI_rank   = %d\n", myrank);
     printf("\tMPI_size   = %d\n", g.size);
-    printf("\tbytes_per_particle  = %d bytes\n", g.psz);
+    printf("\tdeck       = %s\n", g.deck);
+    printf("\tdeckid     = %s\n", g.deckid);
+    printf("\t@p         = [ %d x %d x %d ]\n", g.p[0], g.p[1], g.p[2]);
+    printf("\t@t         = [ %d x %d x %d ]\n", g.t[0], g.t[1], g.t[2]);
+    printf("\toutput_dir = %s\n", g.pdir);
+    printf("\ttime_per_step       = %d secs\n", g.steptime);
+    printf("\tbytes_per_particle  = %d bytes\n", g.psize);
     printf("\tnum particles       = %d\n", g.nps);
     printf("\tnum_dumps  = %d\n", g.ndumps);
     printf("\tnum_steps  = %d\n", g.nsteps);
-    printf("\tsteptime   = %d secs\n", g.steptime);
     printf("\ttimeout    = %d secs\n", g.timeout);
     printf("\n");
   }
@@ -232,7 +265,7 @@ int main(int argc, char* argv[]) {
   alarm(g.timeout);
   if (myrank == 0) printf("<VPIC> Starting ...\n");
 
-  pdata = (char*)malloc(g.psz);
+  pdata = (char*)malloc(g.psize);
   if (!pdata) complain(EXIT_FAILURE, 0, "malloc pdata failed");
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
@@ -273,7 +306,7 @@ static void do_dump() {
     if (!file) {
       complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     }
-    fwrite(pdata, g.psz, 1, file);
+    fwrite(pdata, g.psize, 1, file);
     fclose(file);
   }
   closedir(dir);
