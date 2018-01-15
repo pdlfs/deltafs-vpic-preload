@@ -228,6 +228,8 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
+  /* all other args are optional, but are honored
+   * when they are set */
   if (argc > 0) g.deck = argv[0];
   if (argc > 1) g.deckid = argv[1];
   if (argc > 2) g.p[0] = atoi(argv[2]);
@@ -287,7 +289,7 @@ static void run_vpic_app() {
   for (int epoch = 0; epoch < g.ndumps; epoch++) {
     MPI_Barrier(MPI_COMM_WORLD);
     if (myrank == 0) printf("== VPIC Epoch %d ...\n", epoch);
-    int steps = g.nsteps / g.ndumps;  // vpic timesteps per epoch
+    int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
     do_dump();
   }
