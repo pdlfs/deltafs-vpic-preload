@@ -135,7 +135,7 @@ static void usage(const char* msg) {
 
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
   fprintf(stderr,
-          "usage: %s [options] [deck deck_id px py pz tx ty tz"
+          "usage: %s [options] [deck deck_id px py pz tx ty tz "
           "num_dumps num_steps]\n",
           argv0);
   fprintf(stderr, "\noptions:\n");
@@ -229,7 +229,7 @@ int main(int argc, char* argv[]) {
   argv += optind;
 
   /* all other args are optional, but are honored
-   * when they are set */
+   * when they are set, and override previous settings */
   if (argc > 0) g.deck = argv[0];
   if (argc > 1) g.deckid = argv[1];
   if (argc > 2) g.p[0] = atoi(argv[2]);
