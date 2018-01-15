@@ -256,7 +256,12 @@ int main(int argc, char* argv[]) {
     printf(" > output_dir = %s\n", g.pdir);
     printf(" > time_per_step       = %.3f secs\n", g.steptime);
     printf(" > bytes_per_particle  = %d bytes\n", g.psize);
-    printf(" > num particles       = %d per rank\n", g.nps);
+    if (g.nps > 1000000)
+      printf(" > num particles       = %d M per rank\n", g.nps / 1000000);
+    else if (g.nps > 1000)
+      printf(" > num particles       = %d K per rank\n", g.nps / 1000);
+    else
+      printf(" > num particles       = %d per rank\n", g.nps);
     printf(" > num_dumps  = %d\n", g.ndumps);
     printf(" > num_steps  = %d\n", g.nsteps);
     printf(" > timeout    = %d secs\n", g.timeout);
@@ -288,7 +293,7 @@ static void run_vpic_app() {
   }
   for (int epoch = 0; epoch < g.ndumps; epoch++) {
     MPI_Barrier(MPI_COMM_WORLD);
-    if (myrank == 0) printf("== VPIC Epoch %d ...\n", epoch);
+    if (myrank == 0) printf("== VPIC Epoch %d ...\n", epoch + 1);
     int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
     do_dump();
