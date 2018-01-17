@@ -60,10 +60,13 @@ static pthread_mutex_t preload_mtx = PTHREAD_MUTEX_INITIALIZER;
 /* mutex to synchronize writes */
 static pthread_mutex_t write_mtx = PTHREAD_MUTEX_INITIALIZER;
 
+/* number of pthread created */
+static int num_pthreads = 0;
+
 /* number of MPI barriers invoked by app */
 static int num_barriers = 0;
 
-/* number of epoches generated */
+/* number of epochs generated */
 static int num_epochs = 0;
 
 /*
@@ -74,11 +77,13 @@ static int fake_dirptr = 0;
 /*
  * next_functions: libc replacement functions we are providing to the preloader.
  */
-struct next_functions {
+static struct next_functions {
   /* functions we need */
   int (*MPI_Init)(int* argc, char*** argv);
   int (*MPI_Finalize)(void);
   int (*MPI_Barrier)(MPI_Comm comm);
+  int (*pthread_create)(pthread_t* thread, const pthread_attr_t* attr,
+                        void* (*)(void*), void* arg);
   int (*chdir)(const char* path);
   int (*mkdir)(const char* path, mode_t mode);
   DIR* (*opendir)(const char* filename);
@@ -95,9 +100,7 @@ struct next_functions {
   size_t (*fread)(void* ptr, size_t size, size_t nitems, FILE* stream);
   int (*fseek)(FILE* stream, long offset, int whence);
   long (*ftell)(FILE* stream);
-};
-
-static struct next_functions nxt = {0};
+} nxt = {0};
 
 /*
  * this once is used to trigger the init of the preload library...
@@ -122,6 +125,8 @@ static void preload_init() {
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.MPI_Finalize),
                     "MPI_Finalize");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.MPI_Barrier), "MPI_Barrier");
+  must_getnextdlsym(reinterpret_cast<void**>(&nxt.pthread_create),
+                    "pthread_create");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.chdir), "chdir");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.mkdir), "mkdir");
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.opendir), "opendir");
@@ -1133,7 +1138,7 @@ int MPI_Finalize(void) {
                timeinfo.tm_hour,         // hh
                timeinfo.tm_min,          // mm
                timeinfo.tm_sec           // ss
-               );
+      );
       snprintf(path, sizeof(path), "%s/TIMESTAMP-%s", pctx.log_home, suffix);
       n = mknod(path, 0644, S_IFREG);
       errno = 0;
@@ -1472,10 +1477,9 @@ int MPI_Finalize(void) {
                            pretty_num(double(glob.dir_stat.num_sstables) /
                                       pctx.comm_sz)
                                .c_str(),
-                           pctx.plfsparts
-                               ? double(glob.dir_stat.num_sstables) /
-                                     pctx.comm_sz / pctx.plfsparts
-                               : 0);
+                           pctx.plfsparts ? double(glob.dir_stat.num_sstables) /
+                                                pctx.comm_sz / pctx.plfsparts
+                                          : 0);
                   INFO(msg);
                 }
                 if (glob.dir_stat.num_keys != 0) {
@@ -1890,9 +1894,10 @@ int closedir(DIR* dirp) {
     pctx.mctx.cpu_stat.ics = static_cast<unsigned long long>(
         tmp_usage.ru_nivcsw - pctx.last_sys_usage.ru_nivcsw);
 
-    cpu = 100 * double(pctx.mctx.cpu_stat.sys_micros +
-                       pctx.mctx.cpu_stat.usr_micros) /
-          pctx.mctx.cpu_stat.micros;
+    cpu =
+        100 *
+        double(pctx.mctx.cpu_stat.sys_micros + pctx.mctx.cpu_stat.usr_micros) /
+        pctx.mctx.cpu_stat.micros;
 
     pctx.mctx.cpu_stat.min_cpu = int(floor(cpu));
     pctx.mctx.cpu_stat.max_cpu = int(ceil(cpu));
@@ -2118,6 +2123,41 @@ int fclose(FILE* stream) {
     delete ff;
   }
   pthread_mtx_unlock(&preload_mtx);
+
+  return rv;
+}
+
+struct pthread_start_state {
+  void* (*start_routine)(void*);
+  void* start_arg;
+};
+
+static void* pthread_start(void* arg) {
+  void* rv;
+
+  struct pthread_start_state* st =
+      reinterpret_cast<struct pthread_start_state*>(arg);
+  rv = st->start_routine(st->start_arg);
+
+  free(arg);
+
+  return rv;
+}
+
+/*
+ * pthread_create: here we do the thread counting.
+ */
+int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
+                   void* (*start_routine)(void*), void* arg) {
+  int rv;
+
+  struct pthread_start_state* st = static_cast<struct pthread_start_state*>(
+      malloc(sizeof(struct pthread_start_state)));
+  st->start_routine = start_routine;
+  st->start_arg = arg;
+
+  rv = nxt.pthread_create(thread, attr, pthread_start, st);
+  num_pthreads++;
 
   return rv;
 }

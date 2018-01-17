@@ -31,6 +31,7 @@
 #pragma once
 
 #include <mpi.h>
+#include <pthread.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 
