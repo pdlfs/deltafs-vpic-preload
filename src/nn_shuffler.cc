@@ -106,6 +106,43 @@ static int cb_flags[MAX_OUTSTANDING_RPC] = {0};
 static int cb_allowed = 1; /* soft limit */
 static int cb_left = 1;
 
+/* per-thread rusage */
+typedef struct rpcu {
+  struct timeval t0, t1;
+  struct rusage r0, r1;
+} rpcu_t;
+/* 0:ALL, 1:main, 2:looper, 3:worker */
+static rpcu_t rpcus[4] = {0};
+
+static void rpcu_summary(nn_rusage_t* r, const char* tag, rpcu_t* u) {
+  uint64_t m0, m1, u0, u1, s0, s1;
+  strncpy(r->tag, tag, sizeof(r->tag));
+
+  u0 = timeval_to_micros(&u->r0.ru_utime);
+  u1 = timeval_to_micros(&u->r1.ru_utime);
+  r->usr_micros = u1 - u0;
+
+  s0 = timeval_to_micros(&u->r0.ru_stime);
+  s1 = timeval_to_micros(&u->r1.ru_stime);
+  r->sys_micros = s1 - s0;
+
+  m0 = timeval_to_micros(&u->t0);
+  m1 = timeval_to_micros(&u->t1);
+  r->micros = m1 - m0;
+}
+
+static void rpcu_start(int who, rpcu_t* u) {
+  if (gettimeofday(&u->t0, NULL) != 0 || getrusage(who, &u->r0) != 0) {
+    abort();
+  }
+}
+
+static void rpcu_end(int who, rpcu_t* u) {
+  if (gettimeofday(&u->t1, NULL) != 0 || getrusage(who, &u->r1) != 0) {
+    abort();
+  }
+}
+
 #if defined(__x86_64__) && defined(__GNUC__)
 static inline int is_shuttingdown() {
   int r = shutting_down;
@@ -251,6 +288,10 @@ static void* rpc_work(void* arg) {
   max_items = 0;
   sum_items = 0;
 
+#if defined(__linux)
+  rpcu_start(RUSAGE_THREAD, &rpcus[3]);
+#endif
+
   while (true) {
     todo.clear();
     pthread_mtx_lock(&mtx[wk_cv]);
@@ -313,6 +354,9 @@ static void* rpc_work(void* arg) {
     }
   }
 
+#if defined(__linux)
+  rpcu_end(RUSAGE_THREAD, &rpcus[3]);
+#endif
   pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_wk > 0);
   num_wk--;
@@ -1124,6 +1168,9 @@ static void* bg_work(void* foo) {
 
   /* the last time we do mercury progress */
   last_progress = 0;
+#if defined(__linux)
+  rpcu_start(RUSAGE_THREAD, &rpcus[2]);
+#endif
 
   while (true) {
     do {
@@ -1171,6 +1218,9 @@ static void* bg_work(void* foo) {
     }
   }
 
+#if defined(__linux)
+  rpcu_end(RUSAGE_THREAD, &rpcus[2]);
+#endif
   pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_bg > 0);
   num_bg--;
@@ -1387,6 +1437,11 @@ void nn_shuffler_init() {
       WARN("async rpc disabled");
     }
   }
+
+  rpcu_start(RUSAGE_SELF, &rpcus[0]);
+#if defined(__linux)
+  rpcu_start(RUSAGE_THREAD, &rpcus[1]);
+#endif
 }
 
 /* nn_shuffler_world_size: return comm world size */
@@ -1418,6 +1473,16 @@ void nn_shuffler_destroy() {
     pthread_cv_wait(&cv[bg_cv], &mtx[bg_cv]);
   }
   pthread_mtx_unlock(&mtx[bg_cv]);
+
+#if defined(__linux)
+  rpcu_end(RUSAGE_THREAD, &rpcus[1]);
+#endif
+  rpcu_end(RUSAGE_SELF, &rpcus[0]);
+
+  rpcu_summary(&nnctx.r[0], "A", &rpcus[0]);
+  rpcu_summary(&nnctx.r[1], "M", &rpcus[1]);
+  rpcu_summary(&nnctx.r[2], "L", &rpcus[2]);
+  rpcu_summary(&nnctx.r[3], "W", &rpcus[3]);
 
   if (rpcqs != NULL) {
     for (i = 0; i < nrpcqs; i++) {

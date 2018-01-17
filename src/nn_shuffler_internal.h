@@ -75,6 +75,18 @@ inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
 }
 
 /*
+ * nn_rusage: cpu usage report.
+ */
+typedef struct nn_rusage {
+  unsigned long long sys_micros; /* sys-level cpu time */
+  unsigned long long usr_micros; /* usr-level cpu time */
+
+  unsigned long long micros; /* real time */
+
+  char tag[16];
+} nn_rusage_t;
+
+/*
  * nn_ctx: state for an nn shuffler.
  */
 typedef struct nn_ctx {
@@ -98,6 +110,9 @@ typedef struct nn_ctx {
 
   /* SSG context */
   ssg_t ssg;
+
+  /* rpc usage */
+  nn_rusage_t r[4];
 
   /* rpc stats */
   unsigned long long total_writes; /* total number of writes shuffled */
