@@ -1081,6 +1081,10 @@ int MPI_Finalize(void) {
   char path[PATH_MAX];
   char suffix[100];
   char msg[200];
+  /* total num of pthreads */
+  int sum_pthreads;
+  /* total num of barriers */
+  int sum_barriers;
   unsigned long long num_writes_min; /* per rank */
   unsigned long long num_writes_max; /* per rank */
   unsigned long long min_writes;
@@ -1090,7 +1094,7 @@ int MPI_Finalize(void) {
   uint64_t finish_start;
   uint64_t finish_end;
   std::string tmp;
-  /* num names sampled: 0 -> total, 1 -> valid */
+  /* num names sampled: 0 -> total, 1 -> total valid */
   unsigned long long num_samples[2]; /* per rank */
   unsigned long long sum_samples[2];
   /* num names dumped */
@@ -1580,6 +1584,20 @@ int MPI_Finalize(void) {
           }
 
           epoch++;
+        }
+
+        /* extra stats */
+        MPI_Reduce(&num_pthreads, &sum_pthreads, 1, MPI_INT, MPI_SUM, 0,
+                   MPI_COMM_WORLD);
+
+        if (pctx.my_rank == 0) {
+          INFO(" @ ALL epochs...");
+          snprintf(msg, sizeof(msg), "   > TOTAL %d pthreads created",
+                   sum_pthreads);
+          INFO(msg);
+          snprintf(msg, sizeof(msg), "       > %.1f per rank",
+                   double(sum_pthreads) / pctx.comm_sz);
+          INFO(msg);
         }
 
         if (pctx.my_rank == 0) {
