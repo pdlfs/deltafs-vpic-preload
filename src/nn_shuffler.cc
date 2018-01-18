@@ -1479,10 +1479,10 @@ void nn_shuffler_destroy() {
 #endif
   rpcu_end(RUSAGE_SELF, &rpcus[0]);
 
-  rpcu_summary(&nnctx.r[0], "A", &rpcus[0]);
-  rpcu_summary(&nnctx.r[1], "M", &rpcus[1]);
-  rpcu_summary(&nnctx.r[2], "L", &rpcus[2]);
-  rpcu_summary(&nnctx.r[3], "W", &rpcus[3]);
+  rpcu_summary(&nnctx.r[0], "<ALL>", &rpcus[0]);
+  rpcu_summary(&nnctx.r[1], "main", &rpcus[1]);
+  rpcu_summary(&nnctx.r[2], "bglooper", &rpcus[2]);
+  rpcu_summary(&nnctx.r[3], "deliv", &rpcus[3]);
 
   if (rpcqs != NULL) {
     for (i = 0; i < nrpcqs; i++) {
