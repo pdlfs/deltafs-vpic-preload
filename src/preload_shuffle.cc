@@ -508,24 +508,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     hstg_t iq_dep;
     nn_shuffler_destroy();
     if (pctx.recv_comm != MPI_COMM_NULL) {
-      memset(&hg_intvl, 0, sizeof(hstg_t));
-      hstg_reset_min(hg_intvl);
-      hstg_reduce(nnctx.hg_intvl, hg_intvl, pctx.recv_comm);
-      if (pctx.my_rank == 0 && hstg_num(hg_intvl) >= 1.0) {
-        INFO("[nn] hg_progress interval ...");
-        snprintf(msg, sizeof(msg),
-                 "  avg: %.0f ms out of %s (min: %.0f ms, max: %.0f ms)",
-                 hstg_avg(hg_intvl), pretty_num(hstg_num(hg_intvl)).c_str(),
-                 hstg_min(hg_intvl), hstg_max(hg_intvl));
-        INFO(msg);
-        for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          snprintf(msg, sizeof(msg), "    - %d%% %.0f ms", p[i],
-                   hstg_ptile(hg_intvl, p[i]));
-          INFO(msg);
-        }
-      }
       if (pctx.my_rank == 0) {
-        INFO("[nn] RECV rusage ...");
+        INFO("[nn] per-thread cpu usage ...");
       }
       for (size_t i = 0; i < 4; i++) {
         MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage[i].usr_micros, 1,
@@ -534,17 +518,30 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                    MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
         if (pctx.my_rank == 0) {
           snprintf(msg, sizeof(msg),
-                   "  %-8s CPU: %s user + %s system (%s total, %s per rank)",
+                   "  %-8s CPU: %s user + %s system (%s total per rank)",
                    nnctx.r[i].tag,
                    pretty_dura(total_rusage[i].usr_micros).c_str(),
                    pretty_dura(total_rusage[i].sys_micros).c_str(),
-                   pretty_dura(total_rusage[i].usr_micros +
-                               total_rusage[i].sys_micros)
-                       .c_str(),
                    pretty_dura(double(total_rusage[i].usr_micros +
                                       total_rusage[i].sys_micros) /
                                pctx.recv_sz)
                        .c_str());
+          INFO(msg);
+        }
+      }
+      memset(&hg_intvl, 0, sizeof(hstg_t));
+      hstg_reset_min(hg_intvl);
+      hstg_reduce(nnctx.hg_intvl, hg_intvl, pctx.recv_comm);
+      if (pctx.my_rank == 0 && hstg_num(hg_intvl) >= 1.0) {
+        INFO("[nn] hg_progress interval ... (ms)");
+        snprintf(msg, sizeof(msg),
+                 "  avg: %.0f out of %s (min: %.0f, max: %.0f)",
+                 hstg_avg(hg_intvl), pretty_num(hstg_num(hg_intvl)).c_str(),
+                 hstg_min(hg_intvl), hstg_max(hg_intvl));
+        INFO(msg);
+        for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
+          snprintf(msg, sizeof(msg), "    - %d%% %.0f", p[i],
+                   hstg_ptile(hg_intvl, p[i]));
           INFO(msg);
         }
       }
@@ -565,12 +562,12 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         INFO(msg);
         INFO("[nn] rpc incoming queue depth ...");
         snprintf(msg, sizeof(msg),
-                 "  avg: %.3f out of %s (min: %.3f, max: %.3f)",
+                 "  avg: %.3f out of %s (min: %.0f, max: %.0f)",
                  hstg_avg(iq_dep), pretty_num(hstg_num(iq_dep)).c_str(),
                  hstg_min(iq_dep), hstg_max(iq_dep));
         INFO(msg);
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          snprintf(msg, sizeof(msg), "    - %d%% %.3f", p[i],
+          snprintf(msg, sizeof(msg), "    - %d%% %.2f", p[i],
                    hstg_ptile(iq_dep, p[i]));
           INFO(msg);
         }
