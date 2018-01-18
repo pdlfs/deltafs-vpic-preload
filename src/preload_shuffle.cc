@@ -510,8 +510,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     if (pctx.recv_comm != MPI_COMM_NULL) {
       if (pctx.my_rank == 0) {
         INFO("[nn] per-thread cpu usage ... (s)");
-        snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s", "USR",
-                 "SYS", "TOTAL_per_rank");
+        snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
+                 "USR_per_rank", "SYS_per_rank", "TOTAL_per_rank");
         INFO(msg);
       }
       for (size_t i = 0; i < 4; i++) {
@@ -522,8 +522,9 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         if (pctx.my_rank == 0) {
           snprintf(
               msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
-              nnctx.r[i].tag, double(total_rusage[i].usr_micros) / 1000000,
-              double(total_rusage[i].sys_micros / 1000000),
+              nnctx.r[i].tag,
+              double(total_rusage[i].usr_micros) / 1000000 / pctx.recv_sz,
+              double(total_rusage[i].sys_micros) / 1000000 / pctx.recv_sz,
               double(total_rusage[i].usr_micros + total_rusage[i].sys_micros) /
                   1000000 / pctx.recv_sz);
           INFO(msg);
