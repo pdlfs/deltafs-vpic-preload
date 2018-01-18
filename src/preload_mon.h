@@ -35,12 +35,6 @@
 
 #include <deltafs/deltafs_api.h>
 
-#ifdef PRELOAD_NEED_HISTO
-/* compact histogram: the first four are num. max, min, and sum. */
-#define MON_NUM_BUCKETS 142
-typedef double(hstg_t)[MON_NUM_BUCKETS + 4];
-#endif
-
 /* statistics for an opened plfsdir */
 typedef struct dir_stat {
   long long min_num_keys; /* min number of keys inserted per rank */
