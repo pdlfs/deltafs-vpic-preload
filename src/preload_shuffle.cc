@@ -500,6 +500,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     ctx->rep = NULL;
     free(rep);
   } else {
+    hstg_t hg_intvl;
+    int p[] = {10, 30, 50, 70, 90, 95, 96, 97, 98, 99};
     nn_rusage_t total_rusage[4];
     unsigned long long total_writes;
     unsigned long long total_msgsz;
@@ -511,8 +513,24 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     int max_minqsz;
     nn_shuffler_destroy();
     if (pctx.recv_comm != MPI_COMM_NULL) {
+      memset(&hg_intvl, 0, sizeof(hstg_t));
+      hstg_reset_min(hg_intvl);
+      hstg_reduce(nnctx.hg_intvl, hg_intvl, pctx.recv_comm);
+      if (pctx.my_rank == 0 && hstg_num(hg_intvl) >= 1.0) {
+        INFO("[nn] hg_progress interval ...");
+        snprintf(msg, sizeof(msg),
+                 "  avg: %.0f ms out of %s (min: %.0f ms, max: %.0f ms)",
+                 hstg_avg(hg_intvl), pretty_num(hstg_num(hg_intvl)).c_str(),
+                 hstg_min(hg_intvl), hstg_max(hg_intvl));
+        INFO(msg);
+        for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
+          snprintf(msg, sizeof(msg), "    - %d%% %.0f ms", p[i],
+                   hstg_ptile(hg_intvl, p[i]));
+          INFO(msg);
+        }
+      }
       if (pctx.my_rank == 0) {
-        INFO("[rpc] RECV rusage ...");
+        INFO("[nn] RECV rusage ...");
       }
       for (size_t i = 0; i < 4; i++) {
         MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage[i].usr_micros, 1,
@@ -555,13 +573,13 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       if (pctx.my_rank == 0 && nps != 0) {
         snprintf(
             msg, sizeof(msg),
-            "[rpc] avg rpc size: %s (%s writes per rpc, %s per write)",
+            "[nn] avg rpc size: %s (%s writes per rpc, %s per write)",
             pretty_size(double(total_msgsz) / accqsz).c_str(),
             pretty_num(double(total_writes) / accqsz).c_str(),
             pretty_size(double(total_msgsz) / double(total_writes)).c_str());
         INFO(msg);
         snprintf(msg, sizeof(msg),
-                 "[rpc] incoming queue depth: %.3f per round\n"
+                 "[nn] incoming queue depth: %.3f per round\n"
                  ">>> max: %d - %d, min: %d - %d",
                  double(accqsz) / nps, min_maxqsz, max_maxqsz, min_minqsz,
                  max_minqsz);

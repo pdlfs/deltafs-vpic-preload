@@ -49,6 +49,7 @@
 #include "preload_internal.h"
 #include "preload_shuffle.h"
 
+#include "hstg.h"
 /*
  * The max allowed size for a single rpc message.
  */
@@ -96,6 +97,9 @@ typedef struct nn_ctx {
   hg_class_t* hg_clz;
   hg_context_t* hg_ctx;
   hg_id_t hg_id;
+
+  /* hg_progress intervals */
+  hstg_t hg_intvl;
 
   /* hg_timeouts (in ms) */
   int hg_max_interval;

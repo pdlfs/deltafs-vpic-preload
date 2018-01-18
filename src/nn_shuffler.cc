@@ -1151,6 +1151,7 @@ void nn_shuffler_flushq() {
 static void* bg_work(void* foo) {
   hg_return_t hret;
   unsigned int actual_count;
+  uint64_t intvl;
   uint64_t last_progress;
   uint64_t now;
   int s;
@@ -1168,6 +1169,7 @@ static void* bg_work(void* foo) {
 
   /* the last time we do mercury progress */
   last_progress = 0;
+  hstg_reset_min(nnctx.hg_intvl);
 #if defined(__linux)
   rpcu_start(RUSAGE_THREAD, &rpcus[2]);
 #endif
@@ -1181,11 +1183,16 @@ static void* bg_work(void* foo) {
     }
     s = is_shuttingdown();
     if (s == 0) {
-      now = now_micros_coarse() / 1000;
-      if (last_progress != 0 && now - last_progress > nnctx.hg_max_interval) {
-        LOG(LOG_SINK, 0,
-            "!! [%s] (rank %d) calling HG_Progress() with high interval: %d ms",
-            nnctx.my_uname.nodename, pctx.my_rank, int(now - last_progress));
+      now = now_micros_coarse() / 1000; /* ms */
+      if (last_progress != 0) {
+        intvl = now - last_progress;
+        hstg_add(nnctx.hg_intvl, intvl);
+        if (intvl > nnctx.hg_max_interval) {
+          LOG(LOG_SINK, 0,
+              "!! [%s] (rank %d) calling HG_Progress() with high interval: %d "
+              "ms",
+              nnctx.my_uname.nodename, pctx.my_rank, int(intvl));
+        }
       }
       last_progress = now;
       hret = HG_Progress(nnctx.hg_ctx, unsigned(nnctx.hg_timeout));

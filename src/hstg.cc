@@ -56,18 +56,18 @@ void hstg_reset_min(hstg_t& h) {
   h[2] = BUCKET_LIMITS[MON_NUM_BUCKETS - 1]; /* min */
 }
 
-void hstg_reduce(const hstg_t& src, hstg_t& sum) {
+void hstg_reduce(const hstg_t& src, hstg_t& sum, MPI_Comm comm) {
   MPI_Reduce(const_cast<double*>(&src[0]), &sum[0], 1, MPI_DOUBLE, MPI_SUM, 0,
-             MPI_COMM_WORLD);
+             comm);
   MPI_Reduce(const_cast<double*>(&src[1]), &sum[1], 1, MPI_DOUBLE, MPI_MAX, 0,
-             MPI_COMM_WORLD);
+             comm);
   MPI_Reduce(const_cast<double*>(&src[2]), &sum[2], 1, MPI_DOUBLE, MPI_MIN, 0,
-             MPI_COMM_WORLD);
+             comm);
   MPI_Reduce(const_cast<double*>(&src[3]), &sum[3], 1, MPI_DOUBLE, MPI_SUM, 0,
-             MPI_COMM_WORLD);
+             comm);
 
   MPI_Reduce(const_cast<double*>(&src[4]), &sum[4], MON_NUM_BUCKETS, MPI_DOUBLE,
-             MPI_SUM, 0, MPI_COMM_WORLD);
+             MPI_SUM, 0, comm);
 }
 
 void hstg_add(hstg_t& h, double d) {
@@ -104,9 +104,13 @@ double hstg_ptile(const hstg_t& h, double p) {
   return h[1]; /* max */
 }
 
+double hstg_num(const hstg_t& h) { return h[0]; }
+
 double hstg_max(const hstg_t& h) { return h[1]; }
 
 double hstg_min(const hstg_t& h) { return h[2]; }
+
+double hstg_sum(const hstg_t& h) { return h[3]; }
 
 double hstg_avg(const hstg_t& h) {
   if (h[0] < 1.0) return (0);

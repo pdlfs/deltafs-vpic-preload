@@ -30,15 +30,20 @@
 
 #pragma once
 
+#include <mpi.h>
+
 /* compact histogram: the first four are num. max, min, and sum. */
 #define MON_NUM_BUCKETS 142
 typedef double(hstg_t)[MON_NUM_BUCKETS + 4];
 
 /* histogram api */
-void hstg_reduce(const hstg_t& src, hstg_t& sum);
+void hstg_reset_min(hstg_t& h);
+void hstg_reduce(const hstg_t& src, hstg_t& sum, MPI_Comm);
 void hstg_add(hstg_t& h, double d);
 
 double hstg_ptile(const hstg_t& h, double p);
+double hstg_num(const hstg_t& h);
 double hstg_max(const hstg_t& h);
 double hstg_min(const hstg_t& h);
 double hstg_avg(const hstg_t& h);
+double hstg_sum(const hstg_t& h);
