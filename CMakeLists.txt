@@ -70,7 +70,6 @@ xpkg_import_module (ssg REQUIRED ssg)
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
 
 add_subdirectory (src)
-add_subdirectory (tests)
 if (BUILD_TOOLS)
     add_subdirectory (tools)
 endif ()
