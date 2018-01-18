@@ -254,13 +254,9 @@ static void* rpc_work(void* arg) {
   write_info info;
   size_t total_writes; /* total individual writes processed */
   size_t total_bytes;  /* total rpc msg size */
-  size_t num_loops;
-  size_t num_items;
   std::vector<void*> todo;
-  std::vector<void*>::size_type sum_items; /* total num of rpc msgs handled */
-  std::vector<void*>::size_type max_items; /* max per loop */
-  std::vector<void*>::size_type min_items; /* min per loop */
   std::vector<void*>::iterator it;
+  size_t num_items;
   hg_return_t hret;
   hg_handle_t h;
   int s;
@@ -270,7 +266,8 @@ static void* rpc_work(void* arg) {
 #endif
 
   total_writes = total_bytes = 0;
-  num_items = num_loops = 0;
+  hstg_reset_min(nnctx.iq_dep);
+  num_items = 0;
 
   /*
    * mercury by default will only pull at most 256 incoming requests from the
@@ -284,9 +281,6 @@ static void* rpc_work(void* arg) {
     INFO(msg);
   }
 #endif
-  min_items = INT32_MAX;
-  max_items = 0;
-  sum_items = 0;
 
 #if defined(__linux)
   rpcu_start(RUSAGE_THREAD, &rpcus[3]);
@@ -311,12 +305,7 @@ static void* rpc_work(void* arg) {
       pthread_mtx_unlock(&mtx[wk_cv]);
       if (!todo.empty()) {
         num_items = todo.size();
-        num_loops++;
-
-        min_items = std::min(todo.size(), min_items);
-        max_items = std::max(todo.size(), max_items);
-        sum_items += num_items;
-
+        hstg_add(nnctx.iq_dep, num_items);
         for (it = todo.begin(); it != todo.end(); ++it) {
           h = static_cast<hg_handle_t>(*it);
           if (h != NULL) {
@@ -365,11 +354,6 @@ static void* rpc_work(void* arg) {
 
   nnctx.total_writes = total_writes;
   nnctx.total_msgsz = total_bytes;
-
-  nnctx.accqsz = sum_items;
-  nnctx.minqsz = int(min_items);
-  nnctx.maxqsz = int(max_items);
-  nnctx.nps = num_loops;
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "[bg] rpc worker down (rank %d)", pctx.my_rank);

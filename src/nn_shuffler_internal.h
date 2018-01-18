@@ -123,11 +123,7 @@ typedef struct nn_ctx {
   unsigned long long total_msgsz;  /* total rpc msg size */
 
   /* rpc incoming queue depth */
-  unsigned long long accqsz; /* accumulated queue size */
-  unsigned long long nps;    /* total number of queue passes */
-
-  int minqsz; /* min queue size */
-  int maxqsz; /* max queue size */
+  hstg_t iq_dep;
 
 } nn_ctx_t;
 

@@ -505,12 +505,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     nn_rusage_t total_rusage[4];
     unsigned long long total_writes;
     unsigned long long total_msgsz;
-    unsigned long long accqsz;
-    unsigned long long nps;
-    int min_maxqsz;
-    int max_maxqsz;
-    int min_minqsz;
-    int max_minqsz;
+    hstg_t iq_dep;
     nn_shuffler_destroy();
     if (pctx.recv_comm != MPI_COMM_NULL) {
       memset(&hg_intvl, 0, sizeof(hstg_t));
@@ -553,37 +548,32 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
           INFO(msg);
         }
       }
-
+      memset(&iq_dep, 0, sizeof(hstg_t));
+      hstg_reset_min(iq_dep);
+      hstg_reduce(nnctx.iq_dep, iq_dep, pctx.recv_comm);
       MPI_Reduce(&nnctx.total_writes, &total_writes, 1, MPI_UNSIGNED_LONG_LONG,
                  MPI_SUM, 0, pctx.recv_comm);
       MPI_Reduce(&nnctx.total_msgsz, &total_msgsz, 1, MPI_UNSIGNED_LONG_LONG,
                  MPI_SUM, 0, pctx.recv_comm);
-      MPI_Reduce(&nnctx.accqsz, &accqsz, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-                 pctx.recv_comm);
-      MPI_Reduce(&nnctx.nps, &nps, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-                 pctx.recv_comm);
-      MPI_Reduce(&nnctx.maxqsz, &min_maxqsz, 1, MPI_INT, MPI_MIN, 0,
-                 pctx.recv_comm);
-      MPI_Reduce(&nnctx.maxqsz, &max_maxqsz, 1, MPI_INT, MPI_MAX, 0,
-                 pctx.recv_comm);
-      MPI_Reduce(&nnctx.minqsz, &min_minqsz, 1, MPI_INT, MPI_MIN, 0,
-                 pctx.recv_comm);
-      MPI_Reduce(&nnctx.minqsz, &max_minqsz, 1, MPI_INT, MPI_MAX, 0,
-                 pctx.recv_comm);
-      if (pctx.my_rank == 0 && nps != 0) {
+      if (pctx.my_rank == 0 && hstg_num(iq_dep) >= 1.0) {
         snprintf(
             msg, sizeof(msg),
             "[nn] avg rpc size: %s (%s writes per rpc, %s per write)",
-            pretty_size(double(total_msgsz) / accqsz).c_str(),
-            pretty_num(double(total_writes) / accqsz).c_str(),
+            pretty_size(double(total_msgsz) / hstg_sum(iq_dep)).c_str(),
+            pretty_num(double(total_writes) / hstg_sum(iq_dep)).c_str(),
             pretty_size(double(total_msgsz) / double(total_writes)).c_str());
         INFO(msg);
+        INFO("[nn] rpc incoming queue depth ...");
         snprintf(msg, sizeof(msg),
-                 "[nn] incoming queue depth: %.3f per round\n"
-                 ">>> max: %d - %d, min: %d - %d",
-                 double(accqsz) / nps, min_maxqsz, max_maxqsz, min_minqsz,
-                 max_minqsz);
+                 "  avg: %.3f out of %s (min: %.3f, max: %.3f)",
+                 hstg_avg(iq_dep), pretty_num(hstg_num(iq_dep)).c_str(),
+                 hstg_min(iq_dep), hstg_max(iq_dep));
         INFO(msg);
+        for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
+          snprintf(msg, sizeof(msg), "    - %d%% %.3f", p[i],
+                   hstg_ptile(iq_dep, p[i]));
+          INFO(msg);
+        }
       }
     }
   }
