@@ -503,6 +503,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   } else {
     hstg_t hg_intvl;
     int p[] = {10, 30, 50, 70, 90, 95, 96, 97, 98, 99};
+    double d[] = {99.5,  99.7,   99.9,   99.95,  99.97,
+                  99.99, 99.995, 99.997, 99.999, 99.9999};
     nn_rusage_t total_rusage[4];
     unsigned long long total_writes;
     unsigned long long total_msgsz;
@@ -538,13 +540,14 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       if (pctx.my_rank == 0 && hstg_num(hg_intvl) >= 1.0) {
         INFO("[nn] hg_progress interval ... (ms)");
         snprintf(msg, sizeof(msg),
-                 "  avg: %.0f out of %s (min: %.0f, max: %.0f)",
-                 hstg_avg(hg_intvl), pretty_num(hstg_num(hg_intvl)).c_str(),
+                 "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
+                 pretty_num(hstg_num(hg_intvl)).c_str(), hstg_avg(hg_intvl),
                  hstg_min(hg_intvl), hstg_max(hg_intvl));
         INFO(msg);
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          snprintf(msg, sizeof(msg), "    - %d%% %.0f", p[i],
-                   hstg_ptile(hg_intvl, p[i]));
+          snprintf(msg, sizeof(msg), "    - %d%% %-12.2f %.4f%% %.2f", p[i],
+                   hstg_ptile(hg_intvl, p[i]), d[i],
+                   hstg_ptile(hg_intvl, d[i]));
           INFO(msg);
         }
       }
@@ -565,13 +568,13 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         INFO(msg);
         INFO("[nn] rpc incoming queue depth ...");
         snprintf(msg, sizeof(msg),
-                 "  avg: %.3f out of %s (min: %.0f, max: %.0f)",
-                 hstg_avg(iq_dep), pretty_num(hstg_num(iq_dep)).c_str(),
+                 "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
+                 pretty_num(hstg_num(iq_dep)).c_str(), hstg_avg(iq_dep),
                  hstg_min(iq_dep), hstg_max(iq_dep));
         INFO(msg);
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          snprintf(msg, sizeof(msg), "    - %d%% %.2f", p[i],
-                   hstg_ptile(iq_dep, p[i]));
+          snprintf(msg, sizeof(msg), "    - %d%% %-12.2f %.4f%% %.2f", p[i],
+                   hstg_ptile(iq_dep, p[i]), d[i], hstg_ptile(iq_dep, d[i]));
           INFO(msg);
         }
       }
