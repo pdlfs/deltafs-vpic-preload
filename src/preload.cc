@@ -2153,16 +2153,19 @@ int fclose(FILE* stream) {
 int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
                    void* (*start_routine)(void*), void* arg) {
   int rv;
+  char* start;
   const char* tag;
   void* buffer[16];
   char** syms;
 
+  /* obtain the caller stack */
   int nptr = backtrace(buffer, 16);
   syms = backtrace_symbols(buffer, nptr);
   if (syms && 1 < nptr) {
-    tag = syms[1];
+    start = strchr(syms[1], '(');
+    tag = strdup(start ? start : syms[1]);
   } else {
-    tag = "??????????";
+    tag = "???";
   }
 
   rv = pthread_create_tap(thread, attr, start_routine, arg, tag, NULL, NULL,

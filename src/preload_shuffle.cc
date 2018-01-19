@@ -467,6 +467,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_destroy(rep);
+    sleep(2);
 #ifndef NDEBUG
     unsigned long long sum_rpcs[2];
     unsigned long long min_rpcs[2];
@@ -507,6 +508,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     unsigned long long total_msgsz;
     hstg_t iq_dep;
     nn_shuffler_destroy();
+    sleep(2);
     if (pctx.recv_comm != MPI_COMM_NULL) {
       if (pctx.my_rank == 0) {
         INFO("[nn] per-thread cpu usage ... (s)");
