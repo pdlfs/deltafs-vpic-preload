@@ -282,7 +282,7 @@ static void preload_init() {
     }
   }
 
-  tmp = maybe_getenv("PRELOAD_PTHREAD_TAP");
+  tmp = maybe_getenv("PRELOAD_Pthread_tap");
   if (tmp != NULL) {
     pctx.pthread_tap = atoi(tmp);
   }
