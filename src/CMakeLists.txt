@@ -24,7 +24,8 @@ find_package (Threads REQUIRED)
 add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         preload_shuffle.cc nn_shuffler.cc nn_shuffler_internal.cc
         xn_shuffler.cc shuffler/shuffler.cc shuffler/shuf_mlog.cc
-        shuffler/mlog.c shuffler/acnt_wrap.c hstg.cc common.cc)
+        shuffler/mlog.c shuffler/acnt_wrap.c hstg.cc common.cc
+        pthreadtap.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement
         deltafs-nexus Threads::Threads)
@@ -82,7 +83,6 @@ install (TARGETS preload-runner preload-runner-no-deltafs
 #
 
 foreach (tst preload)
-
     add_executable (${tst}-test ${tst}-test.cc)
     add_test (${tst}-single ${CMAKE_CURRENT_SOURCE_DIR}/${tst}-test.sh
             ${CMAKE_BINARY_DIR} 1)

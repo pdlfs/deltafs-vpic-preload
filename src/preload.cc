@@ -32,6 +32,7 @@
 #include <dirent.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <execinfo.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <math.h>
@@ -46,6 +47,7 @@
 
 #include <pdlfs-common/xxhash.h>
 #include "preload_internal.h"
+#include "pthreadtap.h"
 
 /* particle bytes */
 #define PRELOAD_PARTICLE_SIZE 40
@@ -2145,36 +2147,27 @@ int fclose(FILE* stream) {
   return rv;
 }
 
-struct pthread_start_state {
-  void* (*start_routine)(void*);
-  void* start_arg;
-};
-
-static void* pthread_start(void* arg) {
-  void* rv;
-
-  struct pthread_start_state* st =
-      reinterpret_cast<struct pthread_start_state*>(arg);
-  rv = st->start_routine(st->start_arg);
-
-  free(arg);
-
-  return rv;
-}
-
 /*
  * pthread_create: here we do the thread counting.
  */
 int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
                    void* (*start_routine)(void*), void* arg) {
   int rv;
+  const char* tag;
+  void* buffer[16];
+  char** syms;
 
-  struct pthread_start_state* st = static_cast<struct pthread_start_state*>(
-      malloc(sizeof(struct pthread_start_state)));
-  st->start_routine = start_routine;
-  st->start_arg = arg;
+  int nptr = backtrace(buffer, 16);
+  syms = backtrace_symbols(buffer, nptr);
+  if (syms && 1 < nptr) {
+    tag = syms[1];
+  } else {
+    tag = "??????????";
+  }
 
-  rv = nxt.pthread_create(thread, attr, pthread_start, st);
+  rv = pthread_create_tap(thread, attr, start_routine, arg, tag, NULL, NULL,
+                          nxt.pthread_create);
+  if (syms) free(syms);
   num_pthreads++;
 
   return rv;
