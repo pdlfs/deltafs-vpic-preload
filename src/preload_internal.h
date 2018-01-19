@@ -114,6 +114,9 @@ typedef struct preload_ctx {
   int fake_data; /* replace vpic output with fake data - for debug only */
   int noscan;    /* do not probe sys info */
 
+  /* rank# less than this will get tapped */
+  int pthread_tap;
+
   mon_ctx_t mctx; /* mon stats */
 
   /* temporary mon stats */

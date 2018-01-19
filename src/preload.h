@@ -39,6 +39,8 @@
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Log_home
  *    Path to the home directory for log files
+ *  PRELOAD_PTHREAD_TAP
+ *    Rank# less than this will get their rusage tapped
  *  PRELOAD_Ignore_dirs (semicolon separated paths)
  *    Path to a set of directories where file I/O should be ignored
  *  PRELOAD_Bypass_shuffle

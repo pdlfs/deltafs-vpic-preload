@@ -282,6 +282,11 @@ static void preload_init() {
     }
   }
 
+  tmp = maybe_getenv("PRELOAD_PTHREAD_TAP");
+  if (tmp != NULL) {
+    pctx.pthread_tap = atoi(tmp);
+  }
+
   if (is_envset("PRELOAD_Bypass_shuffle")) pctx.mode |= BYPASS_SHUFFLE;
   if (is_envset("PRELOAD_Bypass_placement")) pctx.mode |= BYPASS_PLACEMENT;
 
@@ -2158,21 +2163,25 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
   void* buffer[16];
   char** syms;
 
-  /* obtain the caller stack */
-  int nptr = backtrace(buffer, 16);
-  syms = backtrace_symbols(buffer, nptr);
-  if (syms && 1 < nptr) {
-    start = strchr(syms[1], '(');
-    tag = strdup(start ? start : syms[1]);
+  if (pctx.my_rank >= pctx.pthread_tap) {
+    rv = nxt.pthread_create(thread, attr, start_routine, arg);
   } else {
-    tag = "???";
+    /* obtain the caller stack */
+    int nptr = backtrace(buffer, 16);
+    syms = backtrace_symbols(buffer, nptr);
+    if (syms && 1 < nptr) {
+      start = strchr(syms[1], '(');
+      tag = strdup(start ? start : syms[1]);
+    } else {
+      tag = "???";
+    }
+
+    rv = pthread_create_tap(thread, attr, start_routine, arg, tag, NULL, NULL,
+                            nxt.pthread_create);
+    if (syms) free(syms);
   }
 
-  rv = pthread_create_tap(thread, attr, start_routine, arg, tag, NULL, NULL,
-                          nxt.pthread_create);
-  if (syms) free(syms);
   num_pthreads++;
-
   return rv;
 }
 
