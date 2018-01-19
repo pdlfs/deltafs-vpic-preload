@@ -40,6 +40,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -52,6 +53,7 @@
 #include "shuffler.h"
 
 #define SHUFFLER_COUNT           /* enable/disable internal counters */
+#define SHUFFLER_TIMEOUT 300     /* API blocking timeout, in seconds */
 #include "shuffler_internal.h"
 
 /*
@@ -335,6 +337,74 @@ static void museprobe_print(struct museprobe *up, const char *tag, int n) {
  */
 
 /*
+ * cond_timedwait: track state for a pthread_conf_timedwait.
+ * if timeout expires, dump state and print a message.  also
+ * abort if requested (otherwise we just keep waiting).
+ */
+struct cond_timedwait {
+  int ctw_timedout;              /* !=0 if timeout has fired */
+  struct timespec ctw_abstime;   /* our deadline */
+  int ctw_abort;                 /* !=0 if we abort on timeout */
+  const char *ctw_msg;           /* msg to print if we failed */
+};
+
+/*
+ * init_cond_timedwait: init a cond_timedwait structure.  if timeout
+ * is -1, than we convert to a pthread_cond_wait (a quick way to disable
+ * the timeout).
+ *
+ * @param ctw the structure to init
+ * @param timeout number of seconds to wait
+ * @param doabort abort if we get a timeout
+ * @param msg message to print on timeout
+ */
+static void init_cond_timedwait(struct cond_timedwait *ctw, int timeout,
+                                int doabort, const char *msg) {
+
+  ctw->ctw_timedout = (timeout == -1) ? 1 : 0;
+  if (timeout >= 0) {
+    if (clock_gettime(CLOCK_REALTIME, &ctw->ctw_abstime) < 0) {
+      notify(SHUF_CRIT, "init_cond_timedwait: clock_gettime failed?");
+      abort();
+    }
+    ctw->ctw_abstime.tv_sec += timeout;
+  }
+  ctw->ctw_abort = doabort;
+  ctw->ctw_msg = msg;
+}
+
+/*
+ * do_cond_timedwait: do a timed wait operation
+ *
+ * @param sh our shuffler (in case we need to dump state)
+ * @param ccv our cond var
+ * @param cmu our mutex
+ * @param ctw the timedwait state
+ * @return 0 on success, otherwise an error (mimics pthreads API)
+ */
+static int do_cond_timedwait(struct shuffler *sh, pthread_cond_t *ccv,
+                             pthread_mutex_t *cmu,
+                             struct cond_timedwait *ctw) {
+  int rv;
+
+  if (ctw->ctw_timedout) {    /* if already timed out, convert to cond_wait */
+    return(pthread_cond_wait(ccv, cmu));
+  }
+
+  rv = pthread_cond_timedwait(ccv, cmu, &ctw->ctw_abstime);
+
+  if (rv != ETIMEDOUT)   /* we only care about timeouts */
+    return(rv);
+
+  ctw->ctw_timedout = 1;
+  notify(SHUF_CRIT, "do_cond_timedwait: TIMEOUT (%s)\n", ctw->ctw_msg);
+  shuffler_statedump(sh, 1);
+  if (ctw->ctw_abort)
+    abort();
+  return(pthread_cond_wait(ccv, cmu));  /* revert to cond_wait */
+}
+
+/*
  * counters: can be compiled in or out as needed
  */
 
@@ -582,16 +652,16 @@ static void shuffler_outset_discard(struct outset *oset) {
  * shuffler_init_outset: init an outset (but does not start network thread)
  *
  * @param oset the structure we are init'ing
- * @param maxrpc max# of outstanding RPCs allowed
+ * @param maxoqrpc max# of outstanding RPCs allowed on one oq
  * @param buftarget try and collect at least this many bytes into batch
  * @param shuf the shuffler that owns this oset
  * @param hgt the mercury thread that will service us
  * @param nit nexus iterator for map
  * @return -1 on error, 0 on success
  */
-static int shuffler_init_outset(struct outset *oset, int maxrpc, int buftarget,
-                                shuffler_t shuf, struct hgthread *hgt,
-                                nexus_iter_t nit) {
+static int shuffler_init_outset(struct outset *oset, int maxoqrpc,
+                                int buftarget, shuffler_t shuf,
+                                struct hgthread *hgt, nexus_iter_t nit) {
   int stype;
   hg_addr_t ha;
   struct outqueue *oq;
@@ -609,7 +679,7 @@ static int shuffler_init_outset(struct outset *oset, int maxrpc, int buftarget,
 
   mlog(UTIL_CALL, "shuffler_init_outset type=%s", outset_typstr(stype));
 
-  oset->maxrpc = maxrpc;
+  oset->maxoqrpc = maxoqrpc;
   oset->buftarget = buftarget;
   oset->settype = stype;
   oset->shuf = shuf;
@@ -1683,6 +1753,8 @@ static hg_return_t req_to_self(struct shuffler *sh, struct request *req,
   hg_return_t rv = HG_SUCCESS;
   int qsize, needwait;
   struct req_parent *parent;
+  struct cond_timedwait ctw;
+
   if (rpcin)
     mlog(SHUF_CALL, "req_to_self req=%p, handle=%p R%d-%d", req, input,
          rpcin->forwardrank, rpcin->iseq);
@@ -1744,10 +1816,11 @@ static hg_return_t req_to_self(struct shuffler *sh, struct request *req,
     if (acnt32_decr(parent->nrefs) < 1) {
       mlog(CLNT_D1, "req_to_self: NO block, req=%p, parent=%p", req, parent);
     } else {
+      init_cond_timedwait(&ctw, SHUFFLER_TIMEOUT, 1, "req_to_self");
       parent->need_wakeup = 1;    /* protected by pcvlock */
       while (parent->need_wakeup) {
         mlog(CLNT_D1, "req_to_self: blocked! req=%p, parent=%p", req, parent);
-        pthread_cond_wait(&parent->pcv, &parent->pcvlock);  /*BLOCK HERE*/
+        do_cond_timedwait(sh, &parent->pcv, &parent->pcvlock, &ctw); /*BLOCK*/
         mlog(CLNT_D1, "req_to_self: UNblocked! req=%p, parent=%p", req, parent);
       }
     }
@@ -1795,6 +1868,7 @@ static hg_return_t req_via_mercury(struct shuffler *sh, struct outset *oset,
   struct request_queue tosendq;
   struct output *oput;
   struct req_parent *parent;
+  struct cond_timedwait ctw;
 
   if (rpcin)
     mlog(SHUF_CALL, "req_via_mercury: req=%p type=%s r=[%d.%d] dst=%p R%d-%d",
@@ -1805,7 +1879,7 @@ static hg_return_t req_via_mercury(struct shuffler *sh, struct outset *oset,
          req, outset_typstr(oset->settype), oq->grank, oq->subrank, oq->dst);
 
   pthread_mutex_lock(&oq->oqlock);
-  needwait = (oq->nsending >= oset->maxrpc);
+  needwait = (oq->nsending >= oset->maxoqrpc);
   tosend = false;
   shufcount(&oq->cntoqreqs[input != NULL]);
 
@@ -1852,11 +1926,12 @@ static hg_return_t req_via_mercury(struct shuffler *sh, struct outset *oset,
       mlog(CLNT_D1, "req_via_mercury: NO block, req=%p, parent=%p",
            req, parent);
     } else {
+      init_cond_timedwait(&ctw, SHUFFLER_TIMEOUT, 1, "req_via_mercury");
       parent->need_wakeup = 1;    /* protected by pcvlock */
       while (parent->need_wakeup) {
         mlog(CLNT_D1, "req_via_mercury: blocking req=%p, parent=%p",
              req, parent);
-        pthread_cond_wait(&parent->pcv, &parent->pcvlock);  /* BLOCK HERE */
+        do_cond_timedwait(sh, &parent->pcv, &parent->pcvlock, &ctw); /*BLOCK*/
         mlog(CLNT_D1, "req_via_mercury: UNblock req=%p, parent=%p",
              req, parent);
       }
@@ -2484,6 +2559,7 @@ static hg_return_t shuffler_desthand_cb(const struct hg_cb_info *cbi) {
 static hg_return_t aquire_flush(struct shuffler *sh, struct flush_op *fop,
                                 int type, struct outset *oset) {
   hg_return_t rv = HG_SUCCESS;
+  struct cond_timedwait ctw;
   mlog(CLNT_CALL, "aquire_flush: type=%d fop=%p oset=%p", type, fop, oset);
 
   /* first init the flush operation's CV */
@@ -2500,9 +2576,10 @@ static hg_return_t aquire_flush(struct shuffler *sh, struct flush_op *fop,
   /* if flush is busy, our op needs to wait for it */
   if (fop->status == FLUSHQ_PENDING) {
     XSIMPLEQ_INSERT_TAIL(&sh->fpending, fop, fq);
+    init_cond_timedwait(&ctw, SHUFFLER_TIMEOUT, 1, "aquire_flush");
     while (fop->status == FLUSHQ_PENDING) {
      mlog(CLNT_D1, "aquire_flush: blocking fop=%p", fop);
-      pthread_cond_wait(&fop->flush_waitcv, &sh->flushlock);
+     do_cond_timedwait(sh, &fop->flush_waitcv, &sh->flushlock, &ctw); /*BLOCK*/
      mlog(CLNT_D1, "aquire_flush: UNblocking fop=%p", fop);
     }
 
@@ -2586,6 +2663,7 @@ static void drop_curflush(struct shuffler *sh) {
 hg_return_t shuffler_flush_delivery(shuffler_t sh) {
   struct flush_op fop;
   hg_return_t rv;
+  struct cond_timedwait ctw;
   mlog(CLNT_CALL, "shuffler_flush_delivery");
 
   rv = aquire_flush(sh, &fop, FLUSH_DELIVER, NULL);    /* may BLOCK here */
@@ -2601,9 +2679,10 @@ hg_return_t shuffler_flush_delivery(shuffler_t sh) {
   pthread_mutex_lock(&sh->deliverlock);
   sh->dflush_counter = sh->deliverq.size() + sh->dwaitq.size();
   mlog(CLNT_D1, "shuffler_flush_delivery: count=%d", sh->dflush_counter);
+  init_cond_timedwait(&ctw, SHUFFLER_TIMEOUT, 1, "flush_delivery");
   while (sh->dflush_counter > 0 && fop.status == FLUSHQ_READY) {
     pthread_cond_signal(&sh->delivercv);  /* flush always wakes thread */
-    pthread_cond_wait(&fop.flush_waitcv, &sh->deliverlock);  /* BLOCK HERE */
+    do_cond_timedwait(sh, &fop.flush_waitcv, &sh->deliverlock, &ctw); /*BLOCK*/
   }
   sh->dflush_counter = 0;
   pthread_mutex_unlock(&sh->deliverlock);
@@ -2628,6 +2707,7 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs) {
   struct outset *oset;
   std::map<hg_addr_t, struct outqueue *>::iterator it;
   struct outqueue *oq;
+  struct cond_timedwait ctw;
   mlog(CLNT_CALL, "shuffler_flush_qs: type=%s", outset_typstr(whichqs));
 
   /* no point trying to flush if we can't send */
@@ -2688,8 +2768,9 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs) {
 
   mlog(CLNT_D1, "shuffler_flush_qs: waiting... type=%s osetflushing=%d!",
        outset_typstr(whichqs), oset->osetflushing);
+  init_cond_timedwait(&ctw, SHUFFLER_TIMEOUT, 1, "flush_qs");
   while (oset->osetflushing != 0 && fop.status == FLUSHQ_READY) {
-    pthread_cond_wait(&fop.flush_waitcv, &sh->flushlock);  /* BLOCK HERE */
+    do_cond_timedwait(sh, &fop.flush_waitcv, &sh->flushlock, &ctw); /*BLOCK*/
   }
   /*
    * clear osetflushing (may be >0 if fop.status != READY [cancel?]).

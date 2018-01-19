@@ -757,7 +757,8 @@ void *run_instance(void *arg) {
     uint32_t *msg, msg_store[3];
 
     useprobe_start(&instuse, USEPROBE_THREAD);
-    printf("%d: instance running\n", myrank);
+    if (!g.quiet)
+        printf("%d: instance running\n", myrank);
     isa[n].n = n;    /* make it easy to map 'is' structure back to n */
 
     /* setup send buffer based on requested size (-i) */
@@ -774,7 +775,8 @@ void *run_instance(void *arg) {
     isa[n].nxp = nexus_bootstrap(g.hgsubnet, g.hgproto);
     if (!isa[n].nxp)
         complain(1, 0, "%d: nexus_bootstrap failed", myrank);
-    printf("%d: nexus powered up!\n", myrank);
+    if (!g.quiet)
+        printf("%d: nexus powered up!\n", myrank);
 
     /* make a funcion name and register it in both HGs */
     snprintf(isa[n].myfun, sizeof(isa[n].myfun), "f%d", n);

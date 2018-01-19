@@ -199,7 +199,7 @@ struct outqueue {
  */
 struct outset {
   /* config */
-  int maxrpc;                       /* max# of outstanding sent RPCs */
+  int maxoqrpc;                     /* max# of outstanding sent RPCs on an oq */
   int buftarget;                    /* target size of an RPC (in bytes) */
   int settype;                      /* remote, origin, or relay */
 
