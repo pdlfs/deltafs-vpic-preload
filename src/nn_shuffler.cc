@@ -1158,6 +1158,7 @@ static void* bg_work(void* foo) {
   uint64_t intvl;
   uint64_t last_progress;
   uint64_t now;
+  int n;
   int s;
 
 #ifndef NDEBUG
@@ -1173,7 +1174,7 @@ static void* bg_work(void* foo) {
 
   /* set nice if requested */
   if (nnctx.hg_nice > 0) {
-    nice(nnctx.hg_nice);
+    n = nice(nnctx.hg_nice);
   }
 
   /* the last time we do mercury progress */
