@@ -528,14 +528,17 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage[i].sys_micros, 1,
                    MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
         if (pctx.my_rank == 0) {
-          snprintf(
-              msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
-              nnctx.r[i].tag,
-              double(total_rusage[i].usr_micros) / 1000000 / pctx.recv_sz,
-              double(total_rusage[i].sys_micros) / 1000000 / pctx.recv_sz,
-              double(total_rusage[i].usr_micros + total_rusage[i].sys_micros) /
-                  1000000 / pctx.recv_sz);
-          INFO(msg);
+          if (nnctx.r[i].tag[0] != 0) {
+            snprintf(
+                msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
+                nnctx.r[i].tag,
+                double(total_rusage[i].usr_micros) / 1000000 / pctx.recv_sz,
+                double(total_rusage[i].sys_micros) / 1000000 / pctx.recv_sz,
+                double(total_rusage[i].usr_micros +
+                       total_rusage[i].sys_micros) /
+                    1000000 / pctx.recv_sz);
+            INFO(msg);
+          }
         }
       }
       memset(&hg_intvl, 0, sizeof(hstg_t));
