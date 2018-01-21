@@ -467,7 +467,9 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
     xn_shuffler_destroy(rep);
-    sleep(2);
+    if (ctx->finalize_pause > 0) {
+      sleep(ctx->finalize_pause);
+    }
 #ifndef NDEBUG
     unsigned long long sum_rpcs[2];
     unsigned long long min_rpcs[2];
@@ -510,7 +512,9 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     unsigned long long total_msgsz;
     hstg_t iq_dep;
     nn_shuffler_destroy();
-    sleep(2);
+    if (ctx->finalize_pause > 0) {
+      sleep(ctx->finalize_pause);
+    }
     if (pctx.recv_comm != MPI_COMM_NULL) {
       if (pctx.my_rank == 0) {
         INFO("[nn] per-thread cpu usage ... (s)");
@@ -594,6 +598,20 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   const char* env;
   int n;
   assert(ctx != NULL);
+  env = maybe_getenv("SHUFFLE_Finalize_pause");
+  if (env != NULL) {
+    ctx->finalize_pause = atoi(env);
+    if (ctx->finalize_pause < 0) {
+      ctx->finalize_pause = 0;
+    }
+  }
+  if (pctx.my_rank == 0) {
+    if (ctx->finalize_pause > 0) {
+      snprintf(msg, sizeof(msg), "shuffle finalize pause: %d secs",
+               ctx->finalize_pause);
+      INFO(msg);
+    }
+  }
   if (is_envset("SHUFFLE_Force_rpc")) {
     ctx->force_rpc = 1;
   }

@@ -44,8 +44,10 @@
  *    Virtual factor used by nodes in a placement group
  *  SHUFFLE_Recv_radix
  *    Number of senders (1**radix) per receiver
+ *  SHUFFLE_Finalize_pause
+ *    Number of secs to sleep after releasing the shuffle instance
+ *      for shuffle bg threads to complete shutdown
  */
-
 #pragma once
 
 #include <stddef.h>
@@ -62,6 +64,9 @@ typedef struct shuffle_ctx {
    * is bypassed and destination is local. so there is a chance where the main
    * thread is blocked and cannot go send more writes. */
   int force_rpc;
+  /* number of secs to sleep after releasing the shuffle instance so
+   * shuffle bg threads can complete shutdown in the meantime. */
+  int finalize_pause;
   unsigned int receiver_mask; /* (rank & receiver_mask) -> receiver_rank */
   /* shuffle type */
   int type;
