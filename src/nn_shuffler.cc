@@ -108,37 +108,33 @@ static int cb_left = 1;
 
 /* per-thread rusage */
 typedef struct rpcu {
-  struct timeval t0, t1;
-  struct rusage r0, r1;
+  struct rusage r0;
+  struct rusage r1;
 } rpcu_t;
-/* 0:ALL, 1:main, 2:looper, 3:worker */
-static rpcu_t rpcus[4] = {0};
+/* 0:ALL, 1:main, 2:looper, 3:hg_progress, 4:worker */
+static rpcu_t rpcus[5] = {0};
 
-static void rpcu_summary(nn_rusage_t* r, const char* tag, rpcu_t* u) {
-  uint64_t m0, m1, u0, u1, s0, s1;
+static void rpcu_accumulate(nn_rusage_t* r, const char* tag, rpcu_t* u) {
+  uint64_t u0, u1, s0, s1;
   strncpy(r->tag, tag, sizeof(r->tag));
 
   u0 = timeval_to_micros(&u->r0.ru_utime);
   u1 = timeval_to_micros(&u->r1.ru_utime);
-  r->usr_micros = u1 - u0;
+  r->usr_micros += u1 - u0;
 
   s0 = timeval_to_micros(&u->r0.ru_stime);
   s1 = timeval_to_micros(&u->r1.ru_stime);
-  r->sys_micros = s1 - s0;
-
-  m0 = timeval_to_micros(&u->t0);
-  m1 = timeval_to_micros(&u->t1);
-  r->micros = m1 - m0;
+  r->sys_micros += s1 - s0;
 }
 
-static void rpcu_start(int who, rpcu_t* u) {
-  if (gettimeofday(&u->t0, NULL) != 0 || getrusage(who, &u->r0) != 0) {
+static inline void rpcu_start(int who, rpcu_t* u) {
+  if (getrusage(who, &u->r0) != 0) {
     abort();
   }
 }
 
-static void rpcu_end(int who, rpcu_t* u) {
-  if (gettimeofday(&u->t1, NULL) != 0 || getrusage(who, &u->r1) != 0) {
+static inline void rpcu_end(int who, rpcu_t* u) {
+  if (getrusage(who, &u->r1) != 0) {
     abort();
   }
 }
@@ -164,6 +160,21 @@ static inline int is_shuttingdown() {
 /*
  * main shuffle code
  */
+static hg_return_t nn_progress_rusage(hg_context_t* context, int timeout) {
+  hg_return_t hret;
+
+#if defined(__linux)
+  rpcu_start(RUSAGE_THREAD, &rpcus[3]);
+#endif
+  hret = HG_Progress(context, timeout);
+#if defined(__linux)
+  rpcu_end(RUSAGE_THREAD, &rpcus[3]);
+#endif
+
+  rpcu_accumulate(&nnctx.r[3], "-hgpro", &rpcus[3]);
+
+  return hret;
+}
 
 static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
@@ -283,7 +294,7 @@ static void* rpc_work(void* arg) {
 #endif
 
 #if defined(__linux)
-  rpcu_start(RUSAGE_THREAD, &rpcus[3]);
+  rpcu_start(RUSAGE_THREAD, &rpcus[4]);
 #endif
 
   while (true) {
@@ -344,7 +355,7 @@ static void* rpc_work(void* arg) {
   }
 
 #if defined(__linux)
-  rpcu_end(RUSAGE_THREAD, &rpcus[3]);
+  rpcu_end(RUSAGE_THREAD, &rpcus[4]);
 #endif
   pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_wk > 0);
@@ -1184,7 +1195,11 @@ static void* bg_work(void* foo) {
         }
       }
       last_progress = now;
-      hret = HG_Progress(nnctx.hg_ctx, unsigned(nnctx.hg_timeout));
+      if (nnctx.hg_rusage) {
+        hret = nn_progress_rusage(nnctx.hg_ctx, nnctx.hg_timeout);
+      } else {
+        hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
+      }
       if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
         RPC_FAILED("HG_Progress", hret);
       }
@@ -1345,9 +1360,10 @@ void nn_shuffler_init() {
   cb_left = cb_allowed;
 
   if (is_envset("SHUFFLE_Hash_sig")) nnctx.hash_sig = 1;
+  if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
   if (is_envset("SHUFFLE_Paranoid_checks")) nnctx.paranoid_checks = 1;
   if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
-  if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
+  if (is_envset("SHUFFLE_Mercury_rusage")) nnctx.hg_rusage = 1;
 
   nnctx.hg_clz = HG_Init(nnctx.my_addr, HG_TRUE);
   if (!nnctx.hg_clz) ABORT("HG_Init");
@@ -1485,10 +1501,10 @@ void nn_shuffler_destroy() {
 #endif
   rpcu_end(RUSAGE_SELF, &rpcus[0]);
 
-  rpcu_summary(&nnctx.r[0], "<ALL>", &rpcus[0]);
-  rpcu_summary(&nnctx.r[1], "main", &rpcus[1]);
-  rpcu_summary(&nnctx.r[2], "bglooper", &rpcus[2]);
-  rpcu_summary(&nnctx.r[3], "deliv", &rpcus[3]);
+  rpcu_accumulate(&nnctx.r[0], "<ALL>", &rpcus[0]);
+  rpcu_accumulate(&nnctx.r[1], "main", &rpcus[1]);
+  rpcu_accumulate(&nnctx.r[2], "bglooper", &rpcus[2]);
+  rpcu_accumulate(&nnctx.r[4], "deliv", &rpcus[3]);
 
   if (rpcqs != NULL) {
     for (i = 0; i < nrpcqs; i++) {

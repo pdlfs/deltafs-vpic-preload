@@ -95,6 +95,7 @@ typedef struct nn_ctx {
   struct utsname my_uname;
 
   int hg_nice; /* nice value to be applied to the looper thread */
+  int hg_rusage;
   hg_class_t* hg_clz;
   hg_context_t* hg_ctx;
   hg_id_t hg_id;
@@ -117,7 +118,7 @@ typedef struct nn_ctx {
   ssg_t ssg;
 
   /* rpc usage */
-  nn_rusage_t r[4];
+  nn_rusage_t r[5];
 
   /* rpc stats */
   unsigned long long total_writes; /* total number of writes shuffled */

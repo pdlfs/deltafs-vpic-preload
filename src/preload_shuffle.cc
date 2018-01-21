@@ -522,7 +522,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                  "USR_per_rank", "SYS_per_rank", "TOTAL_per_rank");
         INFO(msg);
       }
-      for (size_t i = 0; i < 4; i++) {
+      for (size_t i = 0; i < sizeof(nnctx.r) / sizeof(nn_rusage_t); i++) {
         MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage[i].usr_micros, 1,
                    MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
         MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage[i].sys_micros, 1,
