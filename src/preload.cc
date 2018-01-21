@@ -2159,26 +2159,33 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
                    void* (*start_routine)(void*), void* arg) {
   int rv;
   char* start;
+  char tagbuf[20];
+  std::string tagstr;
   const char* tag;
-  void* buffer[16];
+  void* bt[16];
   char** syms;
 
   if (pctx.my_rank >= pctx.pthread_tap) {
     rv = nxt.pthread_create(thread, attr, start_routine, arg);
   } else {
+    snprintf(tagbuf, sizeof(tagbuf), "rank %d, bg %d, ", pctx.my_rank,
+             num_pthreads);
+    tagstr = tagbuf;
     /* obtain the caller stack */
-    int nptr = backtrace(buffer, 16);
-    syms = backtrace_symbols(buffer, nptr);
+    int nptr = backtrace(bt, 16);
+    syms = backtrace_symbols(bt, nptr);
     if (syms && 1 < nptr) {
-      start = strchr(syms[1], '(');
-      tag = strdup(start ? start : syms[1]);
+      start = strrchr(syms[1], '/');
+      tagstr += start ? start + 1 : syms[1];
     } else {
-      tag = "???";
+      tagstr += "???";
     }
-
+    if (syms) {
+      free(syms);
+    }
+    tag = strdup(tagstr.c_str());
     rv = pthread_create_tap(thread, attr, start_routine, arg, tag, NULL, NULL,
                             nxt.pthread_create);
-    if (syms) free(syms);
   }
 
   num_pthreads++;
