@@ -110,13 +110,20 @@ static int cb_left = 1;
 typedef struct rpcu {
   struct rusage r0;
   struct rusage r1;
+  char tag[16];
+
+#define RPCU_ALLTHREADS 0
+#define RPCU_MAIN 1
+#define RPCU_LOOPER 2
+#define RPCU_HGPRO 3
+#define RPCU_WORKER 4
 } rpcu_t;
 /* 0:ALL, 1:main, 2:looper, 3:hg_progress, 4:worker */
 static rpcu_t rpcus[5] = {0};
 
-static void rpcu_accumulate(nn_rusage_t* r, const char* tag, rpcu_t* u) {
+static void rpcu_accumulate(nn_rusage_t* r, rpcu_t* u) {
   uint64_t u0, u1, s0, s1;
-  strncpy(r->tag, tag, sizeof(r->tag));
+  memcpy(r->tag, u->tag, sizeof(u->tag));
 
   u0 = timeval_to_micros(&u->r0.ru_utime);
   u1 = timeval_to_micros(&u->r1.ru_utime);
@@ -164,14 +171,14 @@ static hg_return_t nn_progress_rusage(hg_context_t* context, int timeout) {
   hg_return_t hret;
 
 #if defined(__linux)
-  rpcu_start(RUSAGE_THREAD, &rpcus[3]);
+  rpcu_start(RUSAGE_THREAD, &rpcus[RPCU_HGPRO]);
 #endif
   hret = HG_Progress(context, timeout);
 #if defined(__linux)
-  rpcu_end(RUSAGE_THREAD, &rpcus[3]);
+  rpcu_end(RUSAGE_THREAD, &rpcus[RPCU_HGPRO]);
 #endif
 
-  rpcu_accumulate(&nnctx.r[3], "-hgpro", &rpcus[3]);
+  rpcu_accumulate(&nnctx.r[RPCU_HGPRO], &rpcus[RPCU_HGPRO]);
 
   return hret;
 }
@@ -294,7 +301,7 @@ static void* rpc_work(void* arg) {
 #endif
 
 #if defined(__linux)
-  rpcu_start(RUSAGE_THREAD, &rpcus[4]);
+  rpcu_start(RUSAGE_THREAD, &rpcus[RPCU_WORKER]);
 #endif
 
   while (true) {
@@ -355,8 +362,10 @@ static void* rpc_work(void* arg) {
   }
 
 #if defined(__linux)
-  rpcu_end(RUSAGE_THREAD, &rpcus[4]);
+  rpcu_end(RUSAGE_THREAD, &rpcus[RPCU_WORKER]);
 #endif
+  rpcu_accumulate(&nnctx.r[RPCU_WORKER], &rpcus[RPCU_WORKER]);
+
   pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_wk > 0);
   num_wk--;
@@ -1171,7 +1180,7 @@ static void* bg_work(void* foo) {
   last_progress = 0;
   hstg_reset_min(nnctx.hg_intvl);
 #if defined(__linux)
-  rpcu_start(RUSAGE_THREAD, &rpcus[2]);
+  rpcu_start(RUSAGE_THREAD, &rpcus[RPCU_LOOPER]);
 #endif
 
   while (true) {
@@ -1230,8 +1239,10 @@ static void* bg_work(void* foo) {
   }
 
 #if defined(__linux)
-  rpcu_end(RUSAGE_THREAD, &rpcus[2]);
+  rpcu_end(RUSAGE_THREAD, &rpcus[RPCU_LOOPER]);
 #endif
+  rpcu_accumulate(&nnctx.r[RPCU_LOOPER], &rpcus[RPCU_LOOPER]);
+
   pthread_mtx_lock(&mtx[bg_cv]);
   assert(num_bg > 0);
   num_bg--;
@@ -1460,9 +1471,15 @@ void nn_shuffler_init() {
     }
   }
 
-  rpcu_start(RUSAGE_SELF, &rpcus[0]);
+  strcpy(rpcus[RPCU_ALLTHREADS].tag, "<ALL>");
+  strcpy(rpcus[RPCU_MAIN].tag, "main");
+  strcpy(rpcus[RPCU_LOOPER].tag, "bglooper");
+  strcpy(rpcus[RPCU_HGPRO].tag, "-hgpro");
+  strcpy(rpcus[RPCU_WORKER].tag, "deliv");
+
+  rpcu_start(RUSAGE_SELF, &rpcus[RPCU_ALLTHREADS]);
 #if defined(__linux)
-  rpcu_start(RUSAGE_THREAD, &rpcus[1]);
+  rpcu_start(RUSAGE_THREAD, &rpcus[RPCU_MAIN]);
 #endif
 }
 
@@ -1497,14 +1514,12 @@ void nn_shuffler_destroy() {
   pthread_mtx_unlock(&mtx[bg_cv]);
 
 #if defined(__linux)
-  rpcu_end(RUSAGE_THREAD, &rpcus[1]);
+  rpcu_end(RUSAGE_THREAD, &rpcus[RPCU_MAIN]);
 #endif
-  rpcu_end(RUSAGE_SELF, &rpcus[0]);
+  rpcu_end(RUSAGE_SELF, &rpcus[RPCU_ALLTHREADS]);
 
-  rpcu_accumulate(&nnctx.r[0], "<ALL>", &rpcus[0]);
-  rpcu_accumulate(&nnctx.r[1], "main", &rpcus[1]);
-  rpcu_accumulate(&nnctx.r[2], "bglooper", &rpcus[2]);
-  rpcu_accumulate(&nnctx.r[4], "deliv", &rpcus[3]);
+  rpcu_accumulate(&nnctx.r[RPCU_ALLTHREADS], &rpcus[RPCU_ALLTHREADS]);
+  rpcu_accumulate(&nnctx.r[RPCU_MAIN], &rpcus[RPCU_MAIN]);
 
   if (rpcqs != NULL) {
     for (i = 0; i < nrpcqs; i++) {
