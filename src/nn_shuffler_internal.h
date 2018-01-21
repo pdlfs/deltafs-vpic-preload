@@ -82,8 +82,6 @@ typedef struct nn_rusage {
   unsigned long long sys_micros; /* sys-level cpu time */
   unsigned long long usr_micros; /* usr-level cpu time */
 
-  unsigned long long micros; /* real time */
-
   char tag[16];
 } nn_rusage_t;
 
