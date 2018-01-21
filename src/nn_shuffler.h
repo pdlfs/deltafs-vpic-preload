@@ -42,6 +42,8 @@
  *      to cause warning messages
  *  SHUFFLE_Mercury_cache_handles
  *    Reuse mercury handles to avoid freq mallocs
+ *  SHUFFLE_Mercury_nice
+ *    Nice value to be applied to the looper thread
  *  SHUFFLE_Hash_sig
  *    Generate a hash signature for each rpc message
  *  SHUFFLE_Paranoid_checks

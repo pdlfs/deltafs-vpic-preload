@@ -1151,6 +1151,11 @@ static void* bg_work(void* foo) {
   }
 #endif
 
+  /* set nice if requested */
+  if (nnctx.hg_nice > 0) {
+    nice(nnctx.hg_nice);
+  }
+
   /* the last time we do mercury progress */
   last_progress = 0;
   hstg_reset_min(nnctx.hg_intvl);
@@ -1297,6 +1302,14 @@ void nn_shuffler_init() {
     }
   }
 
+  env = maybe_getenv("SHUFFLE_Mercury_nice");
+  if (env != NULL) {
+    nnctx.hg_nice = atoi(env);
+    if (nnctx.hg_nice < 0) {
+      nnctx.hg_nice = 0;
+    }
+  }
+
   env = maybe_getenv("SHUFFLE_Mercury_progress_timeout");
   if (env == NULL) {
     nnctx.hg_timeout = DEFAULT_HG_TIMEOUT;
@@ -1405,9 +1418,11 @@ void nn_shuffler_init() {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
              "fatal rpc timeout: %d s\n>>> "
-             "cache hg_handle_t: %s, hash signature: %s",
+             "cache hg_handle_t: %s, hash signature: %s\n>>> "
+             "bg nice: %d",
              nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
-             nnctx.cache_hlds ? "YES" : "NO", nnctx.hash_sig ? "YES" : "NO");
+             nnctx.cache_hlds ? "YES" : "NO", nnctx.hash_sig ? "YES" : "NO",
+             nnctx.hg_nice);
     INFO(msg);
     if (nnctx.paranoid_checks) {
       WARN(
