@@ -234,8 +234,10 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   int deliverq_max;
   int lmaxrpc;
   int lbuftarget;
+  int lsenderlimit;
   int rmaxrpc;
   int rbuftarget;
+  int rsenderlimit;
   const char* logfile;
   const char* env;
   char msg[5000];
@@ -253,6 +255,26 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     if (nexus_global_size(ctx->nx) != pctx.comm_sz ||
         nexus_global_rank(ctx->nx) != pctx.my_rank) {
       ABORT("nx-mpi disagree");
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Local_senderlimit");
+  if (env == NULL) {
+    lsenderlimit = 0;
+  } else {
+    lsenderlimit = atoi(env);
+    if (lsenderlimit < 0) {
+      lsenderlimit = 0;
+    }
+  }
+
+  env = maybe_getenv("SHUFFLE_Remote_senderlimit");
+  if (env == NULL) {
+    rsenderlimit = 0;
+  } else {
+    rsenderlimit = atoi(env);
+    if (rsenderlimit < 0) {
+      rsenderlimit = 0;
     }
   }
 
@@ -322,18 +344,19 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     shuffler_cfglog(DEF_CFGLOG_ARGS(logfile));
   }
 
-  ctx->sh =
-      shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"), lmaxrpc,
-                    lbuftarget, lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
-                    deliverq_max, deliverq_min, xn_shuffler_deliver);
+  ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
+                          lsenderlimit, rsenderlimit, lmaxrpc, lbuftarget,
+                          lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
+                          deliverq_max, deliverq_min, xn_shuffler_deliver);
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
-    n = snprintf(
-        msg, sizeof(msg),
-        "3-HOP SH: maxrpc(l/r)=%d/%d buftgt(l/r)=%d/%d dq(min/max)=%d/%d",
-        lmaxrpc, rmaxrpc, lbuftarget, rbuftarget, deliverq_min, deliverq_max);
+    n = snprintf(msg, sizeof(msg),
+                 "3-HOP confs: senderlimit(l/r)=%d/%d, maxrpc(l/r)=%d/%d, "
+                 "buftgt(l/r)=%d/%d, dq(min/max)=%d/%d",
+                 lsenderlimit, rsenderlimit, lmaxrpc, rmaxrpc, lbuftarget,
+                 rbuftarget, deliverq_min, deliverq_max);
     if (logfile != NULL && logfile[0] != 0) {
       snprintf(msg + n, sizeof(msg) - n,
                "\n>>> LOGGING is ON, will log to ..."

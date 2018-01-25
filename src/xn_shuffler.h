@@ -37,14 +37,18 @@
  *    Mercury rpc proto for the remote hop
  *  SHUFFLE_Log_file
  *    Log file to store shuffler stats
+ *  SHUFFLE_Remote_senderlimit
+ *    Total num of outstanding rpcs for the remote hop
  *  SHUFFLE_Remote_buftarget
  *    Memory allocated for each remote rpc queue
  *  SHUFFLE_Remote_maxrpc
- *    Max num of outstanding rpcs allowed for the remote hop
+ *    Max num of outstanding rpcs allowed for each remote outgoing queue
+ *  SHUFFLE_Local_senderlimit
+ *    Total num of outstanding rpcs for the local hops
  *  SHUFFLE_Local_buftarget
  *    Memory allocated for each local rpc queue
  *  SHUFFLE_Local_maxrpc
- *    Max num of outstanding rpcs allowed for the local hops
+ *    Max num of outstanding rpcs allowed for each local outgoing queue
  *  SHUFFLE_Dq_min
  *    Min queue size for the final delivery queue
  *      Delay flushing the queue until queue size exceeds the minimum
