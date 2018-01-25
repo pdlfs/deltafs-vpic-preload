@@ -630,11 +630,11 @@ int main(int argc, char **argv) {
                 break;
             case 'Z':
                 g.remoterpclim = atoi(optarg);
-                if (g.remoterpclim < 1) usage("bad remote rpc limit");
+                if (g.remoterpclim < 0) usage("bad remote rpc limit");
                 break;
             case 'z':
                 g.localrpclim = atoi(optarg);
-                if (g.localrpclim < 1) usage("bad local rpc limit");
+                if (g.localrpclim < 0) usage("bad local rpc limit");
                 break;
             default:
                 usage(NULL);
