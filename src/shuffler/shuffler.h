@@ -140,15 +140,19 @@ typedef void (*shuffler_deliver_t)(int src, int dst, uint32_t type,
 /*
  * shuffler_init: init's the shuffler layer.  if this returns an
  * error, you'll need to shutdown and reinit mercury and nexus to
- * retry...
+ * retry...  note that lomaxrpc/lrmaxrpc/rmaxrpc is applied per dest,
+ * while localsenderlimit/remotesenderlimit is applied to shuffler_send
+ * calls (but not relayed reqs) across all local (or remote) dests.
  *
  * @param nxp the nexus context (routing info, already init'd)
  * @param funname rpc function name (for making a mercury RPC id number)
- * @param lomaxrpc max# of outstanding origin/client local na+sm RPCs
+ * @param localsenderlimit local RPC limit on shuffler_send
+ * @param remotesenderlimit remote RPC limit on shuffler_send
+ * @param lomaxrpc max# of outstanding origin/client local na+sm RPCs per dest
  * @param lobuftarget target number of origin/client bytes in batch na+sm RPC
- * @param lrmaxrpc max# of outstanding relay local na+sm RPCs
+ * @param lrmaxrpc max# of outstanding relay local na+sm RPCs per dest
  * @param lrbuftarget target number of relay bytes in batch na+sm RPC
- * @param rmaxrpc max# of outstanding remote RPCs
+ * @param rmaxrpc max# of outstanding remote RPCs per dest
  * @param rbuftarget target number of bytes in remote batch RPC
  * @param deliverq_max max# reqs in deliverq before we switch to deliver waitq
  * @param deliverq_threshold wake delivery when #reqs on deliverq > threshold
@@ -156,6 +160,7 @@ typedef void (*shuffler_deliver_t)(int src, int dst, uint32_t type,
  * @return handle to shuffler (a pointer) or NULL on error
  */
 shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
+           int localsenderlimit, int remotesenderlimit,
            int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
            int rmaxrpc, int rbuftarget, int deliverq_max,
            int deliverq_threshold, shuffler_deliver_t delivercb);

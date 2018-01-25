@@ -633,9 +633,21 @@ static const char *outset_typstr(int type) {
  * @param oset the outset to clean
  */
 static void shuffler_outset_discard(struct outset *oset) {
+  struct shufsend_waiter *sw;
   std::map<hg_addr_t,struct outqueue *>::iterator oqit;
   struct outqueue *oq;
   mlog(UTIL_CALL, "shuffler_outset_discard %s", outset_typstr(oset->settype));
+
+  /* wipe out any client threads blocked on shufsendq */
+  pthread_mutex_lock(&oset->os_rpclimitlock);
+  while ((sw = XTAILQ_FIRST(&oset->shufsendq)) != NULL) {
+    XTAILQ_REMOVE(&oset->shufsendq, sw, sw_q);
+    pthread_mutex_lock(&sw->sw_lock);
+    sw->sw_status = SHUFSEND_CANCEL;
+    pthread_cond_broadcast(&sw->sw_cv);
+    pthread_mutex_unlock(&sw->sw_lock);
+  }
+  pthread_mutex_unlock(&oset->os_rpclimitlock);
 
   for (oqit = oset->oqs.begin() ; oqit != oset->oqs.end() ; oqit++) {
     oq = oqit->second;
@@ -644,6 +656,7 @@ static void shuffler_outset_discard(struct outset *oset) {
   }
 
   oset->oqs.clear();
+  pthread_mutex_destroy(&oset->os_rpclimitlock);
   if (oset->oqflush_counter)
     acnt32_free(&oset->oqflush_counter);
 }
@@ -654,13 +667,15 @@ static void shuffler_outset_discard(struct outset *oset) {
  * @param oset the structure we are init'ing
  * @param maxoqrpc max# of outstanding RPCs allowed on one oq
  * @param buftarget try and collect at least this many bytes into batch
+ * @param sndrpclimit block shuffler_send() if past limit
  * @param shuf the shuffler that owns this oset
  * @param hgt the mercury thread that will service us
  * @param nit nexus iterator for map
  * @return -1 on error, 0 on success
  */
 static int shuffler_init_outset(struct outset *oset, int maxoqrpc,
-                                int buftarget, shuffler_t shuf,
+                                int buftarget, int sndrpclimit,
+                                shuffler_t shuf,
                                 struct hgthread *hgt, nexus_iter_t nit) {
   int stype;
   hg_addr_t ha;
@@ -682,8 +697,16 @@ static int shuffler_init_outset(struct outset *oset, int maxoqrpc,
   oset->maxoqrpc = maxoqrpc;
   oset->buftarget = buftarget;
   oset->settype = stype;
+  oset->shufsend_rpclimit = sndrpclimit;
   oset->shuf = shuf;
   oset->myhgt = hgt;
+  if (pthread_mutex_init(&oset->os_rpclimitlock, NULL) != 0) {
+    notify(SHUF_CRIT, "init outset limit lock mutex init failed");
+    return(-1);
+  }
+  oset->outset_nrpcs = 0;
+  XTAILQ_INIT(&oset->shufsendq);
+  shufzero(&oset->os_senderlimit);
   /* oqs init'd by ctor */
   oset->oqflush_counter = acnt32_alloc();
   if (oset->oqflush_counter == NULL)
@@ -820,6 +843,7 @@ static hg_return_t shuffler_init_flush(struct shuffler *sh) {
  * shuffler_init: init's the shuffler layer.
  */
 shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
+           int localsenderlimit, int remotesenderlimit,
            int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
            int rmaxrpc, int rbuftarget, int deliverq_max,
            int deliverq_threshold, shuffler_deliver_t delivercb) {
@@ -842,10 +866,12 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   myrank = nexus_global_rank(nxp);
   shuffler_openlog(myrank);
 
-  mlog(SHUF_CALL, "shuffler_init "
-       "maxrpc(lo/lr/r)=%d/%d/%d targ(lo/lr/r)=%d/%d/%d dqmax/th=%d/%d",
+  mlog(SHUF_CALL,
+       "shuffler_init maxrpc(lo/lr/r)=%d/%d/%d targ(lo/lr/r)=%d/%d/%d",
        lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget, lrbuftarget,
-       rbuftarget, deliverq_max, deliverq_threshold);
+       rbuftarget);
+  mlog(SHUF_CALL, "sndrlimit(l/r)=%d/%d dqmax/th=%d/%d",
+       localsenderlimit, remotesenderlimit, deliverq_max, deliverq_threshold);
 
   sh = new shuffler;    /* aborts w/std::bad_alloc on failure */
 
@@ -878,22 +904,22 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
 
   nit = nexus_iter(nxp, 1);
   if (nit == NULL) goto err;
-  rv = shuffler_init_outset(&sh->local_orq, lomaxrpc, lobuftarget, sh,
-                            &sh->hgt_local, nit);
+  rv = shuffler_init_outset(&sh->local_orq, lomaxrpc, lobuftarget,
+                            localsenderlimit, sh, &sh->hgt_local, nit);
   nexus_iter_free(&nit);
   if (rv < 0) goto err;
 
   nit = nexus_iter(nxp, 1);
   if (nit == NULL) goto err;
-  rv = shuffler_init_outset(&sh->local_rlq, lrmaxrpc, lrbuftarget, sh,
-                            &sh->hgt_local, nit);
+  rv = shuffler_init_outset(&sh->local_rlq, lrmaxrpc, lrbuftarget,
+                            0, sh, &sh->hgt_local, nit);
   nexus_iter_free(&nit);
   if (rv < 0) goto err;
 
   nit = nexus_iter(nxp, 0);
   if (nit == NULL) goto err;
-  rv = shuffler_init_outset(&sh->remoteq, rmaxrpc, rbuftarget, sh,
-                            &sh->hgt_remote, nit);
+  rv = shuffler_init_outset(&sh->remoteq, rmaxrpc, rbuftarget,
+                            remotesenderlimit, sh, &sh->hgt_remote, nit);
   nexus_iter_free(&nit);
   if (rv < 0) goto err;
   acnt32_set(sh->seqsrc, 0);
@@ -1563,7 +1589,108 @@ static hg_return_t req_parent_init(struct shuffler *sh,
   return(HG_SUCCESS);
 }
 
+/*
+ * drop_reqs: helper fn that drops and frees requests that can't be
+ * sent due to some unexpected error.  we route though this function
+ * to put the error handling in one place and make it easy to find
+ * places where data is dropped.   the reqs should not be attached
+ * to any parent (or we'll lose a reference).  we print an errmsg
+ * if 'msg' is not NULL (if it is null, the caller should print the msg).
+ *
+ * @param reqp ptr to request to free (or null).  we set to null
+ * @param reqq list of reqs to free (or null).  re-init'd to empty
+ * @param msg err msg string, if NULL we don't print anything
+ */
+void drop_reqs(struct request **reqp, struct request_queue *reqq,
+               const char *msg) {
+  struct request *rp, *nrp;
+  int owned;
 
+  if (reqp) {
+    rp = *reqp;
+    owned = (rp->owner != NULL);
+    if (msg) {
+      notify(SHUF_CRIT, "drop_reqs: drop %p(o=%d) due to err (%s), data LOST!",
+           rp, owned, msg);
+    }
+    free(rp);
+    *reqp = NULL;
+  }
+
+  if (reqq) {
+    XSIMPLEQ_FOREACH_SAFE(rp, reqq, next, nrp) {
+      owned = (rp->owner != NULL);
+      if (msg) {
+        notify(SHUF_CRIT,
+            "drop_reqs: drop %p(O=%d) due to err (%s) - data LOST!",
+             rp, owned, msg);
+      }
+      free(rp);
+    }
+    XSIMPLEQ_INIT(reqq);
+  }
+
+}
+
+/*
+ * sender_limit: check to see if we are at the outset's shufsend_rpclimit,
+ * and if so block until we are allowed to go!   we add ourselves to the
+ * outset shufsendq and sleep on our cv.  when we can go, we'll be removed
+ * from the shufsendq and get a signal on our cv.
+ *
+ * @param sh our shuffler
+ * @param oset the output set of interest
+ * @return sucess if we are ok to continue, otherwise error
+ */
+hg_return_t sender_limit(struct shuffler *sh, struct outset *oset) {
+  struct shufsend_waiter sw;
+  int mutexrv;
+  struct cond_timedwait ctw;    /* allocated on stack, that's ok */
+
+  pthread_mutex_lock(&oset->os_rpclimitlock);
+  /* no limit or below the limit?  then we are done! */
+  if (oset->shufsend_rpclimit < 1 ||
+      oset->outset_nrpcs < oset->shufsend_rpclimit) {
+    mlog(CLNT_CALL, "sender_limit: OK %d < %d", oset->outset_nrpcs,
+         oset->shufsend_rpclimit);
+    pthread_mutex_unlock(&oset->os_rpclimitlock);
+    return(HG_SUCCESS);
+  }
+
+  /* over limit, need to stop and wait at the gate... */
+  mlog(CLNT_CALL, "sender_limit: OVER %d >= %d", oset->outset_nrpcs,
+         oset->shufsend_rpclimit);
+
+  if ( (mutexrv = pthread_mutex_init(&sw.sw_lock, NULL)) != 0 ||
+        pthread_cond_init(&sw.sw_cv, NULL) != 0) {
+    if (mutexrv == 0) pthread_mutex_destroy(&sw.sw_lock);
+    notify(SHUF_CRIT, "sender_limit: bad lock/cv init");
+    pthread_mutex_unlock(&oset->os_rpclimitlock);
+    return(HG_OTHER_ERROR);
+  }
+
+  /* note: still holding oset->os_rpclimitlock */
+  init_cond_timedwait(&ctw, SHUFFLER_TIMEOUT, 1, "sender_limit");
+  pthread_mutex_lock(&sw.sw_lock);
+  sw.sw_status = SHUFSEND_WAIT;
+  XTAILQ_INSERT_TAIL(&oset->shufsendq, &sw, sw_q);
+  shufcount(&oset->os_senderlimit);
+  pthread_mutex_unlock(&oset->os_rpclimitlock);
+
+  while (sw.sw_status == SHUFSEND_WAIT) {
+    mlog(CLNT_D1, "sender_limit: blocked!");
+    do_cond_timedwait(sh, &sw.sw_cv, &sw.sw_lock, &ctw); /*BLOCK*/
+    mlog(CLNT_D1, "sender_limit: UNblocked (status=%d)!", sw.sw_status);
+  }
+  pthread_mutex_unlock(&sw.sw_lock);
+
+  /* NOTE: waker has already removed us from oset->shufsendq */
+
+  pthread_cond_destroy(&sw.sw_cv);
+  pthread_mutex_destroy(&sw.sw_lock);
+
+  return((sw.sw_status == SHUFSEND_OKGO) ? HG_SUCCESS : HG_CANCELED);
+}
 
 /*
  * shuffler_send: start the sending of a message via the shuffle.
@@ -1648,6 +1775,18 @@ hg_return_t shuffler_send(shuffler_t sh, int dst, uint32_t type,
    * queues, shuffler_send always goes to the origin (local_orq) outset.
    */
   oset = (nexus == NX_DESTREP) ? &sh->remoteq : &sh->local_orq;
+
+  /*
+   * we may need to block if shufsend_rpclimit is set...
+   */
+  if (oset->shufsend_rpclimit > 0) {
+    rv = sender_limit(sh, oset);    /* this may block! */
+    if (rv != HG_SUCCESS) {
+      drop_reqs(&req, NULL, "shuffler_send: sender_limit");
+      return(rv);
+    }
+  }
+
   it = oset->oqs.find(dstaddr);
   if (it == oset->oqs.end()) {
     /*
@@ -1665,49 +1804,6 @@ hg_return_t shuffler_send(shuffler_t sh, int dst, uint32_t type,
   rv = req_via_mercury(sh, oset, oq, req, NULL, NULL, &parent); /* can block */
 
   return(rv);
-}
-
-/*
- * drop_reqs: helper fn that drops and frees requests that can't be
- * sent due to some unexpected error.  we route though this function
- * to put the error handling in one place and make it easy to find
- * places where data is dropped.   the reqs should not be attached
- * to any parent (or we'll lose a reference).  we print an errmsg
- * if 'msg' is not NULL (if it is null, the caller should print the msg).
- *
- * @param reqp ptr to request to free (or null).  we set to null
- * @param reqq list of reqs to free (or null).  re-init'd to empty
- * @param msg err msg string, if NULL we don't print anything
- */
-void drop_reqs(struct request **reqp, struct request_queue *reqq,
-               const char *msg) {
-  struct request *rp, *nrp;
-  int owned;
-
-  if (reqp) {
-    rp = *reqp;
-    owned = (rp->owner != NULL);
-    if (msg) {
-      notify(SHUF_CRIT, "drop_reqs: drop %p(o=%d) due to err (%s), data LOST!",
-           rp, owned, msg);
-    }
-    free(rp);
-    *reqp = NULL;
-  }
-
-  if (reqq) {
-    XSIMPLEQ_FOREACH_SAFE(rp, reqq, next, nrp) {
-      owned = (rp->owner != NULL);
-      if (msg) {
-        notify(SHUF_CRIT,
-            "drop_reqs: drop %p(O=%d) due to err (%s) - data LOST!",
-             rp, owned, msg);
-      }
-      free(rp);
-    }
-    XSIMPLEQ_INIT(reqq);
-  }
-
 }
 
 /*
@@ -2076,6 +2172,7 @@ static hg_return_t forward_reqs_now(struct request_queue *tosend,
   hg_handle_t newhand = NULL;
   rpcin_t in;
   struct request *rp, *nrp;
+  int cnt;
 
   mlog(SHUF_CALL, "forward_now: to dst=%p", oq->dst);
 
@@ -2116,8 +2213,14 @@ static hg_return_t forward_reqs_now(struct request_queue *tosend,
   }
 
   if (rv == HG_SUCCESS) {
-    mlog(SHUF_D1, "forward_now: HG_Forward R%d-%d to [%d.%d] dst=%p",
-         in.forwardrank, in.iseq, oq->grank, oq->subrank, oq->dst);
+
+    pthread_mutex_lock(&oset->os_rpclimitlock);  /* count as started rpc */
+    oset->outset_nrpcs++;
+    cnt = oset->outset_nrpcs;
+    pthread_mutex_unlock(&oset->os_rpclimitlock);
+
+    mlog(SHUF_D1, "forward_now: HG_Forward R%d-%d to [%d.%d] dst=%p cnt=%d",
+         in.forwardrank, in.iseq, oq->grank, oq->subrank, oq->dst, cnt);
     rv = HG_Forward(oput->outhand, forw_cb, oput, &in);   /* SEND HERE! */
   }
 
@@ -2128,6 +2231,9 @@ static hg_return_t forward_reqs_now(struct request_queue *tosend,
      * we have to drop the data ...
      */
     notify(SHUF_CRIT, "forward request failed (%d)!  data likely lost!", rv);
+    pthread_mutex_lock(&oset->os_rpclimitlock);
+    oset->outset_nrpcs--;
+    pthread_mutex_unlock(&oset->os_rpclimitlock);
     drop_reqs(NULL, &in.inreqs, "forward_reqs_now");
     forw_start_next(oq, oput);
 
@@ -2155,10 +2261,14 @@ static hg_return_t forward_reqs_now(struct request_queue *tosend,
  */
 static hg_return_t forw_cb(const struct hg_cb_info *cbi) {
   struct output *oput = (struct output *)cbi->arg;
+  struct outset *oset = oput->oqp->myset;
   hg_handle_t hand;
   rpcout_t out;
 
   mlog(SHUF_CALL, "forw_cb: oput=%p success=%d", oput, cbi->ret == HG_SUCCESS);
+  pthread_mutex_lock(&oset->os_rpclimitlock);
+  oset->outset_nrpcs--;
+  pthread_mutex_unlock(&oset->os_rpclimitlock);
 
   if (cbi->type != HG_CB_FORWARD) {
     notify(SHUF_CRIT, "cbi->type != FORWARD, impossible!");
@@ -2189,6 +2299,30 @@ static hg_return_t forw_cb(const struct hg_cb_info *cbi) {
 }
 
 /*
+ * forw_progress_shufsendq: attempt to make progress draining the
+ * shufsendq.
+ *
+ * @param oset the output to progress
+ */
+static void forw_progress_shufsendq(struct outset *oset) {
+  int cando;
+  struct shufsend_waiter *sw;
+
+  pthread_mutex_lock(&oset->os_rpclimitlock);
+  cando = oset->shufsend_rpclimit - oset->outset_nrpcs;
+  while (cando > 0) {
+    sw = XTAILQ_FIRST(&oset->shufsendq);
+    if (!sw) break;
+    XTAILQ_REMOVE(&oset->shufsendq, sw, sw_q);
+    pthread_mutex_lock(&sw->sw_lock);
+    sw->sw_status = SHUFSEND_OKGO;
+    pthread_cond_broadcast(&sw->sw_cv);
+    pthread_mutex_unlock(&sw->sw_lock);
+  }
+  pthread_mutex_unlock(&oset->os_rpclimitlock);
+}
+
+/*
  * forw_start_next: we have finished processing a handle (success
  * or failure) and need to destroy the handle, remove anything we
  * sent from the queues, drop nsending, and then start anything on
@@ -2198,19 +2332,21 @@ static hg_return_t forw_cb(const struct hg_cb_info *cbi) {
  * @param oput output we just sent (can be NULL if we had an error)
  */
 static void forw_start_next(struct outqueue *oq, struct output *oput) {
+  struct outset *oset;
   bool tosend, flush_done, flushloadingnow, empty_outs;
   struct request_queue tosendq;
   struct output *nxtoput;
   struct req_parent *fq, **fq_end, *parent, *nparent;
   struct request *req;
 
+  oset = oq->myset;
   if (oput)
     mlog(SHUF_CALL, "forw_start_next: to=[%d.%d] %s dst=%p, oput=%p (R%d-%d)",
-       oq->grank, oq->subrank, outset_typstr(oq->myset->settype), oq->dst,
-       oput, oq->myset->shuf->grank, oput->outseq);
+       oq->grank, oq->subrank, outset_typstr(oset->settype), oq->dst,
+       oput, oset->shuf->grank, oput->outseq);
   else
     mlog(SHUF_CALL, "forw_start_next: to=[%d.%d] %s dst=%p, oput=null",
-       oq->grank, oq->subrank, outset_typstr(oq->myset->settype), oq->dst);
+       oq->grank, oq->subrank, outset_typstr(oset->settype), oq->dst);
 
   /*
    * get rid of handle if we've got one (XXX should we try and recycle
@@ -2224,10 +2360,10 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
   /* now lock the queue so we can drop nsending and advance */
   pthread_mutex_lock(&oq->oqlock);
 
-  if (oq->oqflushing && oq->myset->shuf->curflush == NULL) {
+  if (oq->oqflushing && oset->shuf->curflush == NULL) {
       notify(SHUF_CRIT, "shuffler: forw_start_next: flush sanity check fail!");
       notify(SHUF_CRIT, "shuffler: oq=%p [%d.%d]", oq, oq->grank, oq->subrank);
-      shuffler_statedump(oq->myset->shuf, 0);
+      shuffler_statedump(oset->shuf, 0);
       abort();
   }
 
@@ -2303,14 +2439,14 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
     /* this bumps nsending back up if it returns a "tosend" list */
     mlog(SHUF_D1, "forw_start_next: dst=%p, pull req=%p from waitq",
          oq->dst, req);
-    tosend = append_req_to_locked_outqueue(oq->myset, oq, req,
+    tosend = append_req_to_locked_outqueue(oset, oq, req,
                                            &tosendq, &nxtoput, false);
   }
 
   /* if flushing, ensure our req got pushed out */
   if (flushloadingnow && !tosend) {
     mlog(SHUF_D1, "forw_start_next: dst=%p need to push output queue", oq->dst);
-    tosend = append_req_to_locked_outqueue(oq->myset, oq, NULL,
+    tosend = append_req_to_locked_outqueue(oset, oq, NULL,
                                            &tosendq, &nxtoput, true);
     mlog(SHUF_D1, "forw_start_next: after push dst=%p tosend=%d",
          oq->dst, tosend == true);
@@ -2326,7 +2462,7 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
     mlog(SHUF_D1, "forw_start_next: dst=%p stopwait new zero refs", oq->dst);
   for (parent = fq ; parent != NULL ; parent = nparent) {
     nparent = parent->fqnext;  /* save copy, we are going to free parent */
-    parent_stopwait(oq->myset->shuf, parent, 0);   /* might HG_Respond, etc. */
+    parent_stopwait(oset->shuf, parent, 0);   /* might HG_Respond, etc. */
   }
 
   /* if waitq gave us enough to start sending, do it now */
@@ -2349,7 +2485,7 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
 
     /* this will print an warning on failure */
     mlog(SHUF_D1, "forw_start_next: dst=%p, sending next", oq->dst);
-    (void) forward_reqs_now(&tosendq, oq->myset->shuf, oq->myset, oq, nxtoput);
+    (void) forward_reqs_now(&tosendq, oset->shuf, oset, oq, nxtoput);
   }
 
   /* if we finished the flush, pass that info upward */
@@ -2358,6 +2494,10 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
     done_oq_flush(oq);
   }
 
+  /* see if we need to unblock threads in shuffle_sender() */
+  if (oset->shufsend_rpclimit > 0) {
+    forw_progress_shufsendq(oset);
+  }
   mlog(SHUF_D1, "forw_start_next: done!");
 }
 
@@ -2962,6 +3102,9 @@ static void dumpstats(shuffler_t sh) {
   mlog(SHUF_NOTE, "oset-size: local_or=%ld, local_rl=%ld, remote=%ld",
        sh->local_orq.oqs.size(), sh->local_rlq.oqs.size(),
        sh->remoteq.oqs.size());
+  mlog(SHUF_NOTE, "oset-hitlimit: local_or=%d, local_rl=%d, remote=%d",
+       sh->local_orq.os_senderlimit, sh->local_rlq.os_senderlimit,
+       sh->remoteq.os_senderlimit);
   mlog(SHUF_NOTE, "local_hgt: nprogress=%d, ntrigger=%d",
        sh->hgt_local.nprogress, sh->hgt_local.ntrigger);
   mlog(SHUF_NOTE, "remote_hgt: nprogress=%d, ntrigger=%d",
@@ -3028,9 +3171,9 @@ static void statedump_oset(shuffler_t sh, int lvl, const char *name,
   struct output *out;
   int32_t rtime;
 
-  notify(lvl, "oset %s: run/shut=%d/%d, fl=%d, flcnt=%d", name,
+  notify(lvl, "oset %s: run/shut=%d/%d, fl=%d, flcnt=%d, nrpcs=%d", name,
          oset->myhgt->nrunning, oset->myhgt->nshutdown, oset->osetflushing,
-         acnt32_get(oset->oqflush_counter));
+         acnt32_get(oset->oqflush_counter), oset->outset_nrpcs);
 
   for (oqit = oset->oqs.begin() ; oqit != oset->oqs.end() ; oqit++) {
     oq = oqit->second;

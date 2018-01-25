@@ -86,6 +86,8 @@
  *  -M count     maxrpcs for network output queues
  *  -m count     maxrpcs for origin/client local output queues
  *  -y count     maxrpcs for relayed local output queues (to dst)
+ *  -Z count     remote RPC limit on shuffler_send
+ *  -z count     local RPC limit on shuffler_send
  *
  * size related options:
  *  -i size      input req size (> 12 if specified)
@@ -307,6 +309,8 @@ struct gs {
     int maxrpcs_net;         /* max # outstanding RPCs, network */
     int maxrpcs_origin;      /* max # outstanding RPCs, origin/cli shm q's */
     int maxrpcs_relay;       /* max # outstanding RPCs, relayed shm q's */
+    int remoterpclim;        /* remote RPC limit on shuffler_send */
+    int localrpclim;         /* local RPC limit on shuffler_send */
     int quiet;               /* don't print so much */
     int rflag;               /* -r tag suffix spec'd */
     int rflagval;            /* value for -r */
@@ -420,6 +424,8 @@ static void usage(const char *msg) {
     fprintf(stderr, "\t-M count    maxrpcs for network output queues\n");
     fprintf(stderr, "\t-m count    maxrpcs for shm client/origin queues\n");
     fprintf(stderr, "\t-y count    maxrpcs for shm relayed queues\n");
+    fprintf(stderr, "\t-Z count    remote RPC limit on shuffler_send\n");
+    fprintf(stderr, "\t-z count    local RPC limit on shuffler_send\n");
     fprintf(stderr, "\nsize related options:\n");
     fprintf(stderr, "\t-i size     input req size (> 12 if specified)\n");
     fprintf(stderr, "\ndefault payload size is 12.\n\n");
@@ -501,7 +507,7 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-        "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:n:O:o:p:qR:r:S:s:Tt:X:y:")) != -1) {
+    "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:n:O:o:p:qR:r:S:s:Tt:X:y:Z:z:")) != -1) {
         switch (ch) {
             case 'a':
                 g.buftarg_origin = atoi(optarg);
@@ -622,6 +628,14 @@ int main(int argc, char **argv) {
                 g.maxrpcs_relay = atoi(optarg);
                 if (g.maxrpcs_relay < 1) usage("bad maxrpc relay");
                 break;
+            case 'Z':
+                g.remoterpclim = atoi(optarg);
+                if (g.remoterpclim < 1) usage("bad remote rpc limit");
+                break;
+            case 'z':
+                g.localrpclim = atoi(optarg);
+                if (g.localrpclim < 1) usage("bad local rpc limit");
+                break;
             default:
                 usage(NULL);
         }
@@ -665,6 +679,8 @@ int main(int argc, char **argv) {
                g.buftarg_net, g.buftarg_origin, g.buftarg_relay);
         printf("\tmaxrpcs    = %d / %d / %d (net/origin/relay)\n",
                g.maxrpcs_net, g.maxrpcs_origin, g.maxrpcs_relay);
+        printf("\trpclimits  = %d / %d (local/remote)\n",
+               g.localrpclim, g.remoterpclim);
         printf("\tdeliverqmx = %d\n", g.deliverq_max);
         printf("\tdeliverthd = %d\n", g.deliverq_thold);
         if (g.odelay > 0)
@@ -781,7 +797,8 @@ void *run_instance(void *arg) {
     /* make a funcion name and register it in both HGs */
     snprintf(isa[n].myfun, sizeof(isa[n].myfun), "f%d", n);
 
-    isa[n].shand = shuffler_init(isa[n].nxp, isa[n].myfun, g.maxrpcs_origin,
+    isa[n].shand = shuffler_init(isa[n].nxp, isa[n].myfun, g.localrpclim,
+                   g.remoterpclim, g.maxrpcs_origin,
                    g.buftarg_origin, g.maxrpcs_relay, g.buftarg_relay,
                    g.maxrpcs_net, g.buftarg_net, g.deliverq_max,
                    g.deliverq_thold, do_delivery);

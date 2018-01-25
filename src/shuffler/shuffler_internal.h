@@ -195,6 +195,26 @@ struct outqueue {
 };
 
 /*
+ * shufsend_waiter: a shuffler_send() API call that has been blocked
+ * due to the total number of active outset RPCs exceeding shufsend_rpclimit.
+ */
+struct shufsend_waiter {
+  pthread_mutex_t sw_lock;          /* lock on waiter */
+  pthread_cond_t sw_cv;             /* client thread waits here */
+  int sw_status;                    /* status of waiter */
+#define SHUFSEND_WAIT 0             /* keep waiting for space to clear */
+#define SHUFSEND_OKGO 1             /* drop nrpcs and start */
+#define SHUFSEND_CANCEL (-1)        /* cancel send */
+  XTAILQ_ENTRY(shufsend_waiter) sw_q;  /* linkage off of outset */
+};
+
+/*
+ * sendwaiterlist: list of shuffler_send() ops waiting for an outset's
+ * shufsend_rpclimit to drop.
+ */
+XTAILQ_HEAD(sendwaiterlist, shufsend_waiter);
+
+/*
  * outset: a set of local or remote output queues
  */
 struct outset {
@@ -202,10 +222,19 @@ struct outset {
   int maxoqrpc;                     /* max# of outstanding sent RPCs on an oq */
   int buftarget;                    /* target size of an RPC (in bytes) */
   int settype;                      /* remote, origin, or relay */
+  int shufsend_rpclimit;            /* block shuffler_send() if past limit */
 
   /* general state */
   shuffler_t shuf;                  /* shuffler that owns us */
   struct hgthread *myhgt;           /* mercury thread that services us */
+
+  /* shuffler_send() rpc limit */
+  pthread_mutex_t os_rpclimitlock;  /* locks next two items */
+  int outset_nrpcs;                 /* total# of running RPCs in all oq's */
+  struct sendwaiterlist shufsendq;  /* list of waiting shuffler_send() ops */
+#ifdef SHUFFLER_COUNT
+  int os_senderlimit;               /* #of times we hit shufsend_rpclimit */
+#endif
 
   /* a map of all the output queues we known about */
   std::map<hg_addr_t,struct outqueue *> oqs;
