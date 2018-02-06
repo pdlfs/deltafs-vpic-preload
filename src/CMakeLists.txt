@@ -31,10 +31,12 @@ target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement
         deltafs-nexus Threads::Threads)
 
 add_executable (preload-runner preload_runner.cc)
-target_link_libraries (preload-runner deltafs-preload Threads::Threads)
+target_link_libraries (preload-runner deltafs-preload
+                       Threads::Threads ${CMAKE_DL_LIBS})
 
 add_executable (preload-runner-no-deltafs preload_runner.cc)
-target_link_libraries (preload-runner-no-deltafs Threads::Threads)
+target_link_libraries (preload-runner-no-deltafs
+                       Threads::Threads ${CMAKE_DL_LIBS})
 
 #
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
