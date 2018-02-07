@@ -563,7 +563,7 @@ static std::string& pretty_plfsdir_conf(std::string& conf) {
   std::string::size_type pos;
   pos = conf.find('=', 0);
   for (; pos != std::string::npos; pos = conf.find('=', 0))
-    conf.replace(pos, 1, " -> ");
+    conf.replace(pos, 1, "\t->\t");
   pos = conf.find('&', 0);
   for (; pos != std::string::npos; pos = conf.find('&', 0))
     conf.replace(pos, 1, "\n // ");
