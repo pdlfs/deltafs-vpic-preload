@@ -2379,10 +2379,10 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
       ABORT("plfsdir not opened");
     }
 
-    rv = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, len);
+    n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, len);
 
-    if (rv != 0) {
-      rv = EOF;
+    if (n == len) {
+      rv = 0;
     }
 
   } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
