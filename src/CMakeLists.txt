@@ -28,7 +28,7 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         pthreadtap.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement
-        deltafs-nexus Threads::Threads)
+        deltafs-nexus Threads::Threads ${CMAKE_DL_LIBS})
 
 #
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
@@ -44,12 +44,10 @@ foreach (tgt deltafs-preload)
         endif ()
     endforeach ()
 
-    # XXX: have to do this one dir at a time otherwise, otherwise I get
-    # error: target 'deltafs' INTERFACE_INCLUDE_DIRECTORIES contains path
-    #         prefixed in the source directory
+    # XXX: have to do this one dir at a time
     foreach (lcv ${MPI_CXX_INCLUDE_PATH})
         target_include_directories (${tgt}
-                                    PUBLIC $<BUILD_INTERFACE:${lcv}>)
+                PUBLIC $<BUILD_INTERFACE:${lcv}>)
     endforeach ()
 
     foreach (lcv ${MPI_CXX_LIBRARIES})
@@ -87,9 +85,7 @@ foreach (tst preload)
         endif ()
     endforeach ()
 
-    # XXX: have to do this one dir at a time otherwise, otherwise I get
-    # error: target 'deltafs' INTERFACE_INCLUDE_DIRECTORIES contains path
-    #               prefixed in the source directory
+    # XXX: have to do this one dir at a time
     foreach (lcv ${MPI_CXX_INCLUDE_PATH})
         target_include_directories (${tst}-test PUBLIC ${lcv})
     endforeach ()

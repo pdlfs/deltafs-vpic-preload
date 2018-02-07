@@ -38,9 +38,7 @@ foreach (tgt vpic-deltafs-reader preload-runner preload-runner-no-deltafs)
         endif ()
     endforeach ()
 
-    # XXX: have to do this one dir at a time otherwise, otherwise I get
-    # error: target 'deltafs' INTERFACE_INCLUDE_DIRECTORIES contains path
-    #         prefixed in the source directory
+    # XXX: have to do this one dir at a time
     foreach (lcv ${MPI_CXX_INCLUDE_PATH})
         target_include_directories (${tgt}
                 PUBLIC $<BUILD_INTERFACE:${lcv}>)
