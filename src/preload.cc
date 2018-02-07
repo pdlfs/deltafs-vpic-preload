@@ -460,6 +460,7 @@ struct plfsdir_conf {
   const char* memtable_size;
   const char* lg_parts;
   int skip_checksums;
+  int use_leveldb;
 };
 
 static struct plfsdir_conf dirc = {0};
@@ -469,7 +470,7 @@ static void plfsdir_error_printer(const char* err, void*) { ERROR(err); }
 /*
  * gen_plfsdir_conf: initialize plfsdir conf and obtain it's string literal.
  */
-static std::string gen_plfsdir_conf(int rank) {
+static std::string gen_plfsdir_conf(int rank, int* io_engine) {
   char tmp[500];
   int n;
 
@@ -522,8 +523,10 @@ static std::string gen_plfsdir_conf(int rank) {
 
   if (is_envset("PLFSDIR_Skip_checksums")) {
     dirc.skip_checksums = 1;
-  } else {
-    dirc.skip_checksums = 0;
+  }
+
+  if (is_envset("PLFSDIR_Use_leveldb")) {
+    dirc.use_leveldb = 1;
   }
 
   n += snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", dirc.lg_parts);
@@ -539,11 +542,19 @@ static std::string gen_plfsdir_conf(int rank) {
                 dirc.min_data_write_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&skip_checksums=%d",
                 dirc.skip_checksums);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&block_padding=%s&tail_padding=%s",
+                "false", "false");
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
+                dirc.bits_per_key);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
                 dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
                 PRELOAD_PARTICLE_SIZE);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
+
+  *io_engine =
+      dirc.use_leveldb ? DELTAFS_PLFSDIR_LEVELDB : DELTAFS_PLFSDIR_DEFAULT;
 
   return tmp;
 }
@@ -648,6 +659,7 @@ int MPI_Init(int* argc, char*** argv) {
   uid_t uid;
   int flag;
   int size;
+  int io_engine;
   int rank;
   int rv;
   int n;
@@ -953,12 +965,13 @@ int MPI_Init(int* argc, char*** argv) {
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
           snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
           assert(pctx.recv_rank != -1);
-          conf = gen_plfsdir_conf(pctx.recv_rank);
+          conf = gen_plfsdir_conf(pctx.recv_rank, &io_engine);
           env = maybe_getenv("PLFSDIR_Env_name");
           if (env == NULL) {
             env = "posix.unbufferedio";
           }
-          pctx.plfshdl = deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY);
+          pctx.plfshdl =
+              deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY, io_engine);
           deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 0);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
@@ -1168,6 +1181,8 @@ int MPI_Finalize(void) {
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "skip_checksums=%d\n",
                        dirc.skip_checksums);
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "use_leveldb=%d\n", dirc.use_leveldb);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "comm_sz=%d\n", pctx.recv_sz);
           n = write(fd0, msg, n);

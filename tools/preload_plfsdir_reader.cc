@@ -29,7 +29,7 @@
  */
 
 /*
- * reader.cc
+ * preload_plfsdir_reader.cc
  *
  * a simple reader program for reading data out of a plfsdir.
  */
@@ -68,6 +68,7 @@ static struct deltafs_conf {
   int filter_bits_per_key;
   int lg_parts;
   int skip_crc32c;
+  int use_leveldb;
   int comm_sz;
 } c; /* plfsdir conf */
 
@@ -239,6 +240,9 @@ static void get_manifest() {
     } else if (strncmp(ch, "skip_checksums=", strlen("skip_checksums=")) == 0) {
       c.skip_crc32c = atoi(ch + strlen("skip_checksums="));
       if (c.skip_crc32c < 0) complain("bad skip_checksums from manifest");
+    } else if (strncmp(ch, "use_leveldb=", strlen("use_leveldb=")) == 0) {
+      c.use_leveldb = atoi(ch + strlen("use_leveldb="));
+      if (c.use_leveldb < 0) complain("bad use_leveldb from manifest");
     } else if (strncmp(ch, "comm_sz=", strlen("comm_sz=")) == 0) {
       c.comm_sz = atoi(ch + strlen("comm_sz="));
       if (c.comm_sz < 0) complain("bad comm_sz from manifests");
@@ -260,7 +264,7 @@ static void get_manifest() {
 /*
  * prepare_conf: generate plfsdir conf
  */
-static void prepare_conf(int rank) {
+static void prepare_conf(int rank, int* io_engine) {
   int n;
 
   if (g.bg && !tp) tp = deltafs_tp_init(g.bg);
@@ -275,6 +279,8 @@ static void prepare_conf(int rank) {
   n += snprintf(cf + n, sizeof(cf) - n, "&ignore_filters=%d", g.nobf);
   snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
 
+  *io_engine =
+      c.use_leveldb ? DELTAFS_PLFSDIR_LEVELDB : DELTAFS_PLFSDIR_DEFAULT;
 #ifndef NDEBUG
   info(cf);
 #endif
@@ -294,7 +300,7 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
   start = now();
 
   data = static_cast<char*>(
-      deltafs_plfsdir_readall(dir, name, &sz, &table_seeks, &seeks));
+      deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
   if (data == NULL) {
     complain("error reading %s: %s", name, strerror(errno));
   } else if (sz == 0) {
@@ -350,13 +356,14 @@ static void get_names(int rank, std::vector<std::string>* results) {
 static void run_queries(int rank) {
   std::vector<std::string> names;
   deltafs_plfsdir_t* dir;
+  int io_engine;
   int r;
 
   get_names(rank, &names);
   std::random_shuffle(names.begin(), names.end());
-  prepare_conf(rank);
+  prepare_conf(rank, &io_engine);
 
-  dir = deltafs_plfsdir_create_handle(cf, O_RDONLY);
+  dir = deltafs_plfsdir_create_handle(cf, O_RDONLY, io_engine);
   if (!dir) complain("fail to create dir handle");
   deltafs_plfsdir_enable_io_measurement(dir, 0); /* we don't need this */
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
@@ -458,6 +465,7 @@ int main(int argc, char* argv[]) {
   printf("\tkey size: %d\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
+  printf("\tuse_leveldb: %d\n", c.use_leveldb);
   printf("\tlg parts: %d\n", c.lg_parts);
   printf("\tcomm sz: %d\n", c.comm_sz);
   printf("\n");
@@ -478,6 +486,9 @@ int main(int argc, char* argv[]) {
     run_queries(ranks[i]);
   }
   report();
+
+  if (tp) deltafs_tp_close(tp);
+
   if (g.v) info("all done!");
   if (g.v) info("bye");
 
