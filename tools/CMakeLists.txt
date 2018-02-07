@@ -12,10 +12,7 @@ find_package (Threads REQUIRED)
 set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-add_executable (vpic-deltafs-reader parallel_reader.cc)
-target_link_libraries (vpic-deltafs-reader deltafs ch-placement m)
-
-add_executable (simple-vpic-deltafs-reader reader.cc)
+add_executable (simple-vpic-deltafs-reader preload_plfsdir_reader.cc)
 target_link_libraries (simple-vpic-deltafs-reader deltafs)
 
 add_executable (preload-runner preload_runner.cc)
@@ -28,7 +25,7 @@ target_link_libraries (preload-runner-no-deltafs Threads::Threads)
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
 # prepared by the calling module.
 #
-foreach (tgt vpic-deltafs-reader preload-runner preload-runner-no-deltafs)
+foreach (tgt preload-runner preload-runner-no-deltafs)
 
     # mpich on ub14 gives a leading space that we need to trim off
     foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
@@ -59,5 +56,5 @@ endforeach ()
 install (TARGETS preload-runner preload-runner-no-deltafs
         RUNTIME DESTINATION bin)
 
-install (TARGETS vpic-deltafs-reader simple-vpic-deltafs-reader
+install (TARGETS simple-vpic-deltafs-reader
          RUNTIME DESTINATION bin)
