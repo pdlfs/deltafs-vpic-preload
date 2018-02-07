@@ -261,9 +261,9 @@ static void rpc_explain_timeout() {
   LOG(LOG_SINK, 0,
       "!! [%s] (rank %d) shuffler %d (%s) is about to timeout: "
       "rpc out %d (%d replied), rpc in %d",
-      nnctx.my_uname.nodename, pctx.my_rank, ssg_get_rank(nnctx.ssg),
-      ssg_get_addr_str(nnctx.ssg, ssg_get_rank(nnctx.ssg)), int(pctx.mctx.nms),
-      int(pctx.mctx.nmd), int(pctx.mctx.nmr));
+      nnctx.my_uname.nodename, pctx.my_rank, mssg_get_rank(nnctx.mssg),
+      mssg_get_addr_str(nnctx.mssg, mssg_get_rank(nnctx.mssg)),
+      int(pctx.mctx.nms), int(pctx.mctx.nmd), int(pctx.mctx.nmr));
 }
 
 /* rpc_work(): dedicated thread function to process rpc. each work item
@@ -445,13 +445,13 @@ static void nn_shuffler_debug(int src, int dst, int mid, int pid,
       "!! [%s] (rank %d) the req swears it comes from %d (%s), "
       "and was heading to %d (%s)",
       nnctx.my_uname.nodename, pctx.my_rank, mid,
-      ssg_get_addr_str(nnctx.ssg, mid), fname, nnctx.my_uname.nodename,
-      pctx.my_rank, src, ssg_get_addr_str(nnctx.ssg, src), dst,
-      ssg_get_addr_str(nnctx.ssg, dst));
+      mssg_get_addr_str(nnctx.mssg, mid), fname, nnctx.my_uname.nodename,
+      pctx.my_rank, src, mssg_get_addr_str(nnctx.mssg, src), dst,
+      mssg_get_addr_str(nnctx.mssg, dst));
   if (pid != -1) {
     LOG(LOG_SINK, 0, "!! [%s] (rank %d) we think the req should goto %d (%s)",
         nnctx.my_uname.nodename, pctx.my_rank, pid,
-        ssg_get_addr_str(nnctx.ssg, pid));
+        mssg_get_addr_str(nnctx.mssg, pid));
   }
 }
 
@@ -488,9 +488,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   int n;
 #endif
 
-  assert(nnctx.ssg != NULL);
-  world_sz = ssg_get_count(nnctx.ssg);
-  rank = ssg_get_rank(nnctx.ssg); /* my rank */
+  assert(nnctx.mssg != NULL);
+  world_sz = mssg_get_count(nnctx.mssg);
+  rank = mssg_get_rank(nnctx.mssg); /* my rank */
 
   write_in.msg = buf;
   write_in.sz = 0;
@@ -690,8 +690,8 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   int n;
 #endif
 
-  assert(nnctx.ssg != NULL);
-  rank = ssg_get_rank(nnctx.ssg);
+  assert(nnctx.mssg != NULL);
+  rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
   assert(int(write_in->owner) == rank);
 
@@ -751,9 +751,9 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   pthread_mtx_unlock(&mtx[cb_cv]);
 
   /* go */
-  peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
+  peer_addr = mssg_get_addr(nnctx.mssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) {
-    ABORT("ssg_get_addr");
+    ABORT("mssg_get_addr");
   }
   assert(nnctx.hg_ctx != NULL);
   h = hg_hdls[slot];
@@ -870,8 +870,8 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   int n;
 #endif
 
-  assert(nnctx.ssg != NULL);
-  rank = ssg_get_rank(nnctx.ssg);
+  assert(nnctx.mssg != NULL);
+  rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
   assert(int(write_in->owner) == rank);
 
@@ -886,9 +886,9 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
     errno = 0;
   }
 #endif
-  peer_addr = ssg_get_addr(nnctx.ssg, peer_rank);
+  peer_addr = mssg_get_addr(nnctx.mssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) {
-    ABORT("ssg_get_addr");
+    ABORT("mssg_get_addr");
   }
   assert(nnctx.hg_ctx != NULL);
   hret = HG_Create(nnctx.hg_ctx, peer_addr, nnctx.hg_id, &h);
@@ -979,9 +979,9 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
 #endif
 
   assert(fname != NULL);
-  assert(nnctx.ssg != NULL);
-  assert(rank == ssg_get_rank(nnctx.ssg));
-  world_sz = ssg_get_count(nnctx.ssg);
+  assert(nnctx.mssg != NULL);
+  assert(rank == mssg_get_rank(nnctx.mssg));
+  world_sz = mssg_get_count(nnctx.mssg);
 
   if (nnctx.paranoid_checks) {
     if (peer_rank < 0 || peer_rank >= world_sz) {
@@ -1110,9 +1110,9 @@ void nn_shuffler_flushq() {
   int rv;
   int i;
 
-  assert(nnctx.ssg != NULL);
+  assert(nnctx.mssg != NULL);
 
-  rank = ssg_get_rank(nnctx.ssg); /* my rank */
+  rank = mssg_get_rank(nnctx.mssg); /* my rank */
 
   pthread_mtx_lock(&mtx[qu_cv]);
 
@@ -1279,27 +1279,27 @@ void nn_shuffler_wakeup() {
   }
 }
 
-/* nn_shuffler_init_ssg: init the ssg sublayer */
-void nn_shuffler_init_ssg() {
+/* nn_shuffler_init_mssg: init the mssg sublayer */
+void nn_shuffler_init_mssg() {
   hg_return_t hret;
-  int rank; /* ssg */
-  int size; /* ssg */
+  int rank; /* mssg */
+  int size; /* mssg */
 
   assert(nnctx.hg_clz != NULL);
   assert(nnctx.hg_ctx != NULL);
 
-  nnctx.ssg = ssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD);
-  if (nnctx.ssg == SSG_NULL) ABORT("ssg_init_mpi");
+  nnctx.mssg = mssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD);
+  if (nnctx.mssg == NULL) ABORT("mssg_init_mpi");
 
-  hret = ssg_lookup(nnctx.ssg, nnctx.hg_ctx);
-  if (hret != HG_SUCCESS) ABORT("ssg_lookup");
+  hret = mssg_lookup(nnctx.mssg, nnctx.hg_ctx);
+  if (hret != HG_SUCCESS) ABORT("mssg_lookup");
 
-  size = ssg_get_count(nnctx.ssg);
-  rank = ssg_get_rank(nnctx.ssg);
+  size = mssg_get_count(nnctx.mssg);
+  rank = mssg_get_rank(nnctx.mssg);
 
   if (nnctx.paranoid_checks) {
     if (size != pctx.comm_sz || rank != pctx.my_rank) {
-      ABORT("ssg-mpi disagree");
+      ABORT("mssg-mpi disagree");
     }
   }
 }
@@ -1390,11 +1390,11 @@ void nn_shuffler_init() {
   nnctx.hg_ctx = HG_Context_create(nnctx.hg_clz);
   if (!nnctx.hg_ctx) ABORT("HG_Context_create");
 
-  nn_shuffler_init_ssg();
+  nn_shuffler_init_mssg();
 
   /* rpc queue */
-  assert(nnctx.ssg != NULL);
-  nrpcqs = ssg_get_count(nnctx.ssg);
+  assert(nnctx.mssg != NULL);
+  nrpcqs = mssg_get_count(nnctx.mssg);
   env = maybe_getenv("SHUFFLE_Buffer_per_queue");
   if (env == NULL) {
     max_rpcq_sz = DEFAULT_BUFFER_PER_QUEUE;
@@ -1486,16 +1486,16 @@ void nn_shuffler_init() {
 
 /* nn_shuffler_world_size: return comm world size */
 int nn_shuffler_world_size() {
-  assert(nnctx.ssg != NULL);
-  int rv = ssg_get_count(nnctx.ssg);
+  assert(nnctx.mssg != NULL);
+  int rv = mssg_get_count(nnctx.mssg);
   assert(rv > 0);
   return rv;
 }
 
 /* nn_shuffler_my_rank: return my rank */
 int nn_shuffler_my_rank() {
-  assert(nnctx.ssg != NULL);
-  int rv = ssg_get_rank(nnctx.ssg);
+  assert(nnctx.mssg != NULL);
+  int rv = mssg_get_rank(nnctx.mssg);
   assert(rv >= 0);
   return rv;
 }
@@ -1533,8 +1533,8 @@ void nn_shuffler_destroy() {
     free(rpcqs);
   }
 
-  if (nnctx.ssg != NULL) {
-    ssg_finalize(nnctx.ssg);
+  if (nnctx.mssg != NULL) {
+    mssg_finalize(nnctx.mssg);
   }
 
   for (size_t i = 0; i < sizeof(hg_hdls) / sizeof(hg_handle_t); i++) {

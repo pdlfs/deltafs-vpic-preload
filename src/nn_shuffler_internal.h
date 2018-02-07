@@ -41,8 +41,7 @@
 
 #include <mercury.h>
 #include <mpi.h>
-#include <ssg-mpi.h>
-#include <ssg.h>
+#include <mssg.h>
 
 #include <deltafs/deltafs_api.h>
 
@@ -112,8 +111,8 @@ typedef struct nn_ctx {
 
   int paranoid_checks;
 
-  /* SSG context */
-  ssg_t ssg;
+  /* MSSG context */
+  mssg_t mssg;
 
   /* rpc usage */
   nn_rusage_t r[5];
@@ -183,5 +182,5 @@ extern int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
  */
 extern int nn_shuffler_write_send(write_in_t* write_in, int peer_rank);
 
-/* nn_shuffler_init_ssg: initialize the ssg service. */
-extern void nn_shuffler_init_ssg();
+/* nn_shuffler_init_mssg: initialize the mssg service. */
+extern void nn_shuffler_init_mssg();

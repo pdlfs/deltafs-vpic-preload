@@ -61,10 +61,10 @@ string (REPLACE " " ";" MPI_CXX_COMPILE_FLAGS_LIST "${MPI_CXX_COMPILE_FLAGS}")
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
+find_package (mssg CONFIG REQUIRED)
 
 include (xpkg-import)     # just to document, comes with deltafs
 xpkg_import_module (ch-placement REQUIRED ch-placement)
-xpkg_import_module (ssg REQUIRED ssg)
 
 # user hook to build tools
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
