@@ -30,19 +30,11 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
 target_link_libraries (deltafs-preload deltafs mercury ssg ch-placement
         deltafs-nexus Threads::Threads)
 
-add_executable (preload-runner preload_runner.cc)
-target_link_libraries (preload-runner deltafs-preload
-                       Threads::Threads ${CMAKE_DL_LIBS})
-
-add_executable (preload-runner-no-deltafs preload_runner.cc)
-target_link_libraries (preload-runner-no-deltafs
-                       Threads::Threads ${CMAKE_DL_LIBS})
-
 #
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
 # prepared by the calling module.
 #
-foreach (tgt deltafs-preload preload-runner preload-runner-no-deltafs)
+foreach (tgt deltafs-preload)
 
     # mpich on ub14 gives a leading space that we need to trim off
     foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
@@ -76,9 +68,6 @@ endforeach ()
 # "make install" rules...
 install (TARGETS deltafs-preload
         ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
-
-install (TARGETS preload-runner preload-runner-no-deltafs
-        RUNTIME DESTINATION bin)
 
 #
 # tests
