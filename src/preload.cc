@@ -1064,6 +1064,9 @@ int MPI_Init(int* argc, char*** argv) {
       if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_pause(&pctx.sctx);
       }
+      if (pctx.plfstp != NULL) {
+        deltafs_tp_pause(pctx.plfstp);
+      }
       if (pctx.my_rank == 0) {
         INFO("OK!");
       }
@@ -1143,6 +1146,9 @@ int MPI_Finalize(void) {
   if (pctx.bgpause) {
     if (pctx.my_rank == 0) {
       INFO("resuming background activities ... (rank 0)");
+    }
+    if (pctx.plfstp != NULL) {
+      deltafs_tp_rerun(pctx.plfstp);
     }
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       shuffle_resume(&pctx.sctx);
@@ -1766,6 +1772,9 @@ DIR* opendir(const char* dir) {
     if (pctx.my_rank == 0) {
       INFO("resuming background activities ... (rank 0)");
     }
+    if (pctx.plfstp != NULL) {
+      deltafs_tp_rerun(pctx.plfstp);
+    }
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       shuffle_resume(&pctx.sctx);
     }
@@ -2007,6 +2016,9 @@ int closedir(DIR* dirp) {
     }
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       shuffle_pause(&pctx.sctx);
+    }
+    if (pctx.plfstp != NULL) {
+      deltafs_tp_pause(pctx.plfstp);
     }
     if (pctx.my_rank == 0) {
       INFO("OK!");
