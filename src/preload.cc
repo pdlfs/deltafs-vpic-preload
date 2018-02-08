@@ -1113,6 +1113,8 @@ int MPI_Finalize(void) {
   uint64_t flush_end;
   uint64_t finish_start;
   uint64_t finish_end;
+  double finish_dura; /* In seconds */
+  double max_finish_dura;
   std::string tmp;
   /* num names sampled: 0 -> total, 1 -> total valid */
   unsigned long long num_samples[2]; /* per rank */
@@ -1131,6 +1133,8 @@ int MPI_Finalize(void) {
   int epoch;
   int rv;
   int n;
+
+  finish_dura = 0;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -1229,17 +1233,18 @@ int MPI_Finalize(void) {
      * retrieve final mon stats, and free the directory. note that the mon stats
      * must be retrieved before the directory is destroyed. */
     if (pctx.plfshdl != NULL) {
+      finish_start = now_micros();
       if (pctx.my_rank == 0) {
-        finish_start = now_micros();
         INFO("finalizing plfsdir ... (rank 0)");
       }
       deltafs_plfsdir_finish(pctx.plfshdl);
+      finish_end = now_micros();
       if (pctx.my_rank == 0) {
-        finish_end = now_micros();
         snprintf(msg, sizeof(msg), "finalizing done %s",
                  pretty_dura(finish_end - finish_start).c_str());
         INFO(msg);
       }
+      finish_dura = double(finish_end - finish_start) / 1000.0 / 1000.0;
       if (num_epochs != 0) {
         dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
       }
@@ -1608,20 +1613,6 @@ int MPI_Finalize(void) {
           epoch++;
         }
 
-        /* extra stats */
-        MPI_Reduce(&num_pthreads, &sum_pthreads, 1, MPI_INT, MPI_SUM, 0,
-                   MPI_COMM_WORLD);
-
-        if (pctx.my_rank == 0) {
-          INFO(" @ ALL epochs...");
-          snprintf(msg, sizeof(msg), "   > TOTAL %d pthreads created",
-                   sum_pthreads);
-          INFO(msg);
-          snprintf(msg, sizeof(msg), "       > %.1f per rank",
-                   double(sum_pthreads) / pctx.comm_sz);
-          INFO(msg);
-        }
-
         if (pctx.my_rank == 0) {
           if (fd1 != -1) {
             close(fd1);
@@ -1639,6 +1630,24 @@ int MPI_Finalize(void) {
       close(pctx.monfd);
       pctx.monfd = -1;
     }
+  }
+
+  /* extra stats */
+  MPI_Reduce(&finish_dura, &max_finish_dura, 1, MPI_DOUBLE, MPI_MAX, 0,
+             MPI_COMM_WORLD);
+  MPI_Reduce(&num_pthreads, &sum_pthreads, 1, MPI_INT, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+
+  if (pctx.my_rank == 0) {
+    INFO(" @ FINAL data compaction...");
+    snprintf(msg, sizeof(msg), "   > TOTAL delay: %.6f secs", max_finish_dura);
+    INFO(msg);
+    INFO(" @ ALL epochs...");
+    snprintf(msg, sizeof(msg), "   > TOTAL %d pthreads created", sum_pthreads);
+    INFO(msg);
+    snprintf(msg, sizeof(msg), "       > %.1f per rank",
+             double(sum_pthreads) / pctx.comm_sz);
+    INFO(msg);
   }
 
   /* close testing log file */
