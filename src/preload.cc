@@ -1068,7 +1068,7 @@ int MPI_Init(int* argc, char*** argv) {
         deltafs_tp_pause(pctx.plfstp);
       }
       if (pctx.my_rank == 0) {
-        INFO("OK!");
+        INFO("pausing done (rank 0)");
       }
     }
   }
@@ -1154,7 +1154,7 @@ int MPI_Finalize(void) {
       shuffle_resume(&pctx.sctx);
     }
     if (pctx.my_rank == 0) {
-      INFO("OK!");
+      INFO("resuming done (rank 0)");
     }
   }
 
@@ -1779,7 +1779,7 @@ DIR* opendir(const char* dir) {
       shuffle_resume(&pctx.sctx);
     }
     if (pctx.my_rank == 0) {
-      INFO("OK!");
+      INFO("resuming done (rank 0)");
     }
   }
 
@@ -2021,7 +2021,7 @@ int closedir(DIR* dirp) {
       deltafs_tp_pause(pctx.plfstp);
     }
     if (pctx.my_rank == 0) {
-      INFO("OK!");
+      INFO("pausing done (rank 0)");
     }
   }
 

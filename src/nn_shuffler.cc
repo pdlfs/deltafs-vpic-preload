@@ -1262,21 +1262,19 @@ static void* bg_work(void* foo) {
 
 /* nn_shuffler_sleep: force the background rpc looper to stop running */
 void nn_shuffler_sleep() {
-  if (is_shuttingdown() == 0) {
-    pthread_mtx_lock(&mtx[bg_cv]);
-    if (shutting_down == 0) shutting_down = -1;
-    pthread_mtx_unlock(&mtx[bg_cv]);
-  }
+  if (is_shuttingdown() != 0) return;
+  pthread_mtx_lock(&mtx[bg_cv]);
+  shutting_down = -1;
+  pthread_mtx_unlock(&mtx[bg_cv]);
 }
 
 /* nn_shuffler_wakeup: signal a sleeping looper to resume work */
 void nn_shuffler_wakeup() {
-  if (is_shuttingdown() < 0) {
-    pthread_mtx_lock(&mtx[bg_cv]);
-    if (shutting_down < 0) shutting_down = 0;
-    pthread_cv_notifyall(&cv[bg_cv]);
-    pthread_mtx_unlock(&mtx[bg_cv]);
-  }
+  if (is_shuttingdown() >= 0) return;
+  pthread_mtx_lock(&mtx[bg_cv]);
+  shutting_down = 0;
+  pthread_cv_notifyall(&cv[bg_cv]);
+  pthread_mtx_unlock(&mtx[bg_cv]);
 }
 
 /* nn_shuffler_init_mssg: init the mssg sublayer */
