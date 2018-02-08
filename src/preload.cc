@@ -1977,7 +1977,7 @@ int closedir(DIR* dirp) {
   }
 
   /* this ensures we have received all peer messages */
-  if (pctx.paranoid_pre_barrier) {
+  if (pctx.paranoid_pre_barrier || pctx.bgpause) {
     preload_barrier(MPI_COMM_WORLD);
   }
 
