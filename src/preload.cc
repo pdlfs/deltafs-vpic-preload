@@ -1645,10 +1645,11 @@ int MPI_Finalize(void) {
              MPI_COMM_WORLD);
 
   if (pctx.my_rank == 0) {
-    INFO(" @ FINAL data compaction...");
+    INFO("");
+    INFO("== FINAL data compaction...");
     snprintf(msg, sizeof(msg), "   > TOTAL delay: %.6f secs", max_finish_dura);
     INFO(msg);
-    INFO(" @ ALL epochs...");
+    INFO("== ALL epochs...");
     snprintf(msg, sizeof(msg), "   > TOTAL %d pthreads created", sum_pthreads);
     INFO(msg);
     snprintf(msg, sizeof(msg), "       > %.1f per rank",
