@@ -167,19 +167,24 @@ static void report() {
   printf("+++ Query Results +++\n");
   printf("[R] Total Epochs: %d\n", c.num_epochs);
   printf("[R] Total Data Partitions: %d\n", c.comm_sz);
-  printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
+  if (!c.use_leveldb)
+    printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
   printf("[R] Total Read Ops: %lu (%lu partitions)\n", m.ops, m.partitions);
-  printf("[R] Total Particle Bytes: %lu (%lu per particle per epoch)\n",
-         m.bytes, m.bytes / m.ops / c.num_epochs);
+  printf("[R] Total Bytes Read: %lu (%lu per particle per epoch)\n", m.bytes,
+         m.bytes / m.ops / c.num_epochs);
   printf("[R] Latency: %.3f (min: %.3f, max %.3f) ms per op\n",
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
-  printf("[R] SST Seeks: %.3f (min: %lu, max: %lu) per op\n",
-         double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
-         m.table_seeks[MAX]);
-  printf("[R] Seeks: %.3f (min: %lu, max: %lu) per op\n",
-         double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
-  printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
+  if (!c.use_leveldb)
+    printf("[R] SST Seeks: %.3f (min: %lu, max: %lu) per op\n",
+           double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
+           m.table_seeks[MAX]);
+  if (!c.use_leveldb)
+    printf("[R] Seeks: %.3f (min: %lu, max: %lu) per op\n",
+           double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
+  if (!c.use_leveldb) {
+    printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
+  }
   printf("\n");
 }
 
