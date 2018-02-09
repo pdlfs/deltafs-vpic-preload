@@ -114,6 +114,10 @@
  *  PLFSDIR_Env_name
  *    Name of the underlying env
  *      such as posix.unbufferedio, posix.default, posix.devnull
+ *  PLFSDIR_Use_leveldb
+ *    Switch to using leveldb as the storage engine
+ *  PLFSDIR_No_compaction
+ *    Disable leveldb compaction
  *  PLFSDIR_Skip_checksums
  *    Skip generating checksums
  */
