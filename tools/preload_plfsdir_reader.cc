@@ -298,6 +298,7 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
   size_t seeks;
   size_t sz;
 
+  table_seeks = seeks = 0;
   start = now();
 
   data = static_cast<char*>(
