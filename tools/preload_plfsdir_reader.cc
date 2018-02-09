@@ -165,11 +165,11 @@ static void report() {
   if (m.ops == 0) return;
   printf("\n");
   printf("+++ Query Results +++\n");
+  printf("[R] Total Epochs: %d\n", c.num_epochs);
   printf("[R] Total Ranks: %lu\n", m.ranks);
   printf("[R] Total Read Ops: %lu\n", m.ops);
-  printf("[R] Total Particle Bytes: %lu (%lu per particle epoch)\n", m.bytes,
-         m.bytes / m.ops / c.num_epochs);
-  printf("[R] Num Epochs: %d\n", c.num_epochs);
+  printf("[R] Total Particle Bytes: %lu (%lu per particle per epoch)\n",
+         m.bytes, m.bytes / m.ops / c.num_epochs);
   printf("[R] Latency: %.3f (min: %.3f, max %.3f) ms per op\n",
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
