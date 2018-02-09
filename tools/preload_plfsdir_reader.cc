@@ -271,6 +271,7 @@ static void prepare_conf(int rank, int* io_engine) {
   if (g.bg && !tp) complain("fail to init thread pool");
 
   n = snprintf(cf, sizeof(cf), "rank=%d", rank);
+  n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
   n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
   n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
   n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
@@ -451,18 +452,18 @@ int main(int argc, char* argv[]) {
   get_manifest();
 
   printf("\n%s\n==options:\n", argv0);
-  printf("\tqueries: %d x %d\n", g.r, g.d);
-  printf("\tnum bg threads: %d\n", g.bg);
+  printf("\tqueries: %d x %d (ranks x reads)\n", g.r, g.d);
+  printf("\tnum bg threads: %d (reader thread pool)\n", g.bg);
   printf("\tinfodir: %s\n", g.in);
   printf("\tplfsdir: %s\n", g.dirname);
-  printf("\ttimeout: %d\n", g.timeout);
+  printf("\ttimeout: %d s\n", g.timeout);
   printf("\tignore bloom filters: %d\n", g.nobf);
   printf("\tverify crc32: %d\n", g.crc32c);
   printf("\tparanoid checks: %d\n", g.paranoid);
   printf("\tverbose: %d\n", g.v);
   printf("\n==dir manifest\n");
   printf("\tnum epochs: %d\n", c.num_epochs);
-  printf("\tkey size: %d\n", c.key_size);
+  printf("\tkey size: %d bytes\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
   printf("\tuse_leveldb: %d\n", c.use_leveldb);
