@@ -989,9 +989,9 @@ int MPI_Init(int* argc, char*** argv) {
             ABORT("cannot open plfsdir");
           } else if (rank == 0) {
             snprintf(msg, sizeof(msg),
-                     "plfsdir (via deltafs-LT, env=%s) opened (rank 0)\n>>> "
-                     "bg thread pool size: %d",
-                     env, pctx.bgsngcomp ? 1 : pctx.plfsparts);
+                     "plfsdir (via deltafs-LT, env=%s, io_engine=%d) "
+                     "opened (rank 0)\n>>> bg thread pool size: %d",
+                     env, io_engine, pctx.bgsngcomp ? 1 : pctx.plfsparts);
             INFO(msg);
             if (pctx.verr) {
               pretty_plfsdir_conf(conf);
