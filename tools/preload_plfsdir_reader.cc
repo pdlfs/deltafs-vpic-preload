@@ -147,7 +147,7 @@ struct gs {
  * ms: measurements
  */
 struct ms {
-  uint64_t ranks;          /* num ranks touched */
+  uint64_t partitions;     /* num data partitions touched */
   uint64_t ops;            /* num read ops */
   uint64_t bytes;          /* total amount of user data retrieved */
   uint64_t seeks[3];       /* sum/min/max data block fetched */
@@ -166,8 +166,9 @@ static void report() {
   printf("\n");
   printf("+++ Query Results +++\n");
   printf("[R] Total Epochs: %d\n", c.num_epochs);
-  printf("[R] Total Ranks: %lu\n", m.ranks);
-  printf("[R] Total Read Ops: %lu\n", m.ops);
+  printf("[R] Total Data Partitions: %d\n", c.comm_sz);
+  printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
+  printf("[R] Total Read Ops: %lu (%lu partitions)\n", m.ops, m.partitions);
   printf("[R] Total Particle Bytes: %lu (%lu per particle per epoch)\n",
          m.bytes, m.bytes / m.ops / c.num_epochs);
   printf("[R] Latency: %.3f (min: %.3f, max %.3f) ms per op\n",
@@ -382,7 +383,7 @@ static void run_queries(int rank) {
 
   deltafs_plfsdir_free_handle(dir);
 
-  m.ranks++;
+  m.partitions++;
 }
 
 /*
