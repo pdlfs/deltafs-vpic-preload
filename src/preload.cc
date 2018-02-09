@@ -476,6 +476,14 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
 
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
+  if (is_envset("PLFSDIR_Use_leveldb")) {
+    *io_engine = DELTAFS_PLFSDIR_LEVELDB;
+    if (is_envset("PLFSDIR_No_compaction"))
+      *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY;
+    dirc.use_leveldb = 1;
+    return tmp;
+  }
+
   dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
   if (dirc.key_size == NULL) {
     dirc.key_size = DEFAULT_KEY_SIZE;
@@ -525,10 +533,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
     dirc.skip_checksums = 1;
   }
 
-  if (is_envset("PLFSDIR_Use_leveldb")) {
-    dirc.use_leveldb = 1;
-  }
-
   n += snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", dirc.lg_parts);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
                 dirc.memtable_size);
@@ -553,8 +557,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
                 PRELOAD_PARTICLE_SIZE);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
 
-  *io_engine =
-      dirc.use_leveldb ? DELTAFS_PLFSDIR_LEVELDB : DELTAFS_PLFSDIR_DEFAULT;
+  *io_engine = DELTAFS_PLFSDIR_DEFAULT;
 
   return tmp;
 }
