@@ -116,8 +116,8 @@
  *      such as posix.unbufferedio, posix.default, posix.devnull
  *  PLFSDIR_Use_leveldb
  *    Switch to using leveldb as the storage engine
- *  PLFSDIR_No_compaction
- *    Disable leveldb compaction
+ *  PLFSDIR_Force_l0
+ *    Disable leveldb compaction (l0, not to be confused with lo or lO)
  *  PLFSDIR_Skip_checksums
  *    Skip generating checksums
  */

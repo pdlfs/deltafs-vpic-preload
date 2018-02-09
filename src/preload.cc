@@ -478,7 +478,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
 
   if (is_envset("PLFSDIR_Use_leveldb")) {
     *io_engine = DELTAFS_PLFSDIR_LEVELDB;
-    if (is_envset("PLFSDIR_No_compaction"))
+    if (is_envset("PLFSDIR_Force_l0"))
       *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY;
     dirc.use_leveldb = 1;
     return tmp;
