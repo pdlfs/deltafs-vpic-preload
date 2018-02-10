@@ -164,7 +164,7 @@ struct ms {
 static void report() {
   if (m.ops == 0) return;
   printf("\n");
-  printf("+++ Query Results +++\n");
+  printf("=== Query Results ===\n");
   printf("[R] Total Epochs: %d\n", c.num_epochs);
   printf("[R] Total Data Partitions: %d\n", c.comm_sz);
   if (!c.use_leveldb)
@@ -259,12 +259,12 @@ static void get_manifest() {
     complain("error reading %s: %s", fname, strerror(errno));
   }
 
-  if (c.num_epochs == 0 || c.comm_sz == 0)
-    complain("bad manifest: num_epochs or comm_sz is 0?!");
+  if (c.key_size == 0 || c.num_epochs == 0 || c.comm_sz == 0)
+    complain("bad manifest: key_size, num_epochs or comm_sz is 0?!");
 
   if (!c.use_leveldb)
-    if (c.key_size == 0 || c.filter_bits_per_key == 0) {
-      complain("bad manifest: key_size or filter_bits_per_key is 0?!");
+    if (c.filter_bits_per_key == 0) {
+      complain("bad manifest: filter_bits_per_key is 0?!");
     }
 
   fclose(f);
@@ -280,14 +280,17 @@ static void prepare_conf(int rank, int* io_engine) {
   if (g.bg && !tp) complain("fail to init thread pool");
 
   n = snprintf(cf, sizeof(cf), "rank=%d", rank);
-  n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
   n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
-  n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
-  n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
-  n += snprintf(cf + n, sizeof(cf) - n, "&paranoid_checks=%d", g.paranoid);
-  n += snprintf(cf + n, sizeof(cf) - n, "&parallel_reads=%d", g.bg != 0);
-  n += snprintf(cf + n, sizeof(cf) - n, "&ignore_filters=%d", g.nobf);
-  snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
+
+  if (!c.use_leveldb) {
+    n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
+    n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
+    n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
+    n += snprintf(cf + n, sizeof(cf) - n, "&paranoid_checks=%d", g.paranoid);
+    n += snprintf(cf + n, sizeof(cf) - n, "&parallel_reads=%d", g.bg != 0);
+    n += snprintf(cf + n, sizeof(cf) - n, "&ignore_filters=%d", g.nobf);
+    snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
+  }
 
   *io_engine =
       c.use_leveldb ? DELTAFS_PLFSDIR_LEVELDB : DELTAFS_PLFSDIR_DEFAULT;

@@ -476,17 +476,18 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
 
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
+  dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
+  if (dirc.key_size == NULL) {
+    dirc.key_size = DEFAULT_KEY_SIZE;
+  }
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
+
   if (is_envset("PLFSDIR_Use_leveldb")) {
     *io_engine = DELTAFS_PLFSDIR_LEVELDB;
     if (is_envset("PLFSDIR_Force_l0"))
       *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY;
     dirc.use_leveldb = 1;
     return tmp;
-  }
-
-  dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
-  if (dirc.key_size == NULL) {
-    dirc.key_size = DEFAULT_KEY_SIZE;
   }
 
   dirc.bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
@@ -553,9 +554,8 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
                 dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
                 dirc.bits_per_key);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
-                PRELOAD_PARTICLE_SIZE);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
+
+  snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", PRELOAD_PARTICLE_SIZE);
 
   *io_engine = DELTAFS_PLFSDIR_DEFAULT;
 
