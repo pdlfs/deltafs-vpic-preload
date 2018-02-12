@@ -131,6 +131,7 @@ static uint64_t now() {
  * gs: shared global data (e.g. from the command line)
  */
 struct gs {
+  int a;         /* anti-shuffle mode (query rank 0 names across all ranks)*/
   int r;         /* number of ranks to read */
   int d;         /* number of names to read per rank */
   int bg;        /* number of background worker threads */
@@ -212,6 +213,7 @@ static void usage(const char* msg) {
   if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
   fprintf(stderr, "usage: %s [options] plfsdir infodir\n", argv0);
   fprintf(stderr, "\noptions:\n");
+  fprintf(stderr, "\t-a        enable the special anti-shuffle mode\n");
   fprintf(stderr, "\t-r ranks  number of ranks to read\n");
   fprintf(stderr, "\t-d depth  number of names to read per rank\n");
   fprintf(stderr, "\t-j num    number of background worker threads\n");
@@ -381,7 +383,7 @@ static void run_queries(int rank) {
   int io_engine;
   int r;
 
-  get_names(rank, &names);
+  get_names(g.a ? 0 : rank, &names);
   std::random_shuffle(names.begin(), names.end());
   prepare_conf(rank, &io_engine);
 
@@ -427,8 +429,11 @@ int main(int argc, char* argv[]) {
   /* setup default to zero/null, except as noted below */
   memset(&g, 0, sizeof(g));
   g.timeout = DEF_TIMEOUT;
-  while ((ch = getopt(argc, argv, "r:d:j:t:ickv")) != -1) {
+  while ((ch = getopt(argc, argv, "ar:d:j:t:ickv")) != -1) {
     switch (ch) {
+      case 'a':
+        g.a = 1;
+        break;
       case 'r':
         g.r = atoi(optarg);
         if (g.r < 0) usage("bad rank number");
@@ -480,6 +485,7 @@ int main(int argc, char* argv[]) {
   printf("\n%s\n==options:\n", argv0);
   printf("\tqueries: %d x %d (ranks x reads)\n", g.r, g.d);
   printf("\tnum bg threads: %d (reader thread pool)\n", g.bg);
+  printf("\tanti-shuffle: %d\n", g.a);
   printf("\tinfodir: %s\n", g.in);
   printf("\tplfsdir: %s\n", g.dirname);
   printf("\ttimeout: %d s\n", g.timeout);
