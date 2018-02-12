@@ -1119,8 +1119,9 @@ int MPI_Finalize(void) {
   uint64_t flush_end;
   uint64_t finish_start;
   uint64_t finish_end;
-  double finish_dura; /* In seconds */
+  double finish_dura; /* per-rank, seconds */
   double max_finish_dura;
+  double io_time;
   /* num io performed */
   unsigned long long num_files_writ; /* per rank */
   unsigned long long sum_files_writ;
@@ -1152,6 +1153,7 @@ int MPI_Finalize(void) {
   finish_dura = 0;
   num_files_writ = num_bytes_writ = 0;
   num_files_read = num_bytes_read = 0;
+  io_time = 0;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -1455,6 +1457,7 @@ int MPI_Finalize(void) {
                 ABORT("lost rpc replies");
               if (pctx.paranoid_checks && glob.nmr != glob.nms)
                 ABORT("lost rpcs");
+              io_time += glob.max_dura / 1000.0 / 1000.0;
               if (mon_dump_txt) mon_dumpstate(fd2, &glob);
               if (mon_dump_bin) {
                 memset(buf, 0, sizeof(buf));
@@ -1686,6 +1689,10 @@ int MPI_Finalize(void) {
     INFO(msg);
     snprintf(msg, sizeof(msg), "       > final compaction draining: %.6f secs",
              max_finish_dura);
+    INFO(msg);
+    io_time += max_finish_dura;
+    snprintf(msg, sizeof(msg), "           > total io time: %.6f secs",
+             io_time);
     INFO(msg);
     INFO("== ALL epochs");
     snprintf(msg, sizeof(msg), "   > total %d pthreads created", sum_pthreads);
