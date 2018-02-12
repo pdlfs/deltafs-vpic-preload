@@ -151,6 +151,7 @@ struct gs {
 struct ms {
   uint64_t partitions;     /* num data partitions touched */
   uint64_t ops;            /* num read ops */
+  uint64_t okops;          /* num read ops that return non-empty data */
   uint64_t bytes;          /* total amount of data queries */
   uint64_t read_bytes;     /* total amount of underlying data retrieved */
   uint64_t read_files;     /* total amount of underlying files opened */
@@ -173,12 +174,12 @@ static void report() {
   printf("[R] Total Data Partitions: %d\n", c.comm_sz);
   if (!c.use_leveldb)
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
-  printf("[R] Total Query Ops: %lu (across %lu partitions)\n", m.ops,
-         m.partitions);
+  printf("[R] Total Query Ops: %lu (%lu ok ops, across %lu partitions)\n",
+         m.ops, m.okops, m.partitions);
   printf(
       "[R] Total Particle Data Queried: %lu bytes (%lu per particle per "
       "epoch)\n",
-      m.bytes, m.bytes / m.ops / c.num_epochs);
+      m.bytes, m.bytes / m.okops / c.num_epochs);
   printf("[R] Latency Per Query: %.3f (min: %.3f, max %.3f) ms\n",
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
@@ -349,6 +350,7 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
   m.seeks[MIN] = std::min(seeks, m.seeks[MIN]);
   m.seeks[MAX] = std::max(seeks, m.seeks[MAX]);
   m.bytes += sz;
+  if (sz != 0) m.okops++;
   m.ops++;
 }
 
