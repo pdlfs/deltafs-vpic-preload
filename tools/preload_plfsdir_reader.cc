@@ -149,7 +149,9 @@ struct gs {
 struct ms {
   uint64_t partitions;     /* num data partitions touched */
   uint64_t ops;            /* num read ops */
-  uint64_t bytes;          /* total amount of user data retrieved */
+  uint64_t bytes;          /* total amount of data queries */
+  uint64_t read_bytes;     /* total amount of underlying data retrieved */
+  uint64_t read_files;     /* total amount of underlying files opened */
   uint64_t seeks[3];       /* sum/min/max data block fetched */
   uint64_t table_seeks[3]; /* sum/min/max sstable opened */
   uint64_t t[3];           /* sum/min/max time past (in micros)*/
@@ -169,19 +171,25 @@ static void report() {
   printf("[R] Total Data Partitions: %d\n", c.comm_sz);
   if (!c.use_leveldb)
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
-  printf("[R] Total Read Ops: %lu (%lu partitions)\n", m.ops, m.partitions);
-  printf("[R] Total Bytes Read: %lu (%lu per particle per epoch)\n", m.bytes,
-         m.bytes / m.ops / c.num_epochs);
-  printf("[R] Latency: %.3f (min: %.3f, max %.3f) ms per op\n",
+  printf("[R] Total Query Ops: %lu (across %lu partitions)\n", m.ops,
+         m.partitions);
+  printf(
+      "[R] Total Particle Data Queried: %lu bytes (%lu per particle per "
+      "epoch)\n",
+      m.bytes, m.bytes / m.ops / c.num_epochs);
+  printf("[R] Latency Per Query: %.3f (min: %.3f, max %.3f) ms\n",
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
+  printf("[R] Total Read Latency: %.6f s\n", double(m.t[SUM]) / 1000 / 1000);
   if (!c.use_leveldb)
-    printf("[R] SST Seeks: %.3f (min: %lu, max: %lu) per op\n",
+    printf("[R] SST Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
            m.table_seeks[MAX]);
   if (!c.use_leveldb)
-    printf("[R] Seeks: %.3f (min: %lu, max: %lu) per op\n",
+    printf("[R] Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
+  printf("[R] Total Data Read: %lu bytes\n", m.read_bytes);
+  printf("[R] Total Files Opened: %lu\n", m.read_files);
   if (!c.use_leveldb) {
     printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
   }
@@ -392,6 +400,11 @@ static void run_queries(int rank) {
     do_read(dir, names[i].c_str());
   }
 
+  m.read_bytes +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
+  m.read_files +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
+
   deltafs_plfsdir_free_handle(dir);
 
   m.partitions++;
@@ -479,7 +492,7 @@ int main(int argc, char* argv[]) {
   printf("\tkey size: %d bytes\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
-  printf("\tuse_leveldb: %d\n", c.use_leveldb);
+  printf("\tuse leveldb: %d\n", c.use_leveldb);
   printf("\tlg parts: %d\n", c.lg_parts);
   printf("\tcomm sz: %d\n", c.comm_sz);
   printf("\n");
