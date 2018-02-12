@@ -1677,16 +1677,17 @@ int MPI_Finalize(void) {
              MPI_COMM_WORLD);
 
   if (pctx.my_rank == 0) {
-    INFO("FINAL stats");
-    INFO("== dir data compaction...");
+    INFO("final stats...");
+    INFO("== dir data compaction");
     snprintf(
         msg, sizeof(msg),
         "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
         sum_bytes_writ, sum_files_writ, sum_bytes_read, sum_files_read);
+    INFO(msg);
     snprintf(msg, sizeof(msg), "       > final compaction draining: %.6f secs",
              max_finish_dura);
     INFO(msg);
-    INFO("== ALL epochs...");
+    INFO("== ALL epochs");
     snprintf(msg, sizeof(msg), "   > total %d pthreads created", sum_pthreads);
     INFO(msg);
     snprintf(msg, sizeof(msg), "       > %.1f per rank",
