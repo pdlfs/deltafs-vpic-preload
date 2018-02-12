@@ -68,6 +68,7 @@ static struct deltafs_conf {
   int filter_bits_per_key;
   int lg_parts;
   int skip_crc32c;
+  int bypass_shuffle;
   int use_leveldb;
   int comm_sz;
 } c; /* plfsdir conf */
@@ -256,6 +257,9 @@ static void get_manifest() {
     } else if (strncmp(ch, "skip_checksums=", strlen("skip_checksums=")) == 0) {
       c.skip_crc32c = atoi(ch + strlen("skip_checksums="));
       if (c.skip_crc32c < 0) complain("bad skip_checksums from manifest");
+    } else if (strncmp(ch, "bypass_shuffle=", strlen("bypass_shuffle=")) == 0) {
+      c.bypass_shuffle = atoi(ch + strlen("bypass_shuffle="));
+      if (c.bypass_shuffle < 0) complain("bad bypass_shuffle from manifest");
     } else if (strncmp(ch, "use_leveldb=", strlen("use_leveldb=")) == 0) {
       c.use_leveldb = atoi(ch + strlen("use_leveldb="));
       if (c.use_leveldb < 0) complain("bad use_leveldb from manifest");
@@ -383,7 +387,7 @@ static void run_queries(int rank) {
   int io_engine;
   int r;
 
-  get_names(g.a ? 0 : rank, &names);
+  get_names((g.a || c.bypass_shuffle) ? 0 : rank, &names);
   std::random_shuffle(names.begin(), names.end());
   prepare_conf(rank, &io_engine);
 
@@ -498,6 +502,7 @@ int main(int argc, char* argv[]) {
   printf("\tkey size: %d bytes\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
+  printf("\tbypass shuffle: %d\n", c.bypass_shuffle);
   printf("\tuse leveldb: %d\n", c.use_leveldb);
   printf("\tlg parts: %d\n", c.lg_parts);
   printf("\tcomm sz: %d\n", c.comm_sz);

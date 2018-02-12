@@ -1208,6 +1208,9 @@ int MPI_Finalize(void) {
           n = snprintf(msg, sizeof(msg), "skip_checksums=%d\n",
                        dirc.skip_checksums);
           n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "bypass_shuffle=%d\n",
+                       IS_BYPASS_SHUFFLE(pctx.mode));
+          n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "use_leveldb=%d\n", dirc.use_leveldb);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "comm_sz=%d\n", pctx.recv_sz);
