@@ -387,7 +387,7 @@ static void run_queries(int rank) {
 
   dir = deltafs_plfsdir_create_handle(cf, O_RDONLY, io_engine);
   if (!dir) complain("fail to create dir handle");
-  deltafs_plfsdir_enable_io_measurement(dir, 0); /* we don't need this */
+  deltafs_plfsdir_enable_io_measurement(dir, 1);
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
 
   r = deltafs_plfsdir_open(dir, g.dirname);
