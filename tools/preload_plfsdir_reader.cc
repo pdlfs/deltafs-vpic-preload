@@ -176,10 +176,9 @@ static void report() {
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
   printf("[R] Total Query Ops: %lu (%lu ok ops, across %lu partitions)\n",
          m.ops, m.okops, m.partitions);
-  printf(
-      "[R] Total Particle Data Queried: %lu bytes (%lu per particle per "
-      "epoch)\n",
-      m.bytes, m.bytes / m.okops / c.num_epochs);
+  if (m.okops != 0)
+    printf("[R] Total Data Queried: %lu bytes (%lu per entry per epoch)\n",
+           m.bytes, m.bytes / m.okops / c.num_epochs);
   printf("[R] Latency Per Query: %.3f (min: %.3f, max %.3f) ms\n",
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
@@ -191,8 +190,8 @@ static void report() {
   if (!c.use_leveldb)
     printf("[R] Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
-  printf("[R] Total Data Read: %lu bytes\n", m.read_bytes);
-  printf("[R] Total Files Opened: %lu\n", m.read_files);
+  printf("[R] Total Under Data Read: %lu bytes\n", m.read_bytes);
+  printf("[R] Total Under Files Opened: %lu\n", m.read_files);
   if (!c.use_leveldb) {
     printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
   }
