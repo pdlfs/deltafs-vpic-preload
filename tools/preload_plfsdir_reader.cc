@@ -423,6 +423,7 @@ static void run_queries(int rank) {
  */
 int main(int argc, char* argv[]) {
   std::vector<int> ranks;
+  int nranks;
   int ch;
 
   argv0 = argv[0];
@@ -521,8 +522,9 @@ int main(int argc, char* argv[]) {
     ranks.push_back(i);
   }
   std::random_shuffle(ranks.begin(), ranks.end());
-  if (g.v) info("start queries (%d ranks) ...", std::min(g.r, c.comm_sz));
-  for (int i = 0; i < g.r && i < c.comm_sz; i++) {
+  nranks = (g.a || c.bypass_shuffle) ? c.comm_sz : g.r;
+  if (g.v) info("start queries (%d ranks) ...", std::min(nranks, c.comm_sz));
+  for (int i = 0; i < nranks && i < c.comm_sz; i++) {
     run_queries(ranks[i]);
   }
   report();
