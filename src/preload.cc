@@ -975,7 +975,7 @@ int MPI_Init(int* argc, char*** argv) {
           }
           pctx.plfshdl =
               deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY, io_engine);
-          deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 0);
+          // deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 1);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
@@ -1121,6 +1121,15 @@ int MPI_Finalize(void) {
   uint64_t finish_end;
   double finish_dura; /* In seconds */
   double max_finish_dura;
+  /* num io performed */
+  unsigned long long num_files_writ; /* per rank */
+  unsigned long long sum_files_writ;
+  unsigned long long num_bytes_writ; /* per rank */
+  unsigned long long sum_bytes_writ;
+  unsigned long long num_files_read; /* per rank */
+  unsigned long long sum_files_read;
+  unsigned long long num_bytes_read; /* per rank */
+  unsigned long long sum_bytes_read;
   std::string tmp;
   /* num names sampled: 0 -> total, 1 -> total valid */
   unsigned long long num_samples[2]; /* per rank */
@@ -1141,6 +1150,8 @@ int MPI_Finalize(void) {
   int n;
 
   finish_dura = 0;
+  num_files_writ = num_bytes_writ = 0;
+  num_files_read = num_bytes_read = 0;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -1257,6 +1268,15 @@ int MPI_Finalize(void) {
       if (num_epochs != 0) {
         dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
       }
+
+      num_files_writ = deltafs_plfsdir_get_integer_property(
+          pctx.plfshdl, "io.total_write_open");
+      num_bytes_writ = deltafs_plfsdir_get_integer_property(
+          pctx.plfshdl, "io.total_bytes_written");
+      num_files_read = deltafs_plfsdir_get_integer_property(
+          pctx.plfshdl, "io.total_read_open");
+      num_bytes_read = deltafs_plfsdir_get_integer_property(
+          pctx.plfshdl, "io.total_bytes_read");
 
       deltafs_plfsdir_free_handle(pctx.plfshdl);
       if (pctx.plfsenv != NULL) {
@@ -1642,18 +1662,32 @@ int MPI_Finalize(void) {
   }
 
   /* extra stats */
+  MPI_Reduce(&num_bytes_writ, &sum_bytes_writ, 1, MPI_UNSIGNED_LONG_LONG,
+             MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&num_files_writ, &sum_files_writ, 1, MPI_UNSIGNED_LONG_LONG,
+             MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&num_bytes_read, &sum_bytes_read, 1, MPI_UNSIGNED_LONG_LONG,
+             MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(&num_files_read, &sum_files_read, 1, MPI_UNSIGNED_LONG_LONG,
+             MPI_SUM, 0, MPI_COMM_WORLD);
+
   MPI_Reduce(&finish_dura, &max_finish_dura, 1, MPI_DOUBLE, MPI_MAX, 0,
              MPI_COMM_WORLD);
   MPI_Reduce(&num_pthreads, &sum_pthreads, 1, MPI_INT, MPI_SUM, 0,
              MPI_COMM_WORLD);
 
   if (pctx.my_rank == 0) {
-    INFO("");
-    INFO("== FINAL data compaction...");
-    snprintf(msg, sizeof(msg), "   > TOTAL delay: %.6f secs", max_finish_dura);
+    INFO("FINAL stats");
+    INFO("== dir data compaction...");
+    snprintf(
+        msg, sizeof(msg),
+        "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
+        sum_bytes_writ, sum_files_writ, sum_bytes_read, sum_files_read);
+    snprintf(msg, sizeof(msg), "       > final compaction draining: %.6f secs",
+             max_finish_dura);
     INFO(msg);
     INFO("== ALL epochs...");
-    snprintf(msg, sizeof(msg), "   > TOTAL %d pthreads created", sum_pthreads);
+    snprintf(msg, sizeof(msg), "   > total %d pthreads created", sum_pthreads);
     INFO(msg);
     snprintf(msg, sizeof(msg), "       > %.1f per rank",
              double(sum_pthreads) / pctx.comm_sz);
