@@ -273,13 +273,8 @@ static void get_manifest() {
     complain("error reading %s: %s", fname, strerror(errno));
   }
 
-  if (c.key_size == 0 || c.num_epochs == 0 || c.comm_sz == 0)
-    complain("bad manifest: key_size, num_epochs or comm_sz is 0?!");
-
-  if (!c.use_leveldb)
-    if (c.filter_bits_per_key == 0) {
-      complain("bad manifest: filter_bits_per_key is 0?!");
-    }
+  if (c.key_size == 0 || c.comm_sz == 0)
+    complain("bad manifest: key_size or comm_sz is 0?!");
 
   fclose(f);
 }
