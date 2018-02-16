@@ -460,7 +460,7 @@ struct plfsdir_conf {
   const char* memtable_size;
   const char* lg_parts;
   int skip_checksums;
-  int use_leveldb;
+  int io_engine;
 };
 
 static struct plfsdir_conf dirc = {0};
@@ -480,19 +480,27 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
   if (dirc.key_size == NULL) {
     dirc.key_size = DEFAULT_KEY_SIZE;
   }
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
-
-  if (is_envset("PLFSDIR_Use_leveldb")) {
-    *io_engine = DELTAFS_PLFSDIR_LEVELDB;
-    if (is_envset("PLFSDIR_Force_l0"))
-      *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY;
-    dirc.use_leveldb = 1;
-    return tmp;
-  }
 
   dirc.bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
   if (dirc.bits_per_key == NULL) {
     dirc.bits_per_key = DEFAULT_BITS_PER_KEY;
+  }
+
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
+                dirc.bits_per_key);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
+                dirc.bits_per_key);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
+
+  if (is_envset("PLFSDIR_Use_leveldb")) {
+    *io_engine = DELTAFS_PLFSDIR_LEVELDB;
+    if (is_envset("PLFSDIR_Ldb_force_l0"))
+      *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY;
+    if (is_envset("PLFSDIR_Ldb_use_bf"))
+      *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY_BF;
+    dirc.io_engine = *io_engine;
+    return tmp;
   }
 
   dirc.memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
@@ -549,11 +557,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
                 dirc.skip_checksums);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&block_padding=%s&tail_padding=%s",
                 "false", "false");
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
-                dirc.bits_per_key);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
-                dirc.bits_per_key);
 
   snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", PRELOAD_PARTICLE_SIZE);
 
@@ -1211,7 +1214,7 @@ int MPI_Finalize(void) {
           n = snprintf(msg, sizeof(msg), "bypass_shuffle=%d\n",
                        IS_BYPASS_SHUFFLE(pctx.mode));
           n = write(fd0, msg, n);
-          n = snprintf(msg, sizeof(msg), "use_leveldb=%d\n", dirc.use_leveldb);
+          n = snprintf(msg, sizeof(msg), "io_engine=%d\n", dirc.io_engine);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "comm_sz=%d\n", pctx.recv_sz);
           n = write(fd0, msg, n);

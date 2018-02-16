@@ -116,8 +116,10 @@
  *      such as posix.unbufferedio, posix.default, posix.devnull
  *  PLFSDIR_Use_leveldb
  *    Switch to using leveldb as the storage engine
- *  PLFSDIR_Force_l0
+ *  PLFSDIR_Ldb_force_l0
  *    Disable leveldb compaction (l0, not to be confused with lo or lO)
+ *  PLFSDIR_Ldb_use_bf
+ *    Use bloom filter in leveldb.
  *  PLFSDIR_Skip_checksums
  *    Skip generating checksums
  */
