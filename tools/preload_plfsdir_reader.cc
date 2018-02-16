@@ -69,7 +69,7 @@ static struct deltafs_conf {
   int lg_parts;
   int skip_crc32c;
   int bypass_shuffle;
-  int use_leveldb;
+  int io_engine;
   int comm_sz;
 } c; /* plfsdir conf */
 
@@ -172,7 +172,7 @@ static void report() {
   printf("=== Query Results ===\n");
   printf("[R] Total Epochs: %d\n", c.num_epochs);
   printf("[R] Total Data Partitions: %d\n", c.comm_sz);
-  if (!c.use_leveldb)
+  if (!c.io_engine)
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
   printf("[R] Total Query Ops: %lu (%lu ok ops, across %lu partitions)\n",
          m.ops, m.okops, m.partitions);
@@ -183,16 +183,16 @@ static void report() {
          double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
          double(m.t[MAX]) / 1000);
   printf("[R] Total Read Latency: %.6f s\n", double(m.t[SUM]) / 1000 / 1000);
-  if (!c.use_leveldb)
+  if (!c.io_engine)
     printf("[R] SST Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
            m.table_seeks[MAX]);
-  if (!c.use_leveldb)
+  if (!c.io_engine)
     printf("[R] Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
   printf("[R] Total Under Data Read: %lu bytes\n", m.read_bytes);
   printf("[R] Total Under Files Opened: %lu\n", m.read_files);
-  if (!c.use_leveldb) {
+  if (!c.io_engine) {
     printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
   }
   printf("\n");
@@ -260,9 +260,9 @@ static void get_manifest() {
     } else if (strncmp(ch, "bypass_shuffle=", strlen("bypass_shuffle=")) == 0) {
       c.bypass_shuffle = atoi(ch + strlen("bypass_shuffle="));
       if (c.bypass_shuffle < 0) complain("bad bypass_shuffle from manifest");
-    } else if (strncmp(ch, "use_leveldb=", strlen("use_leveldb=")) == 0) {
-      c.use_leveldb = atoi(ch + strlen("use_leveldb="));
-      if (c.use_leveldb < 0) complain("bad use_leveldb from manifest");
+    } else if (strncmp(ch, "io_engine=", strlen("io_engine=")) == 0) {
+      c.io_engine = atoi(ch + strlen("io_engine="));
+      if (c.io_engine < 0) complain("bad io_engine from manifest");
     } else if (strncmp(ch, "comm_sz=", strlen("comm_sz=")) == 0) {
       c.comm_sz = atoi(ch + strlen("comm_sz="));
       if (c.comm_sz < 0) complain("bad comm_sz from manifests");
@@ -290,8 +290,10 @@ static void prepare_conf(int rank, int* io_engine) {
 
   n = snprintf(cf, sizeof(cf), "rank=%d", rank);
   n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
+  n += snprintf(cf + n, sizeof(cf) - n, "&bf_bits_per_key=%d",
+                c.filter_bits_per_key);
 
-  if (!c.use_leveldb) {
+  if (!c.io_engine) {
     n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
     n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
     n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
@@ -301,8 +303,7 @@ static void prepare_conf(int rank, int* io_engine) {
     snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
   }
 
-  *io_engine =
-      c.use_leveldb ? DELTAFS_PLFSDIR_LEVELDB : DELTAFS_PLFSDIR_DEFAULT;
+  *io_engine = c.io_engine;
 #ifndef NDEBUG
   info(cf);
 #endif
@@ -495,12 +496,12 @@ int main(int argc, char* argv[]) {
   printf("\tparanoid checks: %d\n", g.paranoid);
   printf("\tverbose: %d\n", g.v);
   printf("\n==dir manifest\n");
+  printf("\tio engine: %d\n", c.io_engine);
   printf("\tnum epochs: %d\n", c.num_epochs);
   printf("\tkey size: %d bytes\n", c.key_size);
   printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
   printf("\tbypass shuffle: %d\n", c.bypass_shuffle);
-  printf("\tuse leveldb: %d\n", c.use_leveldb);
   printf("\tlg parts: %d\n", c.lg_parts);
   printf("\tcomm sz: %d\n", c.comm_sz);
   printf("\n");
