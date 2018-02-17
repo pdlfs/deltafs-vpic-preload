@@ -486,6 +486,13 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
     dirc.bits_per_key = DEFAULT_BITS_PER_KEY;
   }
 
+  dirc.memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
+  if (dirc.memtable_size == NULL) {
+    dirc.memtable_size = DEFAULT_MEMTABLE_SIZE;
+  }
+
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
+                dirc.memtable_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
                 dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
@@ -498,11 +505,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
       *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY_BF;
     dirc.io_engine = *io_engine;
     return tmp;
-  }
-
-  dirc.memtable_size = maybe_getenv("PLFSDIR_Memtable_size");
-  if (dirc.memtable_size == NULL) {
-    dirc.memtable_size = DEFAULT_MEMTABLE_SIZE;
   }
 
   dirc.comp_buf = maybe_getenv("PLFSDIR_Compaction_buf_size");
@@ -540,8 +542,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
   }
 
   n += snprintf(tmp + n, sizeof(tmp) - n, "&lg_parts=%s", dirc.lg_parts);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
-                dirc.memtable_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&compaction_buffer=%s",
                 dirc.comp_buf);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&index_buffer=%s", dirc.index_buf);
@@ -1204,6 +1204,9 @@ int MPI_Finalize(void) {
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "filter_bits_per_key=%s\n",
                        dirc.bits_per_key);
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "memtable_size=%s\n",
+                       dirc.memtable_size);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "lg_parts=%s\n", dirc.lg_parts);
           n = write(fd0, msg, n);
