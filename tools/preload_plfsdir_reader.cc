@@ -153,10 +153,11 @@ struct ms {
   uint64_t ops;            /* num read ops */
   uint64_t okops;          /* num read ops that return non-empty data */
   uint64_t bytes;          /* total amount of data queries */
-  uint64_t read_bytes;     /* total amount of underlying data retrieved */
-  uint64_t read_files;     /* total amount of underlying files opened */
-  uint64_t seeks[3];       /* sum/min/max data block fetched */
+  uint64_t under_bytes;    /* total amount of underlying data retrieved */
+  uint64_t under_files;    /* total amount of underlying files opened */
+  uint64_t under_seeks;    /* total amount of underlying storage seeks */
   uint64_t table_seeks[3]; /* sum/min/max sstable opened */
+  uint64_t seeks[3];       /* sum/min/max data block fetched */
   uint64_t t[3];           /* sum/min/max time past (in micros)*/
 #define SUM 0
 #define MIN 1
@@ -184,17 +185,16 @@ static void report() {
          double(m.t[MAX]) / 1000);
   printf("[R] Total Read Latency: %.6f s\n", double(m.t[SUM]) / 1000 / 1000);
   if (!c.io_engine)
-    printf("[R] SST Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
+    printf("[R] SST Touched Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
            m.table_seeks[MAX]);
   if (!c.io_engine)
-    printf("[R] Seeks Per Query: %.3f (min: %lu, max: %lu)\n",
+    printf("[R] SST Data Blocks Fetched Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
-  printf("[R] Total Under Data Read: %lu bytes\n", m.read_bytes);
-  printf("[R] Total Under Files Opened: %lu\n", m.read_files);
-  if (!c.io_engine) {
-    printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
-  }
+  printf("[R] Total Under File Seeks: %lu\n", m.under_seeks);
+  printf("[R] Total Under Data Read: %lu bytes\n", m.under_bytes);
+  printf("[R] Total Under Files Opened: %lu\n", m.under_files);
+  printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
   printf("\n");
 }
 
@@ -403,11 +403,11 @@ static void run_queries(int rank) {
     do_read(dir, names[i].c_str());
   }
 
-  m.read_bytes +=
+  m.under_bytes +=
       deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
-  m.read_files +=
+  m.under_files +=
       deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
-
+  m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
   deltafs_plfsdir_free_handle(dir);
 
   m.partitions++;
