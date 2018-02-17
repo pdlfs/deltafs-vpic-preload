@@ -65,7 +65,8 @@ static char cf[500];     /* plfsdir conf str */
 static struct deltafs_conf {
   int num_epochs;
   int key_size;
-  int filter_bits_per_key;
+  char* filter_bits_per_key;
+  char* memtable_size;
   int lg_parts;
   int skip_crc32c;
   int bypass_shuffle;
@@ -194,7 +195,9 @@ static void report() {
   printf("[R] Total Under Storage Seeks: %lu\n", m.under_seeks);
   printf("[R] Total Under Data Read: %lu bytes\n", m.under_bytes);
   printf("[R] Total Under Files Opened: %lu\n", m.under_files);
-  printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
+  printf("[R] Dir IO Engine: %d\n", c.io_engine);
+  printf("[R] MemTable Size: %s\n", c.memtable_size);
+  printf("[R] BF Bits: %s\n", c.filter_bits_per_key);
   printf("\n");
 }
 
@@ -248,9 +251,9 @@ static void get_manifest() {
       if (c.key_size < 0) complain("bad key_size from manifest");
     } else if (strncmp(ch, "filter_bits_per_key=",
                        strlen("filter_bits_per_key=")) == 0) {
-      c.filter_bits_per_key = atoi(ch + strlen("filter_bits_per_key="));
-      if (c.filter_bits_per_key < 0)
-        complain("bad filter_bits_per_key from manifest");
+      c.filter_bits_per_key = strdup(ch + strlen("filter_bits_per_key="));
+    } else if (strncmp(ch, "memtable_size=", strlen("memtable_size=")) == 0) {
+      c.memtable_size = strdup(ch + strlen("memtable_size="));
     } else if (strncmp(ch, "lg_parts=", strlen("lg_parts=")) == 0) {
       c.lg_parts = atoi(ch + strlen("lg_parts="));
       if (c.lg_parts < 0) complain("bad lg_parts from manifest");
@@ -290,7 +293,8 @@ static void prepare_conf(int rank, int* io_engine) {
 
   n = snprintf(cf, sizeof(cf), "rank=%d", rank);
   n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
-  n += snprintf(cf + n, sizeof(cf) - n, "&bf_bits_per_key=%d",
+  n += snprintf(cf + n, sizeof(cf) - n, "&memtable_size=%s", c.memtable_size);
+  n += snprintf(cf + n, sizeof(cf) - n, "&bf_bits_per_key=%s",
                 c.filter_bits_per_key);
 
   if (!c.io_engine) {
@@ -499,7 +503,8 @@ int main(int argc, char* argv[]) {
   printf("\tio engine: %d\n", c.io_engine);
   printf("\tnum epochs: %d\n", c.num_epochs);
   printf("\tkey size: %d bytes\n", c.key_size);
-  printf("\tfilter bits per key: %d\n", c.filter_bits_per_key);
+  printf("\tmemtable size: %s\n", c.memtable_size);
+  printf("\tfilter bits per key: %s\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
   printf("\tbypass shuffle: %d\n", c.bypass_shuffle);
   printf("\tlg parts: %d\n", c.lg_parts);
@@ -525,6 +530,8 @@ int main(int argc, char* argv[]) {
   report();
 
   if (tp) deltafs_tp_close(tp);
+  if (c.memtable_size) free(c.memtable_size);
+  if (c.filter_bits_per_key) free(c.filter_bits_per_key);
 
   if (g.v) info("all done!");
   if (g.v) info("bye");
