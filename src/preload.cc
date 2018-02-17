@@ -486,9 +486,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
     dirc.bits_per_key = DEFAULT_BITS_PER_KEY;
   }
 
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
-                dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
                 dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
@@ -557,7 +554,9 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
                 dirc.skip_checksums);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&block_padding=%s&tail_padding=%s",
                 "false", "false");
-
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
+                dirc.bits_per_key);
   snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", PRELOAD_PARTICLE_SIZE);
 
   *io_engine = DELTAFS_PLFSDIR_DEFAULT;
