@@ -173,17 +173,14 @@ static void report() {
   printf("\n");
   printf("=== Query Results ===\n");
   printf("[R] Total Epochs: %d\n", c.num_epochs);
-  printf("[R] Total Data Partitions: %d\n", c.comm_sz);
+  printf("[R] Total Data Partitions: %d (%lu queried)\n", c.comm_sz,
+         m.partitions);
   if (!c.io_engine)
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
-  printf("[R] Total Query Ops: %lu (%lu ok ops, across %lu partitions)\n",
-         m.ops, m.okops, m.partitions);
+  printf("[R] Total Query Ops: %lu (%lu ok ops)\n", m.ops, m.okops);
   if (m.okops != 0)
     printf("[R] Total Data Queried: %lu bytes (%lu per entry per epoch)\n",
            m.bytes, m.bytes / m.okops / c.num_epochs);
-  printf("[R] Latency Per Query: %.3f (min: %.3f, max %.3f) ms\n",
-         double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
-         double(m.t[MAX]) / 1000);
   printf("[R] Total Read Latency: %.6f s\n", double(m.t[SUM]) / 1000 / 1000);
   if (!c.io_engine)
     printf("[R] SST Touched Per Query: %.3f (min: %lu, max: %lu)\n",
@@ -195,6 +192,9 @@ static void report() {
   printf("[R] Total Under Storage Seeks: %lu\n", m.under_seeks);
   printf("[R] Total Under Data Read: %lu bytes\n", m.under_bytes);
   printf("[R] Total Under Files Opened: %lu\n", m.under_files);
+  printf("[R] Latency Per Query: %.3f (min: %.3f, max %.3f) ms\n",
+         double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
+         double(m.t[MAX]) / 1000);
   printf("[R] Dir IO Engine: %d\n", c.io_engine);
   printf("[R] MemTable Size: %s\n", c.memtable_size);
   printf("[R] BF Bits: %s\n", c.filter_bits_per_key);
@@ -252,8 +252,14 @@ static void get_manifest() {
     } else if (strncmp(ch, "filter_bits_per_key=",
                        strlen("filter_bits_per_key=")) == 0) {
       c.filter_bits_per_key = strdup(ch + strlen("filter_bits_per_key="));
+      if (c.filter_bits_per_key[0] != 0 &&
+          c.filter_bits_per_key[strlen(c.filter_bits_per_key) - 1] == '\n')
+        c.filter_bits_per_key[strlen(c.filter_bits_per_key) - 1] = 0;
     } else if (strncmp(ch, "memtable_size=", strlen("memtable_size=")) == 0) {
       c.memtable_size = strdup(ch + strlen("memtable_size="));
+      if (c.memtable_size[0] != 0 &&
+          c.memtable_size[strlen(c.memtable_size) - 1] == '\n')
+        c.memtable_size[strlen(c.memtable_size) - 1] = 0;
     } else if (strncmp(ch, "lg_parts=", strlen("lg_parts=")) == 0) {
       c.lg_parts = atoi(ch + strlen("lg_parts="));
       if (c.lg_parts < 0) complain("bad lg_parts from manifest");
