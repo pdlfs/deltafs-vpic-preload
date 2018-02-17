@@ -191,7 +191,7 @@ static void report() {
   if (!c.io_engine)
     printf("[R] SST Data Blocks Fetched Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
-  printf("[R] Total Under File Seeks: %lu\n", m.under_seeks);
+  printf("[R] Total Under Storage Seeks: %lu\n", m.under_seeks);
   printf("[R] Total Under Data Read: %lu bytes\n", m.under_bytes);
   printf("[R] Total Under Files Opened: %lu\n", m.under_files);
   printf("[R] BF Bits: %d\n", c.filter_bits_per_key);
