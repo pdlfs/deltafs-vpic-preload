@@ -49,6 +49,10 @@
  *    Memory allocated for each local rpc queue
  *  SHUFFLE_Local_maxrpc
  *    Max num of outstanding rpcs allowed for each local outgoing queue
+ *  SHUFFLE_Relay_buftarget
+ *    Memory allocated for each local relay rpc queue
+ *  SHUFFLE_Relay_maxrpc
+ *    Max num of outstanding rpcs allowed for each local relay outgoing queue
  *  SHUFFLE_Dq_min
  *    Min queue size for the final delivery queue
  *      Delay flushing the queue until queue size exceeds the minimum

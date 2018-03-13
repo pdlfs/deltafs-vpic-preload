@@ -232,8 +232,10 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
 void xn_shuffler_init(xn_ctx_t* ctx) {
   int deliverq_min;
   int deliverq_max;
-  int lmaxrpc;
-  int lbuftarget;
+  int lrmaxrpc;
+  int lrbuftarget;
+  int lomaxrpc;
+  int lobuftarget;
   int lsenderlimit;
   int rmaxrpc;
   int rbuftarget;
@@ -278,13 +280,23 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
+  env = maybe_getenv("SHUFFLE_Relay_maxrpc");
+  if (env == NULL) {
+    lrmaxrpc = DEFAULT_OUTSTANDING_RPC;
+  } else {
+    lrmaxrpc = atoi(env);
+    if (lrmaxrpc <= 0) {
+      lrmaxrpc = 0;
+    }
+  }
+
   env = maybe_getenv("SHUFFLE_Local_maxrpc");
   if (env == NULL) {
-    lmaxrpc = DEFAULT_OUTSTANDING_RPC;
+    lomaxrpc = DEFAULT_OUTSTANDING_RPC;
   } else {
-    lmaxrpc = atoi(env);
-    if (lmaxrpc <= 0) {
-      lmaxrpc = 1;
+    lomaxrpc = atoi(env);
+    if (lomaxrpc <= 0) {
+      lomaxrpc = 1;
     }
   }
 
@@ -298,13 +310,23 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     }
   }
 
+  env = maybe_getenv("SHUFFLE_Relay_buftarget");
+  if (env == NULL) {
+    lrbuftarget = DEFAULT_BUFFER_PER_QUEUE;
+  } else {
+    lrbuftarget = atoi(env);
+    if (lrbuftarget < 24) {
+      lrbuftarget = 24;
+    }
+  }
+
   env = maybe_getenv("SHUFFLE_Local_buftarget");
   if (env == NULL) {
-    lbuftarget = DEFAULT_BUFFER_PER_QUEUE;
+    lobuftarget = DEFAULT_BUFFER_PER_QUEUE;
   } else {
-    lbuftarget = atoi(env);
-    if (lbuftarget < 24) {
-      lbuftarget = 24;
+    lobuftarget = atoi(env);
+    if (lobuftarget < 24) {
+      lobuftarget = 24;
     }
   }
 
@@ -345,18 +367,19 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   }
 
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
-                          lsenderlimit, rsenderlimit, lmaxrpc, lbuftarget,
-                          lmaxrpc, lbuftarget, rmaxrpc, rbuftarget,
+                          lsenderlimit, rsenderlimit, lomaxrpc, lobuftarget,
+                          lrmaxrpc, lrbuftarget, rmaxrpc, rbuftarget,
                           deliverq_max, deliverq_min, xn_shuffler_deliver);
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
-    n = snprintf(msg, sizeof(msg),
-                 "3-HOP confs: senderlimit(l/r)=%d/%d, maxrpc(l/r)=%d/%d, "
-                 "buftgt(l/r)=%d/%d, dq(min/max)=%d/%d",
-                 lsenderlimit, rsenderlimit, lmaxrpc, rmaxrpc, lbuftarget,
-                 rbuftarget, deliverq_min, deliverq_max);
+    n = snprintf(
+        msg, sizeof(msg),
+        "3-HOP confs: senderlimit(l/r)=%d/%d, maxrpc(lo/lr/r)=%d/%d/%d, "
+        "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
+        lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
+        lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
     if (logfile != NULL && logfile[0] != 0) {
       snprintf(msg + n, sizeof(msg) - n,
                "\n>>> LOGGING is ON, will log to ..."
