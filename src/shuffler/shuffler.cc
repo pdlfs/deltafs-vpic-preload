@@ -476,8 +476,8 @@ static hg_return_t shuffler_desthand_cb(const struct hg_cb_info *cbi);
 static hg_return_t shuffler_respond_cb(const struct hg_cb_info *cbi);
 static int start_threads(struct shuffler *sh);
 static void stop_threads(struct shuffler *sh);
-static int start_qflush(struct shuffler *sh, struct outset *oset,
-                        struct outqueue *oq);
+static void start_qflush(struct shuffler *sh, struct outset *oset,
+                         struct outqueue *oq);
 
 /*
  * functions used to serialize/deserialize our RPCs args (e.g. XDR-like fn).
@@ -708,6 +708,7 @@ static int shuffler_init_outset(struct outset *oset, int maxoqrpc,
   XTAILQ_INIT(&oset->shufsendq);
   shufzero(&oset->os_senderlimit);
   /* oqs init'd by ctor */
+  oset->osetflushing = 0;
   oset->oqflush_counter = acnt32_alloc();
   if (oset->oqflush_counter == NULL)
     goto err;
@@ -767,6 +768,15 @@ err:
 int shuffler_init_hgthread(struct shuffler *sh, struct hgthread *hgt,
                            hg_class_t *cls, hg_context_t *ctx,
                            hg_rpc_cb_t rpchand) {
+  /* XXX: begin single_hgmode hack */
+  const char *myfunname = sh->funname;
+
+  /* hack a new name for local */
+  if (sh->single_hgmode && hgt == &sh->hgt_local) {
+      myfunname = "3hop-local-hack";   /* XXX: hardwire */
+  }
+  /* XXX: end single_hgmode hack */
+
   /* zero everything.  setting nrunning to 0 indicates ntask is not valid */
   memset(hgt, 0, sizeof(*hgt));
   hgt->hgshuf = sh;
@@ -778,7 +788,7 @@ int shuffler_init_hgthread(struct shuffler *sh, struct hgthread *hgt,
    * there is no API to unregister an RPC other than shutting down
    * mercury, so hopefully HG_Register_data() can't fail...
    */
-  hgt->rpcid = HG_Register_name(cls, sh->funname,
+  hgt->rpcid = HG_Register_name(cls, myfunname,
                  hg_proc_rpcin_t, hg_proc_rpcout_t,  rpchand);
   if (HG_Register_data(cls, hgt->rpcid, hgt, NULL) != HG_SUCCESS)
     return(-1);
@@ -880,6 +890,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   sh->local_rlq.oqflush_counter = NULL;
   sh->remoteq.oqflush_counter = NULL;
 
+  sh->single_hgmode = 0;       /* XXX */
   sh->grank = myrank;
   for (lcv = 0 ; lcv < FLUSH_NTYPES ; lcv++) {
     shufzero(&sh->cntflush[lcv]);
@@ -923,6 +934,10 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   nexus_iter_free(&nit);
   if (rv < 0) goto err;
   acnt32_set(sh->seqsrc, 0);
+
+  /* XXX: check mode for mercury workaround */
+  sh->single_hgmode = (nexus_hgcontext_local(nxp) ==
+                       nexus_hgcontext_remote(nxp));
 
   /* init hg thread state (but don't start yet).  allocs hg rpcid */
   rv = shuffler_init_hgthread(sh, &sh->hgt_local, nexus_hgclass_local(nxp),
@@ -1433,15 +1448,23 @@ static hg_return_t shuffler_respond_cb(const struct hg_cb_info *cbi) {
 
 static void *network_main(void *arg) {
   struct hgthread *hgt = (struct hgthread *)arg;
+  int is_hgtlocal;
   hg_return_t ret;
   unsigned int actual;
   struct museprobe network_use;
 
+  is_hgtlocal = (hgt == &hgt->hgshuf->hgt_local);
   museprobe_start(&network_use, MUSEPROBE_THREAD);
 
-  mlog(SHUF_CALL, "network_main start (local=%d)",
-       (hgt == &hgt->hgshuf->hgt_local));
+  mlog(SHUF_CALL, "network_main start (local=%d)", is_hgtlocal);
   while (hgt->nshutdown == 0) {
+
+    /* XXX hack for hgtlocal */
+    if (is_hgtlocal && hgt->hgshuf->single_hgmode) {
+        sleep(3);
+        continue;
+    }
+    /* XXX hack for hgtlocal */
 
     do {
       ret = HG_Trigger(hgt->mctx, 0, 1, &actual); /* triggers callbacks */
@@ -1462,13 +1485,11 @@ static void *network_main(void *arg) {
 
     shufcount(&hgt->nprogress);
   }
-  mlog(SHUF_CALL, "network_main exiting (local=%d)",
-       (hgt == &hgt->hgshuf->hgt_local));
+  mlog(SHUF_CALL, "network_main exiting (local=%d)", is_hgtlocal);
 
   hgt->nrunning = 0;
   museprobe_end(&network_use);
-  museprobe_print(&network_use,
-    (hgt == &hgt->hgshuf->hgt_local) ? "local" : "remote", -1);
+  museprobe_print(&network_use, (is_hgtlocal) ? "local" : "remote", -1);
 
   return(NULL);
 }
@@ -2222,18 +2243,21 @@ static hg_return_t forward_reqs_now(struct request_queue *tosend,
     mlog(SHUF_D1, "forward_now: HG_Forward R%d-%d to [%d.%d] dst=%p cnt=%d",
          in.forwardrank, in.iseq, oq->grank, oq->subrank, oq->dst, cnt);
     rv = HG_Forward(oput->outhand, forw_cb, oput, &in);   /* SEND HERE! */
+
+    if (rv != HG_SUCCESS) {   /* failure to launch, walk back outset_nrpcs */
+      pthread_mutex_lock(&oset->os_rpclimitlock);
+      oset->outset_nrpcs--;
+      pthread_mutex_unlock(&oset->os_rpclimitlock);
+    }
   }
 
-  /* look for error (e.g. setup failed or HG_Forward failed) */
+  /* err? [1] HG_Create failed, [2] got OSTEP_CANCEL, or [3] HG_Forward err */
   if (rv != HG_SUCCESS) {
     /*
      * terrible!  we failed to forward.  no pretty way to recover,
      * we have to drop the data ...
      */
     notify(SHUF_CRIT, "forward request failed (%d)!  data likely lost!", rv);
-    pthread_mutex_lock(&oset->os_rpclimitlock);
-    oset->outset_nrpcs--;
-    pthread_mutex_unlock(&oset->os_rpclimitlock);
     drop_reqs(NULL, &in.inreqs, "forward_reqs_now");
     forw_start_next(oq, oput);
 
@@ -2318,6 +2342,7 @@ static void forw_progress_shufsendq(struct outset *oset) {
     sw->sw_status = SHUFSEND_OKGO;
     pthread_cond_broadcast(&sw->sw_cv);
     pthread_mutex_unlock(&sw->sw_lock);
+    cando--;
   }
   pthread_mutex_unlock(&oset->os_rpclimitlock);
 }
@@ -2329,7 +2354,7 @@ static void forw_progress_shufsendq(struct outset *oset) {
  * the waitq that can go.
  *
  * @param oq the output queue we are working on
- * @param oput output we just sent (can be NULL if we had an error)
+ * @param oput output we just sent (or failed to send)
  */
 static void forw_start_next(struct outqueue *oq, struct output *oput) {
   struct outset *oset;
@@ -2340,19 +2365,15 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
   struct request *req;
 
   oset = oq->myset;
-  if (oput)
-    mlog(SHUF_CALL, "forw_start_next: to=[%d.%d] %s dst=%p, oput=%p (R%d-%d)",
-       oq->grank, oq->subrank, outset_typstr(oset->settype), oq->dst,
-       oput, oset->shuf->grank, oput->outseq);
-  else
-    mlog(SHUF_CALL, "forw_start_next: to=[%d.%d] %s dst=%p, oput=null",
-       oq->grank, oq->subrank, outset_typstr(oset->settype), oq->dst);
+  mlog(SHUF_CALL, "forw_start_next: to=[%d.%d] %s dst=%p, oput=%p (R%d-%d)",
+     oq->grank, oq->subrank, outset_typstr(oset->settype), oq->dst,
+     oput, oset->shuf->grank, oput->outseq);
 
   /*
    * get rid of handle if we've got one (XXX should we try and recycle
    * it?  how much memory does caching handles cost us?)
    */
-  if (oput && oput->outhand) {
+  if (oput->outhand) {
     HG_Destroy(oput->outhand);
     oput->outhand = NULL;
   }
@@ -2368,32 +2389,30 @@ static void forw_start_next(struct outqueue *oq, struct output *oput) {
   }
 
   flush_done = false;
-  if (oput) {
 
-    /* flushing?  see if we finished everying at and before oqflush_output */
-    if (oq->oqflushing && oput == oq->oqflush_output) {
+  /* flushing?  see if we finished everying at and before oqflush_output */
+  if (oq->oqflushing && oput == oq->oqflush_output) {
 
-      if (oput == XTAILQ_FIRST(&oq->outs)) {  /* nothing before us? */
-        flush_done = true; /* so we call done_oq_flush() after unlock */
-        oq->oqflushing = 0;
-        oq->oqflush_output = NULL;
-        mlog(SHUF_D1, "forw_start_next: flush done!");
-      } else {
-        /* set oqflush_output to pending earlier request */
-        oq->oqflush_output = XTAILQ_PREV(oput, sending_outputs, q);
-        mlog(SHUF_D1, "forw_start_next: flush update to %p",
-             oq->oqflush_output);
-        shufcount(&oq->cntoqflushorder);
-      }
-
+    if (oput == XTAILQ_FIRST(&oq->outs)) {  /* nothing before us? */
+      flush_done = true; /* so we call done_oq_flush() after unlock */
+      oq->oqflushing = 0;
+      oq->oqflush_output = NULL;
+      mlog(SHUF_D1, "forw_start_next: flush done!");
+    } else {
+      /* set oqflush_output to pending earlier request */
+      oq->oqflush_output = XTAILQ_PREV(oput, sending_outputs, q);
+      mlog(SHUF_D1, "forw_start_next: flush update to %p",
+           oq->oqflush_output);
+      shufcount(&oq->cntoqflushorder);
     }
 
-    XTAILQ_REMOVE(&oq->outs, oput, q);
-    mlog(SHUF_D1, "forw_start_next: done with output=%p, oseq=%d",
-         oput, oput->outseq);
-    free(oput);
-    oput = NULL;
   }
+
+  XTAILQ_REMOVE(&oq->outs, oput, q);
+  mlog(SHUF_D1, "forw_start_next: done with output=%p, oseq=%d",
+       oput, oput->outseq);
+  free(oput);
+  oput = NULL;
   if (oq->nsending > 0) oq->nsending--;
   mlog(SHUF_D1, "forw_start_next: dst=%p nsending=%d", oq->dst, oq->nsending);
 
@@ -2889,12 +2908,10 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs) {
     oq = it->second;
 
     /*
-     * if we start a queue flush on this queue, bump the counter
-     * (keeping track of the number of outqueues being flushed).
+     * if we start a queue flush on oq, this will set oq->oqflushing==1
+     * and add one to oset->oqflush_counter (all while holding oqlock).
      */
-    if (start_qflush(sh, oset, oq)) {
-      acnt32_incr(oset->oqflush_counter);
-    }
+    start_qflush(sh, oset, oq);
   }
 
   /*
@@ -2935,24 +2952,23 @@ hg_return_t shuffler_flush_qs(shuffler_t sh, int whichqs) {
 }
 
 /*
- * start_qflush: start flushing an output queue.  if the queue flush
- * is pending, we return 1.  otherwise 0.   flushing an output queue
- * is a multi-step process.  first we must wait for the waitq to drain.
- * second, if there are any pending buffered reqs in the loading list
- * waiting for enough data to build a batch then we need to stop waiting
- * and send them now.  third, we need to wait for all sending_outputs
- * on oq->outs at the time of the flush to finish.   depending on the
- * state of the queue we may be able to skip some or all of these
- * steps (e.g. if queue empty, then we're done!).
+ * start_qflush: start flushing an output queue if it is not empty.
+ * flushing an output queue is a multi-step process.  first we must
+ * wait for the waitq to drain.  second, if there are any pending
+ * buffered reqs in the loading list waiting for enough data to build
+ * a batch then we need to stop waiting and send them now.  third, we
+ * need to wait for all sending_outputs on oq->outs at the time of the
+ * flush to finish.   depending on the state of the queue we may be
+ * able to skip some or all of these steps (e.g. if the queue is empty,
+ * then we're done!).   if we do start a flush, we'll set oq->oqflushing
+ * and add one to oset->oqflush_counter (while holding the oqlock).
  *
  * @param sh the shuffler we are using
  * @param oset the output set being flushed
  * @param oq the output queue to flush
- * @return 1 if flush is pending, otherwise zero
  */
-static int start_qflush(struct shuffler *sh, struct outset *oset,
+static void start_qflush(struct shuffler *sh, struct outset *oset,
                         struct outqueue *oq) {
-  int rv = 0;
   bool tosend;
   struct request_queue tosendq;
   struct output *oput;
@@ -2971,7 +2987,7 @@ static int start_qflush(struct shuffler *sh, struct outset *oset,
     oq->oqflush_waitcounter = oq->oqwaitq.size();
     oq->oqflush_output = NULL;   /* to be safe */
     oq->oqflushing = 1;
-    rv = 1;
+    acnt32_incr(oset->oqflush_counter);
     mlog(UTIL_D1, "start_qflush: WAITQ: oset=%p, oq=%p, waitqcnt=%d",
          oset, oq, oq->oqflush_waitcounter);
     goto done;
@@ -2998,17 +3014,19 @@ static int start_qflush(struct shuffler *sh, struct outset *oset,
     oq->oqflush_waitcounter = 0;
     oq->oqflush_output = XTAILQ_LAST(&oq->outs, sending_outputs);
     oq->oqflushing = 1;
-    rv = 1;
+    acnt32_incr(oset->oqflush_counter);
     mlog(UTIL_D1, "start_qflush: SENDERS: oset=%p, oq=%p, waitfor=%p",
          oset, oq, oq->oqflush_output);
   }
 
 done:
-  if (rv != 0)
+  if (oq->oqflushing != 0)
     shufcount(&oq->cntoqflushes);
+  mlog(UTIL_D1, "start_qflush: oset=%p, oq=%p, flushpending=%d", oset, oq,
+       oq->oqflushing);
   pthread_mutex_unlock(&oq->oqlock);
-  mlog(UTIL_D1, "start_qflush: oset=%p, oq=%p, flushpending=%d", oset, oq, rv);
-  return(rv);
+
+  return;
 }
 
 /*
