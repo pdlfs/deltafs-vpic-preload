@@ -1446,6 +1446,8 @@ static hg_return_t shuffler_respond_cb(const struct hg_cb_info *cbi) {
  * @param arg void* pointer to our outset
  */
 
+pthread_mutex_t dummy_lock = PTHREAD_MUTEX_INITIALIZER; /* XXX:single_hgmode */
+
 static void *network_main(void *arg) {
   struct hgthread *hgt = (struct hgthread *)arg;
   int is_hgtlocal;
@@ -1462,6 +1464,9 @@ static void *network_main(void *arg) {
     /* XXX hack for hgtlocal */
     if (is_hgtlocal && hgt->hgshuf->single_hgmode) {
         sleep(3);
+        pthread_mutex_lock(&dummy_lock);
+        /* XXXCDC: hack to avoid compiler caching hg->nshutdown in a reg */
+        pthread_mutex_unlock(&dummy_lock);
         continue;
     }
     /* XXX hack for hgtlocal */
