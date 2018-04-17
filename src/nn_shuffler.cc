@@ -1184,6 +1184,9 @@ static void* bg_work(void* foo) {
   rpcu_start(RUSAGE_THREAD, &rpcus[RPCU_LOOPER]);
 #endif
 
+  /* num hg progress errors */
+  n = 0;
+
   while (true) {
     do {
       hret = HG_Trigger(nnctx.hg_ctx, 0, 1, &actual_count);
@@ -1211,7 +1214,10 @@ static void* bg_work(void* foo) {
         hret = HG_Progress(nnctx.hg_ctx, nnctx.hg_timeout);
       }
       if (hret != HG_SUCCESS && hret != HG_TIMEOUT) {
-        RPC_FAILED("HG_Progress", hret);
+        n++;
+        if (n >= nnctx.hg_errors) {
+          RPC_FAILED("HG_Progress", hret);
+        }
       }
     } else if (s < 0) {
 #ifndef NDEBUG
@@ -1368,6 +1374,16 @@ void nn_shuffler_init() {
   }
 
   cb_left = cb_allowed;
+
+  env = maybe_getenv("SHUFFLE_Num_hg_errors");
+  if (env == NULL) {
+    nnctx.hg_errors = 1;
+  } else {
+    nnctx.hg_errors = atoi(env);
+    if (nnctx.hg_errors < 1) {
+      nnctx.hg_errors = 1;
+    }
+  }
 
   if (is_envset("SHUFFLE_Hash_sig")) nnctx.hash_sig = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;

@@ -91,6 +91,8 @@ typedef struct nn_ctx {
   char my_addr[100]; /* mercury server uri */
   struct utsname my_uname;
 
+  /* total num of hg errors before we abort */
+  int hg_errors;
   int hg_nice; /* nice value to be applied to the looper thread */
   int hg_rusage;
   hg_class_t* hg_clz;
