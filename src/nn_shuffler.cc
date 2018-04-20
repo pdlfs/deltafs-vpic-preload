@@ -1361,6 +1361,16 @@ void nn_shuffler_init() {
     }
   }
 
+  env = maybe_getenv("SHUFFLE_Mercury_max_errors");
+  if (env == NULL) {
+    nnctx.hg_errors = 1;
+  } else {
+    nnctx.hg_errors = atoi(env);
+    if (nnctx.hg_errors < 1) {
+      nnctx.hg_errors = 1;
+    }
+  }
+
   env = maybe_getenv("SHUFFLE_Num_outstanding_rpc");
   if (env == NULL) {
     cb_allowed = DEFAULT_OUTSTANDING_RPC;
@@ -1374,16 +1384,6 @@ void nn_shuffler_init() {
   }
 
   cb_left = cb_allowed;
-
-  env = maybe_getenv("SHUFFLE_Num_hg_errors");
-  if (env == NULL) {
-    nnctx.hg_errors = 1;
-  } else {
-    nnctx.hg_errors = atoi(env);
-    if (nnctx.hg_errors < 1) {
-      nnctx.hg_errors = 1;
-    }
-  }
 
   if (is_envset("SHUFFLE_Hash_sig")) nnctx.hash_sig = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
@@ -1459,12 +1459,12 @@ void nn_shuffler_init() {
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
              "HG_Progress() timeout: %d ms, warn interval: %d ms, "
-             "fatal rpc timeout: %d s\n>>> "
+             "fatal rpc timeout: %d s, max error: %d\n>>> "
              "cache hg_handle_t: %s, hash signature: %s\n>>> "
              "bg nice: %d",
              nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
-             nnctx.cache_hlds ? "YES" : "NO", nnctx.hash_sig ? "YES" : "NO",
-             nnctx.hg_nice);
+             nnctx.hg_errors, nnctx.cache_hlds ? "YES" : "NO",
+             nnctx.hash_sig ? "YES" : "NO", nnctx.hg_nice);
     INFO(msg);
     if (nnctx.paranoid_checks) {
       WARN(

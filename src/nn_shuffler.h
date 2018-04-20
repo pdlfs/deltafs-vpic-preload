@@ -42,6 +42,8 @@
  *      to cause warning messages
  *  SHUFFLE_Mercury_cache_handles
  *    Reuse mercury handles to avoid freq mallocs
+ *  SHUFFLE_Mercury_max_errors
+ *    Max errors before we abort
  *  SHUFFLE_Mercury_nice
  *    Nice value to be applied to the looper thread
  *  SHUFFLE_Hash_sig
