@@ -459,6 +459,8 @@ struct plfsdir_conf {
   const char* data_buf;
   const char* memtable_size;
   const char* lg_parts;
+  int force_leveldb_format;
+  int unordered_storage;
   int skip_checksums;
   int io_engine;
 };
@@ -470,7 +472,8 @@ static void plfsdir_error_printer(const char* err, void*) { ERROR(err); }
 /*
  * gen_plfsdir_conf: initialize plfsdir conf and obtain it's string literal.
  */
-static std::string gen_plfsdir_conf(int rank, int* io_engine) {
+static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
+                                    int* force_leveldb_fmt) {
   char tmp[500];
   int n;
 
@@ -537,6 +540,14 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
     dirc.lg_parts = DEFAULT_LG_PARTS;
   }
 
+  if (is_envset("PLFSDIR_Force_leveldb_format")) {
+    dirc.force_leveldb_format = 1;
+  }
+
+  if (is_envset("PLFSDIR_Unordered_storage")) {
+    dirc.unordered_storage = 1;
+  }
+
   if (is_envset("PLFSDIR_Skip_checksums")) {
     dirc.skip_checksums = 1;
   }
@@ -558,6 +569,9 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine) {
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
                 dirc.bits_per_key);
   snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", PRELOAD_PARTICLE_SIZE);
+
+  *force_leveldb_fmt = dirc.force_leveldb_format;
+  *unordered = dirc.unordered_storage;
 
   *io_engine = DELTAFS_PLFSDIR_DEFAULT;
 
@@ -664,6 +678,8 @@ int MPI_Init(int* argc, char*** argv) {
   uid_t uid;
   int flag;
   int size;
+  int unordered;
+  int force_leveldb_fmt;
   int io_engine;
   int rank;
   int rv;
@@ -970,14 +986,17 @@ int MPI_Init(int* argc, char*** argv) {
         if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
           snprintf(path, sizeof(path), "%s/%s", pctx.local_root, stripped);
           assert(pctx.recv_rank != -1);
-          conf = gen_plfsdir_conf(pctx.recv_rank, &io_engine);
+          conf = gen_plfsdir_conf(pctx.recv_rank, &io_engine, &unordered,
+                                  &force_leveldb_fmt);
           env = maybe_getenv("PLFSDIR_Env_name");
           if (env == NULL) {
             env = "posix.unbufferedio";
           }
           pctx.plfshdl =
               deltafs_plfsdir_create_handle(conf.c_str(), O_WRONLY, io_engine);
-          // deltafs_plfsdir_enable_io_measurement(pctx.plfshdl, 1);
+          deltafs_plfsdir_set_fixed_kv(pctx.plfshdl, 1);
+          deltafs_plfsdir_force_leveldb_fmt(pctx.plfshdl, force_leveldb_fmt);
+          deltafs_plfsdir_set_unordered(pctx.plfshdl, unordered);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
@@ -991,9 +1010,11 @@ int MPI_Init(int* argc, char*** argv) {
             ABORT("cannot open plfsdir");
           } else if (rank == 0) {
             snprintf(msg, sizeof(msg),
-                     "plfsdir (via deltafs-LT, env=%s, io_engine=%d) "
+                     "plfsdir (via deltafs-LT, env=%s, io_engine=%d, "
+                     "unordered=%d, leveldb_fmt=%d) "
                      "opened (rank 0)\n>>> bg thread pool size: %d",
-                     env, io_engine, pctx.bgsngcomp ? 1 : pctx.plfsparts);
+                     env, io_engine, unordered, force_leveldb_fmt,
+                     pctx.bgsngcomp ? 1 : pctx.plfsparts);
             INFO(msg);
             if (pctx.verr) {
               pretty_plfsdir_conf(conf);
@@ -1215,6 +1236,12 @@ int MPI_Finalize(void) {
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "bypass_shuffle=%d\n",
                        IS_BYPASS_SHUFFLE(pctx.mode));
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "force_leveldb_format=%d\n",
+                       dirc.force_leveldb_format);
+          n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "unordered_storage=%d\n",
+                       dirc.unordered_storage);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "io_engine=%d\n", dirc.io_engine);
           n = write(fd0, msg, n);
