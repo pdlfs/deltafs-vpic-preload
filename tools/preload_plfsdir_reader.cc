@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Carnegie Mellon University.
+ * Copyright (c) 2018, Carnegie Mellon University.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -70,6 +70,8 @@ static struct deltafs_conf {
   int lg_parts;
   int skip_crc32c;
   int bypass_shuffle;
+  int force_leveldb_format;
+  int unordered_storage;
   int io_engine;
   int comm_sz;
 } c; /* plfsdir conf */
@@ -269,6 +271,16 @@ static void get_manifest() {
     } else if (strncmp(ch, "bypass_shuffle=", strlen("bypass_shuffle=")) == 0) {
       c.bypass_shuffle = atoi(ch + strlen("bypass_shuffle="));
       if (c.bypass_shuffle < 0) complain("bad bypass_shuffle from manifest");
+    } else if (strncmp(ch, "force_leveldb_format=",
+                       strlen("force_leveldb_format=")) == 0) {
+      c.force_leveldb_format = atoi(ch + strlen("force_leveldb_format="));
+      if (c.force_leveldb_format < 0)
+        complain("bad force_leveldb_format from manifest");
+    } else if (strncmp(ch, "unordered_storage=",
+                       strlen("unordered_storage=")) == 0) {
+      c.unordered_storage = atoi(ch + strlen("unordered_storage="));
+      if (c.unordered_storage < 0)
+        complain("bad unordered_storage from manifest");
     } else if (strncmp(ch, "io_engine=", strlen("io_engine=")) == 0) {
       c.io_engine = atoi(ch + strlen("io_engine="));
       if (c.io_engine < 0) complain("bad io_engine from manifest");
@@ -291,7 +303,8 @@ static void get_manifest() {
 /*
  * prepare_conf: generate plfsdir conf
  */
-static void prepare_conf(int rank, int* io_engine) {
+static void prepare_conf(int rank, int* io_engine, int* unordered,
+                         int* force_leveldb_fmt) {
   int n;
 
   if (g.bg && !tp) tp = deltafs_tp_init(g.bg);
@@ -313,6 +326,8 @@ static void prepare_conf(int rank, int* io_engine) {
     snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
   }
 
+  *force_leveldb_fmt = c.force_leveldb_format;
+  *unordered = c.unordered_storage;
   *io_engine = c.io_engine;
 #ifndef NDEBUG
   info(cf);
@@ -391,16 +406,21 @@ static void get_names(int rank, std::vector<std::string>* results) {
 static void run_queries(int rank) {
   std::vector<std::string> names;
   deltafs_plfsdir_t* dir;
+  int unordered;
+  int force_leveldb_fmt;
   int io_engine;
   int r;
 
   get_names((g.a || c.bypass_shuffle) ? 0 : rank, &names);
   std::random_shuffle(names.begin(), names.end());
-  prepare_conf(rank, &io_engine);
+  prepare_conf(rank, &io_engine, &unordered, &force_leveldb_fmt);
 
   dir = deltafs_plfsdir_create_handle(cf, O_RDONLY, io_engine);
   if (!dir) complain("fail to create dir handle");
   deltafs_plfsdir_enable_io_measurement(dir, 1);
+  deltafs_plfsdir_force_leveldb_fmt(dir, force_leveldb_fmt);
+  deltafs_plfsdir_set_unordered(dir, unordered);
+  deltafs_plfsdir_set_fixed_kv(dir, 1);
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
 
   r = deltafs_plfsdir_open(dir, g.dirname);
@@ -507,6 +527,8 @@ int main(int argc, char* argv[]) {
   printf("\tverbose: %d\n", g.v);
   printf("\n==dir manifest\n");
   printf("\tio engine: %d\n", c.io_engine);
+  printf("\tforce leveldb format: %d\n", c.force_leveldb_format);
+  printf("\tunordered storage: %d\n", c.unordered_storage);
   printf("\tnum epochs: %d\n", c.num_epochs);
   printf("\tkey size: %d bytes\n", c.key_size);
   printf("\tmemtable size: %s\n", c.memtable_size);
