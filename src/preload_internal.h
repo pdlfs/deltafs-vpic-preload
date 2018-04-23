@@ -76,6 +76,8 @@ typedef struct preload_ctx {
   int paranoid_pre_barrier; /* right before a soft epoch flush */
 
   int pre_flushing; /* force a soft flush at the end of an epoch */
+  int pre_flushing_wait;
+  int pre_flushing_sync;
 
   int my_rank; /* my MPI world rank */
   int comm_sz; /* my MPI world size */

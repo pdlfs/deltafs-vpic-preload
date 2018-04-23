@@ -162,6 +162,8 @@ static void preload_init() {
   pctx.paranoid_post_barrier = 1;
   pctx.paranoid_pre_barrier = 1;
   pctx.pre_flushing = 1;
+  pctx.pre_flushing_sync = 1;
+  pctx.pre_flushing_wait = 1;
   pctx.my_rank = 0;
   pctx.comm_sz = 1;
   pctx.recv_comm = MPI_COMM_NULL;
@@ -308,6 +310,10 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
     pctx.paranoid_pre_barrier = 0;
   if (is_envset("PRELOAD_No_epoch_pre_flushing")) pctx.pre_flushing = 0;
+  if (is_envset("PRELOAD_No_epoch_pre_flushing_wait"))
+    pctx.pre_flushing_wait = 0;
+  if (is_envset("PRELOAD_No_epoch_pre_flushing_sync"))
+    pctx.pre_flushing_sync = 0;
   if (is_envset("PRELOAD_No_paranoid_barrier")) pctx.paranoid_barrier = 0;
   if (is_envset("PRELOAD_No_paranoid_post_barrier"))
     pctx.paranoid_post_barrier = 0;
@@ -2075,6 +2081,16 @@ int closedir(DIR* dirp) {
         }
         s = deltafs_plfsdir_flush(pctx.plfshdl, num_epochs - 1);
         if (s != 0) ABORT("fail to flush plfsdir");
+        if (pctx.pre_flushing_wait) {
+          if (pctx.my_rank == 0) INFO("waiting for compaction ... (rank 0)");
+          s = deltafs_plfsdir_wait(pctx.plfshdl);
+        }
+        if (s != 0) ABORT("fail to wait for plfsdir");
+        if (pctx.pre_flushing_sync) {
+          if (pctx.my_rank == 0) INFO("sync io ... (rank 0)");
+          s = deltafs_plfsdir_sync(pctx.plfshdl);
+        }
+        if (s != 0) ABORT("fail to sync plfsdir");
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
           snprintf(msg, sizeof(msg), "pre-flushing done %s",
