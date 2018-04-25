@@ -2064,7 +2064,8 @@ int closedir(DIR* dirp) {
   }
 
   /* this ensures we have received all peer messages */
-  if (pctx.paranoid_pre_barrier || pctx.bgpause) {
+  if (pctx.paranoid_pre_barrier ||
+      (!IS_BYPASS_SHUFFLE(pctx.mode) && pctx.bgpause)) {
     preload_barrier(MPI_COMM_WORLD);
   }
 
