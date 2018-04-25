@@ -2067,7 +2067,7 @@ int closedir(DIR* dirp) {
   if (pctx.paranoid_pre_barrier ||
       (!IS_BYPASS_SHUFFLE(pctx.mode) && pctx.bgpause)) {
     preload_barrier(MPI_COMM_WORLD);
-    if (pctx.pre_flushing && pctx.recv_comm != MPI_COMM_NULL) {
+    if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
         INFO("pre-flushing shuffle receivers ... (rank 0)");
