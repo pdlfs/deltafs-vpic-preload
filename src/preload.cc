@@ -1882,12 +1882,12 @@ DIR* opendir(const char* dir) {
   if (num_epochs != 0 && !IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
-      INFO("flushing shuffle ... (rank 0)");
+      INFO("flushing shuffle receivers ... (rank 0)");
     }
     shuffle_epoch_start(&pctx.sctx);
     if (pctx.my_rank == 0) {
       flush_end = now_micros();
-      snprintf(msg, sizeof(msg), "flushing done %s",
+      snprintf(msg, sizeof(msg), "receiver flushing done %s",
                pretty_dura(flush_end - flush_start).c_str());
       INFO(msg);
     }
@@ -2052,12 +2052,12 @@ int closedir(DIR* dirp) {
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
-      INFO("pre-flushing shuffle ... (rank 0)");
+      INFO("flushing shuffle senders ... (rank 0)");
     }
     shuffle_epoch_end(&pctx.sctx);
     if (pctx.my_rank == 0) {
       flush_end = now_micros();
-      snprintf(msg, sizeof(msg), "pre-flushing done %s",
+      snprintf(msg, sizeof(msg), "sender flushing done %s",
                pretty_dura(flush_end - flush_start).c_str());
       INFO(msg);
     }
@@ -2067,6 +2067,19 @@ int closedir(DIR* dirp) {
   if (pctx.paranoid_pre_barrier ||
       (!IS_BYPASS_SHUFFLE(pctx.mode) && pctx.bgpause)) {
     preload_barrier(MPI_COMM_WORLD);
+    if (pctx.pre_flushing && pctx.recv_comm != MPI_COMM_NULL) {
+      if (pctx.my_rank == 0) {
+        flush_start = now_micros();
+        INFO("pre-flushing shuffle receivers ... (rank 0)");
+      }
+      shuffle_epoch_pre_start(&pctx.sctx);
+      if (pctx.my_rank == 0) {
+        flush_end = now_micros();
+        snprintf(msg, sizeof(msg), "receiver pre-flushing done %s",
+                 pretty_dura(flush_end - flush_start).c_str());
+        INFO(msg);
+      }
+    }
   }
 
   /* epoch pre-flush */

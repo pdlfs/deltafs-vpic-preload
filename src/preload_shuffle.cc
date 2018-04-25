@@ -298,6 +298,16 @@ const char* shuffle_prepare_uri(char* buf) {
   return buf;
 }
 
+void shuffle_epoch_pre_start(shuffle_ctx_t* ctx) {
+  assert(ctx != NULL);
+  if (ctx->type == SHUFFLE_XN) {
+    xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
+    xn_shuffler_epoch_start(rep);
+  } else {
+    nn_shuffler_bgwait();
+  }
+}
+
 /*
  * This function is called at the beginning of each epoch but before the epoch
  * really starts and before the final stats for the previous epoch are collected

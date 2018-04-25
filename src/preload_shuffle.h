@@ -115,6 +115,13 @@ extern int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
 extern void shuffle_epoch_start(shuffle_ctx_t* ctx);
 
 /*
+ * shuffle_epoch_pre_start: pre-flush the shuffle directly at the end of an epoch.
+ *
+ * abort on errors.
+ */
+extern void shuffle_epoch_pre_start(shuffle_ctx_t* ctx);
+
+/*
  * shuffle_epoch_end: perform necessary flushes at the
  * end of an epoch.
  *
