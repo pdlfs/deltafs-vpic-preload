@@ -152,6 +152,7 @@ struct gs {
  * ms: measurements
  */
 struct ms {
+  std::vector<uint64_t>* latencies;
   uint64_t partitions;     /* num data partitions touched */
   uint64_t ops;            /* num read ops */
   uint64_t okops;          /* num read ops that return non-empty data */
@@ -161,7 +162,6 @@ struct ms {
   uint64_t under_seeks;    /* total amount of underlying storage seeks */
   uint64_t table_seeks[3]; /* sum/min/max sstable opened */
   uint64_t seeks[3];       /* sum/min/max data block fetched */
-  uint64_t t[3];           /* sum/min/max time past (in micros)*/
 #define SUM 0
 #define MIN 1
 #define MAX 2
@@ -183,7 +183,6 @@ static void report() {
   if (m.okops != 0)
     printf("[R] Total Data Queried: %lu bytes (%lu per entry per epoch)\n",
            m.bytes, m.bytes / m.okops / c.num_epochs);
-  printf("[R] Total Read Latency: %.6f s\n", double(m.t[SUM]) / 1000 / 1000);
   if (!c.io_engine)
     printf("[R] SST Touched Per Query: %.3f (min: %lu, max: %lu)\n",
            double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
@@ -194,9 +193,18 @@ static void report() {
   printf("[R] Total Under Storage Seeks: %lu\n", m.under_seeks);
   printf("[R] Total Under Data Read: %lu bytes\n", m.under_bytes);
   printf("[R] Total Under Files Opened: %lu\n", m.under_files);
-  printf("[R] Latency Per Query: %.3f (min: %.3f, max %.3f) ms\n",
-         double(m.t[SUM]) / 1000 / m.ops, double(m.t[MIN]) / 1000,
-         double(m.t[MAX]) / 1000);
+  std::vector<uint64_t>* const lat = m.latencies;
+  if (lat != NULL && lat->size() != 0) {
+    std::sort(lat->begin(), lat->end());
+    uint64_t sum = 0;
+    std::vector<uint64_t>::iterator it = lat->begin();
+    for (; it != lat->end(); ++it) sum += *it;
+    printf("[R] Latency Per Query: %.3f (med: %3f, min: %.3f, max %.3f) ms\n",
+           double(sum) / m.ops / 1000,
+           double((*lat)[(lat->size() - 1) / 2]) / 1000,
+           double((*lat)[0]) / 1000, double((*lat)[lat->size() - 1]) / 1000);
+    printf("[R] Total Read Latency: %.6f s\n", double(sum) / 1000 / 1000);
+  }
   printf("[R] Dir IO Engine: %d\n", c.io_engine);
   printf("[R] MemTable Size: %s\n", c.memtable_size);
   printf("[R] BF Bits: %s\n", c.filter_bits_per_key);
@@ -360,9 +368,7 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
 
   free(data);
 
-  m.t[SUM] += end - start;
-  m.t[MIN] = std::min(end - start, m.t[MIN]);
-  m.t[MAX] = std::max(end - start, m.t[MAX]);
+  m.latencies->push_back(end - start);
   m.table_seeks[SUM] += table_seeks;
   m.table_seeks[MIN] = std::min(table_seeks, m.table_seeks[MIN]);
   m.table_seeks[MAX] = std::max(table_seeks, m.table_seeks[MAX]);
@@ -543,9 +549,9 @@ int main(int argc, char* argv[]) {
   alarm(g.timeout);
 
   memset(&m, 0, sizeof(m));
+  m.latencies = new std::vector<uint64_t>;
   m.table_seeks[MIN] = ULONG_LONG_MAX;
   m.seeks[MIN] = ULONG_LONG_MAX;
-  m.t[MIN] = ULONG_LONG_MAX;
   for (int i = 0; i < c.comm_sz; i++) {
     ranks.push_back(i);
   }
@@ -560,6 +566,7 @@ int main(int argc, char* argv[]) {
   if (tp) deltafs_tp_close(tp);
   if (c.memtable_size) free(c.memtable_size);
   if (c.filter_bits_per_key) free(c.filter_bits_per_key);
+  delete m.latencies;
 
   if (g.v) info("all done!");
   if (g.v) info("bye");
