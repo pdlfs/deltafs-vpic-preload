@@ -1243,6 +1243,8 @@ int MPI_Finalize(void) {
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "key_size=%s\n", dirc.key_size);
           n = write(fd0, msg, n);
+          n = snprintf(msg, sizeof(msg), "value_size=%d\n", pctx.particle_size);
+          n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "filter_bits_per_key=%s\n",
                        dirc.bits_per_key);
           n = write(fd0, msg, n);

@@ -65,6 +65,7 @@ static char cf[500];     /* plfsdir conf str */
 static struct deltafs_conf {
   int num_epochs;
   int key_size;
+  int value_size;
   char* filter_bits_per_key;
   char* memtable_size;
   int lg_parts;
@@ -259,6 +260,9 @@ static void get_manifest() {
     } else if (strncmp(ch, "key_size=", strlen("key_size=")) == 0) {
       c.key_size = atoi(ch + strlen("key_size="));
       if (c.key_size < 0) complain("bad key_size from manifest");
+    } else if (strncmp(ch, "value_size=", strlen("value_size=")) == 0) {
+      c.value_size = atoi(ch + strlen("value_size="));
+      if (c.value_size < 0) complain("bad value_size from manifest");
     } else if (strncmp(ch, "filter_bits_per_key=",
                        strlen("filter_bits_per_key=")) == 0) {
       c.filter_bits_per_key = strdup(ch + strlen("filter_bits_per_key="));
@@ -537,6 +541,7 @@ int main(int argc, char* argv[]) {
   printf("\tunordered storage: %d\n", c.unordered_storage);
   printf("\tnum epochs: %d\n", c.num_epochs);
   printf("\tkey size: %d bytes\n", c.key_size);
+  printf("\tvalue size: %d bytes\n", c.value_size);
   printf("\tmemtable size: %s\n", c.memtable_size);
   printf("\tfilter bits per key: %s\n", c.filter_bits_per_key);
   printf("\tskip crc32c: %d\n", c.skip_crc32c);
