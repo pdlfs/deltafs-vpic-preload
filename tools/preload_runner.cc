@@ -162,6 +162,7 @@ static void do_dump();
  * main program.
  */
 int main(int argc, char* argv[]) {
+  char* env;
   int ch;
 
   argv0 = argv[0];
@@ -243,6 +244,15 @@ int main(int argc, char* argv[]) {
 
   if (g.p[0] != -1 && g.p[1] != -1 && g.p[2] != -1) {
     g.nps = 100LL * g.p[0] * g.p[1] * g.p[2] / g.size;
+  }
+
+  /* check env vars */
+  env = getenv("PRELOAD_Particle_size");
+  if (env && env[0]) {
+    g.psize = atoi(env);
+    if (g.psize < 0) {
+      g.psize = 0;
+    }
   }
 
   if (myrank == 0) {
