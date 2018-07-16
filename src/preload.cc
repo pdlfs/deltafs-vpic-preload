@@ -49,8 +49,8 @@
 #include "preload_internal.h"
 #include "pthreadtap.h"
 
-/* particle bytes */
-#define PRELOAD_PARTICLE_SIZE 40
+/* default particle size in bytes */
+#define DEFAULT_PARTICLE_SIZE 40
 
 /* mon output */
 static int mon_dump_bin = 0;
@@ -70,6 +70,11 @@ static int num_barriers = 0;
 
 /* number of epochs generated */
 static int num_epochs = 0;
+
+/*
+ * buffer space for generating fake particle data.
+ */
+static char particle_buf[64];
 
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
@@ -154,6 +159,7 @@ static void preload_init() {
   pctx.fnames = new std::set<std::string>;
   pctx.smap = new std::map<std::string, int>;
 
+  pctx.particle_size = DEFAULT_PARTICLE_SIZE;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
   pctx.sampling = 1;
@@ -273,6 +279,14 @@ static void preload_init() {
       pctx.local_root[0] != '/' ||
       pctx.local_root[pctx.len_local_root - 1] == '/')
     ABORT("bad local_root");
+
+  tmp = maybe_getenv("PRELOAD_Particle_size");
+  if (tmp != NULL) {
+    pctx.particle_size = atoi(tmp);
+    if (pctx.particle_size < 0) {
+      pctx.particle_size = 0;
+    }
+  }
 
   if (is_envset("PRELOAD_Skip_sampling")) pctx.sampling = 0;
 
@@ -574,7 +588,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
                 dirc.bits_per_key);
-  snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", PRELOAD_PARTICLE_SIZE);
+  snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", pctx.particle_size);
 
   *force_leveldb_fmt = dirc.force_leveldb_format;
   *unordered = dirc.unordered_storage;
@@ -2453,7 +2467,6 @@ long ftell(FILE* stream) {
  */
 int preload_write(const char* fn, char* data, size_t len, int epoch) {
   int rv;
-  char buf[PRELOAD_PARTICLE_SIZE];
   char path[PATH_MAX];
   const char* fname;
   ssize_t n;
@@ -2471,15 +2484,16 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   pthread_mtx_lock(&write_mtx);
 
   if (pctx.fake_data) {
-    memset(buf, 0, sizeof(buf));
+    memset(particle_buf, 0, sizeof(particle_buf));
     k = pdlfs::xxhash32(fname, strlen(fname), 0);
-    snprintf(buf, sizeof(buf), "key=%08x, epoch=%d\n", k, epoch);
-    len = sizeof(buf);
-    data = buf;
+    snprintf(particle_buf, sizeof(particle_buf), "key=%08x, epoch=%d", k,
+             epoch);
+    len = sizeof(particle_buf);
+    data = particle_buf;
   }
 
   if (pctx.paranoid_checks) {
-    if (len != PRELOAD_PARTICLE_SIZE) {
+    if (len != pctx.particle_size) {
       ABORT("bad write size!");
     }
     if (epoch != num_epochs - 1) {

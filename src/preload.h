@@ -39,6 +39,8 @@
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Log_home
  *    Path to the home directory for log files
+ *  PRELOAD_Particle_size
+ *    Bytes of each particle
  *  PRELOAD_Pthread_tap
  *    Rank# less than this will get their rusage tapped
  *  PRELOAD_Ignore_dirs (semicolon separated paths)
