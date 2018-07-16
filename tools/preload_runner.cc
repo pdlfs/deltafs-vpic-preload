@@ -323,7 +323,7 @@ static void do_dump() {
     if (!file) {
       complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     }
-    fwrite(pdata, g.psize, 1, file);
+    fwrite(pdata, 1, g.psize, file);
     fclose(file);
   }
   closedir(dir);
