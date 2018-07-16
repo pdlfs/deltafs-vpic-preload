@@ -364,7 +364,7 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
       deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
   if (data == NULL) {
     complain("error reading %s: %s", name, strerror(errno));
-  } else if (sz == 0 && !g.a && !c.bypass_shuffle) {
+  } else if (sz == 0 && !g.a && !c.bypass_shuffle && c.value_size != 0) {
     complain("file %s is empty!!", name);
   }
 
