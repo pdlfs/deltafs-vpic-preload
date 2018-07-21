@@ -7,5 +7,5 @@
 	remote = git@dev.pdl.cmu.edu:pdlfs/nexus-runner.git
 	branch = master
 	commit = ad11f498fdf4adc49cfb749406497542ad573057
-	parent = c2d802abf2d279e9e0a318380b51d371e31063a9
+	parent = e9492fcc295ccb0a48fa2bfbe895126a8ad98898
 	cmdver = 0.3.1
