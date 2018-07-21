@@ -19,6 +19,10 @@ project (deltafs-preload C CXX)
 set (CMAKE_CXX_STANDARD 11)
 enable_testing ()
 
+# add our cmake module directory to the path
+set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/papi-try/cmake")
+
 # link shared lib with full rpath
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
@@ -62,6 +66,9 @@ find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
 find_package (mssg CONFIG REQUIRED)
+
+find_package (NUMA REQUIRED)
+find_package (PAPI REQUIRED)
 
 include (xpkg-import)     # just to document, comes with deltafs
 xpkg_import_module (ch-placement REQUIRED ch-placement)
