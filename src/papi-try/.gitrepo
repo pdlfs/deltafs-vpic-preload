@@ -1,0 +1,11 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = git@dev.pdl.cmu.edu:pdlfs/papi-try.git
+	branch = master
+	commit = cc63a4f073719b3734a69c5293ce237939a5ed0f
+	parent = 7deab177f185c39d028d7640824d901994d56127
+	cmdver = 0.3.1

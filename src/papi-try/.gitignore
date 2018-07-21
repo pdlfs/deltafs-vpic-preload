@@ -1,0 +1,8 @@
+/nbproject/
+/cmake-build*/
+/build*/
+/.idea/
+*.dylib
+*.so
+*.a
+*.o
