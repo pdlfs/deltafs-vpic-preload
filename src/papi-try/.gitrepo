@@ -7,5 +7,5 @@
 	remote = git@dev.pdl.cmu.edu:pdlfs/papi-try.git
 	branch = master
 	commit = cc63a4f073719b3734a69c5293ce237939a5ed0f
-	parent = 7deab177f185c39d028d7640824d901994d56127
+	parent = 668d8ca043e994f9408742f6f5e8f998c4747c22
 	cmdver = 0.3.1
