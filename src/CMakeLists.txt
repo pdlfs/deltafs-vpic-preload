@@ -28,7 +28,7 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         pthreadtap.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury mssg ch-placement
-        deltafs-nexus Threads::Threads ${CMAKE_DL_LIBS})
+        deltafs-nexus papi numa Threads::Threads ${CMAKE_DL_LIBS})
 
 #
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
