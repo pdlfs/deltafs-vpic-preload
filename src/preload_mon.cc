@@ -57,7 +57,9 @@ int mon_fetch_plfsdir_stat(deltafs_plfsdir_t* dir, dir_stat_t* buf) {
   return 0;
 }
 
-static void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
+namespace {
+
+void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
   MPI_Reduce(const_cast<long long*>(&src->num_keys), &sum->num_keys, 1,
              MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<long long*>(&src->min_num_keys), &sum->min_num_keys, 1,
@@ -81,7 +83,7 @@ static void dir_stat_reduce(const dir_stat_t* src, dir_stat_t* sum) {
              MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
 }
 
-static void cpu_stat_reduce(const cpu_stat_t* src, cpu_stat_t* sum) {
+void cpu_stat_reduce(const cpu_stat_t* src, cpu_stat_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->vcs), &sum->vcs, 1,
              MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce(const_cast<unsigned long long*>(&src->ics), &sum->ics, 1,
@@ -100,6 +102,17 @@ static void cpu_stat_reduce(const cpu_stat_t* src, cpu_stat_t* sum) {
   MPI_Reduce(const_cast<int*>(&src->max_cpu), &sum->max_cpu, 1, MPI_INT,
              MPI_MAX, 0, MPI_COMM_WORLD);
 }
+
+void mem_stat_reduce(const mem_stat_t* src, mem_stat_t* sum) {
+  MPI_Reduce(const_cast<long long*>(src->num), sum->num, MAX_PAPI_EVENTS,
+             MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(src->min), sum->min, MAX_PAPI_EVENTS,
+             MPI_LONG_LONG, MPI_MIN, 0, MPI_COMM_WORLD);
+  MPI_Reduce(const_cast<long long*>(src->max), sum->max, MAX_PAPI_EVENTS,
+             MPI_LONG_LONG, MPI_MAX, 0, MPI_COMM_WORLD);
+}
+
+}  // namespace
 
 void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
   MPI_Reduce(const_cast<unsigned long long*>(&src->min_dura), &sum->min_dura, 1,
@@ -155,6 +168,7 @@ void mon_reduce(const mon_ctx_t* src, mon_ctx_t* sum) {
 
   dir_stat_reduce(&src->dir_stat, &sum->dir_stat);
   cpu_stat_reduce(&src->cpu_stat, &sum->cpu_stat);
+  mem_stat_reduce(&src->mem_stat, &sum->mem_stat);
 }
 
 #define DUMP(fd, buf, fmt, ...)                             \

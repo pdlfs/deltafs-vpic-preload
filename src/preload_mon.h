@@ -72,6 +72,14 @@ typedef struct cpu_stat {
 
 } cpu_stat_t;
 
+typedef struct mem_stat {
+#define MAX_PAPI_EVENTS 4
+  long long max[MAX_PAPI_EVENTS]; /* per rank max */
+  long long min[MAX_PAPI_EVENTS]; /* ... min */
+
+  long long num[MAX_PAPI_EVENTS];
+} mem_stat_t;
+
 /*  NOTE
  * -------
  * + foreign write:
@@ -128,8 +136,11 @@ typedef struct mon_ctx {
   /* !!! collected by deltafs !!! */
   dir_stat_t dir_stat;
 
-  /* !!! collected by os !!!*/
+  /* !!! collected by the os !!!*/
   cpu_stat_t cpu_stat;
+
+  /* !!! collected by papi !!! */
+  mem_stat_t mem_stat;
 
   /* !!! auxiliary state !!! */
   int global; /* is stats global or local (per-rank) */
