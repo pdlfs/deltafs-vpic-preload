@@ -1101,7 +1101,7 @@ int MPI_Init(int* argc, char*** argv) {
       }
     }
 
-    if (!pctx.nopapi) {
+    if (!pctx.nomon && !pctx.nopapi) {
       assert(pctx.papi_events != NULL);
 
       if (PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
@@ -1425,7 +1425,7 @@ int MPI_Finalize(void) {
     }
 
     /* close papi */
-    if (!pctx.nopapi) {
+    if (pctx.papi_set != PAPI_NULL) {
       PAPI_destroy_eventset(&pctx.papi_set);
       PAPI_shutdown();
     }
@@ -2058,6 +2058,18 @@ DIR* opendir(const char* dir) {
     if (ret) ABORT("getrusage");
   }
 
+  if (pctx.papi_set != PAPI_NULL) {
+    if (pctx.my_rank == 0) {
+      INFO("start papi (rank 0)");
+    }
+    if ((ret = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
+      ABORT(PAPI_strerror(ret));
+    }
+    if ((ret = PAPI_start(pctx.papi_set)) != PAPI_OK) {
+      ABORT(PAPI_strerror(ret));
+    }
+  }
+
   if (pctx.my_rank == 0) {
     INFO("dumping particles ... (rank 0)");
   }
@@ -2097,6 +2109,19 @@ int closedir(DIR* dirp) {
       ABORT("some plfsdir files still open!");
     }
     pctx.fnames->clear();
+  }
+
+  if (pctx.papi_set != PAPI_NULL) {
+    if (pctx.my_rank == 0) {
+      INFO("stop PAPI (rank 0)");
+    }
+    if ((rv = PAPI_stop(pctx.papi_set, pctx.mctx.mem_stat.num)) != PAPI_OK) {
+      ABORT(PAPI_strerror(rv));
+    }
+    memcpy(pctx.mctx.mem_stat.min, pctx.mctx.mem_stat.num,
+           sizeof(pctx.mctx.mem_stat.num));
+    memcpy(pctx.mctx.mem_stat.max, pctx.mctx.mem_stat.num,
+           sizeof(pctx.mctx.mem_stat.num));
   }
 
   if (!pctx.nomon) {
