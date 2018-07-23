@@ -315,6 +315,10 @@ static void preload_init() {
       }
     }
   }
+  if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
+    pctx.papi_events->resize(MAX_PAPI_EVENTS);
+  }
+
   tmp = maybe_getenv("PRELOAD_Pthread_tap");
   if (tmp != NULL) {
     pctx.pthread_tap = atoi(tmp);
