@@ -1117,10 +1117,10 @@ int MPI_Init(int* argc, char*** argv) {
                pctx.papi_events->begin();
            it != pctx.papi_events->end(); ++it) {
         if (rank == 0) {
-          snprintf(msg, sizeof(msg), "[papi] add event: %s", *it);
+          snprintf(msg, sizeof(msg), "add papi event: %s", *it);
           INFO(msg);
         }
-        rv = PAPI_event_name_to_code(*it, &n);
+        rv = PAPI_event_name_to_code(const_cast<char*>(*it), &n);
         if (rv == PAPI_OK) rv = PAPI_add_event(pctx.papi_set, n);
         if (rv != PAPI_OK) {
           ABORT(PAPI_strerror(rv));
@@ -2060,7 +2060,7 @@ DIR* opendir(const char* dir) {
 
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
-      INFO("start papi (rank 0)");
+      INFO("turn on papi (rank 0)");
     }
     if ((ret = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
       ABORT(PAPI_strerror(ret));
@@ -2113,7 +2113,7 @@ int closedir(DIR* dirp) {
 
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
-      INFO("stop PAPI (rank 0)");
+      INFO("turn off PAPI (rank 0)");
     }
     if ((rv = PAPI_stop(pctx.papi_set, pctx.mctx.mem_stat.num)) != PAPI_OK) {
       ABORT(PAPI_strerror(rv));
