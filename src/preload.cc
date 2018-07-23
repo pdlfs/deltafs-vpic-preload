@@ -37,6 +37,7 @@
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
+#include <papi.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -155,6 +156,8 @@ static void preload_init() {
   pctx.logfd = -1;
   pctx.monfd = -1;
 
+  pctx.papi_set = PAPI_NULL;
+  pctx.papi_events = new std::vector<const char*>;
   pctx.isdeltafs = new std::set<FILE*>;
   pctx.fnames = new std::set<std::string>;
   pctx.smap = new std::map<std::string, int>;
@@ -298,6 +301,20 @@ static void preload_init() {
     }
   }
 
+  tmp = maybe_getenv("PRELOAD_Papi_events");
+  if (tmp == NULL || tmp[0] == 0) {
+    pctx.papi_events->push_back("PAPI_L2_TCM");  // L2 total cache misses
+    pctx.papi_events->push_back("PAPI_L2_TCA");  // ... and accesses
+  } else {
+    char* str = strdup(tmp);
+    pctx.papi_events->push_back(str);
+    for (char* c = strchr(str, ';'); c != 0; c = strchr(c + 1, ';')) {
+      c[0] = 0;
+      if (c[1] != 0) {
+        pctx.papi_events->push_back(c + 1);
+      }
+    }
+  }
   tmp = maybe_getenv("PRELOAD_Pthread_tap");
   if (tmp != NULL) {
     pctx.pthread_tap = atoi(tmp);
@@ -314,6 +331,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Bypass_write")) pctx.mode |= BYPASS_WRITE;
 
   if (is_envset("PRELOAD_Skip_mon")) pctx.nomon = 1;
+  if (is_envset("PRELOAD_Skip_papi")) pctx.nopapi = 1;
   if (is_envset("PRELOAD_Skip_mon_dist")) pctx.nodist = 1;
   if (is_envset("PRELOAD_Enable_verbose_mon")) pctx.vmon = 1;
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
@@ -1054,21 +1072,52 @@ int MPI_Init(int* argc, char*** argv) {
     }
 
     if (!pctx.nomon) {
+      assert(sizeof(mon_ctx_t) <= MON_BUF_SIZE);
+
       snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
                static_cast<unsigned>(uid));
       snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d", dirpath, rank);
 
       n = nxt.mkdir(dirpath, 0777);
       errno = 0;
-      pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
 
+      pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
       if (pctx.monfd == -1) {
         ABORT("cannot create tmp stats file");
-      } else if (rank == 0) {
+      }
+
+      if (rank == 0) {
         snprintf(msg, sizeof(msg),
                  "in-mem epoch mon stats %d bytes\n>>> MON_BUF_SIZE is %d",
                  int(sizeof(mon_ctx_t)), MON_BUF_SIZE);
         INFO(msg);
+      }
+    }
+
+    if (!pctx.nopapi) {
+      assert(pctx.papi_events != NULL);
+
+      if (PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
+        ABORT("cannot init PAPI");
+      }
+
+      rv = PAPI_thread_init(pthread_self);
+      if (rv != PAPI_OK) ABORT("cannot init PAPI thread");
+      rv = PAPI_create_eventset(&pctx.papi_set);
+      if (rv != PAPI_OK) ABORT("cannot init PAPI event set");
+
+      for (std::vector<const char*>::const_iterator it =
+               pctx.papi_events->begin();
+           it != pctx.papi_events->end(); ++it) {
+        if (rank == 0) {
+          snprintf(msg, sizeof(msg), "[papi] add event: %s", *it);
+          INFO(msg);
+        }
+        rv = PAPI_event_name_to_code(*it, &n);
+        if (rv == PAPI_OK) rv = PAPI_add_event(pctx.papi_set, n);
+        if (rv != PAPI_OK) {
+          ABORT(PAPI_strerror(rv));
+        }
       }
     }
 
@@ -1366,6 +1415,12 @@ int MPI_Finalize(void) {
       if (num_epochs != 0) {
         dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
       }
+    }
+
+    /* close papi */
+    if (!pctx.nopapi) {
+      PAPI_destroy_eventset(&pctx.papi_set);
+      PAPI_shutdown();
     }
 
     /* conclude sampling */

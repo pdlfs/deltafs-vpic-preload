@@ -45,6 +45,7 @@
 
 #include <map>
 #include <set>
+#include <vector>
 
 /*
  * preload context:
@@ -104,6 +105,9 @@ typedef struct preload_ctx {
   int plfsparts; /* num of memtable partitions */
   int plfsfd;    /* fd for the plfsdir */
 
+  std::vector<const char*>* papi_events;
+  int papi_set; /* opaque event set descriptor */
+
   std::set<FILE*>* isdeltafs;    /* open files owned by deltafs */
   std::set<std::string>* fnames; /* used for checking unique file names */
 
@@ -130,6 +134,7 @@ typedef struct preload_ctx {
   uint64_t epoch_start;
 
   int nomon;  /* skip monitoring */
+  int nopapi; /* skip papi monitoring  */
   int nodist; /* skip releasing mon and sampling results */
 
   int logfd; /* descriptor for the testing log file */
