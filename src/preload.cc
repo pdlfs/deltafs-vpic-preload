@@ -308,8 +308,11 @@ static void preload_init() {
   } else {
     char* str = strdup(tmp);
     pctx.papi_events->push_back(str);
-    for (char* c = strchr(str, ';'); c != 0; c = strchr(c + 1, ';')) {
+    for (char* c = strchr(str, ';'); c != NULL; c = strchr(c + 1, ';')) {
       c[0] = 0;
+      if (pctx.papi_events->back()[0] == 0) {
+        pctx.papi_events->pop_back();
+      }
       if (c[1] != 0) {
         pctx.papi_events->push_back(c + 1);
       }
