@@ -1605,6 +1605,15 @@ int MPI_Finalize(void) {
                          pretty_num(glob.cpu_stat.vcs).c_str(),
                          pretty_num(glob.cpu_stat.ics).c_str());
                 INFO(msg);
+                for (size_t ix = 0; ix < pctx.papi_events->size(); ix++) {
+                  if (glob.mem_stat.num[ix] != 0) {
+                    snprintf(msg, sizeof(msg),
+                             "         > %s: %lld (min: %lld, max: %lld)",
+                             pctx.papi_events->at(ix), glob.mem_stat.num[ix],
+                             glob.mem_stat.min[ix], glob.mem_stat.max[ix]);
+                    INFO(msg);
+                  }
+                }
                 snprintf(msg, sizeof(msg),
                          "   > %s particle writes (%s collisions), %s per rank "
                          "(min: %s, max: %s)",
@@ -2060,13 +2069,16 @@ DIR* opendir(const char* dir) {
 
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
-      INFO("turn on papi (rank 0)");
+      INFO("starting papi ... (rank 0)");
     }
     if ((ret = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
       ABORT(PAPI_strerror(ret));
     }
     if ((ret = PAPI_start(pctx.papi_set)) != PAPI_OK) {
       ABORT(PAPI_strerror(ret));
+    }
+    if (pctx.my_rank == 0) {
+      INFO("papi on");
     }
   }
 
@@ -2113,7 +2125,7 @@ int closedir(DIR* dirp) {
 
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
-      INFO("turn off PAPI (rank 0)");
+      INFO("stopping papi (rank 0)");
     }
     if ((rv = PAPI_stop(pctx.papi_set, pctx.mctx.mem_stat.num)) != PAPI_OK) {
       ABORT(PAPI_strerror(rv));
@@ -2122,6 +2134,9 @@ int closedir(DIR* dirp) {
            sizeof(pctx.mctx.mem_stat.num));
     memcpy(pctx.mctx.mem_stat.max, pctx.mctx.mem_stat.num,
            sizeof(pctx.mctx.mem_stat.num));
+    if (pctx.my_rank == 0) {
+      INFO("papi off");
+    }
   }
 
   if (!pctx.nomon) {
