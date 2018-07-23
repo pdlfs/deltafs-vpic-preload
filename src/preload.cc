@@ -1608,9 +1608,11 @@ int MPI_Finalize(void) {
                 for (size_t ix = 0; ix < pctx.papi_events->size(); ix++) {
                   if (glob.mem_stat.num[ix] != 0) {
                     snprintf(msg, sizeof(msg),
-                             "         > %s: %lld (min: %lld, max: %lld)",
-                             pctx.papi_events->at(ix), glob.mem_stat.num[ix],
-                             glob.mem_stat.min[ix], glob.mem_stat.max[ix]);
+                             "         > %s: %s (min: %s, max: %s)",
+                             pctx.papi_events->at(ix),
+                             pretty_num(glob.mem_stat.num[ix]).c_str(),
+                             pretty_num(glob.mem_stat.min[ix]).c_str(),
+                             pretty_num(glob.mem_stat.max[ix]).c_str());
                     INFO(msg);
                   }
                 }
