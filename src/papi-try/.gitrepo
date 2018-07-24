@@ -6,6 +6,6 @@
 [subrepo]
 	remote = git@dev.pdl.cmu.edu:pdlfs/papi-try.git
 	branch = master
-	commit = cc63a4f073719b3734a69c5293ce237939a5ed0f
-	parent = d5516377d864b3474c206659596b544a8f185729
+	commit = e6dafbd7bf783376f6fff7093f2f90b7f55c99a4
+	parent = e4a1e41fbb2a36620b7c0cbc70b88eeaf27854a2
 	cmdver = 0.3.1

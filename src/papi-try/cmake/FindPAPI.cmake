@@ -24,8 +24,10 @@ mark_as_advanced (PAPI_INCLUDE PAPI_LIBRARY)
 
 if (PAPI_FOUND AND NOT TARGET papi)
     add_library (papi UNKNOWN IMPORTED)
-    set_target_properties (papi PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${PAPI_INCLUDE}")
+    if (NOT "${PAPI_INCLUDE}" STREQUAL "/usr/include")
+        set_target_properties (papi PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${PAPI_INCLUDE}")
+    endif ()
     set_property (TARGET papi APPEND PROPERTY
             IMPORTED_LOCATION "${PAPI_LIBRARY}")
 endif ()

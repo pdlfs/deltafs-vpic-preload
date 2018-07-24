@@ -24,8 +24,10 @@ mark_as_advanced (NUMA_INCLUDE NUMA_LIBRARY)
 
 if (NUMA_FOUND AND NOT TARGET numa)
     add_library (numa UNKNOWN IMPORTED)
-    set_target_properties (numa PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${NUMA_INCLUDE}")
+    if (NOT "${NUMA_INCLUDE}" STREQUAL "/usr/include")
+        set_target_properties (numa PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${NUMA_INCLUDE}")
+    endif ()
     set_property (TARGET numa APPEND PROPERTY
             IMPORTED_LOCATION "${NUMA_LIBRARY}")
 endif ()
