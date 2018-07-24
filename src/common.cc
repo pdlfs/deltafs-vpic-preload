@@ -197,9 +197,10 @@ void try_scan_sysfs() {
   struct dirent* dent;
   struct dirent* ddent;
   const char* dirname;
-  char msg[200];
+  char msg[600];
   char path[PATH_MAX];
   std::string jobcpuset;
+  std::string jobmemset;
   std::string idx[4];
   std::string mtu;
   std::string txqlen;
@@ -320,9 +321,13 @@ void try_scan_sysfs() {
               snprintf(path, sizeof(path), "%s/%s/%s/cpus", dirname,
                        dent->d_name, ddent->d_name);
               jobcpuset = readline(path);
+              snprintf(path, sizeof(path), "%s/%s/%s/mems", dirname,
+                       dent->d_name, ddent->d_name);
+              jobmemset = readline(path);
               snprintf(msg, sizeof(msg),
-                       "[slurm] job cgroup cpuset: %s\n>>> %s/%s",
-                       jobcpuset.c_str(), dent->d_name, ddent->d_name);
+                       "[slurm] job cgroup cpuset: %s, memset: %s\n>>> %s/%s",
+                       jobcpuset.c_str(), jobmemset.c_str(), dent->d_name,
+                       ddent->d_name);
               INFO(msg);
               break;
             }
