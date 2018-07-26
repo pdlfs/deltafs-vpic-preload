@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, Carnegie Mellon University.
+ * Copyright (c) 2017-2018, Carnegie Mellon University.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <numa.h>
 #include <sched.h>
 #include <stdarg.h>
 #include <sys/resource.h>
@@ -454,22 +455,44 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
 }
 
 void maybe_warn_cpuaffinity() {
-  char msg[200];
+  char msg[500];
   int os;
   int my;
+  int r;
 
-#if defined(_SC_NPROCESSORS_CONF)
-  os = sysconf(_SC_NPROCESSORS_CONF);
-  if (os != -1) {
-    my = my_cpu_cores();
-    snprintf(msg, sizeof(msg), "[numa] cpu affinity: %d/%d cores", my, os);
-    if (my == os) {
-      WARN(msg);
-    } else {
-      INFO(msg);
+  if (numa_available() == -1) return;
+  os = numa_num_configured_cpus();
+  my = numa_num_task_cpus();
+  std::string cpu(os, 'o');
+  {
+    struct bitmask* bits = numa_allocate_cpumask();
+    r = numa_sched_getaffinity(getpid(), bits);
+    if (r != -1) {
+      for (int i = 0; i < os; i++) {
+        if (numa_bitmask_isbitset(bits, i)) {
+          cpu[i] = 'x';
+        }
+      }
+    }
+    numa_free_cpumask(bits);
+  }
+  snprintf(msg, sizeof(msg), "[numa] cpu: %d/%d cores\n>>> %s", my, os,
+           cpu.c_str());
+  INFO(msg);
+
+  os = numa_num_configured_nodes();
+  my = numa_num_task_nodes();
+  std::string mem(os, 'o');
+  struct bitmask* const bits = numa_get_mems_allowed();
+  struct bitmask* const mybits = numa_get_membind();
+  for (int i = 0; i < os; i++) {
+    if (numa_bitmask_isbitset(bits, i) && numa_bitmask_isbitset(mybits, i)) {
+      mem[i] = 'x';
     }
   }
-#endif
+  snprintf(msg, sizeof(msg), "[numa] mem: %d/%d nodes\n>>> %s", my, os,
+           mem.c_str());
+  INFO(msg);
 
   errno = 0;
 }
