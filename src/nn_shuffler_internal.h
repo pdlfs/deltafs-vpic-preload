@@ -52,7 +52,7 @@
 /*
  * The max allowed size for a single rpc message.
  */
-#define MAX_RPC_MESSAGE (65536 - 128)
+#define MAX_RPC_MESSAGE (524288)
 
 #define RPC_FAILED_FILENAME \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
