@@ -135,8 +135,8 @@ typedef struct write_in {
   hg_uint32_t dst;
   hg_uint32_t src;
 
-  hg_uint16_t ep; /* epoch num */
-  hg_uint16_t sz; /* msg size */
+  hg_uint32_t ep; /* epoch num */
+  hg_uint32_t sz; /* msg size */
   void* msg;
 } write_in_t;
 
@@ -157,8 +157,8 @@ typedef struct write_async_cb {
 
 typedef struct write_info {
   /* number of writes sent within an rpc msg */
-  hg_uint16_t num_writes;
-  hg_uint16_t sz; /* msg size */
+  hg_uint32_t num_writes;
+  hg_uint32_t sz; /* msg size */
 } write_info_t;
 
 extern hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t*);

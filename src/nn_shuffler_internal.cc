@@ -42,20 +42,20 @@ nn_ctx_t nnctx = {0};
 
 /* nn_shuffler_hashsig: generates a 32-bits hash signature for a given input */
 static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
-  char buf[16];
+  char buf[20];
   uint32_t tmp;
   assert(in != NULL);
 
   memcpy(buf, &in->dst, 4);
   memcpy(buf + 4, &in->src, 4);
-  memcpy(buf + 8, &in->ep, 2);
-  memcpy(buf + 10, &in->sz, 2);
+  memcpy(buf + 8, &in->ep, 4);
+  memcpy(buf + 12, &in->sz, 4);
 
   assert(in->msg != NULL);
   tmp = HASH(in->msg, in->sz);
-  memcpy(buf + 12, &tmp, 4);
+  memcpy(buf + 16, &tmp, 4);
 
-  return HASH(buf, 16);
+  return HASH(buf, 20);
 }
 
 /* nn_shuffler_maybe_hashsig: return the hash signature */
@@ -80,9 +80,9 @@ hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
     if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint32_t(proc, &in->src);
     if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint16_t(proc, &in->ep);
+    hret = hg_proc_hg_uint32_t(proc, &in->ep);
     if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint16_t(proc, &in->sz);
+    hret = hg_proc_hg_uint32_t(proc, &in->sz);
     if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_memcpy(proc, in->msg, in->sz);
 
@@ -93,9 +93,9 @@ hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
     if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint32_t(proc, &in->src);
     if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint16_t(proc, &in->ep);
+    hret = hg_proc_hg_uint32_t(proc, &in->ep);
     if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint16_t(proc, &in->sz);
+    hret = hg_proc_hg_uint32_t(proc, &in->sz);
     if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_memcpy(proc, in->msg, in->sz);
 

@@ -86,8 +86,9 @@ static size_t items_completed = 0;
 
 /* rpc queue */
 typedef struct rpcq {
-  uint16_t sz; /* current queue size */
-  int busy;    /* non-0 if queue is locked and is being flushed */
+  uint32_t sz; /* aggregated size of all pending writes */
+  uint32_t ep; /* epoch number for the last write */
+  int busy;    /* non-zero when queue is locked and is being flushed */
   char* buf;   /* heap-allocated memory for the queue */
 } rpcq_t;
 static rpcq_t* rpcqs = NULL;
@@ -388,7 +389,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   static char buf[MAX_RPC_MESSAGE];
 
   char* input;
-  uint16_t input_left;
+  uint32_t input_left;
   hg_return_t hret;
   write_out_t write_out;
   write_in_t write_in;
@@ -592,6 +593,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
+  assert(int(write_in->dst) == peer_rank);
   assert(int(write_in->src) == rank);
 
 #ifndef NDEBUG
@@ -772,6 +774,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
+  assert(int(write_in->dst) == peer_rank);
   assert(int(write_in->src) == rank);
 
 #ifndef NDEBUG
@@ -941,7 +944,9 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
+      write_in.dst = static_cast<hg_uint32_t>(peer_rank);
       write_in.src = static_cast<hg_uint32_t>(my_rank);
+      write_in.ep = rpcq->ep;
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
       write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
@@ -969,6 +974,7 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
      * a single write */
     ABORT("rpc overflow");
   } else {
+    rpcq->ep = static_cast<uint32_t>(epoch);
     /* vpic fname */
     rpcq->buf[rpcq->sz] = fname_len;
     memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
@@ -990,18 +996,17 @@ void nn_shuffler_flushq() {
   rpcq_t* rpcq;
   void* arg1;
   void* arg2;
-  int rank;
+  int peer_rank;
+  int my_rank;
   int rv;
-  int i;
 
   assert(nnctx.mssg != NULL);
-
-  rank = mssg_get_rank(nnctx.mssg); /* my rank */
+  my_rank = mssg_get_rank(nnctx.mssg);
 
   pthread_mtx_lock(&mtx[qu_cv]);
 
-  for (i = 0; i < nrpcqs; i++) {
-    rpcq = &rpcqs[i];
+  for (peer_rank = 0; peer_rank < nrpcqs; peer_rank++) {
+    rpcq = &rpcqs[peer_rank];
     if (rpcq->sz == 0) { /* skip empty queue */
       continue;
     } else if (rpcq->sz > MAX_RPC_MESSAGE) {
@@ -1010,16 +1015,18 @@ void nn_shuffler_flushq() {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.src = static_cast<hg_uint32_t>(rank);
+      write_in.dst = static_cast<hg_uint32_t>(peer_rank);
+      write_in.src = static_cast<hg_uint32_t>(my_rank);
+      write_in.ep = rpcq->ep;
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
       write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
       if (!nnctx.force_sync) {
         shuffle_msg_sent(0, &arg1, &arg2);
-        rv = nn_shuffler_write_send_async(&write_in, i, arg1, arg2);
+        rv = nn_shuffler_write_send_async(&write_in, peer_rank, arg1, arg2);
       } else {
         shuffle_msg_sent(0, &arg1, &arg2);
-        rv = nn_shuffler_write_send(&write_in, i);
+        rv = nn_shuffler_write_send(&write_in, peer_rank);
         shuffle_msg_replied(arg1, arg2);
       }
       if (rv != 0) {
@@ -1308,6 +1315,7 @@ void nn_shuffler_init() {
   for (i = 0; i < nrpcqs; i++) {
     rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
     rpcqs[i].busy = 0;
+    rpcqs[i].ep = 0;
     rpcqs[i].sz = 0;
   }
   if (pctx.my_rank == 0) {
