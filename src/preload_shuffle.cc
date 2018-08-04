@@ -433,7 +433,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 }
 
 int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
-                   size_t len, int epoch, int peer_rank, int rank) {
+                   size_t len, int epoch, int peer_rank, int my_rank) {
   /* here we assume we will only get called by a single thread.
    * this thread is either a dedicate mercury progressing thread, or a separate
    * rpc worker thread. in the 2nd case, we usually label this thread as the
@@ -460,9 +460,9 @@ int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
   if (pctx.testin && pctx.logfd != -1) {
     ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
     n = snprintf(msg, sizeof(msg),
-                 "[RECV] %s %d bytes (e%d) r%d "
+                 "[RECV] %s %d bytes (ep=%d) r%d "
                  "<< r%d (hash=%08x)\n",
-                 path, int(len), epoch, rank, peer_rank, ha);
+                 path, int(len), epoch, my_rank, peer_rank, ha);
     n = write(pctx.logfd, msg, n);
 
     errno = 0;

@@ -2583,8 +2583,10 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   assert(pctx.len_plfsdir != 0);
   assert(pctx.plfsdir != NULL);
   assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
+  if (epoch == -1) epoch = num_epochs - 1;
   /* remove parent directory path */
   fname = fn + pctx.len_plfsdir + 1;
+
   errno = 0;
 
   pthread_mtx_lock(&write_mtx);
@@ -2592,8 +2594,7 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
   if (pctx.fake_data) {
     memset(particle_buf, 0, sizeof(particle_buf));
     k = pdlfs::xxhash32(fname, strlen(fname), 0);
-    snprintf(particle_buf, sizeof(particle_buf), "key=%08x, epoch=%d", k,
-             epoch);
+    snprintf(particle_buf, sizeof(particle_buf), "key=%08x", k);
     len = sizeof(particle_buf);
     data = particle_buf;
   }
@@ -2603,13 +2604,13 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
       ABORT("bad write size!");
     }
     if (epoch != num_epochs - 1) {
-      ABORT("bad epoch!");
+      ABORT("bad epoch num");
     }
   }
 
   if (pctx.sampling) {
     assert(pctx.smap != NULL);
-    if (epoch == 0) {
+    if (num_epochs == 1) {
       /* during the initial epoch, we accept as many names as possible */
       if (getr(0, 1000000 - 1) < pctx.sthres) {
         pctx.smap->insert(std::make_pair(std::string(fname), 1));
