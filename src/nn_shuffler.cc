@@ -434,24 +434,26 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   return HG_SUCCESS;
 }
 
-/* nn_shuffler_debug: print debug information for an incoming write request.
- * "src" and "dst" are shuffle ids embedded inside the request, "mid" is
- * my real shuffle id, "pid" is the shuffle id dictated by hash placement.*/
-static void nn_shuffler_debug(int src, int dst, int mid, int pid,
-                              const char* fname) {
+/* nn_shuffler_debug:
+ *   print debug information for an incoming RPC write request.
+ *   src and dst are shuffle ranks reported by the RPC message, me
+ *   indicates the shuffle rank of my own, and hp is the shuffle
+ *   rank calculated via hash placement. */
+static void nn_shuffler_debug(int src, int dst, int me, int hp,
+                              const char* key) {
   LOG(LOG_SINK, 0,
       "!! [%s] (rank %d) shuffler %d (%s) just "
       "received a problematic write req (%s)\n"
       "!! [%s] (rank %d) the req swears it comes from %d (%s), "
       "and was heading to %d (%s)",
-      nnctx.my_uname.nodename, pctx.my_rank, mid,
-      mssg_get_addr_str(nnctx.mssg, mid), fname, nnctx.my_uname.nodename,
+      nnctx.my_uname.nodename, pctx.my_rank, me,
+      mssg_get_addr_str(nnctx.mssg, me), key, nnctx.my_uname.nodename,
       pctx.my_rank, src, mssg_get_addr_str(nnctx.mssg, src), dst,
       mssg_get_addr_str(nnctx.mssg, dst));
-  if (pid != -1) {
+  if (hp != -1) {
     LOG(LOG_SINK, 0, "!! [%s] (rank %d) we think the req should goto %d (%s)",
-        nnctx.my_uname.nodename, pctx.my_rank, pid,
-        mssg_get_addr_str(nnctx.mssg, pid));
+        nnctx.my_uname.nodename, pctx.my_rank, hp,
+        mssg_get_addr_str(nnctx.mssg, hp));
   }
 }
 
@@ -464,7 +466,6 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 
   char* input;
   uint16_t input_left;
-  uint32_t nrank;
   hg_return_t hret;
   write_out_t write_out;
   write_in_t write_in;
@@ -473,8 +474,6 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   size_t len;
   const char* fname;
   unsigned char fname_len;
-  int src;
-  int dst;
   int peer_rank;
   int world_sz;
   int tmp;
@@ -522,19 +521,6 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 
   /* decode and execute writes */
   while (input_left != 0) {
-    /* rank */
-    if (input_left < 8) {
-      ABORT("premature end of msg");
-    }
-    memcpy(&nrank, input, 4);
-    src = int(ntohl(nrank));
-    input_left -= 4;
-    input += 4;
-    memcpy(&nrank, input, 4);
-    dst = int(ntohl(nrank));
-    input_left -= 4;
-    input += 4;
-
     /* fname */
     if (input_left < 1) {
       ABORT("premature end of msg");
@@ -570,20 +556,13 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
       }
       if (IS_BYPASS_PLACEMENT(pctx.mode)) {
         tmp = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
-        if (dst != tmp) {
-          nn_shuffler_debug(src, dst, my_rank, tmp, fname);
+        if (my_rank != tmp) {
+          nn_shuffler_debug(peer_rank, my_rank, my_rank, tmp, fname);
           ABORT("rpc msg misdirected (wrong dst)");
         }
       }
     }
 
-    if (dst != my_rank) {
-      nn_shuffler_debug(src, dst, my_rank, -1, fname);
-      ABORT("rpc msg misrouted (bad dst)");
-    }
-    if (src != peer_rank) {
-      ABORT("bad src");
-    }
     rv = shuffle_handle(fname, fname_len, data, len, -1, peer_rank, my_rank);
     write_info.num_writes++;
     if (write_out.rv == 0) {
@@ -944,12 +923,11 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   return rv;
 }
 
-/* nn_shuffler_enqueue: encode and add an incoming write into an rpc queue */
+/* nn_shuffler_enqueue:
+ *   encode a req and append it into a corresponding rpc queue */
 void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
                          size_t len, int epoch, int peer_rank, int my_rank) {
   write_in_t write_in;
-  uint16_t nepoch;
-  uint32_t nrank;
   rpcq_t* rpcq;
   int rpcq_idx;
   size_t rpc_sz;
@@ -1019,8 +997,6 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   }
 
   /* get an estimated size of the rpc */
-  rpc_sz += 4;                 /* src rank */
-  rpc_sz += 4;                 /* dst rank */
   rpc_sz += 1 + fname_len + 1; /* vpic fname */
   rpc_sz += 1 + len;           /* vpic data */
 
@@ -1062,13 +1038,6 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
      * a single write */
     ABORT("rpc overflow");
   } else {
-    /* rank */
-    nrank = htonl(my_rank);
-    memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
-    rpcq->sz += 4;
-    nrank = htonl(peer_rank);
-    memcpy(rpcq->buf + rpcq->sz, &nrank, 4);
-    rpcq->sz += 4;
     /* vpic fname */
     rpcq->buf[rpcq->sz] = fname_len;
     memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
@@ -1079,10 +1048,6 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
     rpcq->buf[rpcq->sz] = static_cast<unsigned char>(len);
     memcpy(rpcq->buf + rpcq->sz + 1, data, len);
     rpcq->sz += 1 + len;
-    /* epoch */
-    nepoch = htons(epoch);
-    memcpy(rpcq->buf + rpcq->sz, &nepoch, 2);
-    rpcq->sz += 2;
   }
 
   pthread_mtx_unlock(&mtx[qu_cv]);
