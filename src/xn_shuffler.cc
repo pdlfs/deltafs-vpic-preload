@@ -105,9 +105,6 @@ static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
   size_t input_left;
   const char* fname;
   unsigned char fname_len;
-  uint32_t r;
-  uint16_t e;
-  int epoch;
   char* data;
   size_t len;
   int rv;
@@ -115,19 +112,6 @@ static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
   input_left = buf_sz;
   input = static_cast<char*>(buf);
   assert(input != NULL);
-
-  /* rank */
-  if (input_left < 8) {
-    ABORT("rpc msg corrupted");
-  }
-  memcpy(&r, input, 4);
-  if (src != ntohl(r)) ABORT("bad src");
-  input_left -= 4;
-  input += 4;
-  memcpy(&r, input, 4);
-  if (dst != ntohl(r)) ABORT("bad dst");
-  input_left -= 4;
-  input += 4;
 
   /* vpic fname */
   if (input_left < 1) {
@@ -155,17 +139,8 @@ static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
     ABORT("rpc msg corrupted");
   }
   data = input;
-  input_left -= len;
-  input += len;
 
-  /* epoch */
-  if (input_left < 2) {
-    ABORT("rpc msg corrupted");
-  }
-  memcpy(&e, input, 2);
-  epoch = ntohs(e);
-
-  rv = shuffle_handle(fname, fname_len, data, len, epoch, src, dst);
+  rv = shuffle_handle(fname, fname_len, data, len, -1, src, dst);
 
   if (rv != 0) {
     ABORT("plfsdir write failed");
@@ -175,10 +150,8 @@ static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
 void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
                          unsigned char fname_len, char* data, size_t len,
                          int epoch, int dst, int src) {
-  char buf[200];
+  char buf[100];
   hg_return_t hret;
-  uint32_t r;
-  uint16_t e;
   int rpc_sz;
   int off;
 
@@ -189,20 +162,11 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
   off = rpc_sz = 0;
 
   /* get an estimated size of the rpc */
-  rpc_sz += 4;                 /* src rank */
-  rpc_sz += 4;                 /* dst rank */
   rpc_sz += 1 + fname_len + 1; /* vpic fname */
   rpc_sz += 1 + len;           /* vpic data */
-  rpc_sz += 2;                 /* epoch */
+
   assert(rpc_sz <= sizeof(buf));
 
-  /* rank */
-  r = htonl(src);
-  memcpy(buf + off, &r, 4);
-  off += 4;
-  r = htonl(dst);
-  memcpy(buf + off, &r, 4);
-  off += 4;
   /* vpic fname */
   buf[off] = fname_len;
   off += 1;
@@ -215,12 +179,8 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
   off += 1;
   memcpy(buf + off, data, len);
   off += len;
-  /* epoch */
-  e = htons(epoch);
-  memcpy(buf + off, &e, 2);
-  off += 2;
-  assert(off == rpc_sz);
 
+  assert(off == rpc_sz);
   assert(ctx->sh != NULL);
   hret = shuffler_send(ctx->sh, dst, 0, buf, off);
 
