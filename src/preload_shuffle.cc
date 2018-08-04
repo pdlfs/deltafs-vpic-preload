@@ -403,11 +403,12 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
     ha = pdlfs::xxhash32(data, len, 0); /* checksum */
     if (rank != peer_rank || ctx->force_rpc) {
       n = snprintf(msg, sizeof(msg),
-                   "[SEND] %s %d bytes (e%d) r%d >> r%d (hash=%08x)\n", path,
-                   int(len), epoch, rank, peer_rank, ha);
+                   "[SEND] %s %d bytes (ep=%d) r%d >> r%d (data_hash=%08x)\n",
+                   path, int(len), epoch, rank, peer_rank, ha);
     } else {
-      n = snprintf(msg, sizeof(msg), "[LO] %s %d bytes (e%d) (hash=%08x)\n",
-                   path, int(len), epoch, ha);
+      n = snprintf(msg, sizeof(msg),
+                   "[LO] %s %d bytes (ep=%d) (data_hash=%08x)\n", path,
+                   int(len), epoch, ha);
     }
 
     n = write(pctx.logfd, msg, n);
@@ -461,7 +462,7 @@ int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
     ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
     n = snprintf(msg, sizeof(msg),
                  "[RECV] %s %d bytes (ep=%d) r%d "
-                 "<< r%d (hash=%08x)\n",
+                 "<< r%d (data_hash=%08x)\n",
                  path, int(len), epoch, my_rank, peer_rank, ha);
     n = write(pctx.logfd, msg, n);
 
