@@ -132,9 +132,12 @@ extern nn_ctx_t nnctx;
 
 typedef struct write_in {
   hg_uint32_t hash_sig; /* hash signature of the entire payload */
-  hg_uint32_t owner;    /* write initiator */
-  void* msg;
+  hg_uint32_t dst;
+  hg_uint32_t src;
+
+  hg_uint16_t ep; /* epoch num */
   hg_uint16_t sz; /* msg size */
+  void* msg;
 } write_in_t;
 
 typedef struct write_out {
@@ -167,6 +170,12 @@ extern hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info);
 /* get current hg class and context instances */
 inline void* nn_shuffler_hg_class(void) { return nnctx.hg_clz; }
 inline void* nn_shuffler_hg_ctx(void) { return nnctx.hg_ctx; }
+
+/* encoding decoding procedure */
+hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data);
+hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data);
+
+hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in);
 
 /*
  * nn_shuffler_write_send_async: asynchronously send one or more encoded writes

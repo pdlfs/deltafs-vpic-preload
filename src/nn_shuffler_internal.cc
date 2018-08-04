@@ -30,5 +30,95 @@
 
 #include "nn_shuffler_internal.h"
 
+#include <mercury_proc.h>
+#include <mercury_proc_string.h>
+#include <pdlfs-common/xxhash.h>
+#define HASH(msg, sz) pdlfs::xxhash32(msg, sz, 0)
+
+#include <assert.h>
+
 /* The global nn shuffler context */
 nn_ctx_t nnctx = {0};
+
+/* nn_shuffler_hashsig: generates a 32-bits hash signature for a given input */
+static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
+  char buf[16];
+  uint32_t tmp;
+  assert(in != NULL);
+
+  memcpy(buf, &in->dst, 4);
+  memcpy(buf + 4, &in->src, 4);
+  memcpy(buf + 8, &in->ep, 2);
+  memcpy(buf + 10, &in->sz, 2);
+
+  assert(in->msg != NULL);
+  tmp = HASH(in->msg, in->sz);
+  memcpy(buf + 12, &tmp, 4);
+
+  return HASH(buf, 16);
+}
+
+/* nn_shuffler_maybe_hashsig: return the hash signature */
+hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in) {
+  if (nnctx.hash_sig) {
+    return nn_shuffler_hashsig(in);
+  } else {
+    return 0;
+  }
+}
+
+hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
+  hg_return_t hret;
+
+  write_in_t* in = static_cast<write_in_t*>(data);
+  hg_proc_op_t op = hg_proc_get_op(proc);
+
+  if (op == HG_ENCODE) {
+    hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint32_t(proc, &in->dst);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint32_t(proc, &in->src);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint16_t(proc, &in->ep);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint16_t(proc, &in->sz);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_memcpy(proc, in->msg, in->sz);
+
+  } else if (op == HG_DECODE) {
+    hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint32_t(proc, &in->dst);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint32_t(proc, &in->src);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint16_t(proc, &in->ep);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_uint16_t(proc, &in->sz);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_memcpy(proc, in->msg, in->sz);
+
+  } else {
+    hret = HG_SUCCESS; /* noop */
+  }
+
+  return hret;
+}
+
+hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
+  hg_return_t hret;
+
+  write_out_t* out = reinterpret_cast<write_out_t*>(data);
+  hg_proc_op_t op = hg_proc_get_op(proc);
+
+  if (op == HG_ENCODE) {
+    hret = hg_proc_hg_int32_t(proc, &out->rv);
+  } else if (op == HG_DECODE) {
+    hret = hg_proc_hg_int32_t(proc, &out->rv);
+  } else {
+    hret = HG_SUCCESS; /* noop */
+  }
+
+  return hret;
+}

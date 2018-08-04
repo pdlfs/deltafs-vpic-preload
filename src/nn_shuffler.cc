@@ -36,15 +36,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <mercury_proc.h>
-#include <mercury_proc_string.h>
-#include <pdlfs-common/xxhash.h>
-#define HASH(msg, sz) pdlfs::xxhash32(msg, sz, 0)
-
 #include "common.h"
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
 
+#include <pdlfs-common/xxhash.h>
 #include <vector>
 
 /*
@@ -181,79 +177,6 @@ static hg_return_t nn_progress_rusage(hg_context_t* context, int timeout) {
   rpcu_accumulate(&nnctx.r[RPCU_HGPRO], &rpcus[RPCU_HGPRO]);
 
   return hret;
-}
-
-static hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
-  hg_return_t hret;
-
-  write_in_t* in = static_cast<write_in_t*>(data);
-  hg_proc_op_t op = hg_proc_get_op(proc);
-
-  if (op == HG_ENCODE) {
-    hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->owner);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint16_t(proc, &in->sz);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_memcpy(proc, in->msg, in->sz);
-
-  } else if (op == HG_DECODE) {
-    hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->owner);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint16_t(proc, &in->sz);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_memcpy(proc, in->msg, in->sz);
-
-  } else {
-    hret = HG_SUCCESS; /* noop */
-  }
-
-  return hret;
-}
-
-static hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
-  hg_return_t hret;
-
-  write_out_t* out = reinterpret_cast<write_out_t*>(data);
-  hg_proc_op_t op = hg_proc_get_op(proc);
-
-  if (op == HG_ENCODE) {
-    hret = hg_proc_hg_int32_t(proc, &out->rv);
-  } else if (op == HG_DECODE) {
-    hret = hg_proc_hg_int32_t(proc, &out->rv);
-  } else {
-    hret = HG_SUCCESS; /* noop */
-  }
-
-  return hret;
-}
-
-/* nn_shuffler_hashsig: generates a 32-bits hash signature for a given input */
-static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
-  char buf[10];
-  uint32_t tmp;
-
-  assert(in != NULL);
-  memcpy(buf + 0, &in->owner, 4);
-  memcpy(buf + 4, &in->sz, 2);
-
-  assert(in->msg != NULL);
-  tmp = HASH(in->msg, in->sz);
-  memcpy(buf + 6, &tmp, 4);
-
-  return HASH(buf, 10);
-}
-
-/* nn_shuffler_maybe_hashsig: return the hash signature */
-static hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in) {
-  if (nnctx.hash_sig) {
-    return nn_shuffler_hashsig(in);
-  } else {
-    return 0;
-  }
 }
 
 /* rpc_explain_timeout: print rpc stats before we abort */
@@ -474,7 +397,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   size_t len;
   const char* fname;
   unsigned char fname_len;
-  int peer_rank;
+  int epoch;
+  int src;
+  int dst;
   int world_sz;
   int tmp;
   int my_rank;
@@ -498,16 +423,21 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   }
 
   shuffle_msg_received();
-  peer_rank = int(write_in.owner);
   if (write_in.hash_sig != nn_shuffler_maybe_hashsig(&write_in)) {
     ABORT("rpc msg corrupted (hash_sig mismatch)");
+  }
+
+  dst = int(write_in.dst);
+  src = int(write_in.src);
+  if (dst != my_rank) {
+    ABORT("rpc msg misrouted (bad dst)");
   }
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin) {
     if (pctx.logfd != -1) {
       n = snprintf(msg, sizeof(msg), "[IN] %d bytes r%d << r%d\n",
-                   int(write_in.sz), my_rank, peer_rank);
+                   int(write_in.sz), dst, src);
       n = write(pctx.logfd, msg, n);
 
       errno = 0;
@@ -516,6 +446,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 #endif
   write_out.rv = 0;
   input_left = write_info.sz = write_in.sz;
+  epoch = int(write_in.ep);
   write_info.num_writes = 0;
   input = buf;
 
@@ -557,13 +488,13 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
       if (IS_BYPASS_PLACEMENT(pctx.mode)) {
         tmp = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
         if (my_rank != tmp) {
-          nn_shuffler_debug(peer_rank, my_rank, my_rank, tmp, fname);
+          nn_shuffler_debug(src, dst, my_rank, tmp, fname);
           ABORT("rpc msg misdirected (wrong dst)");
         }
       }
     }
 
-    rv = shuffle_handle(fname, fname_len, data, len, -1, peer_rank, my_rank);
+    rv = shuffle_handle(fname, fname_len, data, len, epoch, src, dst);
     write_info.num_writes++;
     if (write_out.rv == 0) {
       write_out.rv = rv;
@@ -661,7 +592,7 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
-  assert(int(write_in->owner) == rank);
+  assert(int(write_in->src) == rank);
 
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
@@ -841,7 +772,7 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
-  assert(int(write_in->owner) == rank);
+  assert(int(write_in->src) == rank);
 
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
@@ -1010,7 +941,7 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.owner = static_cast<hg_uint32_t>(my_rank);
+      write_in.src = static_cast<hg_uint32_t>(my_rank);
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
       write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
@@ -1079,7 +1010,7 @@ void nn_shuffler_flushq() {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.owner = static_cast<hg_uint32_t>(rank);
+      write_in.src = static_cast<hg_uint32_t>(rank);
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
       write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
