@@ -347,31 +347,49 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   }
 }
 
-int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
-                  int epoch) {
-  int rv;
-  const char* fname;
-  unsigned char fname_len;
+namespace {
+#ifndef NDEBUG
+void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
+                         int epoch, int src, int dst) {
+  char msg[200];
+  int n;
+
+  int h = pdlfs::xxhash32(buf, buf_sz, 0);
+
+  if (src != dst || ctx->force_rpc) {
+    n = snprintf(msg, sizeof(msg),
+                 "[SEND] %u bytes (ep=%d) r%d >> r%d (xx=%08x)\n", buf_sz,
+                 epoch, src, dst, h);
+  } else {
+    n = snprintf(msg, sizeof(msg),
+                 "[LO] %u bytes (ep=%d) "
+                 "(xx=%08x)\n",
+                 buf_sz, epoch, h);
+  }
+
+  n = write(pctx.logfd, msg, n);
+
+  errno = 0;
+}
+#endif
+}  // namespace
+
+int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
+                  char* data, unsigned char data_len, int epoch) {
+  char buf[255];
   unsigned long target;
   int world_sz;
   int peer_rank;
   int rank;
+  int rv;
 
-#ifndef NDEBUG
-  char msg[200];
-  int ha;
-  int n;
-#endif
+  assert(ctx == &pctx.sctx);
+  if (ctx->data_len != data_len) return EOF;
+  if (ctx->id_sz != id_sz) return EOF;
 
-  assert(ctx != NULL);
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
-  assert(path != NULL);
-
-  fname = path + pctx.len_plfsdir + 1; /* remove parent path */
-  assert(strlen(fname) < 256);
-  fname_len = static_cast<unsigned char>(strlen(fname));
-  assert(len < 256);
+  unsigned char write_sz = data_len + id_sz;
+  memcpy(buf, id, id_sz);
+  memcpy(buf + id_sz, data, data_len);
 
   if (ctx->type == SHUFFLE_XN) {
     world_sz = xn_shuffler_world_size(static_cast<xn_ctx_t*>(ctx->rep));
@@ -383,11 +401,11 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 
   if (world_sz != 1) {
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      peer_rank = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
+      peer_rank = pdlfs::xxhash32(id, id_sz, 0) % world_sz;
     } else {
       assert(ctx->chp != NULL);
-      ch_placement_find_closest(ctx->chp, pdlfs::xxhash64(fname, fname_len, 0),
-                                1, &target);
+      ch_placement_find_closest(ctx->chp, pdlfs::xxhash64(id, id_sz, 0), 1,
+                                &target);
       peer_rank = int(target);
     }
   } else {
@@ -400,73 +418,58 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* path, char* data, size_t len,
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    ha = pdlfs::xxhash32(data, len, 0); /* checksum */
-    if (rank != peer_rank || ctx->force_rpc) {
-      n = snprintf(msg, sizeof(msg),
-                   "[SEND] %s %d bytes (ep=%d) r%d >> r%d (data_hash=%08x)\n",
-                   path, int(len), epoch, rank, peer_rank, ha);
-    } else {
-      n = snprintf(msg, sizeof(msg),
-                   "[LO] %s %d bytes (ep=%d) (data_hash=%08x)\n", path,
-                   int(len), epoch, ha);
-    }
-
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
+    shuffle_write_debug(ctx, buf, write_sz, epoch, rank, peer_rank);
   }
 #endif
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
-    rv = preload_local_write(path, data, len, epoch);
+    rv = native_write(id, id_sz, data, data_len, epoch);
     return rv;
   }
 
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), fname, fname_len,
-                        data, len, epoch, peer_rank, rank);
+    //  xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, write_sz,
+    //  epoch, peer_rank, rank);
   } else {
-    nn_shuffler_enqueue(fname, fname_len, data, len, epoch, peer_rank, rank);
+    //  nn_shuffler_enqueue(buf, write_sz, epoch, peer_rank, rank);
   }
 
   return 0;
 }
 
-int shuffle_handle(const char* fname, unsigned char fname_len, char* data,
-                   size_t len, int epoch, int peer_rank, int my_rank) {
-  /* here we assume we will only get called by a single thread.
-   * this thread is either a dedicate mercury progressing thread, or a separate
-   * rpc worker thread. in the 2nd case, we usually label this thread as the
-   * "writing" thread or the "delivery" thread. */
-  static char path[PATH_MAX];
-
+namespace {
 #ifndef NDEBUG
+void shuffle_handle_debug(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
+                          int epoch, int src, int dst) {
   char msg[200];
-  int ha;
   int n;
-#endif
 
+  int h = pdlfs::xxhash32(buf, buf_sz, 0);
+
+  n = snprintf(msg, sizeof(msg),
+               "[RECV] %u bytes (ep=%d) r%d << r%d "
+               "(xx=%08x)\n",
+               buf_sz, epoch, dst, src, h);
+
+  n = write(pctx.logfd, msg, n);
+
+  errno = 0;
+}
+#endif
+}  // namespace
+
+int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
+                   int epoch, int src, int dst) {
   int rv;
 
-  assert(fname != NULL);
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
-
-  assert(fname[fname_len] == 0);
-  snprintf(path, sizeof(path), "%s/%s", pctx.plfsdir, fname);
-  rv = preload_foreign_write(path, data, len, epoch);
+  ctx = &pctx.sctx;
+  if (buf_sz != ctx->data_len + ctx->id_sz) return EOF;
+  rv = exotic_write(buf, ctx->id_sz, buf + ctx->id_sz, ctx->data_len, epoch);
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    ha = pdlfs::xxhash32(data, len, 0); /* data checksum */
-    n = snprintf(msg, sizeof(msg),
-                 "[RECV] %s %d bytes (ep=%d) r%d "
-                 "<< r%d (data_hash=%08x)\n",
-                 path, int(len), epoch, my_rank, peer_rank, ha);
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
+    shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
   }
 #endif
   return rv;

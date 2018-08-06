@@ -35,22 +35,24 @@
 /* The global preload context */
 preload_ctx_t pctx = {0};
 
-int preload_foreign_write(const char* fn, char* data, size_t n, int epoch) {
+int exotic_write(const char* id, unsigned char id_sz, char* data,
+                 unsigned char data_len, int epoch) {
   int rv;
 
-  rv = preload_write(fn, data, n, epoch);
+  rv = preload_write(id, data, data_len, epoch);
   pctx.mctx.nfw++;
 
-  return (rv);
+  return rv;
 }
 
-int preload_local_write(const char* fn, char* data, size_t n, int epoch) {
+int native_write(const char* id, unsigned char id_sz, char* data,
+                 unsigned char data_len, int epoch) {
   int rv;
 
-  rv = preload_write(fn, data, n, epoch);
+  rv = preload_write(id, data, data_len, epoch);
   pctx.mctx.nlw++;
 
-  return (rv);
+  return rv;
 }
 
 namespace {
@@ -58,7 +60,7 @@ struct barrier_state {
   double time;
   int rank;
 };
-}
+}  // namespace
 
 void preload_barrier(MPI_Comm comm) {
   char msg[100];

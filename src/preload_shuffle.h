@@ -68,6 +68,8 @@ typedef struct shuffle_ctx {
    * shuffle bg threads can complete shutdown in the meantime. */
   int finalize_pause;
   unsigned int receiver_mask; /* (rank & receiver_mask) -> receiver_rank */
+  unsigned char data_len;
+  unsigned char id_sz;
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
@@ -103,8 +105,9 @@ extern int shuffle_rank(shuffle_ctx_t* ctx);
  *
  * return 0 on success, or EOF or errors.
  */
-extern int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
-                         int epoch);
+extern int shuffle_write(shuffle_ctx_t* ctx, const char* id,
+                         unsigned char id_sz, char* data,
+                         unsigned char data_len, int epoch);
 
 /*
  * shuffle_epoch_start: perform necessary flushes at the
@@ -115,7 +118,8 @@ extern int shuffle_write(shuffle_ctx_t* ctx, const char* fn, char* d, size_t n,
 extern void shuffle_epoch_start(shuffle_ctx_t* ctx);
 
 /*
- * shuffle_epoch_pre_start: pre-flush the shuffle directly at the end of an epoch.
+ * shuffle_epoch_pre_start: pre-flush the shuffle directly at the end of an
+ * epoch.
  *
  * abort on errors.
  */

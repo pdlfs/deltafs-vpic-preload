@@ -2381,6 +2381,8 @@ int fputc(int character, FILE* stream) {
  * fclose.   returns EOF on error.
  */
 int fclose(FILE* stream) {
+  const char* fname;
+  size_t fname_len;
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
@@ -2390,17 +2392,27 @@ int fclose(FILE* stream) {
     return nxt.fclose(stream);
   }
 
-  fake_file* ff = reinterpret_cast<fake_file*>(stream);
+  fake_file* const ff = reinterpret_cast<fake_file*>(stream);
+  fname = ff->file_name() + pctx.len_plfsdir + 1; /* remove parent path */
+  fname_len = strlen(fname);
+
+  if (pctx.paranoid_checks) {
+    if (pctx.particle_id_size != fname_len) {
+      ABORT("bad particle fname len");
+    }
+    if (pctx.particle_size != ff->size()) {
+      ABORT("bad particle size");
+    }
+  }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write(&pctx.sctx, ff->file_name(), ff->data(), ff->size(),
+    rv = shuffle_write(&pctx.sctx, fname, fname_len, ff->data(), ff->size(),
                        num_epochs - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }
   } else {
-    rv = preload_local_write(ff->file_name(), ff->data(), ff->size(),
-                             num_epochs - 1);
+    rv = native_write(fname, fname_len, ff->data(), ff->size(), num_epochs - 1);
     if (rv) {
       ABORT("plfsdir write failed");
     }

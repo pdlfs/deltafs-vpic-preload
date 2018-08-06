@@ -85,6 +85,7 @@ typedef struct preload_ctx {
   int my_cpus; /* num of available cpu cores */
 
   int particle_size; /* bytes in each particle */
+  int particle_id_size;
 
   /* since some ranks may be sender-only, so we have a dedicated MPI
    * communicator formed specifically for receivers. note that each receiver may
@@ -150,16 +151,18 @@ typedef struct preload_ctx {
 extern preload_ctx_t pctx;
 
 /*
- * preload_foreign_write: perform a write on behalf of a remote rank.
+ * exotic_write: perform a write on behalf of a remote rank.
  * return 0 on success, or EOF on errors.
  */
-extern int preload_foreign_write(const char* fn, char* d, size_t n, int epoch);
+extern int exotic_write(const char* id, unsigned char id_sz, char* data,
+                        unsigned char data_len, int epoch);
 
 /*
- * preload_local_write: perform a direct local write.
+ * native_write: perform a direct local write.
  * return 0 on success, or EOF on errors.
  */
-extern int preload_local_write(const char* fn, char* d, size_t n, int epoch);
+extern int native_write(const char* id, unsigned char id_sz, char* data,
+                        unsigned char data_len, int epoch);
 
 /*
  * preload_barrier: perform a collective barrier operation
