@@ -429,10 +429,10 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
   }
 
   if (ctx->type == SHUFFLE_XN) {
-    //  xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, write_sz,
-    //  epoch, peer_rank, rank);
+    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, write_sz, epoch,
+                        peer_rank, rank);
   } else {
-    //  nn_shuffler_enqueue(buf, write_sz, epoch, peer_rank, rank);
+    nn_shuffler_enqueue(buf, write_sz, epoch, peer_rank, rank);
   }
 
   return 0;
@@ -619,8 +619,9 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   ctx->id_sz = static_cast<unsigned char>(pctx.particle_id_size);
   ctx->data_len = static_cast<unsigned char>(pctx.particle_size);
-  assert(ctx->data_len <= 255 - ctx->id_sz);
-  assert(ctx->id_sz != 0);
+  if (ctx->data_len > 255 - ctx->id_sz)
+    ABORT("bad shuffle conf: id + data exceeds 255 bytes");
+  if (ctx->id_sz != 0) ABORT("bad shuffle conf: id size is zero");
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "shuffle format: id=%u bytes, data=%u bytes",
              ctx->id_sz, ctx->data_len);

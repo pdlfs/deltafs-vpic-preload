@@ -83,8 +83,7 @@ extern int nn_shuffler_world_size();
 extern int nn_shuffler_my_rank();
 
 /* nn_shuffler_enqueue: put an incoming write into an rpc queue. */
-extern void nn_shuffler_enqueue(const char* fname, unsigned char fname_len,
-                                char* data, size_t len, int epoch,
+extern void nn_shuffler_enqueue(char* req, unsigned char req_sz, int epoch,
                                 int peer_rank, int rank);
 
 /* nn_shuffler_waitcb: wait for all outstanding rpcs to finish. */
