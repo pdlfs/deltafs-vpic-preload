@@ -347,6 +347,32 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   }
 }
 
+int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
+  int world_sz;
+  unsigned long target;
+  int rv;
+
+  assert(ctx != NULL);
+  assert(buf_sz >= ctx->id_sz);
+
+  world_sz = shuffle_world_sz(ctx);
+
+  if (world_sz != 1) {
+    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
+      rv = pdlfs::xxhash32(buf, ctx->id_sz, 0) % world_sz;
+    } else {
+      assert(ctx->chp != NULL);
+      ch_placement_find_closest(ctx->chp, pdlfs::xxhash64(buf, ctx->id_sz, 0),
+                                1, &target);
+      rv = static_cast<int>(target);
+    }
+  } else {
+    rv = shuffle_rank(ctx);
+  }
+
+  return (rv & ctx->receiver_mask);
+}
+
 namespace {
 #ifndef NDEBUG
 void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
@@ -377,8 +403,6 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
                   char* data, unsigned char data_len, int epoch) {
   char buf[255];
-  unsigned long target;
-  int world_sz;
   int peer_rank;
   int rank;
   int rv;
@@ -391,29 +415,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
   memcpy(buf, id, id_sz);
   memcpy(buf + id_sz, data, data_len);
 
-  if (ctx->type == SHUFFLE_XN) {
-    world_sz = xn_shuffler_world_size(static_cast<xn_ctx_t*>(ctx->rep));
-    rank = xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
-  } else {
-    world_sz = nn_shuffler_world_size();
-    rank = nn_shuffler_my_rank();
-  }
-
-  if (world_sz != 1) {
-    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      peer_rank = pdlfs::xxhash32(id, id_sz, 0) % world_sz;
-    } else {
-      assert(ctx->chp != NULL);
-      ch_placement_find_closest(ctx->chp, pdlfs::xxhash64(id, id_sz, 0), 1,
-                                &target);
-      peer_rank = int(target);
-    }
-  } else {
-    peer_rank = rank;
-  }
-
-  /* skip non-receivers */
-  peer_rank &= ctx->receiver_mask;
+  peer_rank = shuffle_target(ctx, buf, write_sz);
+  rank = shuffle_rank(ctx);
 
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
@@ -768,6 +771,15 @@ int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   int rv = int(32 == bits_count(ctx->receiver_mask));
   return rv;
+}
+
+int shuffle_world_sz(shuffle_ctx* ctx) {
+  assert(ctx != NULL);
+  if (ctx->type == SHUFFLE_XN) {
+    return xn_shuffler_world_size(static_cast<xn_ctx_t*>(ctx->rep));
+  } else {
+    return nn_shuffler_world_size();
+  }
 }
 
 int shuffle_rank(shuffle_ctx_t* ctx) {

@@ -94,6 +94,9 @@ extern int shuffle_receiver_rank(shuffle_ctx_t* ctx);
 /* return the global index for a shuffle participant. */
 extern int shuffle_rank(shuffle_ctx_t* ctx);
 
+/* return the total number of shuffle participant */
+extern int shuffle_world_sz(shuffle_ctx_t* ctx);
+
 /*
  * shuffle_write: shuffle a write request through an underlying transport.
  *
@@ -152,6 +155,11 @@ extern void shuffle_pause(shuffle_ctx_t* ctx);
  * shuffle_resume: resume stopped background threads.
  */
 extern void shuffle_resume(shuffle_ctx_t* ctx);
+
+/*
+ * shuffle_target: return the shuffle destination for a given req.
+ */
+extern int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz);
 
 /*
  * shuffle_handle: process an incoming shuffled write. here "peer_rank" refers
