@@ -106,8 +106,7 @@ extern int xn_shuffler_world_size(xn_ctx_t* ctx);
 /* xn_shuffler_my_rank: return my rank id */
 extern int xn_shuffler_my_rank(xn_ctx_t* ctx);
 
-void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
-                         unsigned char fname_len, char* data, size_t len,
+void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
                          int epoch, int dst, int src);
 
 /* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */

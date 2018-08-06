@@ -101,88 +101,20 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
 
 static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
                                 uint32_t buf_sz) {
-  char* input;
-  size_t input_left;
-  const char* fname;
-  unsigned char fname_len;
-  char* data;
-  size_t len;
   int rv;
 
-  input_left = buf_sz;
-  input = static_cast<char*>(buf);
-  assert(input != NULL);
-
-  /* vpic fname */
-  if (input_left < 1) {
-    ABORT("rpc msg corrupted");
-  }
-  fname_len = static_cast<unsigned char>(input[0]);
-  input_left -= 1;
-  input += 1;
-  if (input_left < fname_len + 1) {
-    ABORT("rpc msg corrupted");
-  }
-  fname = input;
-  assert(strlen(fname) == fname_len);
-  input_left -= fname_len + 1;
-  input += fname_len + 1;
-
-  /* vpic data */
-  if (input_left < 1) {
-    ABORT("rpc msg corrupted");
-  }
-  len = static_cast<unsigned char>(input[0]);
-  input_left -= 1;
-  input += 1;
-  if (input_left < len) {
-    ABORT("rpc msg corrupted");
-  }
-  data = input;
-
-  rv = shuffle_handle(fname, fname_len, data, len, -1, src, dst);
+  rv = shuffle_handle(NULL, static_cast<char*>(buf), buf_sz, -1, src, dst);
 
   if (rv != 0) {
     ABORT("plfsdir write failed");
   }
 }
 
-void xn_shuffler_enqueue(xn_ctx_t* ctx, const char* fname,
-                         unsigned char fname_len, char* data, size_t len,
+void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
                          int epoch, int dst, int src) {
-  char buf[100];
   hg_return_t hret;
-  int rpc_sz;
-  int off;
-
-  assert(fname != NULL);
-  assert(fname_len != 0);
-  assert(len < 256);
-
-  off = rpc_sz = 0;
-
-  /* get an estimated size of the rpc */
-  rpc_sz += 1 + fname_len + 1; /* vpic fname */
-  rpc_sz += 1 + len;           /* vpic data */
-
-  assert(rpc_sz <= sizeof(buf));
-
-  /* vpic fname */
-  buf[off] = fname_len;
-  off += 1;
-  memcpy(buf + off, fname, fname_len);
-  off += fname_len;
-  buf[off] = 0;
-  off += 1;
-  /* vpic data */
-  buf[off] = static_cast<unsigned char>(len);
-  off += 1;
-  memcpy(buf + off, data, len);
-  off += len;
-
-  assert(off == rpc_sz);
   assert(ctx->sh != NULL);
-  hret = shuffler_send(ctx->sh, dst, 0, buf, off);
+  hret = shuffler_send(ctx->sh, dst, 0, buf, buf_sz);
 
   if (hret != HG_SUCCESS) {
     RPC_FAILED("plfsdir shuffler send failed", hret);
