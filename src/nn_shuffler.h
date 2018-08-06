@@ -71,9 +71,10 @@
 #pragma once
 
 #include <stddef.h>
+#include "preload_shuffle.h"
 
 /* nn_shuffler_init: initialize the shuffle service or die. */
-extern void nn_shuffler_init();
+extern void nn_shuffler_init(shuffle_ctx_t* ctx);
 
 /* nn_shuffler_world_size: return comm world size */
 extern int nn_shuffler_world_size();

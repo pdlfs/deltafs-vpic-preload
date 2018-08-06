@@ -90,6 +90,7 @@ typedef struct nn_rusage {
 typedef struct nn_ctx {
   char my_addr[100]; /* mercury server uri */
   struct utsname my_uname;
+  shuffle_ctx_t* shctx;
 
   /* total num of hg errors before we abort */
   int hg_errors;
@@ -132,11 +133,11 @@ extern nn_ctx_t nnctx;
 
 typedef struct write_in {
   hg_uint32_t hash_sig; /* hash signature of the entire payload */
-  hg_uint32_t dst;
-  hg_uint32_t src;
+  hg_uint32_t sz;       /* msg size */
 
-  hg_uint32_t ep; /* epoch num */
-  hg_uint32_t sz; /* msg size */
+  hg_int32_t dst;
+  hg_int32_t src;
+  hg_int32_t epo;
   void* msg;
 } write_in_t;
 

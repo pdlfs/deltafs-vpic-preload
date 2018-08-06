@@ -46,10 +46,11 @@ static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
   uint32_t tmp;
   assert(in != NULL);
 
-  memcpy(buf, &in->dst, 4);
-  memcpy(buf + 4, &in->src, 4);
-  memcpy(buf + 8, &in->ep, 4);
-  memcpy(buf + 12, &in->sz, 4);
+  memcpy(buf, &in->sz, 4);
+
+  memcpy(buf + 1 * 4, &in->dst, 4);
+  memcpy(buf + 2 * 4, &in->src, 4);
+  memcpy(buf + 3 * 4, &in->epo, 4);
 
   assert(in->msg != NULL);
   tmp = HASH(in->msg, in->sz);
@@ -76,27 +77,31 @@ hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   if (op == HG_ENCODE) {
     hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
     if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->dst);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->src);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->ep);
-    if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint32_t(proc, &in->sz);
     if (hret != HG_SUCCESS) return (hret);
+
+    hret = hg_proc_hg_int32_t(proc, &in->dst);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_int32_t(proc, &in->src);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_int32_t(proc, &in->epo);
+    if (hret != HG_SUCCESS) return (hret);
+
     hret = hg_proc_memcpy(proc, in->msg, in->sz);
 
   } else if (op == HG_DECODE) {
     hret = hg_proc_hg_uint32_t(proc, &in->hash_sig);
     if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->dst);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->src);
-    if (hret != HG_SUCCESS) return (hret);
-    hret = hg_proc_hg_uint32_t(proc, &in->ep);
-    if (hret != HG_SUCCESS) return (hret);
     hret = hg_proc_hg_uint32_t(proc, &in->sz);
     if (hret != HG_SUCCESS) return (hret);
+
+    hret = hg_proc_hg_int32_t(proc, &in->dst);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_int32_t(proc, &in->src);
+    if (hret != HG_SUCCESS) return (hret);
+    hret = hg_proc_hg_int32_t(proc, &in->epo);
+    if (hret != HG_SUCCESS) return (hret);
+
     hret = hg_proc_memcpy(proc, in->msg, in->sz);
 
   } else {

@@ -87,7 +87,7 @@ static size_t items_completed = 0;
 /* rpc queue */
 typedef struct rpcq {
   uint32_t sz; /* aggregated size of all pending writes */
-  uint32_t ep; /* epoch number for the last write */
+  int lepo;    /* epoch number for the last write */
   int busy;    /* non-zero when queue is locked and is being flushed */
   char* buf;   /* heap-allocated memory for the queue */
 } rpcq_t;
@@ -394,16 +394,13 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   write_out_t write_out;
   write_in_t write_in;
   write_info_t write_info;
-  char* data;
-  size_t len;
-  const char* fname;
-  unsigned char fname_len;
+  char* req;
+  unsigned int req_sz;
   int epoch;
   int src;
   int dst;
-  int world_sz;
   int tmp;
-  int my_rank;
+  int rank;
   int rv;
 
 #ifndef NDEBUG
@@ -412,8 +409,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 #endif
 
   assert(nnctx.mssg != NULL);
-  world_sz = mssg_get_count(nnctx.mssg);
-  my_rank = mssg_get_rank(nnctx.mssg);
+  rank = mssg_get_rank(nnctx.mssg);
 
   write_in.msg = buf;
   write_in.sz = 0;
@@ -428,9 +424,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
     ABORT("rpc msg corrupted (hash_sig mismatch)");
   }
 
-  dst = int(write_in.dst);
-  src = int(write_in.src);
-  if (dst != my_rank) {
+  dst = write_in.dst;
+  src = write_in.src;
+  if (dst != rank) {
     ABORT("rpc msg misrouted (bad dst)");
   }
 #ifndef NDEBUG
@@ -447,58 +443,40 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
 #endif
   write_out.rv = 0;
   input_left = write_info.sz = write_in.sz;
-  epoch = int(write_in.ep);
+  epoch = write_in.epo;
   write_info.num_writes = 0;
   input = buf;
 
   /* decode and execute writes */
   while (input_left != 0) {
-    /* fname */
     if (input_left < 1) {
       ABORT("premature end of msg");
     }
-    fname_len = static_cast<unsigned char>(input[0]);
+    req_sz = static_cast<unsigned char>(input[0]);
     input_left -= 1;
     input += 1;
-    if (input_left < fname_len + 1) {
+    if (input_left < req_sz) {
       ABORT("premature end of msg");
     }
-    fname = input;
-    assert(strlen(fname) == fname_len);
-    input_left -= fname_len + 1;
-    input += fname_len + 1;
-
-    /* data */
-    if (input_left < 1) {
-      ABORT("premature end of msg");
-    }
-    len = static_cast<unsigned char>(input[0]);
-    input_left -= 1;
-    input += 1;
-    if (input_left < len) {
-      ABORT("premature end of msg");
-    }
-    data = input;
-    input_left -= len;
-    input += len;
+    req = input;
+    input_left -= req_sz;
+    input += req_sz;
 
     if (nnctx.paranoid_checks) {
-      if (fname[fname_len] != 0) {
-        ABORT("rpc msg corrupted (bad fname len)");
-      }
-      if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-        tmp = pdlfs::xxhash32(fname, fname_len, 0) % world_sz;
-        if (my_rank != tmp) {
-          nn_shuffler_debug(src, dst, my_rank, tmp, fname);
-          ABORT("rpc msg misdirected (wrong dst)");
-        }
+      tmp = 0; /* FIXME */
+      if (rank != tmp) {
+        nn_shuffler_debug(src, dst, rank, tmp, "");
+        ABORT("rpc msg misdirected (wrong dst)");
       }
     }
 
-    rv = shuffle_handle(fname, fname_len, data, len, epoch, src, dst);
+    rv = shuffle_handle(nnctx.shctx, req, req_sz, epoch, src, dst);
     write_info.num_writes++;
     if (write_out.rv == 0) {
       write_out.rv = rv;
+    }
+    if (rv != 0) {
+      break;
     }
   }
 
@@ -593,8 +571,8 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
-  assert(int(write_in->dst) == peer_rank);
-  assert(int(write_in->src) == rank);
+  assert(write_in->dst == peer_rank);
+  assert(write_in->src == rank);
 
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
@@ -774,8 +752,8 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
-  assert(int(write_in->dst) == peer_rank);
-  assert(int(write_in->src) == rank);
+  assert(write_in->dst == peer_rank);
+  assert(write_in->src == rank);
 
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
@@ -859,12 +837,11 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 
 /* nn_shuffler_enqueue:
  *   encode a req and append it into a corresponding rpc queue */
-void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
-                         size_t len, int epoch, int peer_rank, int my_rank) {
+void nn_shuffler_enqueue(char* req, unsigned char req_sz, int epoch,
+                         int peer_rank, int rank) {
   write_in_t write_in;
   rpcq_t* rpcq;
   int rpcq_idx;
-  size_t rpc_sz;
   time_t now;
   struct timespec abstime;
   useconds_t delay;
@@ -879,11 +856,9 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   int n;
 #endif
 
-  assert(fname != NULL);
   assert(nnctx.mssg != NULL);
-  assert(my_rank == mssg_get_rank(nnctx.mssg));
+  assert(rank == mssg_get_rank(nnctx.mssg));
   world_sz = mssg_get_count(nnctx.mssg);
-  assert(len < 256);
 
   if (nnctx.paranoid_checks) {
     if (peer_rank < 0 || peer_rank >= world_sz) {
@@ -897,7 +872,6 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   assert(rpcq_idx < nrpcqs);
   rpcq = &rpcqs[rpcq_idx];
   assert(rpcq != NULL);
-  rpc_sz = 0;
 
   delay = 1000; /* 1000 us */
 
@@ -930,12 +904,8 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
     }
   }
 
-  /* get an estimated size of the rpc */
-  rpc_sz += 1 + fname_len + 1; /* vpic fname */
-  rpc_sz += 1 + len;           /* vpic data */
-
   /* flush queue if full */
-  if (rpcq->sz + rpc_sz > max_rpcq_sz) {
+  if (rpcq->sz + req_sz + 1 > max_rpcq_sz) {
     if (rpcq->sz > MAX_RPC_MESSAGE) {
       /* happens when the total size of queued data is greater than
        * the size limit for an rpc message */
@@ -944,9 +914,9 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.dst = static_cast<hg_uint32_t>(peer_rank);
-      write_in.src = static_cast<hg_uint32_t>(my_rank);
-      write_in.ep = rpcq->ep;
+      write_in.dst = peer_rank;
+      write_in.src = rank;
+      write_in.epo = rpcq->lepo;
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
       write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
@@ -969,22 +939,15 @@ void nn_shuffler_enqueue(const char* fname, unsigned char fname_len, char* data,
   }
 
   /* enqueue */
-  if (rpcq->sz + rpc_sz > max_rpcq_sz) {
+  if (rpcq->sz + req_sz + 1 > max_rpcq_sz) {
     /* happens when the memory reserved for the queue is smaller than
      * a single write */
     ABORT("rpc overflow");
   } else {
-    rpcq->ep = static_cast<uint32_t>(epoch);
-    /* vpic fname */
-    rpcq->buf[rpcq->sz] = fname_len;
-    memcpy(rpcq->buf + rpcq->sz + 1, fname, fname_len);
-    rpcq->sz += 1 + fname_len;
-    rpcq->buf[rpcq->sz] = 0;
-    rpcq->sz += 1;
-    /* vpic data */
-    rpcq->buf[rpcq->sz] = static_cast<unsigned char>(len);
-    memcpy(rpcq->buf + rpcq->sz + 1, data, len);
-    rpcq->sz += 1 + len;
+    rpcq->lepo = epoch;
+    rpcq->buf[rpcq->sz] = req_sz;
+    memcpy(rpcq->buf + rpcq->sz + 1, req, req_sz);
+    rpcq->sz += req_sz + 1;
   }
 
   pthread_mtx_unlock(&mtx[qu_cv]);
@@ -997,11 +960,11 @@ void nn_shuffler_flushq() {
   void* arg1;
   void* arg2;
   int peer_rank;
-  int my_rank;
+  int rank;
   int rv;
 
   assert(nnctx.mssg != NULL);
-  my_rank = mssg_get_rank(nnctx.mssg);
+  rank = mssg_get_rank(nnctx.mssg);
 
   pthread_mtx_lock(&mtx[qu_cv]);
 
@@ -1015,9 +978,9 @@ void nn_shuffler_flushq() {
       rpcq->busy = 1; /* force other writers to block */
       /* unlock when sending the rpc */
       pthread_mtx_unlock(&mtx[qu_cv]);
-      write_in.dst = static_cast<hg_uint32_t>(peer_rank);
-      write_in.src = static_cast<hg_uint32_t>(my_rank);
-      write_in.ep = rpcq->ep;
+      write_in.dst = peer_rank;
+      write_in.src = rank;
+      write_in.epo = rpcq->lepo;
       write_in.sz = rpcq->sz;
       write_in.msg = rpcq->buf;
       write_in.hash_sig = nn_shuffler_maybe_hashsig(&write_in);
@@ -1200,7 +1163,7 @@ void nn_shuffler_init_mssg() {
 }
 
 /* nn_shuffler_init: init the shuffle layer */
-void nn_shuffler_init() {
+void nn_shuffler_init(shuffle_ctx_t* ctx) {
   hg_return_t hret;
   hg_size_t isz;
   hg_size_t osz;
@@ -1210,6 +1173,7 @@ void nn_shuffler_init() {
   int rv;
   int i;
 
+  nnctx.shctx = ctx;
   shuffle_prepare_uri(nnctx.my_addr);
   rv = uname(&nnctx.my_uname);
   if (rv) ABORT("uname");
@@ -1315,7 +1279,7 @@ void nn_shuffler_init() {
   for (i = 0; i < nrpcqs; i++) {
     rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
     rpcqs[i].busy = 0;
-    rpcqs[i].ep = 0;
+    rpcqs[i].lepo = 0;
     rpcqs[i].sz = 0;
   }
   if (pctx.my_rank == 0) {
