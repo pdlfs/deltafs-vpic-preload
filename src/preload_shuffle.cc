@@ -614,7 +614,18 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   const char* proto;
   const char* env;
   int n;
+
   assert(ctx != NULL);
+  ctx->id_sz = static_cast<unsigned char>(pctx.particle_id_size);
+  ctx->data_len = static_cast<unsigned char>(pctx.particle_size);
+  assert(ctx->data_len <= 255 - ctx->id_sz);
+  assert(ctx->id_sz != 0);
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg), "shuffle format: id=%u bytes, data=%u bytes",
+             ctx->id_sz, ctx->data_len);
+    INFO(msg);
+  }
+
   env = maybe_getenv("SHUFFLE_Finalize_pause");
   if (env != NULL) {
     ctx->finalize_pause = atoi(env);
