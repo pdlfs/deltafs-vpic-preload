@@ -384,8 +384,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
   int rv;
 
   assert(ctx == &pctx.sctx);
-  if (ctx->data_len != data_len) return EOF;
-  if (ctx->id_sz != id_sz) return EOF;
+  if (ctx->data_len != data_len) ABORT("bad data len");
+  if (ctx->id_sz != id_sz) ABORT("bad id size");
 
   unsigned char write_sz = data_len + id_sz;
   memcpy(buf, id, id_sz);
@@ -464,7 +464,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   int rv;
 
   ctx = &pctx.sctx;
-  if (buf_sz != ctx->data_len + ctx->id_sz) return EOF;
+  if (buf_sz != ctx->data_len + ctx->id_sz)
+    ABORT("unexpected incoming shuffle request size");
   rv = exotic_write(buf, ctx->id_sz, buf + ctx->id_sz, ctx->data_len, epoch);
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
