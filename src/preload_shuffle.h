@@ -159,9 +159,8 @@ extern void shuffle_resume(shuffle_ctx_t* ctx);
  *
  * return 0 on success, or EOF on errors.
  */
-extern int shuffle_handle(const char* fname, unsigned char fname_len,
-                          char* data, size_t len, int epoch, int peer_rank,
-                          int rank);
+extern int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
+                          int epoch, int peer_rank, int rank);
 
 /*
  * shuffle_msg_sent: callback for a shuffle sender to

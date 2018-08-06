@@ -676,7 +676,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     world_sz = xn_shuffler_world_size(rep);
     ctx->rep = rep;
   } else {
-    nn_shuffler_init();
+    nn_shuffler_init(ctx);
     world_sz = nn_shuffler_world_size();
   }
 
