@@ -2599,37 +2599,29 @@ long ftell(FILE* stream) {
 /*
  * preload_write
  */
-int preload_write(const char* fn, char* data, size_t len, int epoch) {
+int preload_write(const char* id, unsigned char id_sz, char* data,
+                  unsigned char data_len, int epoch) {
   int rv;
   char path[PATH_MAX];
-  const char* fname;
   ssize_t n;
   int fd;
-  int k;
 
-  assert(fn != NULL);
-  assert(pctx.len_plfsdir != 0);
-  assert(pctx.plfsdir != NULL);
-  assert(strncmp(fn, pctx.plfsdir, pctx.len_plfsdir) == 0);
-  if (epoch == -1) epoch = num_epochs - 1;
-  /* remove parent directory path */
-  fname = fn + pctx.len_plfsdir + 1;
-
-  errno = 0;
-
-  pthread_mtx_lock(&write_mtx);
+  if (epoch == -1) {
+    epoch = num_epochs - 1;
+  }
 
   if (pctx.fake_data) {
     memset(particle_buf, 0, sizeof(particle_buf));
-    k = pdlfs::xxhash32(fname, strlen(fname), 0);
-    snprintf(particle_buf, sizeof(particle_buf), "key=%08x", k);
-    len = sizeof(particle_buf);
-    data = particle_buf;
+    // TODO
   }
 
+  std::string fname = std::string(id, id_sz);
+
+  pthread_mtx_lock(&write_mtx);
+
   if (pctx.paranoid_checks) {
-    if (len != pctx.particle_size) {
-      ABORT("bad write size!");
+    if (id_sz != pctx.particle_id_size || data_len != pctx.particle_size) {
+      ABORT("bad particle format");
     }
     if (epoch != num_epochs - 1) {
       ABORT("bad epoch num");
@@ -2641,11 +2633,11 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
     if (num_epochs == 1) {
       /* during the initial epoch, we accept as many names as possible */
       if (getr(0, 1000000 - 1) < pctx.sthres) {
-        pctx.smap->insert(std::make_pair(std::string(fname), 1));
+        pctx.smap->insert(std::make_pair(fname, 1));
       }
     } else {
-      if (pctx.smap->count(std::string(fname)) != 0) {
-        pctx.smap->at(std::string(fname))++;
+      if (pctx.smap->count(fname) != 0) {
+        pctx.smap->at(fname)++;
       }
     }
   }
@@ -2660,38 +2652,27 @@ int preload_write(const char* fn, char* data, size_t len, int epoch) {
       ABORT("plfsdir not opened");
     }
 
-    n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, len);
+    n = deltafs_plfsdir_append(pctx.plfshdl, fname.c_str(), epoch, data,
+                               data_len);
 
-    if (n == len) {
+    if (n == data_len) {
       rv = 0;
     }
 
   } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
-    snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fn);
+    snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fname.c_str());
     fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
 
     if (fd != -1) {
-      n = write(fd, data, len);
-      if (n == len) {
+      n = write(fd, data, data_len);
+      if (n == data_len) {
         rv = 0;
       }
       close(fd);
     }
+
   } else {
-    if (pctx.plfsfd == -1) {
-      ABORT("plfsdir not opened");
-    }
-
-    fd =
-        deltafs_openat(pctx.plfsfd, fname, O_WRONLY | O_CREAT | O_APPEND, 0644);
-
-    if (fd != -1) {
-      n = deltafs_write(fd, data, len);
-      if (n == len) {
-        rv = 0;
-      }
-      deltafs_close(fd);
-    }
+    ABORT("not implemented");
   }
 
   pthread_mtx_unlock(&write_mtx);
