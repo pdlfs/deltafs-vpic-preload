@@ -435,8 +435,8 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   /* write trace if we are in testing mode */
   if (pctx.testin) {
     if (pctx.logfd != -1) {
-      n = snprintf(msg, sizeof(msg), "[IN] %d bytes r%d << r%d\n",
-                   int(write_in.sz), dst, src);
+      n = snprintf(msg, sizeof(msg), "[IN] %u bytes r%d << r%d\n", write_in.sz,
+                   dst, src);
       n = write(pctx.logfd, msg, n);
 
       errno = 0;
@@ -579,8 +579,8 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(msg, sizeof(msg), "[OUT] %d bytes r%d >> r%d\n",
-                 int(write_in->sz), rank, peer_rank);
+    n = snprintf(msg, sizeof(msg), "[OUT] %u bytes r%d >> r%d\n", write_in->sz,
+                 rank, peer_rank);
 
     n = write(pctx.logfd, msg, n);
 
@@ -760,8 +760,8 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(msg, sizeof(msg), "[OUT] %d bytes r%d >> r%d\n",
-                 int(write_in->sz), rank, peer_rank);
+    n = snprintf(msg, sizeof(msg), "[OUT] %u bytes r%d >> r%d\n", write_in->sz,
+                 rank, peer_rank);
 
     n = write(pctx.logfd, msg, n);
 
