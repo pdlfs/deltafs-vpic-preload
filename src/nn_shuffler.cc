@@ -401,7 +401,7 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   int epoch;
   int src;
   int dst;
-  int tmp;
+  int target_rank;
   int rank;
   int rv;
 
@@ -465,9 +465,9 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
     input += req_sz;
 
     if (nnctx.paranoid_checks) {
-      tmp = shuffle_target(nnctx.shctx, req, req_sz);
-      if (rank != tmp) {
-        nn_shuffler_debug(src, dst, rank, tmp);
+      target_rank = shuffle_target(nnctx.shctx, req, req_sz);
+      if (rank != target_rank) {
+        nn_shuffler_debug(src, dst, rank, target_rank);
         ABORT("rpc msg misdirected");
       }
     }
