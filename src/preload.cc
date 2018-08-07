@@ -285,6 +285,14 @@ static void preload_init() {
       pctx.local_root[pctx.len_local_root - 1] == '/')
     ABORT("bad local_root");
 
+  tmp = maybe_getenv("PRELOAD_Particle_id_size");
+  if (tmp != NULL) {
+    pctx.particle_id_size = atoi(tmp);
+    if (pctx.particle_id_size <= 0) {
+      ABORT("bad particle id size");
+    }
+  }
+
   tmp = maybe_getenv("PRELOAD_Particle_size");
   if (tmp != NULL) {
     pctx.particle_size = atoi(tmp);
@@ -943,6 +951,12 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
+    if (rank == 0) {
+      snprintf(msg, sizeof(msg), "particle format: id=%d bytes, data=%d bytes",
+               pctx.particle_id_size, pctx.particle_size);
+      INFO(msg);
+    }
+
     /* everyone is a receiver by default. when shuffle is enabled, some ranks
      * may become sender-only */
     pctx.recv_comm = MPI_COMM_WORLD;
