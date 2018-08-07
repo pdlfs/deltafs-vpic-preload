@@ -2409,7 +2409,13 @@ int fclose(FILE* stream) {
   }
 
   fake_file* const ff = reinterpret_cast<fake_file*>(stream);
-  fname = ff->file_name() + pctx.len_plfsdir + 1; /* remove parent path */
+  assert(ff != NULL);
+
+  /* remove parent path */
+  assert(pctx.len_plfsdir != 0 && pctx.plfsdir != NULL);
+  assert(strncmp(ff->file_name(), pctx.plfsdir, pctx.len_plfsdir) == 0);
+  fname = ff->file_name() + pctx.len_plfsdir + 1;
+
   fname_len = strlen(fname);
 
   if (pctx.paranoid_checks) {
