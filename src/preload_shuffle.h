@@ -68,6 +68,7 @@ typedef struct shuffle_ctx {
    * shuffle bg threads can complete shutdown in the meantime. */
   int finalize_pause;
   unsigned int receiver_mask; /* (rank & receiver_mask) -> receiver_rank */
+  unsigned char extra_data_len;
   unsigned char data_len;
   unsigned char id_sz;
   /* shuffle type */

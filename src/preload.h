@@ -43,6 +43,8 @@
  *    Bytes of each particle id (filename)
  *  PRELOAD_Particle_size
  *    Bytes of each particle
+ *  PRELOAD_Particle_extra_size
+ *    Extra bytes for each particle
  *  PRELOAD_Pthread_tap
  *    Rank# less than this will get their rusage tapped
  *  PRELOAD_Ignore_dirs (semicolon separated paths)
