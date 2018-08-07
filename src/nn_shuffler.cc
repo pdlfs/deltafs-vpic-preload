@@ -179,8 +179,9 @@ static hg_return_t nn_progress_rusage(hg_context_t* context, int timeout) {
   return hret;
 }
 
+namespace {
 /* rpc_explain_timeout: print rpc stats before we abort */
-static void rpc_explain_timeout() {
+void rpc_explain_timeout() {
   LOG(LOG_SINK, 0,
       "!! [%s] (rank %d) shuffler %d (%s) is about to timeout: "
       "rpc out %d (%d replied), rpc in %d",
@@ -188,6 +189,7 @@ static void rpc_explain_timeout() {
       mssg_get_addr_str(nnctx.mssg, mssg_get_rank(nnctx.mssg)),
       int(pctx.mctx.nms), int(pctx.mctx.nmd), int(pctx.mctx.nmr));
 }
+}  // namespace
 
 /* rpc_work(): dedicated thread function to process rpc. each work item
  * represents an incoming rpc (encoding a batch of writes). */
