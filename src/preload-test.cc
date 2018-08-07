@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
   DIR* d = opendir(dname);
   char fname[PATH_MAX];
   for (int i = 0; i < 10; i++) {
-    snprintf(fname, sizeof(fname), "%s/%03d%03d", dname, rank, i);
+    snprintf(fname, sizeof(fname), "%s/%08x%08x", dname, rank, i);
     FILE* fp = fopen(fname, "a");
     if (fp == NULL) {
       msg_abort("fopen");
