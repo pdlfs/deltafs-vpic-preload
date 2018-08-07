@@ -358,21 +358,21 @@ hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t h) {
   return HG_SUCCESS;
 }
 
+namespace {
 /* nn_shuffler_debug:
  *   print debug information for an incoming RPC write request.
  *   src and dst are shuffle ranks reported by the RPC message, me
  *   indicates the shuffle rank of my own, and hp is the shuffle
  *   rank calculated via hash placement. */
-static void nn_shuffler_debug(int src, int dst, int me, int hp,
-                              const char* key) {
+void nn_shuffler_debug(int src, int dst, int me, int hp) {
   LOG(LOG_SINK, 0,
       "!! [%s] (rank %d) shuffler %d (%s) just "
-      "received a problematic write req (%s)\n"
+      "received a problematic write req\n"
       "!! [%s] (rank %d) the req swears it comes from %d (%s), "
       "and was heading to %d (%s)",
       nnctx.my_uname.nodename, pctx.my_rank, me,
-      mssg_get_addr_str(nnctx.mssg, me), key, nnctx.my_uname.nodename,
-      pctx.my_rank, src, mssg_get_addr_str(nnctx.mssg, src), dst,
+      mssg_get_addr_str(nnctx.mssg, me), nnctx.my_uname.nodename, pctx.my_rank,
+      src, mssg_get_addr_str(nnctx.mssg, src), dst,
       mssg_get_addr_str(nnctx.mssg, dst));
   if (hp != -1) {
     LOG(LOG_SINK, 0, "!! [%s] (rank %d) we think the req should goto %d (%s)",
@@ -380,6 +380,7 @@ static void nn_shuffler_debug(int src, int dst, int me, int hp,
         mssg_get_addr_str(nnctx.mssg, hp));
   }
 }
+}  // namespace
 
 /* nn_shuffler_write_rpc_handler: server-side rpc handler */
 hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
@@ -463,10 +464,10 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
     input += req_sz;
 
     if (nnctx.paranoid_checks) {
-      tmp = 0; /* FIXME */
+      tmp = shuffle_target(nnctx.shctx, req, req_sz);
       if (rank != tmp) {
-        nn_shuffler_debug(src, dst, rank, tmp, "");
-        ABORT("rpc msg misdirected (wrong dst)");
+        nn_shuffler_debug(src, dst, rank, tmp);
+        ABORT("rpc msg misdirected");
       }
     }
 
