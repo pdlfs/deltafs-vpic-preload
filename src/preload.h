@@ -39,6 +39,8 @@
  *    Path to the plfsdir (XXX: allows multi)
  *  PRELOAD_Log_home
  *    Path to the home directory for log files
+ *  PRELOAD_Particle_id_size
+ *    Bytes of each particle id (filename)
  *  PRELOAD_Particle_size
  *    Bytes of each particle
  *  PRELOAD_Pthread_tap
@@ -61,6 +63,8 @@
  *    Skip perf monitoring
  *  PRELOAD_Skip_mon_dist
  *    Skip copying mon files out
+ *  PRELOAD_Skip_papi
+ *    Skip PAPI events collection
  *  PRELOAD_Enable_verbose_mon
  *    Print mon info at the end of each epoch
  *  PRELOAD_Enable_verbose_error

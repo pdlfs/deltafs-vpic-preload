@@ -50,8 +50,9 @@
 #include "preload_internal.h"
 #include "pthreadtap.h"
 
-/* default particle size in bytes */
-#define DEFAULT_PARTICLE_SIZE 40
+/* default particle format */
+#define DEFAULT_PARTICLE_ID_BYTES 16
+#define DEFAULT_PARTICLE_BYTES 40
 
 /* mon output */
 static int mon_dump_bin = 0;
@@ -162,7 +163,8 @@ static void preload_init() {
   pctx.fnames = new std::set<std::string>;
   pctx.smap = new std::map<std::string, int>;
 
-  pctx.particle_size = DEFAULT_PARTICLE_SIZE;
+  pctx.particle_id_size = DEFAULT_PARTICLE_ID_BYTES;
+  pctx.particle_size = DEFAULT_PARTICLE_BYTES;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
   pctx.sampling = 1;
