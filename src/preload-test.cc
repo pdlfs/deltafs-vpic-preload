@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "local_root is %s\n", lo);
   }
   for (int i = 0; i < 10; i++) {
-    snprintf(rname, sizeof(rname), "%s/%s", lo, fname);
+    snprintf(rname, sizeof(rname), "%s/%08x%08x", lo, 0, i);
     int fd = open(rname, O_RDONLY);
     if (fd == -1) {
       msg_abort("open");
