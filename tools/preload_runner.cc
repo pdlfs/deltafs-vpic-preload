@@ -318,7 +318,7 @@ static void do_dump() {
     complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
   }
   for (int p = 0; p < g.nps; p++) {
-    snprintf(pname, sizeof(pname), "%s/R%08X-P%08X", g.pdir, myrank, p);
+    snprintf(pname, sizeof(pname), "%s/%08X%08X", g.pdir, myrank, p);
     file = fopen(pname, "a");
     if (!file) {
       complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
