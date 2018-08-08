@@ -965,11 +965,12 @@ int MPI_Init(int* argc, char*** argv) {
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (rank == 0) {
       snprintf(msg, sizeof(msg),
-               "particle filename: %d bytes, particle id: %d bytes, "
-               "particle data: %d (+ %d) bytes",
-               pctx.particle_id_size * (1 + (pctx.particle_hex_fname ? 1 : 0)),
+               "particle id: %d bytes, particle data: %d (+ %d) bytes\n>>> "
+               "particle filename len: %d bytes (hex_filename=%d)",
                pctx.particle_id_size, pctx.particle_size,
-               pctx.particle_extra_size);
+               pctx.particle_extra_size,
+               pctx.particle_id_size * (1 + (pctx.particle_hex_fname ? 1 : 0)),
+               pctx.particle_hex_fname);
       INFO(msg);
     }
 
