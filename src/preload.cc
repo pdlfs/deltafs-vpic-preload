@@ -51,7 +51,7 @@
 #include "pthreadtap.h"
 
 /* default particle format */
-#define DEFAULT_PARTICLE_ID_BYTES 16
+#define DEFAULT_PARTICLE_ID_BYTES 8
 #define DEFAULT_PARTICLE_EXTRA_BYTES 0
 #define DEFAULT_PARTICLE_BYTES 40
 
