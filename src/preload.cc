@@ -164,6 +164,7 @@ static void preload_init() {
   pctx.fnames = new std::set<std::string>;
   pctx.smap = new std::map<std::string, int>;
 
+  pctx.particle_hex_fname = 0;
   pctx.particle_id_size = DEFAULT_PARTICLE_ID_BYTES;
   pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
   pctx.particle_size = DEFAULT_PARTICLE_BYTES;
@@ -377,6 +378,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_paranoid_post_barrier"))
     pctx.paranoid_post_barrier = 0;
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
+  if (is_envset("PRELOAD_Particle_hex_fname")) pctx.particle_hex_fname = 1;
   if (is_envset("PRELOAD_Inject_fake_data")) pctx.fake_data = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
@@ -963,7 +965,9 @@ int MPI_Init(int* argc, char*** argv) {
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (rank == 0) {
       snprintf(msg, sizeof(msg),
-               "particle id: %d bytes, particle data: %d + %d bytes",
+               "particle filename: %d bytes, particle id: %d bytes, "
+               "particle data: %d (+ %d) bytes",
+               pctx.particle_id_size * (1 + (pctx.particle_hex_fname ? 1 : 0)),
                pctx.particle_id_size, pctx.particle_size,
                pctx.particle_extra_size);
       INFO(msg);
@@ -2429,12 +2433,16 @@ int fclose(FILE* stream) {
   assert(strncmp(fname, pctx.plfsdir, pctx.len_plfsdir) == 0);
   assert(fname[pctx.len_plfsdir] == '/');
   fname += pctx.len_plfsdir + 1;
-
   fname_len = strlen(fname);
 
+  std::string id = std::string(fname, fname_len);
+  if (pctx.particle_hex_fname) {
+    hex2id(&id);
+  }
+
   if (pctx.paranoid_checks) {
-    if (pctx.particle_id_size != fname_len) {
-      ABORT("bad particle fname len");
+    if (pctx.particle_id_size != id.size()) {
+      ABORT("bad particle id size");
     }
     if (pctx.particle_size != ff->size()) {
       ABORT("bad particle size");
@@ -2442,13 +2450,14 @@ int fclose(FILE* stream) {
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write(&pctx.sctx, fname, fname_len, ff->data(), ff->size(),
+    rv = shuffle_write(&pctx.sctx, id.data(), id.size(), ff->data(), ff->size(),
                        num_epochs - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }
   } else {
-    rv = native_write(fname, fname_len, ff->data(), ff->size(), num_epochs - 1);
+    rv = native_write(id.data(), id.size(), ff->data(), ff->size(),
+                      num_epochs - 1);
     if (rv) {
       ABORT("plfsdir write failed");
     }
@@ -2636,11 +2645,16 @@ int preload_write(const char* id, unsigned char id_sz, char* data,
   }
 
   std::string fname = std::string(id, id_sz);
+  if (pctx.particle_hex_fname) {
+    id2hex(&fname);
+  }
 
   pthread_mtx_lock(&write_mtx);
 
   if (pctx.paranoid_checks) {
-    if (id_sz != pctx.particle_id_size || data_len != pctx.particle_size) {
+    if (fname.size() !=
+            pctx.particle_id_size * (1 + (pctx.particle_hex_fname ? 1 : 0)) ||
+        id_sz != pctx.particle_id_size || data_len != pctx.particle_size) {
       ABORT("bad particle format");
     }
     if (epoch != num_epochs - 1) {

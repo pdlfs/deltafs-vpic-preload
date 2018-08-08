@@ -87,6 +87,7 @@ typedef struct preload_ctx {
   int particle_size;       /* bytes in each particle */
   int particle_extra_size; /* extra padding for each particle shuffled */
   int particle_id_size;
+  int particle_hex_fname;
 
   /* since some ranks may be sender-only, so we have a dedicated MPI
    * communicator formed specifically for receivers. note that each receiver may

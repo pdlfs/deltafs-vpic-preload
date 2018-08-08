@@ -170,7 +170,7 @@ static std::string readline(const char* fname) {
   return tmp;
 }
 
-void fn2hex(std::string* input) {
+void id2hex(std::string* input) {
   char tmp[3];
   const size_t len = input->size();
   if (len == 0) return;
@@ -181,7 +181,7 @@ void fn2hex(std::string* input) {
   }
 }
 
-void hex2fn(std::string* input) {
+void hex2id(std::string* input) {
   char tmp[3];
   unsigned int h = 0;
   tmp[2] = 0;
