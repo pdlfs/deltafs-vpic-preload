@@ -38,6 +38,8 @@ set -x
 if [ x"$MPI" = xmpich ]; then
     mpirun.mpich -np $MPI_PROCS -prepend-rank -bind-to hwthread \
         -env LD_PRELOAD "$BUILD_PREFIX/src/libdeltafs-preload.so" \
+        -env PRELOAD_Particle_hex_fname "1" \
+        -env PRELOAD_Particle_id_size "8" \
         -env PRELOAD_Skip_papi "1" \
         -env PRELOAD_Bypass_deltafs "1" \
         -env PRELOAD_Bypass_shuffle "0" \
@@ -53,6 +55,8 @@ if [ x"$MPI" = xmpich ]; then
 elif [ x"$MPI" = xopenmpi ]; then
     mpirun.openmpi -np $MPI_PROCS -tag-output -bind-to-core \
         -x "LD_PRELOAD=$BUILD_PREFIX/src/libdeltafs-preload.so" \
+        -x "PRELOAD_Particle_hex_fname=1" \
+        -x "PRELOAD_Particle_id_size=8" \
         -x "PRELOAD_Skip_papi=1" \
         -x "PRELOAD_Bypass_deltafs=1" \
         -x "PRELOAD_Bypass_shuffle=0" \
