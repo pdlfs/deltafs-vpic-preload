@@ -63,6 +63,7 @@ static int myrank = 0;
 /* emulated particle name and data */
 static char* pdata;
 static char pname[256];
+static size_t psz; /* total write size per particle */
 
 /*
  * vcomplain/complain about something.  if ret is non-zero we exit(ret)
@@ -282,8 +283,10 @@ int main(int argc, char* argv[]) {
   alarm(g.timeout);
   if (myrank == 0) printf("== VPIC Starting ...\n");
 
-  pdata = (char*)malloc(g.psize);
+  psz = 8 + static_cast<size_t>(g.psize);
+  pdata = (char*)malloc(psz);
   if (!pdata) complain(EXIT_FAILURE, 0, "malloc pdata failed");
+  memset(pdata, 'x', psz);
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
   if (myrank == 0) printf("== VPIC Exiting...\n");
@@ -317,13 +320,16 @@ static void do_dump() {
   if (!dir) {
     complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
   }
+  const int prefix = snprintf(pname, sizeof(pname), "%s/", g.pdir);
+  memcpy(pdata, &myrank, 4);
   for (int p = 0; p < g.nps; p++) {
-    snprintf(pname, sizeof(pname), "%s/%08X%08X", g.pdir, myrank, p);
+    snprintf(pname + prefix, sizeof(pname) - prefix, "%08X%08X", myrank, p);
     file = fopen(pname, "a");
     if (!file) {
       complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     }
-    fwrite(pdata, 1, g.psize, file);
+    memcpy(pdata + 4, &p, 4);
+    fwrite(pdata, 1, psz, file);
     fclose(file);
   }
   closedir(dir);
