@@ -283,13 +283,13 @@ int main(int argc, char* argv[]) {
   alarm(g.timeout);
   if (myrank == 0) printf("== VPIC Starting ...\n");
 
-  psz = 8 + static_cast<size_t>(g.psize);
-  pdata = (char*)malloc(psz);
+  psz = static_cast<size_t>(g.psize);
+  pdata = static_cast<char*>(malloc(psz));
   if (!pdata) complain(EXIT_FAILURE, 0, "malloc pdata failed");
   memset(pdata, 'x', psz);
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
-  if (myrank == 0) printf("== VPIC Exiting...\n");
+  if (myrank == 0) printf("VPIC Done\n");
   free(pdata);
 
   MPI_Finalize();
@@ -313,6 +313,34 @@ static void run_vpic_app() {
   }
 }
 
+namespace {
+const unsigned char base64_table[65] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/*
+ * Base64 encoding/decoding (RFC1341)
+ * Code adapted from Jouni Malinen <j@w1.fi>
+ */
+char* base64_encoding(char* dst, uint64_t input) {
+  const char* in = reinterpret_cast<char*>(&input);
+  *dst++ = base64_table[in[0] >> 2];
+  *dst++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
+  *dst++ = base64_table[((in[1] & 0x0f) << 2) | (in[2] >> 6)];
+  *dst++ = base64_table[in[2] & 0x3f];
+
+  *dst++ = base64_table[in[3] >> 2];
+  *dst++ = base64_table[((in[3] & 0x03) << 4) | (in[4] >> 4)];
+  *dst++ = base64_table[((in[4] & 0x0f) << 2) | (in[5] >> 6)];
+  *dst++ = base64_table[in[5] & 0x3f];
+
+  *dst++ = base64_table[in[6] >> 2];
+  *dst++ = base64_table[((in[6] & 0x03) << 4) | (in[7] >> 4)];
+  *dst++ = base64_table[(in[7] & 0x0f) << 2];
+
+  return dst;
+}
+}  // namespace
+
 static void do_dump() {
   FILE* file;
   DIR* dir;
@@ -321,14 +349,14 @@ static void do_dump() {
     complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
   }
   const int prefix = snprintf(pname, sizeof(pname), "%s/", g.pdir);
-  memcpy(pdata, &myrank, 4);
+  uint64_t ra = (static_cast<uint64_t>(myrank) << 32);
   for (int p = 0; p < g.nps; p++) {
-    snprintf(pname + prefix, sizeof(pname) - prefix, "%08X%08X", myrank, p);
+    char* end = base64_encoding(pname + prefix, (ra | p));
+    *end = 0;
     file = fopen(pname, "a");
     if (!file) {
       complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     }
-    memcpy(pdata + 4, &p, 4);
     fwrite(pdata, 1, psz, file);
     fclose(file);
   }
