@@ -170,32 +170,6 @@ static std::string readline(const char* fname) {
   return tmp;
 }
 
-void id2hex(std::string* input) {
-  char tmp[3];
-  const size_t len = input->size();
-  if (len == 0) return;
-  input->resize(len << 1);
-  for (size_t i = 0; i < len; i++) {
-    sprintf(tmp, "%02x", static_cast<unsigned char>(input->at(len - 1 - i)));
-    memcpy(&input->at((len - 1 - i) << 1), tmp, 2);
-  }
-}
-
-void hex2id(std::string* input) {
-  char tmp[3];
-  unsigned int h = 0;
-  tmp[2] = 0;
-  const size_t len = input->size() >> 1;
-  if (len == 0) return;
-  for (size_t i = 0; i < len; i++) {
-    memcpy(tmp, &input->at(i << 1), 2);
-    sscanf(tmp, "%02x", &h);
-    input->at(i) = static_cast<char>(h);
-    h = 0;
-  }
-  input->resize(len);
-}
-
 /* remove leading and tailing space */
 static std::string trim(const char* str, size_t limit) {
   char tmp[1000];

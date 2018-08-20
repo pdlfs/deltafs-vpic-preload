@@ -60,10 +60,6 @@ uint64_t now_micros_coarse();
 /* convert posix timeval to micros */
 uint64_t timeval_to_micros(const struct timeval* tv);
 
-/* convert file names to hex strings and vice versa */
-void id2hex(std::string* input);
-void hex2id(std::string* input);
-
 /* log message into a given file using unbuffered io. */
 void LOG(int fd, int e, const char* fmt, ...);
 
