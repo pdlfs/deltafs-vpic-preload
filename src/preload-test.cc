@@ -18,18 +18,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static inline void msg_abort(const char* msg) {
-  char tmp[500];
-  int err_num = errno;
-  const char* err = strerror(err_num);
-  if (err_num != 0) {
-    snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s: %s\n", msg, err);
-  } else {
-    snprintf(tmp, sizeof(tmp), "!!!ABORT!!! %s\n", msg);
-  }
-  int d = write(fileno(stderr), tmp, strlen(tmp));
+namespace {
+void ABORT(const char* msg) {
+  int err = errno;
+  fprintf(stderr, "!!! ABORT !!! %s", msg);
+  if (err != 0) fprintf(stderr, ": %s", strerror(err));
+  fprintf(stderr, "\n");
   abort();
 }
+}  // namespace
 
 int main(int argc, char** argv) {
   int rank;
@@ -37,13 +34,13 @@ int main(int argc, char** argv) {
   if (r == MPI_SUCCESS) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   } else {
-    msg_abort("MPI_init");
+    ABORT("MPI_init");
   }
   const char* mntp = getenv("PRELOAD_Deltafs_mntp");
   if (mntp == NULL) {
-    msg_abort("no deltafs mntp");
+    ABORT("no deltafs mntp");
   } else if (mntp[0] == '/') {
-    msg_abort("deltafs mount point must be relative");
+    ABORT("deltafs mount point must be relative");
   }
   if (rank == 0) {
     fprintf(stderr, "deltafs_mntp is %s\n", mntp);
@@ -52,7 +49,7 @@ int main(int argc, char** argv) {
   snprintf(dname, sizeof(dname), "%s", mntp);
   r = (rank == 0) ? mkdir(dname, 0777) : 0;
   if (r != 0) {
-    msg_abort("mkdir");
+    ABORT("mkdir");
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
@@ -60,10 +57,10 @@ int main(int argc, char** argv) {
   DIR* d = opendir(dname);
   char fname[PATH_MAX];
   for (int i = 0; i < 10; i++) {
-    snprintf(fname, sizeof(fname), "%s/%08x%08x", dname, rank, i);
+    snprintf(fname, sizeof(fname), "%s/%05x-%05x", dname, rank, i);
     FILE* fp = fopen(fname, "a");
     if (fp == NULL) {
-      msg_abort("fopen");
+      ABORT("fopen");
     }
     fwrite("1234", 1, 4, fp);
     fwrite("5678", 1, 4, fp);
@@ -75,7 +72,7 @@ int main(int argc, char** argv) {
     fwrite("&", 1, 1, fp);
     r = fclose(fp);
     if (r != 0) {
-      msg_abort("fclose");
+      ABORT("fclose");
     }
   }
   closedir(d);
@@ -85,25 +82,25 @@ int main(int argc, char** argv) {
   char rname[PATH_MAX];
   const char* lo = getenv("PRELOAD_Local_root");
   if (lo == NULL) {
-    msg_abort("no local root");
+    ABORT("no local root");
   }
   if (rank == 0) {
     fprintf(stderr, "local_root is %s\n", lo);
   }
   for (int i = 0; i < 10; i++) {
-    snprintf(rname, sizeof(rname), "%s/%08x%08x", lo, 0, i);
+    snprintf(rname, sizeof(rname), "%s/%05x-%05x", lo, rank, i);
     int fd = open(rname, O_RDONLY);
     if (fd == -1) {
-      msg_abort("open");
+      ABORT("open");
     }
     char buf[32];
     ssize_t nr = read(fd, buf, 32);
     if (nr != 32) {
-      msg_abort("read");
+      ABORT("read");
     }
     int cmp = memcmp(buf, "1234567890abcdefghijklmnopqrstuv", 32);
     if (cmp != 0) {
-      msg_abort("data lost");
+      ABORT("data lost");
     }
     close(fd);
   }
