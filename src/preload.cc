@@ -2333,8 +2333,8 @@ FILE* fopen(const char* fpath, const char* mode) {
   pthread_mtx_lock(&preload_mtx);
   if (pctx.paranoid_checks) {
     fname = stripped + pctx.len_plfsdir + 1;
-    if (pctx.fnames->count(std::string(fname)) == 0) {
-      pctx.fnames->insert(std::string(fname));
+    if (pctx.fnames->count(fname) == 0) {
+      pctx.fnames->insert(fname);
     } else {
       pctx.mctx.ncw++;
     }

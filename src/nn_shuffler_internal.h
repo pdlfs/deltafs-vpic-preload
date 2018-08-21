@@ -115,7 +115,7 @@ typedef struct nn_ctx {
   int paranoid_checks;
 
   /* MSSG context */
-  mssg_t mssg;
+  mssg_t* mssg;
 
   /* rpc usage */
   nn_rusage_t r[5];

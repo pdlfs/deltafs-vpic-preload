@@ -1148,11 +1148,11 @@ void nn_shuffler_init_mssg() {
   assert(nnctx.hg_clz != NULL);
   assert(nnctx.hg_ctx != NULL);
 
-  nnctx.mssg = mssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD);
-  if (nnctx.mssg == NULL) ABORT("mssg_init_mpi");
+  nnctx.mssg = mssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD, pctx.recv_comm);
+  if (nnctx.mssg == NULL) ABORT("!mssg_init_mpi");
 
   hret = mssg_lookup(nnctx.mssg, nnctx.hg_ctx);
-  if (hret != HG_SUCCESS) ABORT("mssg_lookup");
+  if (hret != HG_SUCCESS) ABORT("!mssg_lookup");
 
   size = mssg_get_count(nnctx.mssg);
   rank = mssg_get_rank(nnctx.mssg);
