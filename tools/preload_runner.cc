@@ -338,7 +338,7 @@ const unsigned char base64_table[65] =
  * Code adapted from Jouni Malinen <j@w1.fi>
  */
 void base64_encoding(char* dst, uint64_t input) {
-  const char* in = reinterpret_cast<char*>(&input);
+  const unsigned char* in = reinterpret_cast<unsigned char*>(&input);
   *dst++ = base64_table[in[0] >> 2];
   *dst++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
   *dst++ = base64_table[((in[1] & 0x0f) << 2) | (in[2] >> 6)];
