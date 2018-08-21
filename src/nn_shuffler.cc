@@ -1253,7 +1253,7 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
   if (is_envset("SHUFFLE_Mercury_rusage")) nnctx.hg_rusage = 1;
 
-  nnctx.hg_clz = HG_Init(nnctx.my_addr, HG_TRUE);
+  nnctx.hg_clz = HG_Init(nnctx.my_addr, ctx->is_receiver);
   if (!nnctx.hg_clz) ABORT("HG_Init");
 
   nnctx.hg_id = HG_Register_name(
