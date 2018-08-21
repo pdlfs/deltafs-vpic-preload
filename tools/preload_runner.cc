@@ -367,14 +367,12 @@ static void do_dump() {
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
   uint64_t ra = (static_cast<uint64_t>(myrank) << 32);
   for (int i = 0; i < g.nps; i++) {
-    char* end = base64_encoding(p.pname + prefix, (ra | i));
-    *end = 0;
+    *base64_encoding(p.pname + prefix, (ra | i)) = 0;
     file = fopen(p.pname, "a");
-    if (!file) {
-      complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
-    }
+    if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     fwrite(p.pdata, 1, p.psz, file);
     fclose(file);
   }
+
   closedir(dir);
 }
