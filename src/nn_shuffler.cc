@@ -1176,6 +1176,7 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   pthread_t pid;
   char msg[200];
   const char* env;
+  int nbufs;
   int rv;
   int i;
 
@@ -1283,20 +1284,25 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
       max_rpcq_sz = 128;
     }
   }
+
+  nbufs = 0; /* number sender buffers we actually allocated */
+
   rpcqs = static_cast<rpcq_t*>(malloc(nrpcqs * sizeof(rpcq_t)));
   for (i = 0; i < nrpcqs; i++) {
-    if (shuffle_is_rank_receiver(ctx, i))
+    if (shuffle_is_rank_receiver(ctx, i)) {
       rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
-    else
+      nbufs++;
+    } else {
       rpcqs[i].buf = NULL;
+    }
     rpcqs[i].busy = 0;
     rpcqs[i].lepo = 0;
     rpcqs[i].sz = 0;
   }
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "rpc buffer: %s x %s (%s total)",
-             pretty_num(nrpcqs).c_str(), pretty_size(max_rpcq_sz).c_str(),
-             pretty_size(nrpcqs * max_rpcq_sz).c_str());
+             pretty_num(nbufs).c_str(), pretty_size(max_rpcq_sz).c_str(),
+             pretty_size(nbufs * max_rpcq_sz).c_str());
     INFO(msg);
   }
 
