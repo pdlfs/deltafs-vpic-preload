@@ -35,21 +35,21 @@
 /* The global preload context */
 preload_ctx_t pctx = {0};
 
-int exotic_write(const char* id, unsigned char id_sz, char* data,
+int exotic_write(const char* fname, unsigned char fname_len, char* data,
                  unsigned char data_len, int epoch) {
   int rv;
 
-  rv = preload_write(id, id_sz, data, data_len, epoch);
+  rv = preload_write(fname, fname_len, data, data_len, epoch);
   pctx.mctx.nfw++;
 
   return rv;
 }
 
-int native_write(const char* id, unsigned char id_sz, char* data,
+int native_write(const char* fname, unsigned char fname_len, char* data,
                  unsigned char data_len, int epoch) {
   int rv;
 
-  rv = preload_write(id, id_sz, data, data_len, epoch);
+  rv = preload_write(fname, fname_len, data, data_len, epoch);
   pctx.mctx.nlw++;
 
   return rv;

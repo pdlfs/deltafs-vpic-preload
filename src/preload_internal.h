@@ -155,14 +155,14 @@ extern preload_ctx_t pctx;
  * exotic_write: perform a write on behalf of a remote rank.
  * return 0 on success, or EOF on errors.
  */
-extern int exotic_write(const char* id, unsigned char id_sz, char* data,
+extern int exotic_write(const char* fname, unsigned char fname_len, char* data,
                         unsigned char data_len, int epoch);
 
 /*
  * native_write: perform a direct local write.
  * return 0 on success, or EOF on errors.
  */
-extern int native_write(const char* id, unsigned char id_sz, char* data,
+extern int native_write(const char* fname, unsigned char fname_len, char* data,
                         unsigned char data_len, int epoch);
 
 /*
