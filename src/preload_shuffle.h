@@ -68,9 +68,9 @@ typedef struct shuffle_ctx {
    * shuffle bg threads can complete shutdown in the meantime. */
   int finalize_pause;
   unsigned int receiver_mask; /* (rank & receiver_mask) -> receiver_rank */
+  unsigned char fname_len;
   unsigned char extra_data_len;
   unsigned char data_len;
-  unsigned char id_sz;
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
@@ -109,8 +109,8 @@ extern int shuffle_world_sz(shuffle_ctx_t* ctx);
  *
  * return 0 on success, or EOF or errors.
  */
-extern int shuffle_write(shuffle_ctx_t* ctx, const char* id,
-                         unsigned char id_sz, char* data,
+extern int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
+                         unsigned char fname_len, char* data,
                          unsigned char data_len, int epoch);
 
 /*

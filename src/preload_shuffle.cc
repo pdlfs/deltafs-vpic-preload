@@ -353,17 +353,17 @@ int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
   int rv;
 
   assert(ctx != NULL);
-  assert(buf_sz >= ctx->id_sz);
+  assert(buf_sz >= ctx->fname_len);
 
   world_sz = shuffle_world_sz(ctx);
 
   if (world_sz != 1) {
     if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      rv = pdlfs::xxhash32(buf, ctx->id_sz, 0) % world_sz;
+      rv = pdlfs::xxhash32(buf, ctx->fname_len, 0) % world_sz;
     } else {
       assert(ctx->chp != NULL);
-      ch_placement_find_closest(ctx->chp, pdlfs::xxhash64(buf, ctx->id_sz, 0),
-                                1, &target);
+      ch_placement_find_closest(
+          ctx->chp, pdlfs::xxhash64(buf, ctx->fname_len, 0), 1, &target);
       rv = static_cast<int>(target);
     }
   } else {
@@ -400,22 +400,24 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 #endif
 }  // namespace
 
-int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
-                  char* data, unsigned char data_len, int epoch) {
+int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
+                  unsigned char fname_len, char* data, unsigned char data_len,
+                  int epoch) {
   char buf[255];
   int peer_rank;
   int rank;
   int rv;
 
   assert(ctx == &pctx.sctx);
-  assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->id_sz);
+  assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->fname_len - 1);
+  if (ctx->fname_len != fname_len) ABORT("bad filename len");
   if (ctx->data_len != data_len) ABORT("bad data len");
-  if (ctx->id_sz != id_sz) ABORT("bad id size");
 
-  unsigned char base_sz = id_sz + data_len;
+  unsigned char base_sz = 1 + fname_len + data_len;
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
-  memcpy(buf, id, id_sz);
-  memcpy(buf + id_sz, data, data_len);
+  memcpy(buf, fname, fname_len);
+  buf[fname_len] = 0;
+  memcpy(buf + fname_len + 1, data, data_len);
   if (buf_sz != base_sz) memset(buf + base_sz, 0, buf_sz - base_sz);
 
   peer_rank = shuffle_target(ctx, buf, buf_sz);
@@ -430,7 +432,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* id, unsigned char id_sz,
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
-    rv = native_write(id, id_sz, data, data_len, epoch);
+    rv = native_write(fname, fname_len, data, data_len, epoch);
     return rv;
   }
 
@@ -470,9 +472,10 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   int rv;
 
   ctx = &pctx.sctx;
-  if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->id_sz)
+  if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
     ABORT("unexpected incoming shuffle request size");
-  rv = exotic_write(buf, ctx->id_sz, buf + ctx->id_sz, ctx->data_len, epoch);
+  rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
+                    ctx->data_len, epoch);
 #ifndef NDEBUG
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.logfd != -1) {
@@ -623,15 +626,15 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   int n;
 
   assert(ctx != NULL);
-  ctx->id_sz = static_cast<unsigned char>(pctx.particle_id_size);
+  ctx->fname_len = static_cast<unsigned char>(pctx.particle_id_size);
   ctx->extra_data_len = static_cast<unsigned char>(pctx.particle_extra_size);
   ctx->data_len = static_cast<unsigned char>(pctx.particle_size);
-  if (ctx->extra_data_len + ctx->data_len > 255 - ctx->id_sz)
+  if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
-  if (ctx->id_sz == 0) ABORT("bad shuffle conf: id size is zero");
+  if (ctx->fname_len == 0) ABORT("bad shuffle conf: id size is zero");
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "shuffle format: %u-%u bytes", ctx->id_sz,
-             ctx->extra_data_len + ctx->data_len);
+    snprintf(msg, sizeof(msg), "shuffle format: <%u+1,%u> bytes",
+             ctx->fname_len, ctx->extra_data_len + ctx->data_len);
     INFO(msg);
   }
 
