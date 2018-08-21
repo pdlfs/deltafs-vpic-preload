@@ -337,7 +337,7 @@ const unsigned char base64_table[65] =
  * Base64 encoding/decoding (RFC1341)
  * Code adapted from Jouni Malinen <j@w1.fi>
  */
-char* base64_encoding(char* dst, uint64_t input) {
+void base64_encoding(char* dst, uint64_t input) {
   const char* in = reinterpret_cast<char*>(&input);
   *dst++ = base64_table[in[0] >> 2];
   *dst++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
@@ -353,7 +353,7 @@ char* base64_encoding(char* dst, uint64_t input) {
   *dst++ = base64_table[((in[6] & 0x03) << 4) | (in[7] >> 4)];
   *dst++ = base64_table[(in[7] & 0x0f) << 2];
 
-  return dst;
+  *dst = 0;
 }
 }  // namespace
 
@@ -367,7 +367,7 @@ static void do_dump() {
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
   uint64_t ra = (static_cast<uint64_t>(myrank) << 32);
   for (int i = 0; i < g.nps; i++) {
-    *base64_encoding(p.pname + prefix, (ra | i)) = 0;
+    base64_encoding(p.pname + prefix, (ra | i));
     file = fopen(p.pname, "a");
     if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     fwrite(p.pdata, 1, p.psz, file);
