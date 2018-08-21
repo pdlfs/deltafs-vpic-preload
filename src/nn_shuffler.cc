@@ -863,6 +863,9 @@ void nn_shuffler_enqueue(char* req, unsigned char req_sz, int epoch,
   world_sz = mssg_get_count(nnctx.mssg);
 
   if (nnctx.paranoid_checks) {
+    if (!shuffle_is_rank_receiver(nnctx.shctx, peer_rank)) {
+      ABORT("peer rank is not a receiver");
+    }
     if (peer_rank < 0 || peer_rank >= world_sz) {
       ABORT("invalid peer rank");
     }
@@ -874,6 +877,7 @@ void nn_shuffler_enqueue(char* req, unsigned char req_sz, int epoch,
   assert(rpcq_idx < nrpcqs);
   rpcq = &rpcqs[rpcq_idx];
   assert(rpcq != NULL);
+  assert(rpcq->buf != NULL);
 
   delay = 1000; /* 1000 us */
 
@@ -1272,14 +1276,19 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   } else {
     max_rpcq_sz = atoi(env);
     if (max_rpcq_sz > MAX_RPC_MESSAGE) {
+      WARN("RPC BUFFER SIZE IS TOO LARGE AND HAS BEEN REDUCED");
       max_rpcq_sz = MAX_RPC_MESSAGE;
     } else if (max_rpcq_sz < 128) {
+      WARN("RPC BUFFER SIZE IS TOO SMALL");
       max_rpcq_sz = 128;
     }
   }
   rpcqs = static_cast<rpcq_t*>(malloc(nrpcqs * sizeof(rpcq_t)));
   for (i = 0; i < nrpcqs; i++) {
-    rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
+    if (shuffle_is_rank_receiver(ctx, i))
+      rpcqs[i].buf = static_cast<char*>(malloc(max_rpcq_sz));
+    else
+      rpcqs[i].buf = NULL;
     rpcqs[i].busy = 0;
     rpcqs[i].lepo = 0;
     rpcqs[i].sz = 0;
