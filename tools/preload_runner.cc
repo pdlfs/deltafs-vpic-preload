@@ -60,11 +60,6 @@
 static char* argv0; /* argv[0], program name */
 static int myrank = 0;
 
-/* emulated particle name and data */
-static char* pdata;
-static char pname[256];
-static size_t psz; /* total write size per particle */
-
 /*
  * vcomplain/complain about something.  if ret is non-zero we exit(ret)
  * after complaining.  if r0only is set, we only print if myrank == 0.
@@ -86,6 +81,17 @@ static void complain(int ret, int r0only, const char* format, ...) {
   va_start(ap, format);
   vcomplain(ret, r0only, format, ap);
   va_end(ap);
+}
+
+/*
+ * abort with a fatal message
+ */
+#define FATAL(msg) fatal(__FILE__, __LINE__, msg)
+static void fatal(const char* f, int d, const char* msg) {
+  fprintf(stderr, "=== ABORT === ");
+  fprintf(stderr, "%s (%s:%d)", msg, f, d);
+  fprintf(stderr, "\n");
+  abort();
 }
 
 /*
@@ -154,6 +160,15 @@ skip_prints:
 }
 
 /*
+ * per-rank program state.
+ */
+static struct ps {
+  size_t psz; /* total write size per particle */
+  char pname[256];
+  char* pdata;
+} p;
+
+/*
  * forward prototype decls.
  */
 static void run_vpic_app();
@@ -170,18 +185,18 @@ int main(int argc, char* argv[]) {
 
   /* mpich says we should call this early as possible */
   if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
-    complain(EXIT_FAILURE, 1, "%s: MPI_Init failed.  MPI is required.", argv0);
+    FATAL("!MPI_Init");
   }
 
-  /* we want lines, even if we are writing to a pipe */
+  /* we want lines!! */
   setlinebuf(stdout);
 
   /* setup default to zero/null, except as noted below */
   memset(&g, 0, sizeof(g));
   if (MPI_Comm_rank(MPI_COMM_WORLD, &myrank) != MPI_SUCCESS)
-    complain(EXIT_FAILURE, 0, "unable to get MPI rank");
+    FATAL("!MPI_Comm_rank");
   if (MPI_Comm_size(MPI_COMM_WORLD, &g.size) != MPI_SUCCESS)
-    complain(EXIT_FAILURE, 0, "unable to get MPI size");
+    FATAL("!MPI_Comm_size");
 
   strcpy(g.pdir, "particle");
   g.p[0] = g.p[1] = g.p[2] = g.t[0] = g.t[1] = g.t[2] = -1;
@@ -283,14 +298,15 @@ int main(int argc, char* argv[]) {
   alarm(g.timeout);
   if (myrank == 0) printf("== VPIC Starting ...\n");
 
-  psz = static_cast<size_t>(g.psize);
-  pdata = static_cast<char*>(malloc(psz));
-  if (!pdata) complain(EXIT_FAILURE, 0, "malloc pdata failed");
-  memset(pdata, 'x', psz);
+  memset(&p, 0, sizeof(p));
+  p.psz = static_cast<size_t>(g.psize);
+  p.pdata = static_cast<char*>(malloc(p.psz));
+  if (!p.pdata) complain(EXIT_FAILURE, 0, "malloc pdata failed");
+  memset(p.pdata, 'x', p.psz);
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
   if (myrank == 0) printf("VPIC Done\n");
-  free(pdata);
+  free(p.pdata);
 
   MPI_Finalize();
   return 0;
@@ -348,16 +364,16 @@ static void do_dump() {
   if (!dir) {
     complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
   }
-  const int prefix = snprintf(pname, sizeof(pname), "%s/", g.pdir);
+  const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
   uint64_t ra = (static_cast<uint64_t>(myrank) << 32);
-  for (int p = 0; p < g.nps; p++) {
-    char* end = base64_encoding(pname + prefix, (ra | p));
+  for (int i = 0; i < g.nps; i++) {
+    char* end = base64_encoding(p.pname + prefix, (ra | i));
     *end = 0;
-    file = fopen(pname, "a");
+    file = fopen(p.pname, "a");
     if (!file) {
       complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     }
-    fwrite(pdata, 1, psz, file);
+    fwrite(p.pdata, 1, p.psz, file);
     fclose(file);
   }
   closedir(dir);
