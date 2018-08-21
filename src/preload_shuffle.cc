@@ -780,6 +780,13 @@ int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx) {
   return rv;
 }
 
+int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank) {
+  assert(ctx != NULL);
+  int my_rank = shuffle_rank(ctx);
+  int rv = int((rank & ctx->receiver_mask) == rank);
+  return rv;
+}
+
 int shuffle_world_sz(shuffle_ctx* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
@@ -796,13 +803,6 @@ int shuffle_rank(shuffle_ctx_t* ctx) {
   } else {
     return nn_shuffler_my_rank();
   }
-}
-
-int shuffle_is_receiver(shuffle_ctx_t* ctx) {
-  assert(ctx != NULL);
-  int my_rank = shuffle_rank(ctx);
-  int rv = int((my_rank & ctx->receiver_mask) == my_rank);
-  return rv;
 }
 
 int shuffle_receiver_rank(shuffle_ctx_t* ctx) {
