@@ -647,6 +647,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
       ctx->receiver_mask <<= n;
     }
   }
+  ctx->is_receiver = shuffle_is_rank_receiver(ctx, pctx.my_rank);
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
              "shuffle receiver mask = %d (32 - %d)\n>>> "

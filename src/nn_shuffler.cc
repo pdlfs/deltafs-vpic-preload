@@ -1144,7 +1144,7 @@ void nn_shuffler_wakeup() {
 }
 
 /* nn_shuffler_init_mssg: init the mssg sublayer */
-void nn_shuffler_init_mssg() {
+static void nn_shuffler_init_mssg(int is_recv) {
   hg_return_t hret;
   int rank; /* mssg */
   int size; /* mssg */
@@ -1152,7 +1152,7 @@ void nn_shuffler_init_mssg() {
   assert(nnctx.hg_clz != NULL);
   assert(nnctx.hg_ctx != NULL);
 
-  nnctx.mssg = mssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD, pctx.recv_comm);
+  nnctx.mssg = mssg_init_mpi(nnctx.hg_clz, MPI_COMM_WORLD, is_recv);
   if (nnctx.mssg == NULL) ABORT("!mssg_init_mpi");
 
   hret = mssg_lookup(nnctx.mssg, nnctx.hg_ctx);
@@ -1265,7 +1265,7 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   nnctx.hg_ctx = HG_Context_create(nnctx.hg_clz);
   if (!nnctx.hg_ctx) ABORT("HG_Context_create");
 
-  nn_shuffler_init_mssg();
+  nn_shuffler_init_mssg(ctx->is_receiver);
 
   /* rpc queue */
   assert(nnctx.mssg != NULL);

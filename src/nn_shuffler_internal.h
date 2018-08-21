@@ -193,6 +193,3 @@ extern int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
  * return 0 on success, or EOF on errors.
  */
 extern int nn_shuffler_write_send(write_in_t* write_in, int peer_rank);
-
-/* nn_shuffler_init_mssg: initialize the mssg service. */
-extern void nn_shuffler_init_mssg();
