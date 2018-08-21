@@ -638,6 +638,25 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     INFO(msg);
   }
 
+  ctx->receiver_mask = ~static_cast<unsigned int>(0);
+  env = maybe_getenv("SHUFFLE_Recv_radix");
+  if (env != NULL) {
+    n = atoi(env);
+    if (n > 8) n = 8;
+    if (n > 0) {
+      ctx->receiver_mask <<= n;
+    }
+  }
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg),
+             "shuffle receiver mask = %d (32 - %d)\n>>> "
+             "%u senders per receiver",
+             bits_count(ctx->receiver_mask),
+             32 - bits_count(ctx->receiver_mask),
+             1U << (32 - bits_count(ctx->receiver_mask)));
+    INFO(msg);
+  }
+
   env = maybe_getenv("SHUFFLE_Finalize_pause");
   if (env != NULL) {
     ctx->finalize_pause = atoi(env);
@@ -723,25 +742,6 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     } else {
       WARN("ch-placement bypassed");
     }
-  }
-
-  ctx->receiver_mask = ~static_cast<unsigned int>(0);
-  env = maybe_getenv("SHUFFLE_Recv_radix");
-  if (env != NULL) {
-    n = atoi(env);
-    if (n > 8) n = 8;
-    if (n > 0) {
-      ctx->receiver_mask <<= n;
-    }
-  }
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "shuffle receiver mask = %d (32 - %d)\n>>> "
-             "%u senders per receiver",
-             bits_count(ctx->receiver_mask),
-             32 - bits_count(ctx->receiver_mask),
-             1U << (32 - bits_count(ctx->receiver_mask)));
-    INFO(msg);
   }
 
   if (pctx.my_rank == 0) {
