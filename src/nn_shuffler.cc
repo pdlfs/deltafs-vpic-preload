@@ -1413,8 +1413,10 @@ void nn_shuffler_destroy() {
     for (i = 0; i < nrpcqs; i++) {
       assert(rpcqs[i].busy == 0);
       assert(rpcqs[i].sz == 0);
-
-      free(rpcqs[i].buf);
+      /* not all buffers are allocated */
+      if (rpcqs[i].buf) {
+        free(rpcqs[i].buf);
+      }
     }
 
     free(rpcqs);
