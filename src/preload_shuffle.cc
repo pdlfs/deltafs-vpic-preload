@@ -591,6 +591,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
           }
         }
       }
+    }
+    if (pctx.recv_comm != MPI_COMM_NULL) {
       memset(&hg_intvl, 0, sizeof(hstg_t));
       hstg_reset_min(hg_intvl);
       hstg_reduce(nnctx.hg_intvl, hg_intvl, pctx.recv_comm);
