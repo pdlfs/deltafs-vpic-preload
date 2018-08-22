@@ -69,7 +69,7 @@ void preload_barrier(MPI_Comm comm) {
   double dura;
 
   if (pctx.my_rank == 0) {
-    INFO("-B-A-R-R-I-E-R-");
+    INFO("barrier ...\nB-A-R-R-I-E-R");
   }
   start.time = MPI_Wtime();
   start.rank = pctx.my_rank;
