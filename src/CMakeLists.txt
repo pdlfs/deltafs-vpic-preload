@@ -21,6 +21,7 @@ find_package (Threads REQUIRED)
 find_package (NUMA REQUIRED)
 add_definitions (-DPRELOAD_HAS_NUMA)
 find_package (PAPI REQUIRED)
+add_definitions (-DPRELOAD_HAS_PAPI)
 
 #
 # create the library target

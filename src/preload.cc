@@ -37,7 +37,6 @@
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
-#include <papi.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -48,6 +47,10 @@
 
 #include "preload_internal.h"
 #include "pthreadtap.h"
+
+#ifdef PRELOAD_HAS_PAPI
+#include <papi.h>
+#endif
 
 /* default particle format */
 #define DEFAULT_PARTICLE_ID_BYTES 8
@@ -157,8 +160,11 @@ static void preload_init() {
   pctx.logfd = -1;
   pctx.monfd = -1;
 
-  pctx.papi_set = PAPI_NULL;
+#ifdef PRELOAD_HAS_PAPI
   pctx.papi_events = new std::vector<const char*>;
+  pctx.papi_set = PAPI_NULL;
+#endif
+
   pctx.isdeltafs = new std::set<FILE*>;
   pctx.fnames = new std::set<std::string>;
   pctx.smap = new std::map<std::string, int>;
@@ -320,6 +326,7 @@ static void preload_init() {
     }
   }
 
+#ifdef PRELOAD_HAS_PAPI
   tmp = maybe_getenv("PRELOAD_Papi_events");
   if (tmp == NULL || tmp[0] == 0) {
     pctx.papi_events->push_back("PAPI_L2_TCM");  // L2 total cache misses
@@ -337,9 +344,11 @@ static void preload_init() {
       }
     }
   }
+
   if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
     pctx.papi_events->resize(MAX_PAPI_EVENTS);
   }
+#endif
 
   tmp = maybe_getenv("PRELOAD_Pthread_tap");
   if (tmp != NULL) {
@@ -1129,8 +1138,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
 
     if (!pctx.nomon && !pctx.nopapi) {
+#ifdef PRELOAD_HAS_PAPI
       assert(pctx.papi_events != NULL);
-
       if (PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
         ABORT("cannot init PAPI");
       }
@@ -1153,6 +1162,7 @@ int MPI_Init(int* argc, char*** argv) {
           ABORT(PAPI_strerror(rv));
         }
       }
+#endif
     }
 
     if (rank == 0) {
@@ -1451,11 +1461,13 @@ int MPI_Finalize(void) {
       }
     }
 
+#ifdef PRELOAD_HAS_PAPI
     /* close papi */
     if (pctx.papi_set != PAPI_NULL) {
       PAPI_destroy_eventset(&pctx.papi_set);
       PAPI_shutdown();
     }
+#endif
 
     /* conclude sampling */
     if (pctx.sampling && pctx.recv_comm != MPI_COMM_NULL) {
@@ -1632,6 +1644,7 @@ int MPI_Finalize(void) {
                          pretty_num(glob.cpu_stat.vcs).c_str(),
                          pretty_num(glob.cpu_stat.ics).c_str());
                 INFO(msg);
+#ifdef PRELOAD_HAS_PAPI
                 for (size_t ix = 0; ix < pctx.papi_events->size(); ix++) {
                   if (glob.mem_stat.num[ix] != 0) {
                     snprintf(msg, sizeof(msg),
@@ -1643,6 +1656,7 @@ int MPI_Finalize(void) {
                     INFO(msg);
                   }
                 }
+#endif
                 snprintf(msg, sizeof(msg),
                          "   > %s particle writes (%s collisions), %s per rank "
                          "(min: %s, max: %s)",
@@ -2096,6 +2110,7 @@ DIR* opendir(const char* dir) {
     if (ret) ABORT("getrusage");
   }
 
+#ifdef PRELOAD_HAS_PAPI
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
       INFO("starting papi ... (rank 0)");
@@ -2110,6 +2125,7 @@ DIR* opendir(const char* dir) {
       INFO("papi on");
     }
   }
+#endif
 
   if (pctx.my_rank == 0) {
     INFO("dumping particles ... (rank 0)");
@@ -2152,6 +2168,7 @@ int closedir(DIR* dirp) {
     pctx.fnames->clear();
   }
 
+#ifdef PRELOAD_HAS_PAPI
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
       INFO("stopping papi (rank 0)");
@@ -2167,6 +2184,7 @@ int closedir(DIR* dirp) {
       INFO("papi off");
     }
   }
+#endif
 
   if (!pctx.nomon) {
     tmp_usage_snaptime = now_micros();

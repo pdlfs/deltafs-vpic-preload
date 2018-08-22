@@ -107,8 +107,10 @@ typedef struct preload_ctx {
   int plfsparts; /* num of memtable partitions */
   int plfsfd;    /* fd for the plfsdir */
 
+#ifdef PRELOAD_HAS_PAPI
   std::vector<const char*>* papi_events;
   int papi_set; /* opaque event set descriptor */
+#endif
 
   std::set<FILE*>* isdeltafs;    /* open files owned by deltafs */
   std::set<std::string>* fnames; /* used for checking unique file names */
