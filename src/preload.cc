@@ -46,7 +46,6 @@
 #include <string>
 #include <vector>
 
-#include <pdlfs-common/xxhash.h>
 #include "preload_internal.h"
 #include "pthreadtap.h"
 
