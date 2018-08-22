@@ -28,17 +28,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "common.h"
+
 #include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
-#include <numa.h>
 #include <sched.h>
 #include <stdarg.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <time.h>
 
-#include "common.h"
+#ifdef PRELOAD_HAS_NUMA
+#include <numa.h>
+#endif
 
 uint64_t timeval_to_micros(const struct timeval* tv) {
   uint64_t t;
@@ -454,7 +457,8 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
   errno = 0;
 }
 
-void maybe_warn_cpuaffinity() {
+void maybe_warn_numa() {
+#ifdef PRELOAD_HAS_NUMA
   char msg[500];
   int os;
   int my;
@@ -494,6 +498,7 @@ void maybe_warn_cpuaffinity() {
            mem.c_str());
   INFO(msg);
 
+#endif
   errno = 0;
 }
 

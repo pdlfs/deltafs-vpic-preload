@@ -927,7 +927,7 @@ int MPI_Init(int* argc, char*** argv) {
   /* probe system info */
   if (rank == 0) {
     check_sse42();
-    maybe_warn_cpuaffinity();
+    maybe_warn_numa();
     maybe_warn_rlimit(pctx.my_rank, pctx.comm_sz);
     if (pctx.noscan) {
       WARN("auto platform hardware detection disabled");

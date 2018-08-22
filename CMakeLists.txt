@@ -67,9 +67,6 @@ find_package (deltafs CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
 find_package (mssg CONFIG REQUIRED)
 
-find_package (NUMA REQUIRED)
-find_package (PAPI REQUIRED)
-
 include (xpkg-import)     # just to document, comes with deltafs
 xpkg_import_module (ch-placement REQUIRED ch-placement)
 
