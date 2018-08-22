@@ -531,7 +531,9 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     int p[] = {10, 30, 50, 70, 90, 95, 96, 97, 98, 99};
     double d[] = {99.5,  99.7,   99.9,   99.95,  99.97,
                   99.99, 99.995, 99.997, 99.999, 99.9999};
-    nn_rusage_t total_rusage[4];
+#define NUM_RUSAGE (sizeof(nnctx.r) / sizeof(nn_rusage_t))
+    nn_rusage_t total_rusage_recv[NUM_RUSAGE];
+    nn_rusage_t total_rusage[NUM_RUSAGE];
     unsigned long long total_writes;
     unsigned long long total_msgsz;
     hstg_t iq_dep;
@@ -539,28 +541,52 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     if (ctx->finalize_pause > 0) {
       sleep(ctx->finalize_pause);
     }
-    if (pctx.recv_comm != MPI_COMM_NULL) {
+    if (pctx.my_rank == 0) {
+      INFO("[nn] per-thread cpu usage ... (s)");
+      snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
+               "USR_per_rank", "SYS_per_rank", "TOTAL_per_rank");
+      INFO(msg);
+    }
+    for (size_t i = 0; i < NUM_RUSAGE; i++) {
+      if (nnctx.r[i].tag[0] != 0) {
+        MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage[i].usr_micros, 1,
+                   MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage[i].sys_micros, 1,
+                   MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+        if (pctx.my_rank == 0) {
+          snprintf(
+              msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
+              nnctx.r[i].tag,
+              double(total_rusage[i].usr_micros) / 1000000 / pctx.comm_sz,
+              double(total_rusage[i].sys_micros) / 1000000 / pctx.comm_sz,
+              double(total_rusage[i].usr_micros + total_rusage[i].sys_micros) /
+                  1000000 / pctx.comm_sz);
+          INFO(msg);
+        }
+      }
+    }
+    if (!shuffle_is_everyone_receiver(ctx)) {
       if (pctx.my_rank == 0) {
-        INFO("[nn] per-thread cpu usage ... (s)");
         snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
-                 "USR_per_rank", "SYS_per_rank", "TOTAL_per_rank");
+                 "USR_per_recv", "SYS_per_recv", "TOTAL_per_recv");
         INFO(msg);
       }
-      for (size_t i = 0; i < sizeof(nnctx.r) / sizeof(nn_rusage_t); i++) {
-        MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage[i].usr_micros, 1,
-                   MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
-        MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage[i].sys_micros, 1,
-                   MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
-        if (pctx.my_rank == 0) {
-          if (nnctx.r[i].tag[0] != 0) {
-            snprintf(
-                msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
-                nnctx.r[i].tag,
-                double(total_rusage[i].usr_micros) / 1000000 / pctx.recv_sz,
-                double(total_rusage[i].sys_micros) / 1000000 / pctx.recv_sz,
-                double(total_rusage[i].usr_micros +
-                       total_rusage[i].sys_micros) /
-                    1000000 / pctx.recv_sz);
+      for (size_t i = 0; i < NUM_RUSAGE; i++) {
+        if (nnctx.r[i].tag[0] != 0) {
+          MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage_recv[i].usr_micros,
+                     1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
+          MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage_recv[i].sys_micros,
+                     1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
+          if (pctx.my_rank == 0) {
+            snprintf(msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
+                     nnctx.r[i].tag,
+                     double(total_rusage_recv[i].usr_micros) / 1000000 /
+                         pctx.recv_sz,
+                     double(total_rusage_recv[i].sys_micros) / 1000000 /
+                         pctx.recv_sz,
+                     double(total_rusage_recv[i].usr_micros +
+                            total_rusage_recv[i].sys_micros) /
+                         1000000 / pctx.recv_sz);
             INFO(msg);
           }
         }
@@ -610,6 +636,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         }
       }
     }
+#undef NUM_RUSAGE
   }
   if (ctx->chp != NULL) {
     ch_placement_finalize(ctx->chp);
