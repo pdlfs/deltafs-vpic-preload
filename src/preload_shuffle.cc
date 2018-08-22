@@ -532,6 +532,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     double d[] = {99.5,  99.7,   99.9,   99.95,  99.97,
                   99.99, 99.995, 99.997, 99.999, 99.9999};
 #define NUM_RUSAGE (sizeof(nnctx.r) / sizeof(nn_rusage_t))
+    nn_rusage_t total_rusage_nonrecv[NUM_RUSAGE];
     nn_rusage_t total_rusage_recv[NUM_RUSAGE];
     nn_rusage_t total_rusage[NUM_RUSAGE];
     unsigned long long total_writes;
@@ -587,6 +588,31 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
                      double(total_rusage_recv[i].usr_micros +
                             total_rusage_recv[i].sys_micros) /
                          1000000 / pctx.recv_sz);
+            INFO(msg);
+          }
+        }
+      }
+      if (pctx.my_rank == 0) {
+        snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
+                 "USR_per_nonrecv", "SYS_per_nonrecv", "TOTAL_per_nonrecv");
+        INFO(msg);
+      }
+      for (size_t i = 0; i < NUM_RUSAGE; i++) {
+        if (nnctx.r[i].tag[0] != 0 && pctx.recv_comm != MPI_COMM_NULL) {
+          if (pctx.my_rank == 0) {
+            snprintf(msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
+                     nnctx.r[i].tag,
+                     double(total_rusage[i].usr_micros -
+                            total_rusage_recv[i].usr_micros) /
+                         1000000 / (pctx.comm_sz - pctx.recv_sz),
+                     double(total_rusage[i].sys_micros -
+                            total_rusage_recv[i].sys_micros) /
+                         1000000 / (pctx.comm_sz - pctx.recv_sz),
+                     double(total_rusage[i].usr_micros -
+                            total_rusage_recv[i].usr_micros +
+                            total_rusage[i].sys_micros -
+                            total_rusage_recv[i].sys_micros) /
+                         1000000 / (pctx.comm_sz - pctx.recv_sz));
             INFO(msg);
           }
         }
