@@ -1277,10 +1277,11 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   } else {
     max_rpcq_sz = atoi(env);
     if (max_rpcq_sz > MAX_RPC_MESSAGE) {
-      WARN("RPC BUFFER SIZE IS TOO LARGE AND HAS BEEN REDUCED");
+      if (pctx.my_rank == 0)
+        WARN("RPC BUFFER SIZE TOO LARGE - A SMALLER ONE IS USED INSTEAD");
       max_rpcq_sz = MAX_RPC_MESSAGE;
     } else if (max_rpcq_sz < 128) {
-      WARN("RPC BUFFER SIZE IS TOO SMALL");
+      if (pctx.my_rank == 0) WARN("RPC BUFFER SIZE TOO SMALL");
       max_rpcq_sz = 128;
     }
   }
