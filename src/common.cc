@@ -517,6 +517,12 @@ int my_cpu_cores() {
   return ncpus;
 }
 
+void SAY(int err, const char* prefix, const char* msg) {
+  fprintf(stderr, "%s %s", prefix, msg);
+  if (err != 0) fprintf(stderr, ": %s (errno=%d)", strerror(err), err);
+  fprintf(stderr, "\n");
+}
+
 void LOG(int fd, int e, const char* fmt, ...) {
   char tmp[500];
   va_list va;

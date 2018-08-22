@@ -62,6 +62,7 @@ uint64_t timeval_to_micros(const struct timeval* tv);
 
 /* log message into a given file using unbuffered io. */
 void LOG(int fd, int e, const char* fmt, ...);
+void SAY(int err, const char* prefix, const char* msg);
 
 /*
  * logging facilities and helpers
@@ -71,11 +72,9 @@ void LOG(int fd, int e, const char* fmt, ...);
 #define ABORT(msg) msg_abort(msg, __func__, ABORT_FILENAME, __LINE__)
 #define LOG_SINK fileno(stderr)
 
-inline void INFO(const char* msg) { LOG(LOG_SINK, 0, "-INFO- %s", msg); }
-inline void WARN(const char* msg) { LOG(LOG_SINK, 0, "-- WARNING -- %s", msg); }
-inline void ERROR(const char* msg) {
-  LOG(LOG_SINK, errno, "!!! ERROR !!! %s", msg);
-}
+#define ERRR(msg) SAY(errno, "!!! ERROR !!!", msg)
+#define WARN(msg) SAY(0, "-- WARNING --", msg)
+#define INFO(msg) SAY(0, "-INFO-", msg)
 
 inline void msg_abort(const char* msg, const char* func, const char* file,
                       int line) {

@@ -536,7 +536,7 @@ struct plfsdir_conf {
 
 static struct plfsdir_conf dirc = {0};
 
-static void plfsdir_error_printer(const char* err, void*) { ERROR(err); }
+static void plfsdir_error_printer(const char* err, void*) { ERRR(err); }
 
 /*
  * gen_plfsdir_conf: initialize plfsdir conf and obtain it's string literal.
@@ -1366,7 +1366,7 @@ int MPI_Finalize(void) {
           close(fd0);
           errno = 0;
         } else {
-          ERROR("open");
+          ERRR("open");
         }
       }
     }
@@ -1525,7 +1525,7 @@ int MPI_Finalize(void) {
           close(fd0);
           errno = 0;
         } else {
-          ERROR("open");
+          ERRR("open");
         }
         MPI_Reduce(&num_names, &sum_names, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
                    0, pctx.recv_comm);
@@ -1551,7 +1551,7 @@ int MPI_Finalize(void) {
             INFO(path);
             fd1 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
             if (fd1 == -1) {
-              ERROR("open");
+              ERRR("open");
               ok = 0;
             }
           }
@@ -1560,7 +1560,7 @@ int MPI_Finalize(void) {
             INFO(path);
             fd2 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
             if (fd2 == -1) {
-              ERROR("open");
+              ERRR("open");
               ok = 0;
             }
           }
