@@ -810,7 +810,6 @@ int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx) {
 
 int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank) {
   assert(ctx != NULL);
-  int my_rank = shuffle_rank(ctx);
   int rv = int((rank & ctx->receiver_mask) == rank);
   return rv;
 }
