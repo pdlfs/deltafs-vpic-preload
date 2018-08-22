@@ -307,7 +307,7 @@ int main(int argc, char* argv[]) {
   memset(p.pdata, 'x', p.psz);
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
-  if (myrank == 0) printf("VPIC Done\n");
+  if (myrank == 0) printf("\n== VPIC Done\n");
   free(p.pdata);
 
   MPI_Finalize();
@@ -324,7 +324,7 @@ static void run_vpic_app() {
   }
   for (int epoch = 0; epoch < g.ndumps; epoch++) {
     MPI_Barrier(MPI_COMM_WORLD);
-    if (myrank == 0) printf("== VPIC Epoch %d ...\n", epoch + 1);
+    if (myrank == 0) printf("\n== VPIC Epoch %d ...\n", epoch + 1);
     int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
     do_dump();
