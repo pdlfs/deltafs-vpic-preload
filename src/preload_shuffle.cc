@@ -572,7 +572,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         INFO(msg);
       }
       for (size_t i = 0; i < NUM_RUSAGE; i++) {
-        if (nnctx.r[i].tag[0] != 0) {
+        if (nnctx.r[i].tag[0] != 0 && pctx.recv_comm != MPI_COMM_NULL) {
           MPI_Reduce(&nnctx.r[i].usr_micros, &total_rusage_recv[i].usr_micros,
                      1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
           MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage_recv[i].sys_micros,
