@@ -2001,26 +2001,30 @@ DIR* opendir(const char* dir) {
     }
   }
 
-  if (num_epochs != 0 && pctx.paranoid_barrier) {
-    /*
-     * this ensures we have received all peer writes and no more
-     * writes will happen for the previous epoch.
-     */
-    preload_barrier(MPI_COMM_WORLD);
+  if (pctx.paranoid_barrier) {
+    if (num_epochs != 0) {
+      /*
+       * this ensures we have received all peer writes and no more
+       * writes will happen for the previous epoch.
+       */
+      preload_barrier(MPI_COMM_WORLD);
+    }
   }
 
-  /* shuffle flush */
-  if (num_epochs != 0 && !IS_BYPASS_SHUFFLE(pctx.mode)) {
-    if (pctx.my_rank == 0) {
-      flush_start = now_micros();
-      INFO("flushing shuffle receivers ... (rank 0)");
-    }
-    shuffle_epoch_start(&pctx.sctx);
-    if (pctx.my_rank == 0) {
-      flush_end = now_micros();
-      snprintf(msg, sizeof(msg), "receiver flushing done %s",
-               pretty_dura(flush_end - flush_start).c_str());
-      INFO(msg);
+  /* flush the shuffle layer so all messages are delivered */
+  if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
+    if (num_epochs != 0) {
+      if (pctx.my_rank == 0) {
+        flush_start = now_micros();
+        INFO("flushing shuffle receivers ... (rank 0)");
+      }
+      shuffle_epoch_start(&pctx.sctx);
+      if (pctx.my_rank == 0) {
+        flush_end = now_micros();
+        snprintf(msg, sizeof(msg), "receiver flushing done %s",
+                 pretty_dura(flush_end - flush_start).c_str());
+        INFO(msg);
+      }
     }
   }
 
@@ -2085,12 +2089,14 @@ DIR* opendir(const char* dir) {
     dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
 
-  if (num_epochs != 0 && pctx.paranoid_post_barrier) {
-    /*
-     * this ensures all writes made for the next epoch
-     * will go to a new write buffer.
-     */
-    preload_barrier(MPI_COMM_WORLD);
+  if (pctx.paranoid_post_barrier) {
+    if (num_epochs != 0) {
+      /*
+       * this ensures all writes made for the next epoch
+       * will go to a new write buffer.
+       */
+      preload_barrier(MPI_COMM_WORLD);
+    }
   }
 
   /* increase epoch seq */
@@ -2169,52 +2175,7 @@ int closedir(DIR* dirp) {
     pctx.fnames->clear();
   }
 
-#ifdef PRELOAD_HAS_PAPI
-  if (pctx.papi_set != PAPI_NULL) {
-    if (pctx.my_rank == 0) {
-      INFO("stopping papi (rank 0)");
-    }
-    if ((rv = PAPI_stop(pctx.papi_set, pctx.mctx.mem_stat.num)) != PAPI_OK) {
-      ABORT(PAPI_strerror(rv));
-    }
-    memcpy(pctx.mctx.mem_stat.min, pctx.mctx.mem_stat.num,
-           sizeof(pctx.mctx.mem_stat.num));
-    memcpy(pctx.mctx.mem_stat.max, pctx.mctx.mem_stat.num,
-           sizeof(pctx.mctx.mem_stat.num));
-    if (pctx.my_rank == 0) {
-      INFO("papi off");
-    }
-  }
-#endif
-
-  if (!pctx.nomon) {
-    tmp_usage_snaptime = now_micros();
-    rv = getrusage(RUSAGE_SELF, &tmp_usage);
-    if (rv) ABORT("getrusage");
-    pctx.mctx.cpu_stat.micros =
-        pctx.my_cpus * (tmp_usage_snaptime - pctx.last_sys_usage_snaptime);
-    pctx.mctx.cpu_stat.sys_micros =
-        timeval_to_micros(&tmp_usage.ru_stime) -
-        timeval_to_micros(&pctx.last_sys_usage.ru_stime);
-    pctx.mctx.cpu_stat.usr_micros =
-        timeval_to_micros(&tmp_usage.ru_utime) -
-        timeval_to_micros(&pctx.last_sys_usage.ru_utime);
-
-    pctx.mctx.cpu_stat.vcs = static_cast<unsigned long long>(
-        tmp_usage.ru_nvcsw - pctx.last_sys_usage.ru_nvcsw);
-    pctx.mctx.cpu_stat.ics = static_cast<unsigned long long>(
-        tmp_usage.ru_nivcsw - pctx.last_sys_usage.ru_nivcsw);
-
-    cpu =
-        100 *
-        double(pctx.mctx.cpu_stat.sys_micros + pctx.mctx.cpu_stat.usr_micros) /
-        pctx.mctx.cpu_stat.micros;
-
-    pctx.mctx.cpu_stat.min_cpu = int(floor(cpu));
-    pctx.mctx.cpu_stat.max_cpu = int(ceil(cpu));
-  }
-
-  /* drain on-going rpc */
+  /* flush the rpc buffer and drain all on-going rpcs */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
@@ -2284,6 +2245,51 @@ int closedir(DIR* dirp) {
     } else {
       /* XXX */
     }
+  }
+
+#ifdef PRELOAD_HAS_PAPI
+  if (pctx.papi_set != PAPI_NULL) {
+    if (pctx.my_rank == 0) {
+      INFO("stopping papi (rank 0)");
+    }
+    if ((rv = PAPI_stop(pctx.papi_set, pctx.mctx.mem_stat.num)) != PAPI_OK) {
+      ABORT(PAPI_strerror(rv));
+    }
+    memcpy(pctx.mctx.mem_stat.min, pctx.mctx.mem_stat.num,
+           sizeof(pctx.mctx.mem_stat.num));
+    memcpy(pctx.mctx.mem_stat.max, pctx.mctx.mem_stat.num,
+           sizeof(pctx.mctx.mem_stat.num));
+    if (pctx.my_rank == 0) {
+      INFO("papi off");
+    }
+  }
+#endif
+
+  if (!pctx.nomon) {
+    tmp_usage_snaptime = now_micros();
+    rv = getrusage(RUSAGE_SELF, &tmp_usage);
+    if (rv) ABORT("getrusage");
+    pctx.mctx.cpu_stat.micros =
+        pctx.my_cpus * (tmp_usage_snaptime - pctx.last_sys_usage_snaptime);
+    pctx.mctx.cpu_stat.sys_micros =
+        timeval_to_micros(&tmp_usage.ru_stime) -
+        timeval_to_micros(&pctx.last_sys_usage.ru_stime);
+    pctx.mctx.cpu_stat.usr_micros =
+        timeval_to_micros(&tmp_usage.ru_utime) -
+        timeval_to_micros(&pctx.last_sys_usage.ru_utime);
+
+    pctx.mctx.cpu_stat.vcs = static_cast<unsigned long long>(
+        tmp_usage.ru_nvcsw - pctx.last_sys_usage.ru_nvcsw);
+    pctx.mctx.cpu_stat.ics = static_cast<unsigned long long>(
+        tmp_usage.ru_nivcsw - pctx.last_sys_usage.ru_nivcsw);
+
+    cpu =
+        100 *
+        double(pctx.mctx.cpu_stat.sys_micros + pctx.mctx.cpu_stat.usr_micros) /
+        pctx.mctx.cpu_stat.micros;
+
+    pctx.mctx.cpu_stat.min_cpu = int(floor(cpu));
+    pctx.mctx.cpu_stat.max_cpu = int(ceil(cpu));
   }
 
   /* force background activities to stop */
