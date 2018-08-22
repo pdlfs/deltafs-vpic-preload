@@ -344,10 +344,6 @@ static void preload_init() {
       }
     }
   }
-
-  if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
-    pctx.papi_events->resize(MAX_PAPI_EVENTS);
-  }
 #endif
 
   tmp = maybe_getenv("PRELOAD_Pthread_tap");
@@ -1140,6 +1136,11 @@ int MPI_Init(int* argc, char*** argv) {
     if (!pctx.nomon && !pctx.nopapi) {
 #ifdef PRELOAD_HAS_PAPI
       assert(pctx.papi_events != NULL);
+      if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
+        if (rank == 0) WARN("TOO MANY PAPI EVENTS - IGNORING SOME EVENTS");
+        pctx.papi_events->resize(MAX_PAPI_EVENTS);
+      }
+
       if (PAPI_library_init(PAPI_VER_CURRENT) != PAPI_VER_CURRENT) {
         ABORT("cannot init PAPI");
       }
