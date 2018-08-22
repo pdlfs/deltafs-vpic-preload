@@ -69,7 +69,7 @@ void preload_barrier(MPI_Comm comm) {
   double dura;
 
   if (pctx.my_rank == 0) {
-    INFO("barrier ...");
+    INFO("-B-A-R-R-I-E-R-");
   }
   start.time = MPI_Wtime();
   start.rank = pctx.my_rank;
@@ -77,14 +77,14 @@ void preload_barrier(MPI_Comm comm) {
                 static_cast<MPI_Comm>(comm));
   if (pctx.my_rank == 0) {
     dura = MPI_Wtime() - min.time;
-    if (pctx.verr) {
-      snprintf(msg, sizeof(msg),
-               "barrier ok (\n /* rank %d waited longest */\n %s+\n)", min.rank,
-               pretty_dura(dura * 1000000).c_str());
-    } else {
-      snprintf(msg, sizeof(msg), "barrier %s+",
-               pretty_dura(dura * 1000000).c_str());
-    }
+#ifdef PRELOAD_BARRIER_VERBOSE
+    snprintf(msg, sizeof(msg),
+             "barrier ok (\n /* rank %d waited longest */\n %s+\n)", min.rank,
+             pretty_dura(dura * 1000000).c_str());
+#else
+    snprintf(msg, sizeof(msg), "barrier %s+",
+             pretty_dura(dura * 1000000).c_str());
+#endif
     INFO(msg);
   }
 }
