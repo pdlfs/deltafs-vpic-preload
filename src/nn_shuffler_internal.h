@@ -163,12 +163,11 @@ typedef struct write_info {
   hg_uint32_t sz; /* msg size */
 } write_info_t;
 
-extern void nn_vector_random_shuffle(int rank, std::vector<int>* vec);
-extern hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t*);
-extern hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t handle);
-extern hg_return_t nn_shuffler_write_async_handler(
-    const struct hg_cb_info* info);
-extern hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info);
+void nn_vector_random_shuffle(int rank, std::vector<int>* vec);
+hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t*);
+hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t handle);
+hg_return_t nn_shuffler_write_async_handler(const struct hg_cb_info* info);
+hg_return_t nn_shuffler_write_handler(const struct hg_cb_info* info);
 
 /* get current hg class and context instances */
 inline void* nn_shuffler_hg_class(void) { return nnctx.hg_clz; }
@@ -186,12 +185,12 @@ hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in);
  *
  * return 0 on success, or EOF on errors.
  */
-extern int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
-                                        void* arg1, void* arg2);
+int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
+                                 void* arg1, void* arg2);
 /*
  * nn_shuffler_write_send: send one or more encoded writes to a remote peer
  * and wait for its response.
  *
  * return 0 on success, or EOF on errors.
  */
-extern int nn_shuffler_write_send(write_in_t* write_in, int peer_rank);
+int nn_shuffler_write_send(write_in_t* write_in, int peer_rank);

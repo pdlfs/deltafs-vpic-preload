@@ -57,8 +57,9 @@ void nn_vector_random_shuffle(int rank, std::vector<int>* vec) {
   std::random_shuffle(vec->begin(), vec->end(), rng(rank));
 }
 
+namespace {
 /* nn_shuffler_hashsig: generates a 32-bits hash signature for a given input */
-static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
+hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
   char buf[20];
   uint32_t tmp;
   assert(in != NULL);
@@ -75,6 +76,7 @@ static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {
 
   return HASH(buf, 20);
 }
+}  // namespace
 
 /* nn_shuffler_maybe_hashsig: return the hash signature */
 hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in) {
