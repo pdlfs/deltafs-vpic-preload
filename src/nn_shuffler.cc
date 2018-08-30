@@ -84,6 +84,7 @@ static size_t items_completed = 0;
 #define MAX_WORK_ITEM 256
 
 /* rpc queue */
+static std::vector<int> rpcq_order; /* flush order */
 typedef struct rpcq {
   uint32_t sz; /* aggregated size of all pending writes */
   int lepo;    /* epoch number for the last write */
@@ -965,6 +966,7 @@ void nn_shuffler_flushq() {
   rpcq_t* rpcq;
   void* arg1;
   void* arg2;
+  int peer_rank_idx;
   int peer_rank;
   int rank;
   int rv;
@@ -974,7 +976,8 @@ void nn_shuffler_flushq() {
 
   pthread_mtx_lock(&mtx[qu_cv]);
 
-  for (peer_rank = 0; peer_rank < nrpcqs; peer_rank++) {
+  for (peer_rank_idx = 0; peer_rank_idx < nrpcqs; peer_rank_idx++) {
+    peer_rank = rpcq_order[peer_rank_idx];
     rpcq = &rpcqs[peer_rank];
     if (rpcq->sz == 0) { /* skip empty queue */
       continue;
@@ -1250,6 +1253,7 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   if (is_envset("SHUFFLE_Hash_sig")) nnctx.hash_sig = 1;
   if (is_envset("SHUFFLE_Force_sync_rpc")) nnctx.force_sync = 1;
   if (is_envset("SHUFFLE_Paranoid_checks")) nnctx.paranoid_checks = 1;
+  if (is_envset("SHUFFLE_Random_flush")) nnctx.random_flush = 1;
   if (is_envset("SHUFFLE_Mercury_cache_handles")) nnctx.cache_hlds = 1;
   if (is_envset("SHUFFLE_Mercury_rusage")) nnctx.hg_rusage = 1;
 
@@ -1271,6 +1275,21 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   /* rpc queue */
   assert(nnctx.mssg != NULL);
   nrpcqs = mssg_get_count(nnctx.mssg);
+  rpcq_order.resize(nrpcqs);
+  for (i = 0; i < nrpcqs; i++) {
+    rpcq_order[i] = i;
+  }
+  if (nnctx.random_flush) {
+    nn_vector_random_shuffle(mssg_get_rank(nnctx.mssg), &rpcq_order);
+    if (pctx.my_rank == 0) {
+      INFO("rpc queues are flushed out-of-order");
+    }
+  } else {
+    if (pctx.my_rank == 0) {
+      INFO("rpc queues are flushed in-order");
+    }
+  }
+
   env = maybe_getenv("SHUFFLE_Buffer_per_queue");
   if (env == NULL) {
     max_rpcq_sz = DEFAULT_BUFFER_PER_QUEUE;

@@ -64,6 +64,8 @@
  *    The max port number we can use
  *  SHUFFLE_Buffer_per_queue
  *    Memory allocated for each rpc queue
+ *  SHUFFLE_Random_flush
+ *    Flush RPC queues out-of-order
  *  SHUFFLE_Timeout
  *    RPC timeout
  */

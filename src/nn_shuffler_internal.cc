@@ -32,13 +32,30 @@
 
 #include <mercury_proc.h>
 #include <mercury_proc_string.h>
+
+#include <pdlfs-common/random.h>
 #include <pdlfs-common/xxhash.h>
 #define HASH(msg, sz) pdlfs::xxhash32(msg, sz, 0)
+typedef pdlfs::Random rnd_t;
+#include <algorithm>
+#include <vector>
 
 #include <assert.h>
 
 /* The global nn shuffler context */
 nn_ctx_t nnctx = {0};
+
+namespace {
+typedef struct rng {
+  explicit rng(int seed) : rnd_(seed) {}
+  int operator()(int i) { return rnd_.Next() % i; }
+  rnd_t rnd_;
+} rng_t;
+}  // namespace
+
+void nn_vector_random_shuffle(int rank, std::vector<int>* vec) {
+  std::random_shuffle(vec->begin(), vec->end(), rng(rank));
+}
 
 /* nn_shuffler_hashsig: generates a 32-bits hash signature for a given input */
 static hg_uint32_t nn_shuffler_hashsig(const write_in_t* in) {

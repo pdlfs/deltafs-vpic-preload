@@ -108,9 +108,10 @@ typedef struct nn_ctx {
   int hg_timeout;
   int timeout; /* rpc timeout (in secs) */
 
-  int force_sync; /* avoid async rpc */
-  int cache_hlds; /* cache mercury rpc handles */
-  int hash_sig;   /* generate a hash signature for each rpc */
+  int random_flush; /* flush rpc queues in out-of-order */
+  int force_sync;   /* avoid async rpc */
+  int cache_hlds;   /* cache mercury rpc handles */
+  int hash_sig;     /* generate a hash signature for each rpc */
 
   int paranoid_checks;
 
@@ -162,6 +163,7 @@ typedef struct write_info {
   hg_uint32_t sz; /* msg size */
 } write_info_t;
 
+extern void nn_vector_random_shuffle(int rank, std::vector<int>* vec);
 extern hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t*);
 extern hg_return_t nn_shuffler_write_rpc_handler_wrapper(hg_handle_t handle);
 extern hg_return_t nn_shuffler_write_async_handler(
