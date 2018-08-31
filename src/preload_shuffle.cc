@@ -46,7 +46,8 @@
 
 #include "common.h"
 
-static const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
+namespace {
+const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
   int min_port;
   int max_port;
   const char* env;
@@ -95,6 +96,7 @@ static const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
 
   return buf;
 }
+}  // namespace
 
 const char* shuffle_prepare_uri(char* buf) {
   int family;
@@ -661,6 +663,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
 }
 
 namespace {
+/* convert an integer number to an unsigned char */
 unsigned char itouc(int input) {
   assert(input >= 0 && input <= 255);
   unsigned char rv = static_cast<unsigned char>(input);

@@ -84,19 +84,19 @@ typedef struct shuffle_ctx {
  * shuffle_prepare_uri: obtain the mercury server uri to bootstrap the rpc.
  * write the server uri into *buf on success, or abort on errors.
  */
-extern const char* shuffle_prepare_uri(char* buf);
+const char* shuffle_prepare_uri(char* buf);
 
 /* return 0 if some ranks are sender-only, 1 otherwise. */
-extern int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx);
+int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx);
 
 /* return 0 if a specific rank is not a receiver, 1 otherwise. */
-extern int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank);
+int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank);
 
 /* return the global index for a shuffle participant. */
-extern int shuffle_rank(shuffle_ctx_t* ctx);
+int shuffle_rank(shuffle_ctx_t* ctx);
 
 /* return the total number of shuffle participant */
-extern int shuffle_world_sz(shuffle_ctx_t* ctx);
+int shuffle_world_sz(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_write: shuffle a write request through an underlying transport.
@@ -109,9 +109,9 @@ extern int shuffle_world_sz(shuffle_ctx_t* ctx);
  *
  * return 0 on success, or EOF or errors.
  */
-extern int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
-                         unsigned char fname_len, char* data,
-                         unsigned char data_len, int epoch);
+int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
+                  unsigned char fname_len, char* data, unsigned char data_len,
+                  int epoch);
 
 /*
  * shuffle_epoch_start: perform necessary flushes at the
@@ -119,7 +119,7 @@ extern int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
  *
  * abort on errors.
  */
-extern void shuffle_epoch_start(shuffle_ctx_t* ctx);
+void shuffle_epoch_start(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_epoch_pre_start: pre-flush the shuffle directly at the end of an
@@ -127,7 +127,7 @@ extern void shuffle_epoch_start(shuffle_ctx_t* ctx);
  *
  * abort on errors.
  */
-extern void shuffle_epoch_pre_start(shuffle_ctx_t* ctx);
+void shuffle_epoch_pre_start(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_epoch_end: perform necessary flushes at the
@@ -135,32 +135,32 @@ extern void shuffle_epoch_pre_start(shuffle_ctx_t* ctx);
  *
  * abort on errors.
  */
-extern void shuffle_epoch_end(shuffle_ctx_t* ctx);
+void shuffle_epoch_end(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_finalize: shutdown the shuffle service and release resources.
  */
-extern void shuffle_finalize(shuffle_ctx_t* ctx);
+void shuffle_finalize(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_init: initialize the shuffle service or die.
  */
-extern void shuffle_init(shuffle_ctx_t* ctx);
+void shuffle_init(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_pause: temporarily stop running background threads.
  */
-extern void shuffle_pause(shuffle_ctx_t* ctx);
+void shuffle_pause(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_resume: resume stopped background threads.
  */
-extern void shuffle_resume(shuffle_ctx_t* ctx);
+void shuffle_resume(shuffle_ctx_t* ctx);
 
 /*
  * shuffle_target: return the shuffle destination for a given req.
  */
-extern int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz);
+int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz);
 
 /*
  * shuffle_handle: process an incoming shuffled write. here "peer_rank" refers
@@ -168,8 +168,8 @@ extern int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz);
  *
  * return 0 on success, or EOF on errors.
  */
-extern int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
-                          int epoch, int peer_rank, int rank);
+int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
+                   int epoch, int peer_rank, int rank);
 
 /*
  * shuffle_msg_sent: callback for a shuffle sender to
@@ -179,7 +179,7 @@ extern int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
  * arguments back to the shuffler for
  * temporary storage.
  */
-extern void shuffle_msg_sent(size_t n, void** arg1, void** arg2);
+void shuffle_msg_sent(size_t n, void** arg1, void** arg2);
 
 /*
  * shuffle_msg_replied: callback for a shuffler sender to
@@ -188,11 +188,11 @@ extern void shuffle_msg_sent(size_t n, void** arg1, void** arg2);
  * note: a shuffler must return any arguments
  * previously obtained from the main system.
  */
-extern void shuffle_msg_replied(void* arg1, void* arg2);
+void shuffle_msg_replied(void* arg1, void* arg2);
 
 /*
  * shuffle_msg_received: callback for a shuffler receiver
  * to notify the main system of the reception of
  * an rpc request.
  */
-extern void shuffle_msg_received();
+void shuffle_msg_received();
