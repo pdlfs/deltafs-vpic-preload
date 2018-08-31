@@ -1289,13 +1289,13 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
         MPI_Barrier(MPI_COMM_WORLD);
         if (pctx.my_rank == i) {
           snprintf(msg, sizeof(msg),
-                   "rpc queues at rank %d will get flushed"
-                   "from %d, %d, %d, ..., to %d",
+                   "rpc queues at rank %d will go from %d, %d, %d, ..., to %d",
                    pctx.my_rank, rpcq_order[0], rpcq_order[1], rpcq_order[2],
                    rpcq_order[nrpcqs - 1]);
           INFO(msg);
         }
       }
+      MPI_Barrier(MPI_COMM_WORLD);
     }
   } else {
     if (pctx.my_rank == 0) {
