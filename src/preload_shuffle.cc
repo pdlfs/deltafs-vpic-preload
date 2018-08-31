@@ -521,7 +521,6 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     double d[] = {99.5,  99.7,   99.9,   99.95,  99.97,
                   99.99, 99.995, 99.997, 99.999, 99.9999};
 #define NUM_RUSAGE (sizeof(nnctx.r) / sizeof(nn_rusage_t))
-    nn_rusage_t total_rusage_nonrecv[NUM_RUSAGE];
     nn_rusage_t total_rusage_recv[NUM_RUSAGE];
     nn_rusage_t total_rusage[NUM_RUSAGE];
     unsigned long long total_writes;
