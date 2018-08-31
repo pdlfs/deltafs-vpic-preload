@@ -1284,6 +1284,18 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
     if (pctx.my_rank == 0) {
       INFO("rpc queues are flushed out-of-order");
     }
+    if (nnctx.paranoid_checks && nrpcqs >= 4) {
+      for (i = 0; i < 4; i++) {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (pctx.my_rank == i) {
+          snprintf(msg, sizeof(msg),
+                   "rpc queues at rank %d will get flushed"
+                   "from %d, %d, %d, ..., to %d",
+                   pctx.my_rank, rpcq_order[0], rpcq_order[1], rpcq_order[2],
+                   rpcq_order[nrpcqs - 1]);
+        }
+      }
+    }
   } else {
     if (pctx.my_rank == 0) {
       INFO("rpc queues are flushed in-order");
