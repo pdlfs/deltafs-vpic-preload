@@ -710,7 +710,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   ctx->is_receiver = shuffle_is_rank_receiver(ctx, pctx.my_rank);
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "%u shuffle senders per receiver\n>>> receiver mask is %x",
+             "%u shuffle senders per receiver\n>>> receiver mask is %#x",
              ctx->receiver_rate, ctx->receiver_mask);
     INFO(msg);
   }
