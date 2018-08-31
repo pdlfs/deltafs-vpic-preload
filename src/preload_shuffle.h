@@ -67,7 +67,9 @@ typedef struct shuffle_ctx {
   /* number of secs to sleep after releasing the shuffle instance so
    * shuffle bg threads can complete shutdown in the meantime. */
   int finalize_pause;
-  unsigned int receiver_mask; /* (rank & receiver_mask) -> receiver_rank */
+  unsigned int receiver_rate; /* only 1/receiver_rate ranks are receivers */
+  /* (rank & receiver_mask) -> receiver_rank */
+  unsigned int receiver_mask;
   int is_receiver;
   unsigned char fname_len;
   unsigned char extra_data_len;
@@ -89,9 +91,6 @@ extern int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx);
 
 /* return 0 if a specific rank is not a receiver, 1 otherwise. */
 extern int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank);
-
-/* return the index for a shuffle receiver within the receiver group. */
-extern int shuffle_receiver_rank(shuffle_ctx_t* ctx);
 
 /* return the global index for a shuffle participant. */
 extern int shuffle_rank(shuffle_ctx_t* ctx);

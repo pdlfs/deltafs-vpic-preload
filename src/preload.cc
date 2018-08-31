@@ -993,7 +993,7 @@ int MPI_Init(int* argc, char*** argv) {
         rv = MPI_Comm_split(
             MPI_COMM_WORLD,
             shuffle_is_rank_receiver(&pctx.sctx, rank) != 0 ? 1 : MPI_UNDEFINED,
-            shuffle_receiver_rank(&pctx.sctx), &pctx.recv_comm);
+            rank, &pctx.recv_comm);
         if (rv != MPI_SUCCESS) {
           ABORT("MPI_Comm_split");
         }

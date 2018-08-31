@@ -46,17 +46,6 @@
 
 #include "common.h"
 
-#if defined(__GNUC__)
-static int bits_count(unsigned int v) { return __builtin_popcount(v); }
-#else
-static int bits_count(unsigned int v) {
-  v = v - ((v >> 1) & 0x55555555);
-  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
-  int rv = ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
-  return rv;
-}
-#endif
-
 static const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
   int min_port;
   int max_port;
@@ -672,6 +661,14 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   }
 }
 
+namespace {
+unsigned char itouc(int input) {
+  assert(input >= 0 && input <= 255);
+  unsigned char rv = static_cast<unsigned char>(input);
+  return rv;
+}
+}  // namespace
+
 void shuffle_init(shuffle_ctx_t* ctx) {
   int vf;
   int world_sz;
@@ -681,35 +678,38 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   int n;
 
   assert(ctx != NULL);
-  ctx->fname_len = static_cast<unsigned char>(pctx.particle_id_size);
-  ctx->extra_data_len = static_cast<unsigned char>(pctx.particle_extra_size);
-  ctx->data_len = static_cast<unsigned char>(pctx.particle_size);
+
+  ctx->fname_len = itouc(pctx.particle_id_size);
+  ctx->extra_data_len = itouc(pctx.particle_extra_size);
+  ctx->data_len = itouc(pctx.particle_size);
   if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
-  if (ctx->fname_len == 0) ABORT("bad shuffle conf: id size is zero");
+  if (ctx->fname_len == 0) {
+    ABORT("bad shuffle conf: id size is zero");
+  }
+
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg), "shuffle format: <%u+1,%u> bytes",
              ctx->fname_len, ctx->extra_data_len + ctx->data_len);
     INFO(msg);
   }
 
+  ctx->receiver_rate = 1;
   ctx->receiver_mask = ~static_cast<unsigned int>(0);
   env = maybe_getenv("SHUFFLE_Recv_radix");
   if (env != NULL) {
     n = atoi(env);
     if (n > 8) n = 8;
     if (n > 0) {
+      ctx->receiver_rate <<= n;
       ctx->receiver_mask <<= n;
     }
   }
   ctx->is_receiver = shuffle_is_rank_receiver(ctx, pctx.my_rank);
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "shuffle receiver mask = %d (32 - %d)\n>>> "
-             "%u senders per receiver",
-             bits_count(ctx->receiver_mask),
-             32 - bits_count(ctx->receiver_mask),
-             1U << (32 - bits_count(ctx->receiver_mask)));
+             "%u shuffle senders per receiver\n>>> receiver mask is %x",
+             ctx->receiver_rate, ctx->receiver_mask);
     INFO(msg);
   }
 
@@ -832,14 +832,13 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
 int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
-  int rv = int(32 == bits_count(ctx->receiver_mask));
-  return rv;
+  return ctx->receiver_rate == 1;
 }
 
 int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank) {
   assert(ctx != NULL);
-  int rv = int((rank & ctx->receiver_mask) == rank);
-  return rv;
+  if (ctx->receiver_rate == 1) return 1;
+  return (rank & ctx->receiver_mask) == rank;
 }
 
 int shuffle_world_sz(shuffle_ctx* ctx) {
@@ -858,13 +857,6 @@ int shuffle_rank(shuffle_ctx_t* ctx) {
   } else {
     return nn_shuffler_my_rank();
   }
-}
-
-int shuffle_receiver_rank(shuffle_ctx_t* ctx) {
-  assert(ctx != NULL);
-  int my_rank = shuffle_rank(ctx);
-  my_rank >>= (32 - bits_count(ctx->receiver_mask));
-  return my_rank;
 }
 
 void shuffle_resume(shuffle_ctx_t* ctx) {
