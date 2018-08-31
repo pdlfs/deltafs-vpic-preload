@@ -33,10 +33,9 @@
 #include <mercury_proc.h>
 #include <mercury_proc_string.h>
 
-#include <pdlfs-common/random.h>
 #include <pdlfs-common/xxhash.h>
+#define ORD(x, seed) pdlfs::xxhash32(&x, sizeof(x), seed)
 #define HASH(msg, sz) pdlfs::xxhash32(msg, sz, 0)
-typedef pdlfs::Random rnd_t;
 #include <algorithm>
 #include <vector>
 
@@ -46,15 +45,15 @@ typedef pdlfs::Random rnd_t;
 nn_ctx_t nnctx = {0};
 
 namespace {
-typedef struct rng {
-  explicit rng(int seed) : rnd_(seed) {}
-  int operator()(int i) { return rnd_.Next() % i; }
-  rnd_t rnd_;
-} rng_t;
+typedef struct std_less_than {
+  explicit std_less_than(int seed) : seed_(seed) {}
+  bool operator()(int i, int j) { return (ORD(i, seed_) < ORD(j, seed_)); }
+  int seed_;
+} std_less_than_t;
 }  // namespace
 
-void nn_vector_random_shuffle(int rank, std::vector<int>* vec) {
-  std::random_shuffle(vec->begin(), vec->end(), rng(rank));
+void nn_vector_random_shuffle(int seed, std::vector<int>* input) {
+  std::sort(input->begin(), input->end(), std_less_than(seed));
 }
 
 namespace {
