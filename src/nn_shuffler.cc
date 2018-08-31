@@ -1293,6 +1293,7 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
                    "from %d, %d, %d, ..., to %d",
                    pctx.my_rank, rpcq_order[0], rpcq_order[1], rpcq_order[2],
                    rpcq_order[nrpcqs - 1]);
+          INFO(msg);
         }
       }
     }
