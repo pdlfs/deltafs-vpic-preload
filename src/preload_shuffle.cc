@@ -664,7 +664,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
 
 namespace {
 /* convert an integer number to an unsigned char */
-unsigned char itouc(int input) {
+unsigned char TOUCHAR(int input) {
   assert(input >= 0 && input <= 255);
   unsigned char rv = static_cast<unsigned char>(input);
   return rv;
@@ -681,9 +681,9 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   assert(ctx != NULL);
 
-  ctx->fname_len = itouc(pctx.particle_id_size);
-  ctx->extra_data_len = itouc(pctx.particle_extra_size);
-  ctx->data_len = itouc(pctx.particle_size);
+  ctx->fname_len = TOUCHAR(pctx.particle_id_size);
+  ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
+  ctx->data_len = pctx.sideio ? 8 : TOUCHAR(pctx.particle_size);
   if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
   if (ctx->fname_len == 0) {
