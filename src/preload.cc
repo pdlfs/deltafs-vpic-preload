@@ -56,6 +56,7 @@
 #define DEFAULT_PARTICLE_ID_BYTES 8
 #define DEFAULT_PARTICLE_EXTRA_BYTES 0
 #define DEFAULT_PARTICLE_BYTES 40
+#define DEFAULT_PARTICLE_BUFSIZE (2 << 20)
 
 /* mon output */
 static int mon_dump_bin = 0;
@@ -172,6 +173,7 @@ static void preload_init() {
   pctx.particle_id_size = DEFAULT_PARTICLE_ID_BYTES;
   pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
   pctx.particle_size = DEFAULT_PARTICLE_BYTES;
+  pctx.particle_buf_size = DEFAULT_PARTICLE_BUFSIZE;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
   pctx.sampling = 1;
@@ -291,6 +293,14 @@ static void preload_init() {
       pctx.local_root[0] != '/' ||
       pctx.local_root[pctx.len_local_root - 1] == '/')
     ABORT("bad local_root");
+
+  tmp = maybe_getenv("PRELOAD_Particle_buf_size");
+  if (tmp != NULL) {
+    pctx.particle_buf_size = atoi(tmp);
+    if (pctx.particle_buf_size <= 0) {
+      ABORT("bad particle buf size");
+    }
+  }
 
   tmp = maybe_getenv("PRELOAD_Particle_id_size");
   if (tmp != NULL) {
@@ -1075,7 +1085,8 @@ int MPI_Init(int* argc, char*** argv) {
           deltafs_plfsdir_set_fixed_kv(pctx.plfshdl, 1);
           deltafs_plfsdir_force_leveldb_fmt(pctx.plfshdl, force_leveldb_fmt);
           deltafs_plfsdir_set_unordered(pctx.plfshdl, unordered);
-          deltafs_plfsdir_set_side_io_buf_size(pctx.plfshdl, 2u << 20);
+          deltafs_plfsdir_set_side_io_buf_size(pctx.plfshdl,
+                                               pctx.particle_buf_size);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
@@ -1107,7 +1118,7 @@ int MPI_Init(int* argc, char*** argv) {
               if (rank == 0) {
                 snprintf(msg, sizeof(msg),
                          "plfsdir side io opened\n>>> io buf size: %s",
-                         pretty_size(2u << 20).c_str());
+                         pretty_size(pctx.particle_buf_size).c_str());
                 INFO(msg);
               }
             }

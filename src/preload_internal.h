@@ -84,6 +84,7 @@ typedef struct preload_ctx {
   int comm_sz; /* my MPI world size */
   int my_cpus; /* num of available cpu cores */
 
+  int particle_buf_size;
   int particle_size;       /* bytes in each particle */
   int particle_extra_size; /* extra padding for each particle shuffled */
   int particle_id_size;
