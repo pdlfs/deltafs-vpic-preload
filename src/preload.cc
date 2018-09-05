@@ -2466,8 +2466,12 @@ int fputc(int character, FILE* stream) {
  * fclose.   returns EOF on error.
  */
 int fclose(FILE* stream) {
+  ssize_t n;
+  uint64_t off;
   const char* fname;
   size_t fname_len;
+  char* data;
+  size_t data_len;
   int rv;
 
   rv = pthread_once(&init_once, preload_init);
@@ -2480,6 +2484,7 @@ int fclose(FILE* stream) {
   fake_file* const ff = reinterpret_cast<fake_file*>(stream);
   fname = ff->file_name();
   assert(fname != NULL);
+  off = 0;
 
   /* check file path and remove parent directories */
   assert(pctx.len_plfsdir != 0 && pctx.plfsdir != NULL);
@@ -2499,14 +2504,41 @@ int fclose(FILE* stream) {
     }
   }
 
+  if (pctx.sideio) {
+    if (IS_BYPASS_WRITE(pctx.mode)) {
+      /* empty */
+
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+      if (pctx.plfshdl == NULL) ABORT("plfsdir not opened");
+      n = deltafs_plfsdir_io_append(pctx.plfshdl, ff->data(), ff->size());
+
+      if (n != ff->size()) {
+        ABORT("plfsdir sideio write failed");
+      }
+
+    } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
+      ABORT("not implemented");
+
+    } else {
+      ABORT("not implemented");
+    }
+
+    data_len = sizeof(off);
+    data = reinterpret_cast<char*>(&off);
+
+  } else {
+    data_len = ff->size();
+    data = ff->data();
+  }
+
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write(&pctx.sctx, fname, fname_len, ff->data(), ff->size(),
+    rv = shuffle_write(&pctx.sctx, fname, fname_len, data, data_len,
                        num_epochs - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }
   } else {
-    rv = native_write(fname, fname_len, ff->data(), ff->size(), num_epochs - 1);
+    rv = native_write(fname, fname_len, data, data_len, num_epochs - 1);
     if (rv) {
       ABORT("plfsdir write failed");
     }
