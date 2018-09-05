@@ -378,7 +378,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
   if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
-  if (is_envset("PRELOAD_Enable_sideio")) pctx.sideio = 1;
+  if (is_envset("PRELOAD_Enable_wisc")) pctx.sideio = 1;
 
   if (is_envset("PRELOAD_No_paranoid_checks")) pctx.paranoid_checks = 0;
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
