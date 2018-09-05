@@ -2509,7 +2509,7 @@ int fclose(FILE* stream) {
       /* empty */
 
     } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-      if (pctx.plfshdl == NULL) ABORT("plfsdir not opened");
+      assert(pctx.plfshdl != NULL);
       n = deltafs_plfsdir_io_append(pctx.plfshdl, ff->data(), ff->size());
 
       if (n != ff->size()) {
@@ -2759,10 +2759,7 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     rv = 0; /* noop */
 
   } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-    if (pctx.plfshdl == NULL) {
-      ABORT("plfsdir not opened");
-    }
-
+    assert(pctx.plfshdl != NULL);
     n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, data_len);
 
     if (n == data_len) {
