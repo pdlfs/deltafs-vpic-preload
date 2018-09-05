@@ -119,6 +119,7 @@ typedef struct preload_ctx {
 
   int sthres;   /* sample threshold (num samples per 1 million input names) */
   int sampling; /* enable particle name sampling */
+  int sideio;   /* using the wisc-key format */
 
   shuffle_ctx_t sctx; /* shuffle context */
 

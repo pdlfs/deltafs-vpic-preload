@@ -368,6 +368,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
   if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
+  if (is_envset("PRELOAD_Enable_sideio")) pctx.sideio = 1;
 
   if (is_envset("PRELOAD_No_paranoid_checks")) pctx.paranoid_checks = 0;
   if (is_envset("PRELOAD_No_paranoid_pre_barrier"))
@@ -1074,6 +1075,7 @@ int MPI_Init(int* argc, char*** argv) {
           deltafs_plfsdir_set_fixed_kv(pctx.plfshdl, 1);
           deltafs_plfsdir_force_leveldb_fmt(pctx.plfshdl, force_leveldb_fmt);
           deltafs_plfsdir_set_unordered(pctx.plfshdl, unordered);
+          deltafs_plfsdir_set_side_io_buf_size(pctx.plfshdl, 2u << 20);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
@@ -1085,14 +1087,33 @@ int MPI_Init(int* argc, char*** argv) {
           rv = deltafs_plfsdir_open(pctx.plfshdl, path);
           if (rv != 0) {
             ABORT("cannot open plfsdir");
-          } else if (rank == 0) {
-            snprintf(msg, sizeof(msg),
-                     "plfsdir (via deltafs-LT, env=%s, io_engine=%d, "
-                     "unordered=%d, leveldb_fmt=%d) "
-                     "opened (rank 0)\n>>> bg thread pool size: %d",
-                     env, io_engine, unordered, force_leveldb_fmt,
-                     pctx.bgsngcomp ? 1 : pctx.plfsparts);
-            INFO(msg);
+          } else {
+            if (rank == 0) {
+              snprintf(msg, sizeof(msg),
+                       "plfsdir (via deltafs-LT, env=%s, io_engine=%d, "
+                       "unordered=%d, leveldb_fmt=%d) "
+                       "opened (rank 0)\n>>> bg thread pool size: %d",
+                       env, io_engine, unordered, force_leveldb_fmt,
+                       pctx.bgsngcomp ? 1 : pctx.plfsparts);
+              INFO(msg);
+            }
+          }
+
+          if (pctx.sideio) {
+            rv = deltafs_plfsdir_io_open(pctx.plfshdl, path);
+            if (rv != 0) {
+              ABORT("cannot open plfsdir io");
+            } else {
+              if (rank == 0) {
+                snprintf(msg, sizeof(msg),
+                         "plfsdir side io opened\n>>> io buf size: %s",
+                         pretty_size(2u << 20).c_str());
+                INFO(msg);
+              }
+            }
+          }
+
+          if (rank == 0) {
             if (pctx.verr) {
               pretty_plfsdir_conf(conf);
               INFO(conf.c_str());
@@ -1410,6 +1431,7 @@ int MPI_Finalize(void) {
       if (pctx.my_rank == 0) {
         INFO("finalizing plfsdir ... (rank 0)");
       }
+      if (pctx.sideio) deltafs_plfsdir_io_finish(pctx.plfshdl);
       deltafs_plfsdir_finish(pctx.plfshdl);
       finish_end = now_micros();
       if (pctx.my_rank == 0) {
@@ -1960,7 +1982,6 @@ DIR* opendir(const char* dir) {
   uint64_t flush_start;
   uint64_t flush_end;
   DIR* rv;
-  int s;
 
   int ret = pthread_once(&init_once, preload_init);
   if (ret) ABORT("pthread_once");
@@ -2051,8 +2072,10 @@ DIR* opendir(const char* dir) {
           flush_start = now_micros();
           INFO("flushing plfsdir ... (rank 0)");
         }
-        s = deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_epochs - 1);
-        if (s != 0) ABORT("fail to flush plfsdir");
+        if (pctx.sideio && deltafs_plfsdir_io_flush(pctx.plfshdl) != 0)
+          ABORT("fail to flush plfsdir side io");
+        if (deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_epochs - 1) != 0)
+          ABORT("fail to flush plfsdir");
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
           snprintf(msg, sizeof(msg), "flushing done %s",
@@ -2155,7 +2178,6 @@ int closedir(DIR* dirp) {
   uint64_t flush_end;
   char msg[100];
   int rv;
-  int s;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -2220,18 +2242,29 @@ int closedir(DIR* dirp) {
           flush_start = now_micros();
           INFO("pre-flushing plfsdir ... (rank 0)");
         }
-        s = deltafs_plfsdir_flush(pctx.plfshdl, num_epochs - 1);
-        if (s != 0) ABORT("fail to flush plfsdir");
+
+        if (pctx.sideio && deltafs_plfsdir_io_flush(pctx.plfshdl) != 0)
+          ABORT("fail to flush plfsdir side io");
+        if (deltafs_plfsdir_flush(pctx.plfshdl, num_epochs - 1) != 0)
+          ABORT("fail to flush plfsdir");
+
         if (pctx.pre_flushing_wait) {
-          if (pctx.my_rank == 0) INFO("waiting for compaction ... (rank 0)");
-          s = deltafs_plfsdir_wait(pctx.plfshdl);
+          if (pctx.my_rank == 0 && pctx.verr)
+            INFO("waiting for compaction ... (rank 0)");
+          if (pctx.sideio && deltafs_plfsdir_io_wait(pctx.plfshdl) != 0)
+            ABORT("fail to wait for plfsdir side io");
+          if (deltafs_plfsdir_wait(pctx.plfshdl) != 0)
+            ABORT("fail to wait for plfsdir");
         }
-        if (s != 0) ABORT("fail to wait for plfsdir");
+
         if (pctx.pre_flushing_sync) {
-          if (pctx.my_rank == 0) INFO("sync io ... (rank 0)");
-          s = deltafs_plfsdir_sync(pctx.plfshdl);
+          if (pctx.my_rank == 0 && pctx.verr) INFO("sync io ... (rank 0)");
+          if (pctx.sideio && deltafs_plfsdir_io_sync(pctx.plfshdl) != 0)
+            ABORT("fail to sync plfsdir side io");
+          if (deltafs_plfsdir_sync(pctx.plfshdl) != 0)
+            ABORT("fail to sync plfsdir");
         }
-        if (s != 0) ABORT("fail to sync plfsdir");
+
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
           snprintf(msg, sizeof(msg), "pre-flushing done %s",
