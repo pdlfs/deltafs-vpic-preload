@@ -991,7 +991,7 @@ int MPI_Init(int* argc, char*** argv) {
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (rank == 0) {
         snprintf(msg, sizeof(msg),
-                 "shuffle starting ... (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB",
+                 "shuffle starting ... (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
                  my_maxrss());
         INFO(msg);
       }
@@ -1000,7 +1000,7 @@ int MPI_Init(int* argc, char*** argv) {
       preload_barrier(MPI_COMM_WORLD);
       if (rank == 0) {
         snprintf(msg, sizeof(msg),
-                 "shuffle started (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB",
+                 "shuffle started (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
                  my_maxrss());
         INFO(msg);
       }
@@ -1335,9 +1335,8 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "lib finalizing ... (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB\n>>> "
-             "%d epochs in total",
-             my_maxrss(), num_epochs);
+             "LIB finalizing ... (%d epochs)\n   RUSAGE[maxrss]=%ld KiB",
+             num_epochs, my_maxrss());
     INFO(msg);
   }
 
@@ -2025,7 +2024,7 @@ DIR* opendir(const char* dir) {
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "epoch %d begins (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB",
+             "epoch %d begins (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
              num_epochs + 1, my_maxrss());
     INFO(msg);
   }
@@ -2210,11 +2209,7 @@ int closedir(DIR* dirp) {
     return nxt.closedir(dirp);
   }
 
-  if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "dumping done (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB", my_maxrss());
-    INFO(msg);
-  }
+  if (pctx.my_rank == 0) INFO("dumping done!!!");
 
   if (pctx.paranoid_checks) {
     if (!pctx.isdeltafs->empty()) {
@@ -2379,7 +2374,9 @@ int closedir(DIR* dirp) {
   }
 
   if (pctx.my_rank == 0) {
-    INFO("epoch ends (rank 0)");
+    snprintf(msg, sizeof(msg), "epoch ends (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
+             my_maxrss());
+    INFO(msg);
   }
 
   return 0;
