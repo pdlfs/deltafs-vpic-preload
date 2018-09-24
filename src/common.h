@@ -60,6 +60,9 @@ uint64_t now_micros_coarse();
 /* convert posix timeval to micros */
 uint64_t timeval_to_micros(const struct timeval* tv);
 
+/* return the memory size (KB) of the calling process */
+long my_maxrss();
+
 /* log message into a given file using unbuffered io. */
 void LOG(int fd, int e, const char* fmt, ...);
 void SAY(int err, const char* prefix, const char* msg);

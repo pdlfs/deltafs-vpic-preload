@@ -990,13 +990,19 @@ int MPI_Init(int* argc, char*** argv) {
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (rank == 0) {
-        INFO("shuffle starting ...");
+        snprintf(msg, sizeof(msg),
+                 "shuffle starting ... (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB",
+                 my_maxrss());
+        INFO(msg);
       }
       shuffle_init(&pctx.sctx);
       /* ensures all peers have the shuffle ready */
       preload_barrier(MPI_COMM_WORLD);
       if (rank == 0) {
-        INFO("shuffle started");
+        snprintf(msg, sizeof(msg),
+                 "shuffle started (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB",
+                 my_maxrss());
+        INFO(msg);
       }
       if (!shuffle_is_everyone_receiver(&pctx.sctx)) {
         /* rank 0 must be a receiver */
@@ -1327,6 +1333,14 @@ int MPI_Finalize(void) {
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
 
+  if (pctx.my_rank == 0) {
+    snprintf(msg, sizeof(msg),
+             "lib finalizing ... (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB\n>>> "
+             "%d epochs in total",
+             my_maxrss(), num_epochs);
+    INFO(msg);
+  }
+
   /* resuming background activities */
   if (pctx.bgpause) {
     if (pctx.my_rank == 0) {
@@ -1344,9 +1358,6 @@ int MPI_Finalize(void) {
   }
 
   if (pctx.my_rank == 0) {
-    INFO("lib finalizing ... ");
-    snprintf(msg, sizeof(msg), "%d epochs generated in total", num_epochs);
-    INFO(msg);
     if (!pctx.nodist) {
       now = time(NULL);
       localtime_r(&now, &timeinfo);
@@ -2013,7 +2024,9 @@ DIR* opendir(const char* dir) {
   }
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_epochs + 1);
+    snprintf(msg, sizeof(msg),
+             "epoch %d begins (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB",
+             num_epochs + 1, my_maxrss());
     INFO(msg);
   }
 
@@ -2198,7 +2211,9 @@ int closedir(DIR* dirp) {
   }
 
   if (pctx.my_rank == 0) {
-    INFO("dumping done (rank 0)");
+    snprintf(msg, sizeof(msg),
+             "dumping done (rank 0)\t\t\tRUSAGE[maxrss]=%ld KiB", my_maxrss());
+    INFO(msg);
   }
 
   if (pctx.paranoid_checks) {

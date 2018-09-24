@@ -502,6 +502,16 @@ void maybe_warn_numa() {
   errno = 0;
 }
 
+long my_maxrss() {
+  struct rusage ru;
+  int r;
+
+  r = getrusage(RUSAGE_SELF, &ru);
+  if (r == 0) return ru.ru_maxrss;
+
+  return 0;
+}
+
 int my_cpu_cores() {
   cpu_set_t cpuset;
   int ncpus;
