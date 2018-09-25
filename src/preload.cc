@@ -75,7 +75,7 @@ static int num_pthreads = 0;
 static int num_barriers = 0;
 
 /* number of epochs generated */
-static int num_epochs = 0;
+static int num_eps = 0;
 
 /*
  * buffer space for generating fake particle data.
@@ -1336,7 +1336,7 @@ int MPI_Finalize(void) {
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
              "LIB finalizing ... (%d epochs)\n   RUSAGE[maxrss]=%ld KiB",
-             num_epochs, my_maxrss());
+             num_eps, my_maxrss());
     INFO(msg);
   }
 
@@ -1375,7 +1375,7 @@ int MPI_Finalize(void) {
         snprintf(path, sizeof(path), "%s/MANIFEST", pctx.log_home);
         fd0 = open(path, O_WRONLY | O_CREAT | O_EXCL, 0644);
         if (fd0 != -1) {
-          n = snprintf(msg, sizeof(msg), "num_epochs=%d\n", num_epochs);
+          n = snprintf(msg, sizeof(msg), "num_epochs=%d\n", num_eps);
           n = write(fd0, msg, n);
           n = snprintf(msg, sizeof(msg), "key_size=%s\n", dirc.key_size);
           n = write(fd0, msg, n);
@@ -1461,7 +1461,7 @@ int MPI_Finalize(void) {
         INFO(msg);
       }
       finish_dura = double(finish_end - finish_start) / 1000.0 / 1000.0;
-      if (num_epochs != 0) {
+      if (num_eps != 0) {
         dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
       }
 
@@ -1490,7 +1490,7 @@ int MPI_Finalize(void) {
         INFO("plfsdir (via deltafs-LT) closed (rank 0)");
       }
     } else if (pctx.plfsfd != -1) {
-      if (num_epochs != 0) {
+      if (num_eps != 0) {
         dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
       }
       deltafs_close(pctx.plfsfd);
@@ -1500,7 +1500,7 @@ int MPI_Finalize(void) {
         INFO("plfsdir closed (rank 0)");
       }
     } else {
-      if (num_epochs != 0) {
+      if (num_eps != 0) {
         dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
       }
     }
@@ -1518,7 +1518,7 @@ int MPI_Finalize(void) {
       num_samples[0] = num_samples[1] = 0;
       for (std::map<std::string, int>::const_iterator it = pctx.smap->begin();
            it != pctx.smap->end(); ++it) {
-        if (it->second == num_epochs) {
+        if (it->second == num_eps) {
           num_samples[1]++;
         }
         num_samples[0]++;
@@ -1546,7 +1546,7 @@ int MPI_Finalize(void) {
           for (std::map<std::string, int>::const_iterator it =
                    pctx.smap->begin();
                it != pctx.smap->end(); ++it) {
-            if (it->second == num_epochs) {
+            if (it->second == num_eps) {
               n = snprintf(msg, sizeof(msg), "%s\n", it->first.c_str());
               n = write(fd0, msg, n);
               if (n == -1) {
@@ -1618,7 +1618,7 @@ int MPI_Finalize(void) {
 
         epoch = 0;
 
-        while (epoch != num_epochs) {
+        while (epoch != num_eps) {
           if (ok) {
             n = read(pctx.monfd, buf, sizeof(buf));
             if (n == sizeof(buf)) {
@@ -2024,8 +2024,8 @@ DIR* opendir(const char* dir) {
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "epoch %d begins (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
-             num_epochs + 1, my_maxrss());
+             "epoch %d begins (rank 0)\n   RUSAGE[maxrss]=%ld KiB", num_eps + 1,
+             my_maxrss());
     INFO(msg);
   }
 
@@ -2046,7 +2046,7 @@ DIR* opendir(const char* dir) {
   }
 
   if (pctx.paranoid_barrier) {
-    if (num_epochs != 0) {
+    if (num_eps != 0) {
       /*
        * this ensures we have received all peer writes and no more
        * writes will happen for the previous epoch.
@@ -2057,7 +2057,7 @@ DIR* opendir(const char* dir) {
 
   /* flush the shuffle layer so all messages are delivered */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    if (num_epochs != 0) {
+    if (num_eps != 0) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
         INFO("flushing shuffle receivers ... (rank 0)");
@@ -2073,7 +2073,7 @@ DIR* opendir(const char* dir) {
   }
 
   /* epoch flush */
-  if (num_epochs != 0 && pctx.recv_comm != MPI_COMM_NULL) {
+  if (num_eps != 0 && pctx.recv_comm != MPI_COMM_NULL) {
     /*
      * unable to perform epoch flush at closedir() time because we are
      * likely to progress faster than some peers, causing
@@ -2097,7 +2097,7 @@ DIR* opendir(const char* dir) {
         }
         if (pctx.sideio && deltafs_plfsdir_io_flush(pctx.plfshdl) != 0)
           ABORT("fail to flush plfsdir side io");
-        if (deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_epochs - 1) != 0)
+        if (deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_eps - 1) != 0)
           ABORT("fail to flush plfsdir");
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
@@ -2125,7 +2125,7 @@ DIR* opendir(const char* dir) {
     }
   }
 
-  if (num_epochs != 0) {
+  if (num_eps != 0) {
     /*
      * delay dumping mon stats collected from the previous epoch
      * until the beginning of the next epoch, which allows us
@@ -2135,23 +2135,21 @@ DIR* opendir(const char* dir) {
     dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
 
-  if (pctx.paranoid_post_barrier) {
-    if (num_epochs != 0) {
-      /*
-       * this ensures all writes made for the next epoch
-       * will go to a new write buffer.
-       */
-      preload_barrier(MPI_COMM_WORLD);
-    }
-  }
+  /* epoch count is increased at the beginning of each epoch */
+  num_eps++; /* must do this before performing the barrier below */
 
-  /* increase epoch seq */
-  num_epochs++;
+  if (pctx.paranoid_post_barrier) {
+    /*
+     * this ensures all writes made for the next epoch
+     * will go to a new write buffer.
+     */
+    preload_barrier(MPI_COMM_WORLD);
+  }
 
   if (!pctx.nomon) {
     mon_reinit(&pctx.mctx); /* clear mon stats */
     /* reset epoch id */
-    pctx.mctx.epoch_seq = num_epochs;
+    pctx.mctx.epoch_seq = num_eps;
 
     pctx.epoch_start = epoch_start; /* record epoch start */
 
@@ -2266,7 +2264,7 @@ int closedir(DIR* dirp) {
 
         if (pctx.sideio && deltafs_plfsdir_io_flush(pctx.plfshdl) != 0)
           ABORT("fail to flush plfsdir side io");
-        if (deltafs_plfsdir_flush(pctx.plfshdl, num_epochs - 1) != 0)
+        if (deltafs_plfsdir_flush(pctx.plfshdl, num_eps - 1) != 0)
           ABORT("fail to flush plfsdir");
 
         if (pctx.pre_flushing_wait) {
@@ -2556,12 +2554,12 @@ int fclose(FILE* stream) {
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     rv = shuffle_write(&pctx.sctx, fname, fname_len, data, data_len,
-                       num_epochs - 1);
+                       num_eps - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }
   } else {
-    rv = native_write(fname, fname_len, data, data_len, num_epochs - 1);
+    rv = native_write(fname, fname_len, data, data_len, num_eps - 1);
     if (rv) {
       ABORT("plfsdir write failed");
     }
@@ -2740,7 +2738,7 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   int fd;
 
   if (epoch == -1) {
-    epoch = num_epochs - 1;
+    epoch = num_eps - 1;
   }
 
   if (pctx.fake_data) {
@@ -2757,14 +2755,14 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     if (fname_len != pctx.particle_id_size || data_len != pctx.particle_size) {
       ABORT("bad particle format");
     }
-    if (epoch != num_epochs - 1) {
+    if (epoch != num_eps - 1) {
       ABORT("bad epoch num");
     }
   }
 
   if (pctx.sampling) {
     assert(pctx.smap != NULL);
-    if (num_epochs == 1) {
+    if (num_eps == 1) {
       /* during the initial epoch, we accept as many names as possible */
       if (getr(0, 1000000 - 1) < pctx.sthres) {
         pctx.smap->insert(std::make_pair(fname, 1));
