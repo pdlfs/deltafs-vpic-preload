@@ -2135,8 +2135,8 @@ DIR* opendir(const char* dir) {
     dump_mon(&pctx.mctx, &tmp_stat, &pctx.last_dir_stat);
   }
 
-  /* epoch count is increased at the beginning of each epoch */
-  num_eps++; /* must do this before performing the barrier below */
+  /* epoch count is increased before the beginning of each epoch */
+  num_eps++; /* must go before the barrier below */
 
   if (pctx.paranoid_post_barrier) {
     /*
