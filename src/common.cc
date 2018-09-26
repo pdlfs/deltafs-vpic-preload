@@ -160,8 +160,8 @@ static std::string readline(const char* fname) {
     }
 
     close(fd);
-    errno = 0;
   }
+
   l = strlen(tmp);
   if (l > 120) {
     tmp[120] = 0;
@@ -169,6 +169,8 @@ static std::string readline(const char* fname) {
   } else if (l == 0) {
     strcat(tmp, "?");
   }
+
+  errno = 0;
 
   return tmp;
 }
@@ -500,6 +502,15 @@ void maybe_warn_numa() {
 
 #endif
   errno = 0;
+}
+
+std::string get_meminfo() {
+  char fp[100];
+
+  snprintf(fp, sizeof(fp), "/proc/%d/statm", getpid());
+  std::string info = readline(fp);
+
+  return info;
 }
 
 long my_maxrss() {
