@@ -65,7 +65,8 @@ typedef struct preload_ctx {
   const char* log_home; /* home for log dumps */
   size_t len_log_home;  /* strlen */
 
-  int mode; /* operating mode */
+  int mpi_wait; /* number of millisecs to wait for MPI async operations */
+  int mode;     /* operating mode */
 
   int paranoid_checks; /* various checks on vpic writes */
 
@@ -170,7 +171,7 @@ extern int native_write(const char* fname, unsigned char fname_len, char* data,
                         unsigned char data_len, int epoch);
 
 /*
- * preload_barrier: perform a collective barrier operation
+ * PRELOAD_Barrier: perform a collective barrier operation
  * on the give communicator.
  */
-extern void preload_barrier(MPI_Comm comm);
+extern void PRELOAD_Barrier(MPI_Comm comm);

@@ -58,6 +58,9 @@
 #define DEFAULT_PARTICLE_BYTES 40
 #define DEFAULT_PARTICLE_BUFSIZE (2 << 20)
 
+/* default number of millisecs to wait for MPI async ops */
+#define DEFAULT_MPI_WAIT 50
+
 /* mon output */
 static int mon_dump_bin = 0;
 static int mon_dump_txt = 1;
@@ -170,6 +173,7 @@ static void preload_init() {
   pctx.fnames = new std::set<std::string>;
   pctx.smap = new std::map<std::string, int>;
 
+  pctx.mpi_wait = DEFAULT_MPI_WAIT;
   pctx.particle_id_size = DEFAULT_PARTICLE_ID_BYTES;
   pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
   pctx.particle_size = DEFAULT_PARTICLE_BYTES;
@@ -323,6 +327,14 @@ static void preload_init() {
     pctx.particle_size = atoi(tmp);
     if (pctx.particle_size < 0) {
       pctx.particle_size = 0;
+    }
+  }
+
+  tmp = maybe_getenv("PRELOAD_Mpi_wait");
+  if (tmp != NULL) {
+    pctx.mpi_wait = atoi(tmp);
+    if (pctx.mpi_wait < 0) {
+      pctx.mpi_wait = -1;
     }
   }
 
@@ -785,8 +797,8 @@ int MPI_Init(int* argc, char*** argv) {
         INFO(msg);
       }
       snprintf(msg, sizeof(msg),
-               "deltafs-vpic-preload lib initializing ... %s MPI ranks",
-               pretty_num(size).c_str());
+               "LIB initializing ... %s MPI ranks (MPI wait=%d ms)",
+               pretty_num(size).c_str(), pctx.mpi_wait);
       INFO(msg);
     }
   } else {
@@ -997,7 +1009,7 @@ int MPI_Init(int* argc, char*** argv) {
       }
       shuffle_init(&pctx.sctx);
       /* ensures all peers have the shuffle ready */
-      preload_barrier(MPI_COMM_WORLD);
+      PRELOAD_Barrier(MPI_COMM_WORLD);
       if (rank == 0) {
         snprintf(msg, sizeof(msg),
                  "shuffle started (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
@@ -1073,7 +1085,7 @@ int MPI_Init(int* argc, char*** argv) {
       }
 
       /* so everyone sees the dir created */
-      preload_barrier(MPI_COMM_WORLD);
+      PRELOAD_Barrier(MPI_COMM_WORLD);
 
       /* every receiver opens it */
       if (pctx.recv_comm != MPI_COMM_NULL) {
@@ -1420,7 +1432,7 @@ int MPI_Finalize(void) {
         INFO("shuffle shutting down ...");
       }
       /* ensures all peer messages are received */
-      preload_barrier(MPI_COMM_WORLD);
+      PRELOAD_Barrier(MPI_COMM_WORLD);
       /* shuffle flush */
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
@@ -1437,7 +1449,7 @@ int MPI_Finalize(void) {
        * ensures everyone has the flushing done before finalizing so we can get
        * up-to-date and consistent shuffle stats
        */
-      preload_barrier(MPI_COMM_WORLD);
+      PRELOAD_Barrier(MPI_COMM_WORLD);
       shuffle_finalize(&pctx.sctx);
       if (pctx.my_rank == 0) {
         INFO("shuffle off");
@@ -2051,7 +2063,7 @@ DIR* opendir(const char* dir) {
        * this ensures we have received all peer writes and no more
        * writes will happen for the previous epoch.
        */
-      preload_barrier(MPI_COMM_WORLD);
+      PRELOAD_Barrier(MPI_COMM_WORLD);
     }
   }
 
@@ -2143,7 +2155,7 @@ DIR* opendir(const char* dir) {
      * this ensures all writes made for the next epoch
      * will go to a new write buffer.
      */
-    preload_barrier(MPI_COMM_WORLD);
+    PRELOAD_Barrier(MPI_COMM_WORLD);
   }
 
   if (!pctx.nomon) {
@@ -2234,7 +2246,7 @@ int closedir(DIR* dirp) {
   /* this ensures we have received all peer messages */
   if (pctx.paranoid_pre_barrier ||
       (!IS_BYPASS_SHUFFLE(pctx.mode) && pctx.bgpause)) {
-    preload_barrier(MPI_COMM_WORLD);
+    PRELOAD_Barrier(MPI_COMM_WORLD);
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();

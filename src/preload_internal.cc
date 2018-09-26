@@ -62,10 +62,8 @@ struct barrier_state {
 };
 }  // namespace
 
-void preload_barrier(MPI_Comm comm) {
+void PRELOAD_Barrier(MPI_Comm comm) {
   char msg[100];
-  MPI_Request req;
-  MPI_Status status;
   struct barrier_state start;
   struct barrier_state min;
   double dura;
@@ -76,11 +74,18 @@ void preload_barrier(MPI_Comm comm) {
   }
   start.time = MPI_Wtime();
   start.rank = pctx.my_rank;
-  MPI_Iallreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC, comm, &req);
-  while (!ok) {
-    usleep(50 * 1000);
-    MPI_Test(&req, &ok, &status);
+  if (pctx.mpi_wait >= 0) {
+    MPI_Status status;
+    MPI_Request req;
+    MPI_Iallreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC, comm, &req);
+    while (!ok) {
+      usleep(pctx.mpi_wait * 1000);
+      MPI_Test(&req, &ok, &status);
+    }
+  } else {
+    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC, comm);
   }
+
   if (pctx.my_rank == 0) {
     dura = MPI_Wtime() - min.time;
 #ifdef PRELOAD_BARRIER_VERBOSE
