@@ -64,8 +64,6 @@ uint64_t timeval_to_micros(const struct timeval* tv);
 /* return the memory size (KB) of the calling process */
 long my_maxrss();
 
-/* log message into a given file using unbuffered io. */
-void LOG(int fd, int e, const char* fmt, ...);
 void SAY(int err, const char* prefix, const char* msg);
 
 /*
@@ -73,18 +71,15 @@ void SAY(int err, const char* prefix, const char* msg);
  */
 #define ABORT_FILENAME \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
-#define ABORT(msg) msg_abort(msg, __func__, ABORT_FILENAME, __LINE__)
-#define LOG_SINK fileno(stderr)
+#define ABORT(msg) msg_abort(errno, msg, __func__, ABORT_FILENAME, __LINE__)
 
 #define ERRR(msg) SAY(errno, "!!! ERROR !!!", msg)
 #define WARN(msg) SAY(0, "-- WARNING --", msg)
 #define INFO(msg) SAY(0, "-INFO-", msg)
 
-inline void msg_abort(const char* msg, const char* func, const char* file,
-                      int line) {
-  LOG(LOG_SINK, errno, "*** ABORT *** (%s:%d) %s()] %s", file, line, func, msg);
-  abort();
-}
+/* abort with an error message */
+void msg_abort(int err, const char* msg, const char* func, const char* file,
+               int line);
 
 inline const char* maybe_getenv(const char* key) {
   const char* env;

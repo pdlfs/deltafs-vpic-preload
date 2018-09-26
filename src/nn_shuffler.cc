@@ -183,12 +183,12 @@ static hg_return_t nn_progress_rusage(hg_context_t* context, int timeout) {
 namespace {
 /* rpc_explain_timeout: print rpc stats before we abort */
 void rpc_explain_timeout() {
-  LOG(LOG_SINK, 0,
-      "!! [%s] (rank %d) shuffler %d (%s) is about to timeout: "
-      "rpc out %d (%d replied), rpc in %d",
-      nnctx.my_uname.nodename, pctx.my_rank, mssg_get_rank(nnctx.mssg),
-      mssg_get_addr_str(nnctx.mssg, mssg_get_rank(nnctx.mssg)),
-      int(pctx.mctx.nms), int(pctx.mctx.nmd), int(pctx.mctx.nmr));
+  fprintf(stderr,
+          "!! [%s] (rank %d) shuffler %d (%s) is about to timeout: "
+          "rpc out %d (%d replied), rpc in %d",
+          nnctx.my_uname.nodename, pctx.my_rank, mssg_get_rank(nnctx.mssg),
+          mssg_get_addr_str(nnctx.mssg, mssg_get_rank(nnctx.mssg)),
+          int(pctx.mctx.nms), int(pctx.mctx.nmd), int(pctx.mctx.nmr));
 }
 }  // namespace
 
@@ -367,19 +367,19 @@ namespace {
  *   indicates the shuffle rank of my own, and hp is the shuffle
  *   rank calculated via hash placement. */
 void nn_shuffler_debug(int src, int dst, int me, int hp) {
-  LOG(LOG_SINK, 0,
-      "!! [%s] (rank %d) shuffler %d (%s) just "
-      "received a problematic write req\n"
-      "!! [%s] (rank %d) the req swears it comes from %d (%s), "
-      "and was heading to %d (%s)",
-      nnctx.my_uname.nodename, pctx.my_rank, me,
-      mssg_get_addr_str(nnctx.mssg, me), nnctx.my_uname.nodename, pctx.my_rank,
-      src, mssg_get_addr_str(nnctx.mssg, src), dst,
-      mssg_get_addr_str(nnctx.mssg, dst));
+  fprintf(stderr,
+          "!! [%s] (rank %d) shuffler %d (%s) just "
+          "received a problematic write req\n"
+          "!! [%s] (rank %d) the req swears it comes from %d (%s), "
+          "and was heading to %d (%s)",
+          nnctx.my_uname.nodename, pctx.my_rank, me,
+          mssg_get_addr_str(nnctx.mssg, me), nnctx.my_uname.nodename,
+          pctx.my_rank, src, mssg_get_addr_str(nnctx.mssg, src), dst,
+          mssg_get_addr_str(nnctx.mssg, dst));
   if (hp != -1) {
-    LOG(LOG_SINK, 0, "!! [%s] (rank %d) we think the req should goto %d (%s)",
-        nnctx.my_uname.nodename, pctx.my_rank, hp,
-        mssg_get_addr_str(nnctx.mssg, hp));
+    fprintf(stderr, "!! [%s] (rank %d) we think the req should goto %d (%s)",
+            nnctx.my_uname.nodename, pctx.my_rank, hp,
+            mssg_get_addr_str(nnctx.mssg, hp));
   }
 }
 }  // namespace
@@ -1064,10 +1064,10 @@ static void* bg_work(void* foo) {
         intvl = now - last_progress;
         hstg_add(nnctx.hg_intvl, intvl);
         if (intvl > nnctx.hg_max_interval) {
-          LOG(LOG_SINK, 0,
-              "!! [%s] (rank %d) calling HG_Progress() with high interval: %d "
-              "ms",
-              nnctx.my_uname.nodename, pctx.my_rank, int(intvl));
+          fprintf(stderr,
+                  "!! [%s] (rank %d) calling HG_Progress() with high interval: "
+                  "%d ms",
+                  nnctx.my_uname.nodename, pctx.my_rank, int(intvl));
         }
       }
       last_progress = now;

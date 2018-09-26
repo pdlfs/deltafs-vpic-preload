@@ -70,7 +70,7 @@ inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
                    "*** FATAL *** (%s:%d) %s()] "
                    "%s: %s(hg_err=%d)\n",
                    file, line, func, msg, err, int(ret));
-  n = write(LOG_SINK, tmp, n);
+  n = write(fileno(stderr), tmp, n);
   abort();
 }
 
