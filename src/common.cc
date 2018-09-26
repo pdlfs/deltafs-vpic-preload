@@ -505,13 +505,18 @@ void maybe_warn_numa() {
   errno = 0;
 }
 
-std::string get_meminfo() {
+void print_meminfo() {
   char fp[100];
 
   snprintf(fp, sizeof(fp), "/proc/%d/statm", getpid());
   std::string info = readline(fp);
 
-  return info;
+  fprintf(stderr,
+          "[MEMINFO] %s Pages\n      (VM_size rss sha txt lib dat dt)\n   "
+          "RUSAGE[maxrss]=%ld KiB\n",
+          info.c_str(), my_maxrss());
+
+  errno = 0;
 }
 
 long my_maxrss() {
@@ -539,7 +544,7 @@ int my_cpu_cores() {
   return ncpus;
 }
 
-void say(int err, const char *prefix, const char *msg) {
+void say(int err, const char* prefix, const char* msg) {
   fprintf(stderr, "%s %s", prefix, msg);
   if (err != 0) fprintf(stderr, ": %s (errno=%d)", strerror(err), err);
   fprintf(stderr, "\n");

@@ -754,7 +754,7 @@ int MPI_Init(int* argc, char*** argv) {
   const char* cwd;
   time_t now;
   char buf[50];   // ctime_r
-  char msg[300];  // snprintf
+  char msg[200];  // snprintf
   char dirpath[PATH_MAX];
   char path[PATH_MAX];
   std::string conf;
@@ -1002,22 +1002,15 @@ int MPI_Init(int* argc, char*** argv) {
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (rank == 0) {
-        snprintf(
-            msg, sizeof(msg),
-            "shuffle starting ... (rank 0)\n   /proc/$$/statm (size rss sha "
-            "txt lib dat dt)\n   VM: %s pages\n   RUSAGE[maxrss]=%ld KiB",
-            get_meminfo().c_str(), my_maxrss());
-        INFO(msg);
+        INFO("shuffle starting ... (rank 0)");
+        print_meminfo();
       }
       shuffle_init(&pctx.sctx);
       /* ensures all peers have the shuffle ready */
       PRELOAD_Barrier(MPI_COMM_WORLD);
       if (rank == 0) {
-        snprintf(msg, sizeof(msg),
-                 "shuffle started (rank 0)\n   /proc/$$/statm (size rss sha "
-                 "txt lib dat dt)\n   VM: %s pages\n   RUSAGE[maxrss]=%ld KiB",
-                 get_meminfo().c_str(), my_maxrss());
-        INFO(msg);
+        INFO("shuffle started (rank 0)");
+        print_meminfo();
       }
       if (!shuffle_is_everyone_receiver(&pctx.sctx)) {
         /* rank 0 must be a receiver */
@@ -1296,7 +1289,7 @@ int MPI_Finalize(void) {
   char buf[MON_BUF_SIZE];
   char path[PATH_MAX];
   char suffix[100];
-  char msg[300];
+  char msg[200];
   /* total num of pthreads */
   int sum_pthreads;
   /* total num of barriers */
@@ -1349,11 +1342,9 @@ int MPI_Finalize(void) {
   if (rv) ABORT("pthread_once");
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "LIB finalizing ... (%d epochs)\n   /proc/$$/statm (size rss sha "
-             "txt lib dat dt)\n   VM: %s pages\n   RUSAGE[maxrss]=%ld KiB",
-             num_eps, get_meminfo().c_str(), my_maxrss());
+    snprintf(msg, sizeof(msg), "LIB finalizing ... (%d epochs)", num_eps);
     INFO(msg);
+    print_meminfo();
   }
 
   /* resuming background activities */
@@ -2013,7 +2004,7 @@ int mkdir(const char* dir, mode_t mode) {
  */
 DIR* opendir(const char* dir) {
   int ignored_exact;
-  char msg[300];
+  char msg[100];
   dir_stat_t tmp_stat;
   uint64_t epoch_start;
   uint64_t flush_start;
@@ -2039,11 +2030,9 @@ DIR* opendir(const char* dir) {
   }
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "epoch %d begins (rank 0)\n   /proc/$$/statm (size rss sha txt "
-             "lib dat dt)\n   VM: %s pages\n   RUSAGE[maxrss]=%ld KiB",
-             num_eps + 1, get_meminfo().c_str(), my_maxrss());
+    snprintf(msg, sizeof(msg), "epoch %d begins (rank 0)", num_eps + 1);
     INFO(msg);
+    print_meminfo();
   }
 
   /* resuming background activities */
@@ -2389,11 +2378,8 @@ int closedir(DIR* dirp) {
   }
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "epoch ends (rank 0)\n   /proc/$$/statm (size rss sha txt lib dat "
-             "dt)\n   VM: %s pages\n   RUSAGE[maxrss]=%ld KiB",
-             get_meminfo().c_str(), my_maxrss());
-    INFO(msg);
+    INFO("epoch ends (rank 0)");
+    print_meminfo();
   }
 
   return 0;

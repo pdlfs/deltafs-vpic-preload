@@ -45,9 +45,11 @@ void check_clockres();
 void check_sse42();
 void maybe_warn_rlimit(int myrank, int worldsz);
 void maybe_warn_numa();
+
 void try_scan_procfs();
 void try_scan_sysfs();
-std::string get_meminfo();
+
+void print_meminfo();
 
 /* get the number of cpu cores that we may use */
 int my_cpu_cores();
