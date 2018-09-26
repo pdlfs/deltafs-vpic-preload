@@ -1003,8 +1003,9 @@ int MPI_Init(int* argc, char*** argv) {
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (rank == 0) {
         snprintf(msg, sizeof(msg),
-                 "shuffle starting ... (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
-                 my_maxrss());
+                 "shuffle starting ... (rank 0)\n   VM: %s "
+                 "(sz,rss,sha,txt,lib,dat,dt) pages\n   RUSAGE[maxrss]=%ld KiB",
+                 get_meminfo().c_str(), my_maxrss());
         INFO(msg);
       }
       shuffle_init(&pctx.sctx);
@@ -1012,8 +1013,9 @@ int MPI_Init(int* argc, char*** argv) {
       PRELOAD_Barrier(MPI_COMM_WORLD);
       if (rank == 0) {
         snprintf(msg, sizeof(msg),
-                 "shuffle started (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
-                 my_maxrss());
+                 "shuffle started (rank 0)\n   VM: %s "
+                 "(sz,rss,sha,txt,lib,dat,dt) pages\n   RUSAGE[maxrss]=%ld KiB",
+                 get_meminfo().c_str(), my_maxrss());
         INFO(msg);
       }
       if (!shuffle_is_everyone_receiver(&pctx.sctx)) {
@@ -1347,8 +1349,9 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "LIB finalizing ... (%d epochs)\n   RUSAGE[maxrss]=%ld KiB",
-             num_eps, my_maxrss());
+             "LIB finalizing ... (%d epochs)\n   VM: %s "
+             "(sz,rss,sha,txt,lib,dat,dt) pages\n   RUSAGE[maxrss]=%ld KiB",
+             num_eps, get_meminfo().c_str(), my_maxrss());
     INFO(msg);
   }
 
@@ -2036,8 +2039,9 @@ DIR* opendir(const char* dir) {
 
   if (pctx.my_rank == 0) {
     snprintf(msg, sizeof(msg),
-             "epoch %d begins (rank 0)\n   RUSAGE[maxrss]=%ld KiB", num_eps + 1,
-             my_maxrss());
+             "epoch %d begins (rank 0)\n   VM: %s (sz,rss,sha,txt,lib,dat,dt) "
+             "pages\n   RUSAGE[maxrss]=%ld KiB",
+             num_eps + 1, get_meminfo().c_str(), my_maxrss());
     INFO(msg);
   }
 
@@ -2384,8 +2388,10 @@ int closedir(DIR* dirp) {
   }
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "epoch ends (rank 0)\n   RUSAGE[maxrss]=%ld KiB",
-             my_maxrss());
+    snprintf(msg, sizeof(msg),
+             "epoch ends (rank 0)\n   VM: %s (sz,rss,sha,txt,lib,dat,dt) "
+             "pages\n   RUSAGE[maxrss]=%ld KiB",
+             get_meminfo().c_str(), my_maxrss());
     INFO(msg);
   }
 
