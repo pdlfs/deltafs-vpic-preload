@@ -64,7 +64,7 @@ uint64_t timeval_to_micros(const struct timeval* tv);
 /* return the memory size (KB) of the calling process */
 long my_maxrss();
 
-void SAY(int err, const char* prefix, const char* msg);
+void say(int err, const char* prefix, const char* msg);
 
 /*
  * logging facilities and helpers
@@ -73,9 +73,9 @@ void SAY(int err, const char* prefix, const char* msg);
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define ABORT(msg) msg_abort(errno, msg, __func__, ABORT_FILENAME, __LINE__)
 
-#define ERRR(msg) SAY(errno, "!!! ERROR !!!", msg)
-#define WARN(msg) SAY(0, "-- WARNING --", msg)
-#define INFO(msg) SAY(0, "-INFO-", msg)
+#define ERRR(msg) say(errno, "!!! ERROR !!!", msg)
+#define WARN(msg) say(0, "-- WARNING --", msg)
+#define INFO(msg) say(0, "-INFO-", msg)
 
 /* abort with an error message */
 void msg_abort(int err, const char* msg, const char* func, const char* file,
