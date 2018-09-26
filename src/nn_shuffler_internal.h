@@ -64,13 +64,11 @@
  */
 inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
                        const char* file, int line) {
-  char tmp[500];
   const char* err = HG_Error_to_string(ret);
-  int n = snprintf(tmp, sizeof(tmp),
-                   "*** FATAL *** (%s:%d) %s()] "
-                   "%s: %s(hg_err=%d)\n",
-                   file, line, func, msg, err, int(ret));
-  n = write(fileno(stderr), tmp, n);
+  fprintf(stderr,
+          "*** FATAL *** (%s:%d) %s()] "
+          "%s: %s(hg_err=%d)\n",
+          file, line, func, msg, err, int(ret));
   abort();
 }
 
