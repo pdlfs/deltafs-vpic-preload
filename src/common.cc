@@ -401,7 +401,8 @@ void try_scan_procfs() {
   if (strcmp(os.c_str(), "?") == 0) {
     os = readline("/proc/version");
   }
-  snprintf(msg, sizeof(msg), "[os] %s", os.c_str());
+  snprintf(msg, sizeof(msg), "[os] %s (VM page: %d bytes)", os.c_str(),
+           getpagesize());
   INFO(msg);
 
   errno = 0;
