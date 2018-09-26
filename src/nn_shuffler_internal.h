@@ -62,13 +62,11 @@
 /*
  * rpc_failed: abort with a mercury rpc error
  */
-inline void rpc_failed(const char* msg, hg_return_t ret, const char* func,
+inline void rpc_failed(const char* msg, hg_return_t hret, const char* func,
                        const char* file, int line) {
-  const char* err = HG_Error_to_string(ret);
-  fprintf(stderr,
-          "*** FATAL *** (%s:%d) %s()] "
-          "%s: %s(hg_err=%d)\n",
-          file, line, func, msg, err, int(ret));
+  const char* hstr = HG_Error_to_string(hret);
+  fprintf(stderr, "*** RPC *** (%s:%d) %s()] %s: %s(hret=%d)\n", file, line,
+          func, msg, hstr, int(hret));
   abort();
 }
 
