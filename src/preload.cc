@@ -451,6 +451,62 @@ static int under_plfsdir(const char* path) {
   return 0;
 }
 
+namespace {
+/*
+ * fake_file is a replacement for FILE* that we use to accumulate all the
+ * VPIC particle data before sending it to the shuffle layer (on fclose).
+ *
+ * we assume only one thread is writing to the file at a time, so we
+ * do not put a mutex on it.
+ *
+ * we ignore out of memory errors.
+ */
+class fake_file {
+ private:
+  std::string path_; /* path of particle file (malloc'd c++) */
+  char data_[64];    /* enough for one VPIC particle */
+  char* dptr_;       /* ptr to next free space in data_ */
+  size_t resid_;     /* residual */
+
+ public:
+  fake_file() : dptr_(data_), resid_(sizeof(data_)) { path_.reserve(256); }
+
+  void reset(const char* path) {
+    path_.assign(path);
+    resid_ = sizeof(data_);
+    dptr_ = data_;
+  }
+
+  explicit fake_file(const char* path)
+      : path_(path), dptr_(data_), resid_(sizeof(data_)){};
+
+  /* returns the actual number of bytes added. */
+  size_t add_data(const void* toadd, size_t len) {
+    int n = (len > resid_) ? resid_ : len;
+    if (n) {
+      memcpy(dptr_, toadd, n);
+      dptr_ += n;
+      resid_ -= n;
+    }
+    return n;
+  }
+
+  /* get data length */
+  size_t size() { return sizeof(data_) - resid_; }
+
+  /* recover filename. */
+  const char* file_name() { return path_.c_str(); }
+
+  /* get data */
+  char* data() { return data_; }
+};
+
+/* avoids repeated malloc if vpic only opens one file a time */
+fake_file the_stock_file;
+fake_file* stock_file = &the_stock_file;
+
+}  // namespace
+
 /*
  * claim_FILE: look at FILE* and see if we claim it
  */
@@ -459,9 +515,16 @@ static int claim_FILE(FILE* stream) {
   int rv;
 
   pthread_mtx_lock(&preload_mtx);
-  assert(pctx.isdeltafs != NULL);
-  it = pctx.isdeltafs->find(stream);
-  rv = int(it != pctx.isdeltafs->end());
+
+  if (stream != reinterpret_cast<FILE*>(&the_stock_file)) {
+    assert(pctx.isdeltafs != NULL);
+    it = pctx.isdeltafs->find(stream);
+    rv = (it != pctx.isdeltafs->end());
+
+  } else {
+    rv = 1;
+  }
+
   pthread_mtx_unlock(&preload_mtx);
 
   return rv;
@@ -682,62 +745,6 @@ static std::string& pretty_plfsdir_conf(std::string& conf) {
   conf += "\n)";
   return conf;
 }
-
-namespace {
-/*
- * fake_file is a replacement for FILE* that we use to accumulate all the
- * VPIC particle data before sending it to the shuffle layer (on fclose).
- *
- * we assume only one thread is writing to the file at a time, so we
- * do not put a mutex on it.
- *
- * we ignore out of memory errors.
- */
-class fake_file {
- private:
-  std::string path_; /* path of particle file (malloc'd c++) */
-  char data_[64];    /* enough for one VPIC particle */
-  char* dptr_;       /* ptr to next free space in data_ */
-  size_t resid_;     /* residual */
-
- public:
-  fake_file() : dptr_(data_), resid_(sizeof(data_)) { path_.reserve(256); }
-
-  void reset(const char* path) {
-    path_.assign(path);
-    resid_ = sizeof(data_);
-    dptr_ = data_;
-  }
-
-  explicit fake_file(const char* path)
-      : path_(path), dptr_(data_), resid_(sizeof(data_)){};
-
-  /* returns the actual number of bytes added. */
-  size_t add_data(const void* toadd, size_t len) {
-    int n = (len > resid_) ? resid_ : len;
-    if (n) {
-      memcpy(dptr_, toadd, n);
-      dptr_ += n;
-      resid_ -= n;
-    }
-    return n;
-  }
-
-  /* get data length */
-  size_t size() { return sizeof(data_) - resid_; }
-
-  /* recover filename. */
-  const char* file_name() { return path_.c_str(); }
-
-  /* get data */
-  char* data() { return data_; }
-};
-
-/* avoids repeated malloc if vpic only opens one file a time */
-static fake_file vpic_file_buffer;
-static fake_file* vpic_file = &vpic_file_buffer;
-
-}  // namespace
 
 /*
  * here are the actual override functions from libc...
@@ -2425,19 +2432,18 @@ FILE* fopen(const char* fpath, const char* mode) {
   pctx.mctx.min_nw++;
   pctx.mctx.max_nw++;
   pctx.mctx.nw++;
-  /* allocate a fake FILE* and put it in the set */
-  fake_file* ff = NULL;
-  if (vpic_file != &vpic_file_buffer) {
-    ff = new fake_file(stripped);
-    WARN("vpic is opening multiple particle files simultaneously");
+  if (stock_file == NULL) {
+    rv = reinterpret_cast<FILE*>(new fake_file(stripped));
+    WARN("VPIS IS OPENING MULTIPLE PLFSDIR FILES SIMULTANEOUSLY!");
+    assert(pctx.isdeltafs != NULL);
+    pctx.isdeltafs->insert(rv);
   } else {
-    ff = vpic_file;
-    ff->reset(stripped);
-    vpic_file = NULL;
+    assert(stock_file == &the_stock_file);
+    stock_file->reset(stripped);
+    rv = reinterpret_cast<FILE*>(stock_file);
+    stock_file = NULL;
   }
-  rv = reinterpret_cast<FILE*>(ff);
-  assert(pctx.isdeltafs != NULL);
-  pctx.isdeltafs->insert(rv);
+
   pthread_mtx_unlock(&preload_mtx);
 
   return rv;
@@ -2571,13 +2577,15 @@ int fclose(FILE* stream) {
   }
 
   pthread_mtx_lock(&preload_mtx);
-  assert(pctx.isdeltafs != NULL);
-  pctx.isdeltafs->erase(stream);
-  if (ff == &vpic_file_buffer) {
-    vpic_file = &vpic_file_buffer;
+
+  if (ff == &the_stock_file) {
+    stock_file = &the_stock_file; /* to be reused*/
   } else {
+    assert(pctx.isdeltafs != NULL);
+    pctx.isdeltafs->erase(stream);
     delete ff;
   }
+
   pthread_mtx_unlock(&preload_mtx);
 
   return rv;
