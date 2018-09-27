@@ -68,16 +68,19 @@ long my_maxrss();
 
 void say(int err, const char* prefix, const char* msg);
 
+#define LOG_ERRO 3
+#define LOG_WARN 2
+#define LOG_INFO 1
+
+int logf(int lvl, const char* fmt, ...);
+int loge(const char* op, const char* path);
+
 /*
  * logging facilities and helpers
  */
 #define ABORT_FILENAME \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define ABORT(msg) msg_abort(errno, msg, __func__, ABORT_FILENAME, __LINE__)
-
-#define ERRR(msg) say(errno, "!!! ERROR !!!", msg)
-#define WARN(msg) say(0, "-- WARNING --", msg)
-#define INFO(msg) say(0, "-INFO-", msg)
 
 /* abort with an error message */
 void msg_abort(int err, const char* msg, const char* func, const char* file,

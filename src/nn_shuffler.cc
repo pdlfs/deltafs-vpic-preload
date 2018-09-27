@@ -205,10 +205,6 @@ static void* rpc_work(void* arg) {
   hg_handle_t h;
   int s;
 
-#ifndef NDEBUG
-  char msg[100];
-#endif
-
   total_writes = total_bytes = 0;
   hstg_reset_min(nnctx.iq_dep);
   num_items = 0;
@@ -221,8 +217,7 @@ static void* rpc_work(void* arg) {
   todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc worker up (rank %d)", pctx.my_rank);
-    INFO(msg);
+    logf(LOG_INFO, "[bg] rpc worker up (rank %d)", pctx.my_rank);
   }
 #endif
 
@@ -265,9 +260,8 @@ static void* rpc_work(void* arg) {
     } else if (s < 0) {
 #ifndef NDEBUG
       if (pctx.verr || pctx.my_rank == 0) {
-        snprintf(msg, sizeof(msg), "[bg] rpc worker will pause ... (rank %d)",
-                 pctx.my_rank);
-        INFO(msg);
+        logf(LOG_INFO, "[bg] rpc worker will pause ... (rank %d)",
+             pctx.my_rank);
       }
 #endif
       pthread_mtx_lock(&mtx[bg_cv]);
@@ -277,9 +271,7 @@ static void* rpc_work(void* arg) {
       pthread_mtx_unlock(&mtx[bg_cv]);
 #ifndef NDEBUG
       if (pctx.verr || pctx.my_rank == 0) {
-        snprintf(msg, sizeof(msg), "[bg] rpc worker resumed (rank %d)",
-                 pctx.my_rank);
-        INFO(msg);
+        logf(LOG_INFO, "[bg] rpc worker resumed (rank %d)", pctx.my_rank);
       }
 #endif
     } else {
@@ -302,8 +294,7 @@ static void* rpc_work(void* arg) {
   nnctx.total_msgsz = total_bytes;
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc worker down (rank %d)", pctx.my_rank);
-    INFO(msg);
+    logf(LOG_INFO, "[bg] rpc worker down (rank %d)", pctx.my_rank);
   }
 #endif
 
@@ -1025,13 +1016,8 @@ static void* bg_work(void* foo) {
   int s;
 
 #ifndef NDEBUG
-  char msg[100];
-#endif
-
-#ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc looper up (rank %d)", pctx.my_rank);
-    INFO(msg);
+    logf(LOG_INFO, "[bg] rpc looper up (rank %d)", pctx.my_rank);
   }
 #endif
 
@@ -1085,9 +1071,8 @@ static void* bg_work(void* foo) {
     } else if (s < 0) {
 #ifndef NDEBUG
       if (pctx.verr || pctx.my_rank == 0) {
-        snprintf(msg, sizeof(msg), "[bg] rpc looper will pause ... (rank %d)",
-                 pctx.my_rank);
-        INFO(msg);
+        logf(LOG_INFO, "[bg] rpc looper will pause ... (rank %d)",
+             pctx.my_rank);
       }
 #endif
       pthread_mtx_lock(&mtx[bg_cv]);
@@ -1097,9 +1082,7 @@ static void* bg_work(void* foo) {
       pthread_mtx_unlock(&mtx[bg_cv]);
 #ifndef NDEBUG
       if (pctx.verr || pctx.my_rank == 0) {
-        snprintf(msg, sizeof(msg), "[bg] rpc looper resumed (rank %d)",
-                 pctx.my_rank);
-        INFO(msg);
+        logf(LOG_INFO, "[bg] rpc looper resumed (rank %d)", pctx.my_rank);
       }
 #endif
       last_progress = 0;
@@ -1121,8 +1104,7 @@ static void* bg_work(void* foo) {
 
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[bg] rpc looper down (rank %d)", pctx.my_rank);
-    INFO(msg);
+    logf(LOG_INFO, "[bg] rpc looper down (rank %d)", pctx.my_rank);
   }
 #endif
 
@@ -1282,24 +1264,23 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   if (nnctx.random_flush) {
     nn_vector_random_shuffle(mssg_get_rank(nnctx.mssg), &rpcq_order);
     if (pctx.my_rank == 0) {
-      INFO("rpc queues are flushed out-of-order");
+      logf(LOG_INFO, "rpc queues are flushed out-of-order");
     }
     if (nnctx.paranoid_checks && nrpcqs >= 4) {
       for (i = 0; i < 4; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         if (pctx.my_rank == i) {
-          snprintf(msg, sizeof(msg),
-                   "rpc queues at rank %d will go from %d, %d, %d, ..., to %d",
-                   pctx.my_rank, rpcq_order[0], rpcq_order[1], rpcq_order[2],
-                   rpcq_order[nrpcqs - 1]);
-          INFO(msg);
+          logf(LOG_INFO,
+               "rpc queues at rank %d will go from %d, %d, %d, ..., to %d",
+               pctx.my_rank, rpcq_order[0], rpcq_order[1], rpcq_order[2],
+               rpcq_order[nrpcqs - 1]);
         }
       }
       MPI_Barrier(MPI_COMM_WORLD);
     }
   } else {
     if (pctx.my_rank == 0) {
-      INFO("rpc queues are flushed in-order");
+      logf(LOG_INFO, "rpc queues are flushed in-order");
     }
   }
 
@@ -1310,10 +1291,13 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
     max_rpcq_sz = atoi(env);
     if (max_rpcq_sz > MAX_RPC_MESSAGE) {
       if (pctx.my_rank == 0)
-        WARN("RPC BUFFER SIZE TOO LARGE - A SMALLER ONE IS USED INSTEAD");
+        logf(LOG_WARN,
+             "RPC BUFFER SIZE TOO LARGE - A SMALLER ONE IS USED INSTEAD");
       max_rpcq_sz = MAX_RPC_MESSAGE;
     } else if (max_rpcq_sz < 128) {
-      if (pctx.my_rank == 0) WARN("RPC BUFFER SIZE TOO SMALL");
+      if (pctx.my_rank == 0) {
+        logf(LOG_WARN, "RPC BUFFER SIZE TOO SMALL");
+      }
       max_rpcq_sz = 128;
     }
   }
@@ -1333,10 +1317,9 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
     rpcqs[i].sz = 0;
   }
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "rpc buffer: %s x %s (%s total)",
-             pretty_num(nbufs).c_str(), pretty_size(max_rpcq_sz).c_str(),
-             pretty_size(nbufs * max_rpcq_sz).c_str());
-    INFO(msg);
+    logf(LOG_INFO, "rpc buffer: %s x %s (%s total)", pretty_num(nbufs).c_str(),
+         pretty_size(max_rpcq_sz).c_str(),
+         pretty_size(nbufs * max_rpcq_sz).c_str());
   }
 
   for (i = 0; i < 5; i++) {
@@ -1359,36 +1342,36 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
     if (rv) ABORT("pthread_create");
     pthread_detach(pid);
   } else if (pctx.my_rank == 0) {
-    WARN("rpc worker disabled\n>>> some rpc stats collection not available");
+    logf(LOG_WARN,
+         "rpc worker disabled\n>>> some rpc stats collection not available");
   }
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "HG_Progress() timeout: %d ms, warn interval: %d ms, "
-             "fatal rpc timeout: %d s, max error: %d\n>>> "
-             "cache hg_handle_t: %s, hash signature: %s\n>>> "
-             "bg nice: %d",
-             nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
-             nnctx.hg_errors, nnctx.cache_hlds ? "YES" : "NO",
-             nnctx.hash_sig ? "YES" : "NO", nnctx.hg_nice);
-    INFO(msg);
+    logf(LOG_INFO,
+         "HG_Progress() timeout: %d ms, warn interval: %d ms, "
+         "fatal rpc timeout: %d s, max error: %d\n>>> "
+         "cache hg_handle_t: %s, hash signature: %s\n>>> "
+         "bg nice: %d",
+         nnctx.hg_timeout, nnctx.hg_max_interval, nnctx.timeout,
+         nnctx.hg_errors, nnctx.cache_hlds ? "YES" : "NO",
+         nnctx.hash_sig ? "YES" : "NO", nnctx.hg_nice);
     if (nnctx.paranoid_checks) {
-      WARN(
+      logf(
+          LOG_WARN,
           "shuffle paranoid checks enabled: benchmarks unnecessarily slow\n>>> "
           "rerun with \"export SHUFFLE_Paranoid_checks=0\" to disable");
     }
     if (!nnctx.force_sync) {
       isz = HG_Class_get_input_eager_size(nnctx.hg_clz);
       osz = HG_Class_get_output_eager_size(nnctx.hg_clz);
-      snprintf(msg, sizeof(msg),
-               "HG_input_eager_size: %s, HG_output_eager_size: %s\n>>> "
-               "num outstanding rpcs: %d",
-               pretty_size(isz).c_str(), /* server-side rpc input buf */
-               pretty_size(osz).c_str(), /* rpc output buf */
-               cb_left);
-      INFO(msg);
+      logf(LOG_INFO,
+           "HG_input_eager_size: %s, HG_output_eager_size: %s\n>>> "
+           "num outstanding rpcs: %d",
+           pretty_size(isz).c_str(), /* server-side rpc input buf */
+           pretty_size(osz).c_str(), /* rpc output buf */
+           cb_left);
     } else {
-      WARN("async rpc disabled");
+      logf(LOG_WARN, "async rpc disabled");
     }
   }
 

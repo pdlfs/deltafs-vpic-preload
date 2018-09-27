@@ -134,7 +134,6 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   int rsenderlimit;
   const char* logfile;
   const char* env;
-  char msg[5000];
   char uri[100];
   int n;
 
@@ -266,25 +265,24 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
-    n = snprintf(
-        msg, sizeof(msg),
-        "3-HOP confs: senderlimit(l/r)=%d/%d, maxrpc(lo/lr/r)=%d/%d/%d, "
-        "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
-        lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
-        lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
+    logf(LOG_INFO,
+         "3-HOP confs: sndlim(l/r)=%d/%d, maxrpc(lo/lr/r)=%d/%d/%d, "
+         "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
+         lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
+         lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
     if (logfile != NULL && logfile[0] != 0) {
-      snprintf(msg + n, sizeof(msg) - n,
-               "\n>>> LOGGING is ON, will log to ..."
-               "\n -----------> %s.[0-%d]",
-               logfile, pctx.comm_sz);
+      fputs(">>> LOGGING is ON, will log to ...\n", stderr);
+      fputs("----------->", stderr);
+      fputs(logfile, stderr);
+
+      fprintf(stderr, ".[0-%d]\n", pctx.comm_sz);
     }
-    INFO(msg);
   }
 
   if (is_envset("SHUFFLE_Force_global_barrier")) {
     ctx->force_global_barrier = 1;
     if (pctx.my_rank == 0) {
-      WARN("force global barriers");
+      logf(LOG_INFO, "force global barriers");
     }
   }
 }

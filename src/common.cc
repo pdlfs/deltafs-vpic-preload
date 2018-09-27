@@ -91,21 +91,18 @@ uint64_t now_micros_coarse() {
 }
 
 void check_clockres() {
-  char msg[100];
   int n;
 #if defined(__linux) && defined(PRELOAD_USE_CLOCK_GETTIME)
   struct timespec res;
   n = clock_getres(CLOCK_MONOTONIC_COARSE, &res);
   if (n == 0) {
-    snprintf(msg, sizeof(msg), "[clock] CLOCK_MONOTONIC_COARSE: %d us",
-             int(res.tv_sec * 1000 * 1000 + res.tv_nsec / 1000));
-    INFO(msg);
+    logf(LOG_INFO, "[clock] CLOCK_MONOTONIC_COARSE: %d us",
+         int(res.tv_sec * 1000 * 1000 + res.tv_nsec / 1000));
   }
   n = clock_getres(CLOCK_MONOTONIC, &res);
   if (n == 0) {
-    snprintf(msg, sizeof(msg), "[clock] CLOCK_MONOTONIC: %d ns",
-             int(res.tv_sec * 1000 * 1000 * 1000 + res.tv_nsec));
-    INFO(msg);
+    logf(LOG_INFO, "[clock] CLOCK_MONOTONIC: %d ns",
+         int(res.tv_sec * 1000 * 1000 * 1000 + res.tv_nsec));
   }
 #endif
 }
@@ -126,22 +123,18 @@ void check_clockres() {
   } while (0)
 
 void check_sse42() {
-  char msg[100];
   int sse42;
-  int n;
   CHECK_SSE42(sse42);
   if (sse42) {
-    n = snprintf(msg, sizeof(msg), "[sse] SSE V4.2 extension is available");
+    logf(LOG_INFO, "[sse] SSE4_2 extension is available");
 #if defined(__GUNC__) && defined(__SSE4_2__)
-    snprintf(msg + n, sizeof(msg) - n, "\n>>> __SSE4_2__ is %d", __SSE4_2__);
+    fputs(">>> __SSE4_2__ is defined\n", stderr);
 #else
-    snprintf(msg + n, sizeof(msg) - n, "\n>>> yet __SSE4_2__ is not defined");
+    fputs(">>> __SSE4_2__ is not defined\n", stderr);
 #endif
   } else {
-    snprintf(msg, sizeof(msg), "[sse] SSE V4.2 is not available");
+    logf(LOG_INFO, "[sse] SSE4_2 is not available");
   }
-
-  INFO(msg);
 }
 
 /* read a line from file */
@@ -203,7 +196,6 @@ void try_scan_sysfs() {
   struct dirent* dent;
   struct dirent* ddent;
   const char* dirname;
-  char msg[600];
   char path[PATH_MAX];
   std::string jobcpuset;
   std::string jobmemset;
@@ -219,11 +211,8 @@ void try_scan_sysfs() {
   int ncpus;
   int n;
 
-  if (access("/sys", R_OK) != 0) {
-    /* give up */
-    errno = 0;
+  if (access("/sys", R_OK) != 0) /* give up */
     return;
-  }
 
   ncpus = 0;
   dirname = "/sys/devices/system/cpu";
@@ -263,11 +252,10 @@ void try_scan_sysfs() {
     closedir(d);
   }
 
-  snprintf(msg, sizeof(msg),
-           "[sys] %d NUMA nodes / %d CPU cores (L1: %s + %s, L2: %s, L3: %s)",
-           nnodes, ncpus, idx[0].c_str(), idx[1].c_str(), idx[2].c_str(),
-           idx[3].c_str());
-  INFO(msg);
+  logf(LOG_INFO,
+       "[sys] %d NUMA nodes / %d CPU cores (L1: %s + %s, L2: %s, L3: %s)",
+       nnodes, ncpus, idx[0].c_str(), idx[1].c_str(), idx[2].c_str(),
+       idx[3].c_str());
 
   nnics = 0;
   dirname = "/sys/class/net";
@@ -301,12 +289,10 @@ void try_scan_sysfs() {
           closedir(dd);
         }
         nnics++;
-        snprintf(msg, sizeof(msg),
-                 "[if] speed %5s Mbps, tx_queue_len "
-                 "%5s, mtu %5s, rx-irq: %3d, tx-irq: %3d (%s)",
-                 speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx,
-                 nic.c_str());
-        INFO(msg);
+        logf(LOG_INFO,
+             "[if] speed %5s Mbps, tx_queue_len "
+             "%5s, mtu %5s, rx-irq: %3d, tx-irq: %3d (%s)",
+             speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx, nic.c_str());
       }
     }
     closedir(d);
@@ -330,11 +316,10 @@ void try_scan_sysfs() {
               snprintf(path, sizeof(path), "%s/%s/%s/mems", dirname,
                        dent->d_name, ddent->d_name);
               jobmemset = readline(path);
-              snprintf(msg, sizeof(msg),
-                       "[slurm] job cgroup cpuset: %s, memset: %s\n>>> %s/%s",
-                       jobcpuset.c_str(), jobmemset.c_str(), dent->d_name,
-                       ddent->d_name);
-              INFO(msg);
+              logf(LOG_INFO,
+                   "[slurm] job cgroup cpuset: %s, memset: %s\n>>> %s/%s",
+                   jobcpuset.c_str(), jobmemset.c_str(), dent->d_name,
+                   ddent->d_name);
               break;
             }
           }
@@ -353,22 +338,18 @@ void try_scan_sysfs() {
  * try_scan_procfs(): scan procfs for important device information.
  */
 void try_scan_procfs() {
+  char line[500];
   int num_cpus;
   std::string cpu_type;
   std::string L1_cache_size;
-  char msg[200];
-  char line[1000];
   const char* sep;
   std::string value;
   std::string key;
   std::string os;
   FILE* cpuinfo;
 
-  if (access("/proc", R_OK) != 0) {
-    /* give up */
-    errno = 0;
+  if (access("/proc", R_OK) != 0) /* give up */
     return;
-  }
 
   cpuinfo = fopen("/proc/cpuinfo", "r");
   if (cpuinfo != NULL) {
@@ -391,9 +372,8 @@ void try_scan_procfs() {
     }
     fclose(cpuinfo);
     if (num_cpus != 0) {
-      snprintf(msg, sizeof(msg), "[cpu] %d x %s (L2/L3 cache: %s)", num_cpus,
-               cpu_type.c_str(), L1_cache_size.c_str());
-      INFO(msg);
+      logf(LOG_INFO, "[cpu] %d x %s (L2/L3 cache: %s)", num_cpus,
+           cpu_type.c_str(), L1_cache_size.c_str());
     }
   }
 
@@ -401,9 +381,8 @@ void try_scan_procfs() {
   if (strcmp(os.c_str(), "?") == 0) {
     os = readline("/proc/version");
   }
-  snprintf(msg, sizeof(msg), "[os] %s (VM page: %d bytes)", os.c_str(),
-           getpagesize());
-  INFO(msg);
+
+  logf(LOG_INFO, "[os] %s (VM page: %d bytes)", os.c_str(), getpagesize());
 
   errno = 0;
 }
@@ -415,7 +394,6 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
   long long oknofile;
   long long softmemlock;
   long long hardmemlock;
-  char msg[200];
   int n;
 
   n = getrlimit(RLIMIT_NOFILE, &rl);
@@ -429,15 +407,10 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
       hardnofile = rl.rlim_max;
     else
       hardnofile = -1;
-    snprintf(msg, sizeof(msg),
-             "[ulimit] max open files per process: "
-             "%lld soft, %lld hard, %lld suggested",
-             softnofile, hardnofile, oknofile);
-    if (softnofile < oknofile) {
-      WARN(msg);
-    } else {
-      INFO(msg);
-    }
+    logf(LOG_INFO,
+         "[ulimit] max open files per process: %lld soft, %lld hard, %lld "
+         "suggested",
+         softnofile, hardnofile, oknofile);
   }
 
   n = getrlimit(RLIMIT_MEMLOCK, &rl);
@@ -450,11 +423,8 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
       hardmemlock = rl.rlim_max;
     else
       hardmemlock = -1;
-    snprintf(msg, sizeof(msg),
-             "[ulimit] max memlock size: "
-             "%lld soft, %lld hard",
-             softmemlock, hardmemlock);
-    INFO(msg);
+    logf(LOG_INFO, "[ulimit] max memlock size: %lld soft, %lld hard",
+         softmemlock, hardmemlock);
   }
 
   errno = 0;
@@ -462,7 +432,6 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
 
 void maybe_warn_numa() {
 #ifdef PRELOAD_HAS_NUMA
-  char msg[500];
   int os;
   int my;
   int r;
@@ -483,9 +452,9 @@ void maybe_warn_numa() {
     }
     numa_free_cpumask(bits);
   }
-  snprintf(msg, sizeof(msg), "[numa] cpu: %d/%d cores\n>>> %s", my, os,
-           cpu.c_str());
-  INFO(msg);
+  logf(LOG_INFO, "[numa] cpu: %d/%d cores:", my, os);
+  fputs(cpu.c_str(), stderr);
+  fputc('\n', stderr);
 
   os = numa_num_configured_nodes();
   my = numa_num_task_nodes();
@@ -497,9 +466,9 @@ void maybe_warn_numa() {
       mem[i] = 'x';
     }
   }
-  snprintf(msg, sizeof(msg), "[numa] mem: %d/%d nodes\n>>> %s", my, os,
-           mem.c_str());
-  INFO(msg);
+  logf(LOG_INFO, "[numa] mem: %d/%d nodes:", my, os);
+  fputs(mem.c_str(), stderr);
+  fputc('\n', stderr);
 
 #endif
   errno = 0;
@@ -544,10 +513,35 @@ int my_cpu_cores() {
   return ncpus;
 }
 
-void say(int err, const char* prefix, const char* msg) {
-  fprintf(stderr, "%s %s", prefix, msg);
-  if (err != 0) fprintf(stderr, ": %s (errno=%d)", strerror(err), err);
+int logf(int lvl, const char* fmt, ...) {
+  const char* prefix;
+  va_list ap;
+  switch (lvl) {
+    case 3:
+      prefix = "!!! ERROR !!! ";
+      break;
+    case 2:
+      prefix = "-WARNING- ";
+      break;
+    case 1:
+      prefix = "-INFO- ";
+      break;
+    default:
+      prefix = "";
+      break;
+  }
+  fprintf(stderr, "%s", prefix);
+
+  va_start(ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end(ap);
+
   fprintf(stderr, "\n");
+  return 0;
+}
+
+int loge(const char* op, const char* path) {
+  logf(LOG_ERRO, "!%s(%s): %s", strerror(errno), op, path);
 }
 
 void msg_abort(int err, const char* msg, const char* func, const char* file,

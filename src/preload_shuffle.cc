@@ -48,17 +48,13 @@
 
 namespace {
 const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
-  int min_port;
-  int max_port;
+  int min_port, max_port;
   const char* env;
-  char msg[100];
 
   assert(strstr(proto, "sm") != NULL);
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "using %s\n>>> may only be used in single-node tests!!!", proto);
-    WARN(msg);
+    logf(LOG_WARN, "'%s' ONLY WORKS FOR SINGLE-NODE TESTS", proto);
   }
 
   env = maybe_getenv("SHUFFLE_Min_port");
@@ -81,16 +77,14 @@ const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
   if (max_port > 65535) ABORT("bad max port");
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
-    INFO(msg);
+    logf(LOG_INFO, "using port range [%d,%d]", min_port, max_port);
   }
 
   /* finalize uri */
   sprintf(buf, "%s://%d:%d", proto, int(getpid()), min_port);
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);
-    INFO(msg);
+    logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
 
@@ -111,9 +105,8 @@ const char* shuffle_prepare_uri(char* buf) {
   int rank;
   int size;
   const char* subnet;
-  const char* proto;  // mercury proto
-  char msg[100];
-  char ip[50];  // ip
+  const char* proto;
+  char ip[50];
   int opt;
   int so;
   int rv;
@@ -123,16 +116,11 @@ const char* shuffle_prepare_uri(char* buf) {
   if (proto == NULL) {
     proto = DEFAULT_HG_PROTO;
   }
-  if (strstr(proto, "sm") != NULL) {
-    return shuffle_prepare_sm_uri(buf, proto);  // special handling for sm addrs
+  if (strstr(proto, "sm") != NULL) { /* special handling for sm addrs */
+    return shuffle_prepare_sm_uri(buf, proto);
   }
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using %s", proto);
-    if (strstr(proto, "tcp") != NULL) {
-      WARN(msg);
-    } else {
-      INFO(msg);
-    }
+    logf(LOG_INFO, "using %s", proto);
   }
 
   subnet = maybe_getenv("SHUFFLE_Subnet");
@@ -140,12 +128,7 @@ const char* shuffle_prepare_uri(char* buf) {
     subnet = DEFAULT_SUBNET;
   }
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using subnet %s*", subnet);
-    if (strcmp(subnet, "127.0.0.1") == 0) {
-      WARN(msg);
-    } else {
-      INFO(msg);
-    }
+    logf(LOG_INFO, "using subnet %s*", subnet);
   }
 
   /* settle down an ip addr to use */
@@ -167,9 +150,7 @@ const char* shuffle_prepare_uri(char* buf) {
         } else {
 #ifndef NDEBUG
           if (pctx.verr || pctx.my_rank == 0) {
-            snprintf(msg, sizeof(msg), "[ip] skip %s (rank %d)", ip,
-                     pctx.my_rank);
-            INFO(msg);
+            logf(LOG_INFO, "[ip] skip %s (rank %d)", ip, pctx.my_rank);
           }
 #endif
         }
@@ -204,8 +185,7 @@ const char* shuffle_prepare_uri(char* buf) {
   if (max_port > 65535) ABORT("bad max port");
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "using port range [%d,%d]", min_port, max_port);
-    INFO(msg);
+    logf(LOG_INFO, "using port range [%d,%d]", min_port, max_port);
   }
 
 #if MPI_VERSION >= 3
@@ -246,9 +226,9 @@ const char* shuffle_prepare_uri(char* buf) {
 
   if (port > max_port) {
     port = 0;
-    WARN(
-        "no free ports available within the specified range\n>>> "
-        "auto detecting ports ...");
+    logf(LOG_WARN,
+         "no free ports available within the specified range\n>>> "
+         "auto detecting ports ...");
     so = socket(PF_INET, SOCK_STREAM, 0);
     if (so != -1) {
       memset(&addr, 0, sizeof(addr));
@@ -281,8 +261,7 @@ const char* shuffle_prepare_uri(char* buf) {
   sprintf(buf, "%s://%s:%d", proto, ip, port);
 #ifndef NDEBUG
   if (pctx.verr || pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "[hg] using %s (rank %d)", buf, pctx.my_rank);
-    INFO(msg);
+    logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
 
@@ -477,7 +456,6 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
 }
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
-  char msg[200];
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
@@ -499,20 +477,18 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     MPI_Reduce(rpcs, max_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
                MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
-      snprintf(msg, sizeof(msg),
-               "[rpc] total sends: %s intra-node + %s inter-node = %s overall "
-               ".....\n"
-               " -> intra-node: %s per rank (min: %s, max: %s)\n"
-               " -> inter-node: %s per rank (min: %s, max: %s)\n"
-               " //",
-               pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
-               pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str(),
-               pretty_num(double(sum_rpcs[0]) / pctx.comm_sz).c_str(),
-               pretty_num(min_rpcs[0]).c_str(), pretty_num(max_rpcs[0]).c_str(),
-               pretty_num(double(sum_rpcs[1]) / pctx.comm_sz).c_str(),
-               pretty_num(min_rpcs[1]).c_str(),
-               pretty_num(max_rpcs[1]).c_str());
-      INFO(msg);
+      logf(LOG_INFO,
+           "[rpc] total sends: %s intra-node + %s inter-node = %s overall "
+           ".....\n"
+           " -> intra-node: %s per rank (min: %s, max: %s)\n"
+           " -> inter-node: %s per rank (min: %s, max: %s)\n"
+           " //",
+           pretty_num(sum_rpcs[0]).c_str(), pretty_num(sum_rpcs[1]).c_str(),
+           pretty_num(sum_rpcs[0] + sum_rpcs[1]).c_str(),
+           pretty_num(double(sum_rpcs[0]) / pctx.comm_sz).c_str(),
+           pretty_num(min_rpcs[0]).c_str(), pretty_num(max_rpcs[0]).c_str(),
+           pretty_num(double(sum_rpcs[1]) / pctx.comm_sz).c_str(),
+           pretty_num(min_rpcs[1]).c_str(), pretty_num(max_rpcs[1]).c_str());
     }
 #endif
     ctx->rep = NULL;
@@ -533,10 +509,9 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       sleep(ctx->finalize_pause);
     }
     if (pctx.my_rank == 0) {
-      INFO("[nn] per-thread cpu usage ... (s)");
-      snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
-               "USR_per_rank", "SYS_per_rank", "TOTAL_per_rank");
-      INFO(msg);
+      logf(LOG_INFO, "[nn] per-thread cpu usage ... (s)");
+      logf(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_rank",
+           "SYS_per_rank", "TOTAL_per_rank");
     }
     for (size_t i = 0; i < NUM_RUSAGE; i++) {
       if (nnctx.r[i].tag[0] != 0) {
@@ -545,22 +520,18 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage[i].sys_micros, 1,
                    MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
         if (pctx.my_rank == 0) {
-          snprintf(
-              msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
-              nnctx.r[i].tag,
-              double(total_rusage[i].usr_micros) / 1000000 / pctx.comm_sz,
-              double(total_rusage[i].sys_micros) / 1000000 / pctx.comm_sz,
-              double(total_rusage[i].usr_micros + total_rusage[i].sys_micros) /
-                  1000000 / pctx.comm_sz);
-          INFO(msg);
+          logf(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
+               double(total_rusage[i].usr_micros) / 1000000 / pctx.comm_sz,
+               double(total_rusage[i].sys_micros) / 1000000 / pctx.comm_sz,
+               double(total_rusage[i].usr_micros + total_rusage[i].sys_micros) /
+                   1000000 / pctx.comm_sz);
         }
       }
     }
     if (!shuffle_is_everyone_receiver(ctx)) {
       if (pctx.my_rank == 0) {
-        snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
-                 "USR_per_recv", "SYS_per_recv", "TOTAL_per_recv");
-        INFO(msg);
+        logf(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_recv",
+             "SYS_per_recv", "TOTAL_per_recv");
       }
       for (size_t i = 0; i < NUM_RUSAGE; i++) {
         if (nnctx.r[i].tag[0] != 0 && pctx.recv_comm != MPI_COMM_NULL) {
@@ -569,41 +540,37 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
           MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage_recv[i].sys_micros,
                      1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
           if (pctx.my_rank == 0) {
-            snprintf(msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
-                     nnctx.r[i].tag,
-                     double(total_rusage_recv[i].usr_micros) / 1000000 /
-                         pctx.recv_sz,
-                     double(total_rusage_recv[i].sys_micros) / 1000000 /
-                         pctx.recv_sz,
-                     double(total_rusage_recv[i].usr_micros +
-                            total_rusage_recv[i].sys_micros) /
-                         1000000 / pctx.recv_sz);
-            INFO(msg);
+            logf(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
+                 double(total_rusage_recv[i].usr_micros) / 1000000 /
+                     pctx.recv_sz,
+                 double(total_rusage_recv[i].sys_micros) / 1000000 /
+                     pctx.recv_sz,
+                 double(total_rusage_recv[i].usr_micros +
+                        total_rusage_recv[i].sys_micros) /
+                     1000000 / pctx.recv_sz);
           }
         }
       }
       if (pctx.my_rank == 0) {
-        snprintf(msg, sizeof(msg), "                %-16s%-16s%-16s",
-                 "USR_per_nonrecv", "SYS_per_nonrecv", "TOTAL_per_nonrecv");
-        INFO(msg);
+        logf(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_nonrecv",
+             "SYS_per_nonrecv", "TOTAL_per_nonrecv");
       }
       for (size_t i = 0; i < NUM_RUSAGE; i++) {
         if (nnctx.r[i].tag[0] != 0 && pctx.recv_comm != MPI_COMM_NULL) {
           if (pctx.my_rank == 0) {
-            snprintf(msg, sizeof(msg), "  %-8s CPU: %-16.3f%-16.3f%-16.3f",
-                     nnctx.r[i].tag,
-                     double(total_rusage[i].usr_micros -
-                            total_rusage_recv[i].usr_micros) /
-                         1000000 / (pctx.comm_sz - pctx.recv_sz),
-                     double(total_rusage[i].sys_micros -
-                            total_rusage_recv[i].sys_micros) /
-                         1000000 / (pctx.comm_sz - pctx.recv_sz),
-                     double(total_rusage[i].usr_micros -
-                            total_rusage_recv[i].usr_micros +
-                            total_rusage[i].sys_micros -
-                            total_rusage_recv[i].sys_micros) /
-                         1000000 / (pctx.comm_sz - pctx.recv_sz));
-            INFO(msg);
+            logf(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
+                 double(total_rusage[i].usr_micros -
+                        total_rusage_recv[i].usr_micros) /
+                     1000000 / (pctx.comm_sz - pctx.recv_sz),
+                 double(total_rusage[i].sys_micros -
+                        total_rusage_recv[i].sys_micros) /
+                     1000000 / (pctx.comm_sz - pctx.recv_sz),
+                 double(total_rusage[i].usr_micros -
+                        total_rusage_recv[i].usr_micros +
+                        total_rusage[i].sys_micros -
+                        total_rusage_recv[i].sys_micros) /
+                     1000000 / (pctx.comm_sz - pctx.recv_sz));
+            ;
           }
         }
       }
@@ -613,17 +580,13 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       hstg_reset_min(hg_intvl);
       hstg_reduce(nnctx.hg_intvl, hg_intvl, pctx.recv_comm);
       if (pctx.my_rank == 0 && hstg_num(hg_intvl) >= 1.0) {
-        INFO("[nn] hg_progress interval ... (ms)");
-        snprintf(msg, sizeof(msg),
-                 "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
-                 pretty_num(hstg_num(hg_intvl)).c_str(), hstg_avg(hg_intvl),
-                 hstg_min(hg_intvl), hstg_max(hg_intvl));
-        INFO(msg);
+        logf(LOG_INFO, "[nn] hg_progress interval ... (ms)");
+        logf(LOG_INFO, "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
+             pretty_num(hstg_num(hg_intvl)).c_str(), hstg_avg(hg_intvl),
+             hstg_min(hg_intvl), hstg_max(hg_intvl));
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          snprintf(msg, sizeof(msg), "    - %d%% %-12.2f %.4f%% %.2f", p[i],
-                   hstg_ptile(hg_intvl, p[i]), d[i],
-                   hstg_ptile(hg_intvl, d[i]));
-          INFO(msg);
+          logf(LOG_INFO, "    - %d%% %-12.2f %.4f%% %.2f", p[i],
+               hstg_ptile(hg_intvl, p[i]), d[i], hstg_ptile(hg_intvl, d[i]));
         }
       }
       memset(&iq_dep, 0, sizeof(hstg_t));
@@ -634,23 +597,18 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       MPI_Reduce(&nnctx.total_msgsz, &total_msgsz, 1, MPI_UNSIGNED_LONG_LONG,
                  MPI_SUM, 0, pctx.recv_comm);
       if (pctx.my_rank == 0 && hstg_num(iq_dep) >= 1.0) {
-        snprintf(
-            msg, sizeof(msg),
-            "[nn] avg rpc size: %s (%s writes per rpc, %s per write)",
-            pretty_size(double(total_msgsz) / hstg_sum(iq_dep)).c_str(),
-            pretty_num(double(total_writes) / hstg_sum(iq_dep)).c_str(),
-            pretty_size(double(total_msgsz) / double(total_writes)).c_str());
-        INFO(msg);
-        INFO("[nn] rpc incoming queue depth ...");
-        snprintf(msg, sizeof(msg),
-                 "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
-                 pretty_num(hstg_num(iq_dep)).c_str(), hstg_avg(iq_dep),
-                 hstg_min(iq_dep), hstg_max(iq_dep));
-        INFO(msg);
+        logf(LOG_INFO,
+             "[nn] avg rpc size: %s (%s writes per rpc, %s per write)",
+             pretty_size(double(total_msgsz) / hstg_sum(iq_dep)).c_str(),
+             pretty_num(double(total_writes) / hstg_sum(iq_dep)).c_str(),
+             pretty_size(double(total_msgsz) / double(total_writes)).c_str());
+        logf(LOG_INFO, "[nn] rpc incoming queue depth ...");
+        logf(LOG_INFO, "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
+             pretty_num(hstg_num(iq_dep)).c_str(), hstg_avg(iq_dep),
+             hstg_min(iq_dep), hstg_max(iq_dep));
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          snprintf(msg, sizeof(msg), "    - %d%% %-12.2f %.4f%% %.2f", p[i],
-                   hstg_ptile(iq_dep, p[i]), d[i], hstg_ptile(iq_dep, d[i]));
-          INFO(msg);
+          logf(LOG_INFO, "    - %d%% %-12.2f %.4f%% %.2f", p[i],
+               hstg_ptile(iq_dep, p[i]), d[i], hstg_ptile(iq_dep, d[i]));
         }
       }
     }
@@ -672,11 +630,10 @@ unsigned char TOUCHAR(int input) {
 }  // namespace
 
 void shuffle_init(shuffle_ctx_t* ctx) {
-  int vf;
-  int world_sz;
-  char msg[200];
   const char* proto;
   const char* env;
+  int world_sz;
+  int vf;
   int n;
 
   assert(ctx != NULL);
@@ -691,9 +648,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg), "shuffle format: <%u+1,%u> bytes",
-             ctx->fname_len, ctx->extra_data_len + ctx->data_len);
-    INFO(msg);
+    logf(LOG_INFO, "shuffle format: <%u+1,%u> bytes", ctx->fname_len,
+         ctx->extra_data_len + ctx->data_len);
   }
 
   ctx->receiver_rate = 1;
@@ -709,10 +665,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   ctx->is_receiver = shuffle_is_rank_receiver(ctx, pctx.my_rank);
   if (pctx.my_rank == 0) {
-    snprintf(msg, sizeof(msg),
-             "%u shuffle senders per receiver\n>>> receiver mask is %#x",
-             ctx->receiver_rate, ctx->receiver_mask);
-    INFO(msg);
+    logf(LOG_INFO, "%u shuffle senders per receiver\n>>> receiver mask is %#x",
+         ctx->receiver_rate, ctx->receiver_mask);
   }
 
   env = maybe_getenv("SHUFFLE_Finalize_pause");
@@ -724,9 +678,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   if (pctx.my_rank == 0) {
     if (ctx->finalize_pause > 0) {
-      snprintf(msg, sizeof(msg), "shuffle finalize pause: %d secs",
-               ctx->finalize_pause);
-      INFO(msg);
+      logf(LOG_INFO, "shuffle finalize pause: %d secs", ctx->finalize_pause);
     }
   }
   if (is_envset("SHUFFLE_Force_rpc")) {
@@ -734,28 +686,26 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   if (pctx.my_rank == 0) {
     if (!ctx->force_rpc) {
-      WARN(
-          "shuffle force_rpc is OFF (will skip shuffle if addr is local)\n>>> "
-          "main thread may be blocked on writing");
+      logf(LOG_WARN,
+           "shuffle force_rpc is OFF (will skip shuffle if addr is local)\n>>> "
+           "main thread may be blocked on writing");
     } else {
-      INFO(
-          "shuffle force_rpc is ON\n>>> "
-          "will always invoke shuffle even addr is local");
+      logf(LOG_INFO,
+           "shuffle force_rpc is ON\n>>> "
+           "will always invoke shuffle even addr is local");
     }
   }
   if (is_envset("SHUFFLE_Use_multihop")) {
     ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {
-      snprintf(msg, sizeof(msg), "using the scalable multi-hop shuffler");
-      INFO(msg);
+      logf(LOG_INFO, "using the scalable multi-hop shuffler");
     }
   } else {
     ctx->type = SHUFFLE_NN;
     if (pctx.my_rank == 0) {
-      snprintf(msg, sizeof(msg),
-               "using the default NN shuffler: code might not scale well\n>>> "
-               "switch to the multi-hop shuffler for better scalability");
-      WARN(msg);
+      logf(LOG_INFO,
+           "using the default NN shuffler: code might not scale well\n>>> "
+           "switch to the multi-hop shuffler for better scalability");
     }
   }
   if (ctx->type == SHUFFLE_XN) {
@@ -791,44 +741,40 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   if (pctx.my_rank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-      snprintf(msg, sizeof(msg),
-               "ch-placement group size: %s (vir-factor: %s, proto: %s)\n>>> "
-               "possible protocols are: "
-               "static_modulo, hash_lookup3, xor, and ring",
-               pretty_num(world_sz).c_str(), pretty_num(vf).c_str(), proto);
-      INFO(msg);
+      logf(LOG_INFO,
+           "ch-placement group size: %s (vir-factor: %s, proto: %s)\n>>> "
+           "possible protocols are: "
+           "static_modulo, hash_lookup3, xor, and ring",
+           pretty_num(world_sz).c_str(), pretty_num(vf).c_str(), proto);
     } else {
-      WARN("ch-placement bypassed");
+      logf(LOG_INFO, "ch-placement bypassed");
     }
   }
 
-  if (pctx.my_rank == 0) {
-    n = 0;
-    n += snprintf(msg + n, sizeof(msg) - n, "HG_HAS_POST_LIMIT is ");
+  if (pctx.my_rank == 0 && pctx.verr) {
+    fputs("HG_HAS_POST_LIMIT=", stderr);
 #ifdef HG_HAS_POST_LIMIT
-    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
+    fputs("ON", stderr);
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
+    fputs("NO", stderr);
 #endif
-    n += snprintf(msg + n, sizeof(msg) - n, ", HG_HAS_SELF_FORWARD is ");
+    fputc('\n', stderr);
+
+    fputs("HG_HAS_SELF_FORWARD=", stderr);
 #ifdef HG_HAS_SELF_FORWARD
-    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
+    fputs("ON", stderr);
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
+    fputs("NO", stderr);
 #endif
-    n += snprintf(msg + n, sizeof(msg) - n, ", HG_HAS_EAGER_BULK is ");
-#ifdef HG_HAS_EAGER_BULK
-    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
-#else
-    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
-#endif
-    n += snprintf(msg + n, sizeof(msg) - n, "\n>>> HG_HAS_CHECKSUMS is ");
+    fputc('\n', stderr);
+
+    fputs("HG_HAS_CHECKSUMS=", stderr);
 #ifdef HG_HAS_CHECKSUMS
-    n += snprintf(msg + n, sizeof(msg) - n, "TRUE");
+    fputs("ON", stderr);
 #else
-    n += snprintf(msg + n, sizeof(msg) - n, "FALSE");
+    fputs("NO", stderr);
 #endif
-    INFO(msg);
+    fputc('\n', stderr);
   }
 }
 

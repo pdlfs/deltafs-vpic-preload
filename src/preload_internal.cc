@@ -63,14 +63,13 @@ struct barrier_state {
 }  // namespace
 
 void PRELOAD_Barrier(MPI_Comm comm) {
-  char msg[100];
   struct barrier_state start;
   struct barrier_state min;
   double dura;
-  int ok = 0;
+  int ok;
 
   if (pctx.my_rank == 0) {
-    INFO("barrier ...\n   B-A-R-R-I-E-R");
+    logf(LOG_INFO, "barrier ...\n   MPI Barrier");
   }
   start.time = MPI_Wtime();
   start.rank = pctx.my_rank;
@@ -78,7 +77,7 @@ void PRELOAD_Barrier(MPI_Comm comm) {
     MPI_Status status;
     MPI_Request req;
     MPI_Iallreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC, comm, &req);
-    while (!ok) {
+    for (ok = 0; !ok;) {
       usleep(pctx.mpi_wait * 1000);
       MPI_Test(&req, &ok, &status);
     }
@@ -89,13 +88,10 @@ void PRELOAD_Barrier(MPI_Comm comm) {
   if (pctx.my_rank == 0) {
     dura = MPI_Wtime() - min.time;
 #ifdef PRELOAD_BARRIER_VERBOSE
-    snprintf(msg, sizeof(msg),
-             "barrier ok (\n /* rank %d waited longest */\n %s+\n)", min.rank,
-             pretty_dura(dura * 1000000).c_str());
+    LOG(LOG_INFO, "barrier ok (\n /* rank %d waited longest */\n %s+\n)",
+        min.rank, pretty_dura(dura * 1000000).c_str());
 #else
-    snprintf(msg, sizeof(msg), "barrier %s+",
-             pretty_dura(dura * 1000000).c_str());
+    logf(LOG_INFO, "barrier %s+", pretty_dura(dura * 1000000).c_str());
 #endif
-    INFO(msg);
   }
 }
