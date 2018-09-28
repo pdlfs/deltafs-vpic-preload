@@ -89,7 +89,6 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
 inline const char* maybe_getenv(const char* key) {
   const char* env;
   env = getenv(key);
-  errno = 0;
   return env;
 }
 
@@ -169,13 +168,6 @@ inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
   return 0;
 }
 
-inline void softlink(const char* src, const char* dst) {
-  int n;
-  n = unlink(dst);
-  n = symlink(src, dst);
-  errno = 0;
-}
-
 #define PRELOAD_PRETTY_SIZE_USE_BINARY
 
 /* print a human-readable time duration. */
@@ -241,7 +233,7 @@ inline std::string pretty_tput(double ops, double us) {
   char tmp[100];
   double ops_per_s = ops / us * 1000000;
 #ifndef NDEBUG
-  snprintf(tmp, sizeof(tmp), "%.0f", ops_per_s);
+  snprintf(tmp, sizeof(tmp), "%.0f op/s", ops_per_s);
 #else
 #if defined(PRELOAD_PRETTY_USE_BINARY)
   if (ops_per_s >= 1099511627776.0) {
