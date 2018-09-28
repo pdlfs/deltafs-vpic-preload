@@ -900,9 +900,9 @@ int MPI_Init(int* argc, char*** argv) {
     snprintf(path, sizeof(path), "%s/vpic-deltafs-trace.log.%d", dirpath,
              pctx.my_rank);
 
-    if (nxt.mkdir(dirpath, 0777) == -1) {
-      ABORT("!mkdir");
-    }
+    /* ignore error since directory may exist */
+    nxt.mkdir(dirpath, 0777);
+
     pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (pctx.logfd == -1) {
       ABORT("cannot create log");
@@ -914,9 +914,9 @@ int MPI_Init(int* argc, char*** argv) {
 
   /* probe system info */
   if (pctx.my_rank == 0) {
-    check_sse42();
     maybe_warn_numa();
     maybe_warn_rlimit(pctx.my_rank, pctx.comm_sz);
+
     if (pctx.noscan) {
       logf(LOG_WARN, "CERTAIN PLATFORM HARDWARE PROBING DISABLED");
     } else { /* will skip if we don't have access */
@@ -924,7 +924,10 @@ int MPI_Init(int* argc, char*** argv) {
       try_scan_sysfs();
     }
 
+#ifndef NDEBUG
     check_clockres();
+    check_sse42();
+#endif
   }
 
   if (pctx.my_rank == 0) {
@@ -934,14 +937,14 @@ int MPI_Init(int* argc, char*** argv) {
       logf(LOG_INFO, "deltafs is not mounted");
     }
     if (pctx.num_ignore_dirs != 0) {
-      fprintf(stderr, ">>> ignore dirs: ");
+      fputs(">>> ignore dirs: ", stderr);
       for (size_t i = 0; i < pctx.num_ignore_dirs; i++) {
         fwrite(pctx.ignore_dirs[i], 1, pctx.len_ignore_dirs[i], stderr);
         if (i != pctx.num_ignore_dirs - 1) {
           fputc(',', stderr);
         }
       }
-      fprintf(stderr, "\n");
+      fputc('\n', stderr);
     }
   }
 
@@ -1115,9 +1118,9 @@ int MPI_Init(int* argc, char*** argv) {
       snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d", dirpath,
                pctx.my_rank);
 
-      if (nxt.mkdir(dirpath, 0777) == -1) {
-        ABORT("!mkdir");
-      }
+      /* ignore error since directory may exist */
+      nxt.mkdir(dirpath, 0777);
+
       pctx.monfd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
       if (pctx.monfd == -1) {
         ABORT("cannot create tmp stats file");
