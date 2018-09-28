@@ -752,7 +752,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 
   if (pctx.my_rank == 0 && pctx.verr) {
-    fputs("HG_HAS_POST_LIMIT=", stderr);
+    logf(LOG_INFO, "HG is configured as follows ...");
+    fputs(" > HG_HAS_POST_LIMIT=", stderr);
 #ifdef HG_HAS_POST_LIMIT
     fputs("ON", stderr);
 #else
@@ -760,7 +761,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 #endif
     fputc('\n', stderr);
 
-    fputs("HG_HAS_SELF_FORWARD=", stderr);
+    fputs(" > HG_HAS_SELF_FORWARD=", stderr);
 #ifdef HG_HAS_SELF_FORWARD
     fputs("ON", stderr);
 #else
@@ -768,7 +769,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 #endif
     fputc('\n', stderr);
 
-    fputs("HG_HAS_CHECKSUMS=", stderr);
+    fputs(" > HG_HAS_CHECKSUMS=", stderr);
 #ifdef HG_HAS_CHECKSUMS
     fputs("ON", stderr);
 #else

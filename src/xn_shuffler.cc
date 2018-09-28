@@ -271,10 +271,8 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
          lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
          lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
     if (logfile != NULL && logfile[0] != 0 && strcmp(logfile, "/") != 0) {
-      fputs(">>> LOGGING is ON, will log to ...\n", stderr);
-      fputs(" --> ", stderr);
+      fputs(">>> LOGGING is ON, will log to ...\n --> ", stderr);
       fputs(logfile, stderr);
-
       fprintf(stderr, ".[0-%d]\n", pctx.comm_sz);
     }
   }
