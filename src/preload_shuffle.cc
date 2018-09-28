@@ -344,7 +344,6 @@ int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
 }
 
 namespace {
-#ifndef NDEBUG
 void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
                          int epoch, int src, int dst) {
   const int h = pdlfs::xxhash32(buf, buf_sz, 0);
@@ -359,7 +358,6 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
             buf_sz, epoch, h);
   }
 }
-#endif
 }  // namespace
 
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
@@ -406,7 +404,6 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 }
 
 namespace {
-#ifndef NDEBUG
 void shuffle_handle_debug(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                           int epoch, int src, int dst) {
   const int h = pdlfs::xxhash32(buf, buf_sz, 0);
@@ -416,7 +413,6 @@ void shuffle_handle_debug(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
           "(xx=%08x)\n",
           buf_sz, epoch, dst, src, h);
 }
-#endif
 }  // namespace
 
 int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
