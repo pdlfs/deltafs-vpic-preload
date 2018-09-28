@@ -67,8 +67,6 @@
  *    Skip copying mon files out
  *  PRELOAD_Skip_papi
  *    Skip PAPI events collection
- *  PRELOAD_Enable_verbose_mon
- *    Print mon info at the end of each epoch
  *  PRELOAD_Enable_verbose_error
  *    Print error info when write op fails
  *  PRELOAD_Enable_bg_pause

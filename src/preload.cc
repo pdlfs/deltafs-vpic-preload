@@ -386,7 +386,6 @@ static void preload_init() {
   if (is_envset("PRELOAD_Skip_mon")) pctx.nomon = 1;
   if (is_envset("PRELOAD_Skip_papi")) pctx.nopapi = 1;
   if (is_envset("PRELOAD_Skip_mon_dist")) pctx.nodist = 1;
-  if (is_envset("PRELOAD_Enable_verbose_mon")) pctx.vmon = 1;
   if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
   if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
@@ -567,13 +566,6 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat,
     if (pctx.testin) {
       if (pctx.logfd != -1) {
         mon_dumpstate(pctx.logfd, mon);
-      }
-    }
-
-    /* dump txt mon stats to stderr if in verbose mode */
-    if (pctx.vmon) {
-      if (pctx.my_rank == 0) {
-        mon_dumpstate(fileno(stderr), mon);
       }
     }
 
