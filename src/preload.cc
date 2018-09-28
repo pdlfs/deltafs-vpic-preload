@@ -1582,12 +1582,13 @@ int MPI_Finalize(void) {
 
           if (go) {
             if (pctx.my_rank == 0) {
-              if (pctx.paranoid_checks && glob.nlw + glob.nfw != glob.nw)
-                ABORT("lost writes");
-              if (pctx.paranoid_checks && glob.nms != glob.nmd)
-                ABORT("lost rpc replies");
-              if (pctx.paranoid_checks && glob.nmr != glob.nms)
-                ABORT("lost rpcs");
+              if (glob.nlw + glob.nfw != glob.nw)
+                logf(LOG_WARN,
+                     "TOTAL LOCAL & REMOTE WRITES != TOTAL VPIC PARTICLES!?");
+              if (glob.nms != glob.nmd)
+                logf(LOG_WARN, "NUM MSG SENT != NUM MSG DELIVERED!?");
+              if (glob.nms != glob.nmr)
+                logf(LOG_WARN, "NUM MSG SENT != NUM MSG RECV'ED!?");
               io_time += glob.max_dura / 1000.0 / 1000.0;
               if (mon_dump_txt) mon_dumpstate(fd2, &glob);
               if (mon_dump_bin) {
