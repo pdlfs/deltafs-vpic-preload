@@ -216,7 +216,7 @@ static void* rpc_work(void* arg) {
    */
   todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
+  if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[bg] rpc worker up (rank %d)", pctx.my_rank);
   }
 #endif
@@ -259,7 +259,7 @@ static void* rpc_work(void* arg) {
       }
     } else if (s < 0) {
 #ifndef NDEBUG
-      if (pctx.verr || pctx.my_rank == 0) {
+      if (pctx.verbose || pctx.my_rank == 0) {
         logf(LOG_INFO, "[bg] rpc worker will pause ... (rank %d)",
              pctx.my_rank);
       }
@@ -270,7 +270,7 @@ static void* rpc_work(void* arg) {
       }
       pthread_mtx_unlock(&mtx[bg_cv]);
 #ifndef NDEBUG
-      if (pctx.verr || pctx.my_rank == 0) {
+      if (pctx.verbose || pctx.my_rank == 0) {
         logf(LOG_INFO, "[bg] rpc worker resumed (rank %d)", pctx.my_rank);
       }
 #endif
@@ -293,7 +293,7 @@ static void* rpc_work(void* arg) {
   nnctx.total_writes = total_writes;
   nnctx.total_msgsz = total_bytes;
 #ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
+  if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[bg] rpc worker down (rank %d)", pctx.my_rank);
   }
 #endif
@@ -1016,7 +1016,7 @@ static void* bg_work(void* foo) {
   int s;
 
 #ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
+  if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[bg] rpc looper up (rank %d)", pctx.my_rank);
   }
 #endif
@@ -1070,7 +1070,7 @@ static void* bg_work(void* foo) {
       }
     } else if (s < 0) {
 #ifndef NDEBUG
-      if (pctx.verr || pctx.my_rank == 0) {
+      if (pctx.verbose || pctx.my_rank == 0) {
         logf(LOG_INFO, "[bg] rpc looper will pause ... (rank %d)",
              pctx.my_rank);
       }
@@ -1081,7 +1081,7 @@ static void* bg_work(void* foo) {
       }
       pthread_mtx_unlock(&mtx[bg_cv]);
 #ifndef NDEBUG
-      if (pctx.verr || pctx.my_rank == 0) {
+      if (pctx.verbose || pctx.my_rank == 0) {
         logf(LOG_INFO, "[bg] rpc looper resumed (rank %d)", pctx.my_rank);
       }
 #endif
@@ -1103,7 +1103,7 @@ static void* bg_work(void* foo) {
   pthread_mtx_unlock(&mtx[bg_cv]);
 
 #ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
+  if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[bg] rpc looper down (rank %d)", pctx.my_rank);
   }
 #endif

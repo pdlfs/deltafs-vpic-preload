@@ -149,7 +149,7 @@ typedef struct preload_ctx {
 
   int bgsngcomp; /* use a single background thread for memtable compaction */
   int bgpause;   /* no background activities during compuation */
-  int verr;      /* verbose error */
+  int verbose;   /* verbose mode */
 
 } preload_ctx_t;
 

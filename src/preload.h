@@ -67,8 +67,8 @@
  *    Skip copying mon files out
  *  PRELOAD_Skip_papi
  *    Skip PAPI events collection
- *  PRELOAD_Enable_verbose_error
- *    Print error info when write op fails
+ *  PRELOAD_Enable_verbose_mode
+ *    Print more information
  *  PRELOAD_Enable_bg_pause
  *    Pause background threads between I/O phases
  *  PRELOAD_Enable_bg_sngcomp

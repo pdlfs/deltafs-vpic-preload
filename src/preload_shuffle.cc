@@ -83,7 +83,7 @@ const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
   /* finalize uri */
   sprintf(buf, "%s://%d:%d", proto, int(getpid()), min_port);
 #ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
+  if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
@@ -149,7 +149,7 @@ const char* shuffle_prepare_uri(char* buf) {
           break;
         } else {
 #ifndef NDEBUG
-          if (pctx.verr || pctx.my_rank == 0) {
+          if (pctx.verbose || pctx.my_rank == 0) {
             logf(LOG_INFO, "[ip] skip %s (rank %d)", ip, pctx.my_rank);
           }
 #endif
@@ -260,7 +260,7 @@ const char* shuffle_prepare_uri(char* buf) {
   /* finalize uri */
   sprintf(buf, "%s://%s:%d", proto, ip, port);
 #ifndef NDEBUG
-  if (pctx.verr || pctx.my_rank == 0) {
+  if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
@@ -751,7 +751,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     }
   }
 
-  if (pctx.my_rank == 0 && pctx.verr) {
+  if (pctx.my_rank == 0 && pctx.verbose) {
     logf(LOG_INFO, "HG is configured as follows ...");
     fputs(" > HG_HAS_POST_LIMIT=", stderr);
 #ifdef HG_HAS_POST_LIMIT

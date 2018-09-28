@@ -386,7 +386,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Skip_mon")) pctx.nomon = 1;
   if (is_envset("PRELOAD_Skip_papi")) pctx.nopapi = 1;
   if (is_envset("PRELOAD_Skip_mon_dist")) pctx.nodist = 1;
-  if (is_envset("PRELOAD_Enable_verbose_error")) pctx.verr = 1;
+  if (is_envset("PRELOAD_Enable_verbose_mode")) pctx.verbose = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
   if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
   if (is_envset("PRELOAD_Enable_wisc")) pctx.sideio = 1;
@@ -1087,7 +1087,7 @@ int MPI_Init(int* argc, char*** argv) {
           }
 
           if (pctx.my_rank == 0) {
-            if (pctx.verr) {
+            if (pctx.verbose) {
               pretty_plfsdir_conf(conf);
               logf(LOG_INFO, conf.c_str());
             }
@@ -1473,7 +1473,7 @@ int MPI_Finalize(void) {
         }
         f0 = fopen(path, "w");
         if (f0 != NULL) {
-          if (pctx.my_rank == 0 && pctx.verr)
+          if (pctx.my_rank == 0 && pctx.verbose)
             fputs("dumped names = (\n    ...\n", stderr);
           for (std::map<std::string, int>::const_iterator it =
                    pctx.smap->begin();
@@ -1482,7 +1482,7 @@ int MPI_Finalize(void) {
               fprintf(f0, "%s\n", it->first.c_str());
 
               num_names++;
-              if (pctx.my_rank && pctx.verr) {
+              if (pctx.my_rank && pctx.verbose) {
                 if (num_names <= 7) {
                   fputs(" !! ", stderr);
                   fputs(it->first.c_str(), stderr);
@@ -1491,7 +1491,7 @@ int MPI_Finalize(void) {
               }
             }
           }
-          if (pctx.my_rank == 0 && pctx.verr) {
+          if (pctx.my_rank == 0 && pctx.verbose) {
             fputs("    ...\n", stderr);
             fputs(")\n", stderr);
           }
@@ -2157,7 +2157,7 @@ int closedir(DIR* dirp) {
           ABORT("fail to flush plfsdir");
 
         if (pctx.pre_flushing_wait) {
-          if (pctx.my_rank == 0 && pctx.verr)
+          if (pctx.my_rank == 0 && pctx.verbose)
             fputs("waiting for compaction ... (rank 0)\n", stderr);
           if (pctx.sideio && deltafs_plfsdir_io_wait(pctx.plfshdl) != 0)
             ABORT("fail to wait for plfsdir side io");
@@ -2166,7 +2166,7 @@ int closedir(DIR* dirp) {
         }
 
         if (pctx.pre_flushing_sync) {
-          if (pctx.my_rank == 0 && pctx.verr)
+          if (pctx.my_rank == 0 && pctx.verbose)
             fputs("fsync'ing io ... (rank 0)\n", stderr);
           if (pctx.sideio && deltafs_plfsdir_io_sync(pctx.plfshdl) != 0)
             ABORT("fail to sync plfsdir side io");
