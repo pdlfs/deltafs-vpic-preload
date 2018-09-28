@@ -40,7 +40,10 @@
 #include <unistd.h>
 
 #include <string>
-/* a set of utilities for probing important system configurations. */
+
+/*
+ * utilities for probing important system configurations.
+ */
 void check_clockres();
 void check_sse42();
 void maybe_warn_rlimit(int myrank, int worldsz);
@@ -49,6 +52,7 @@ void maybe_warn_numa();
 void try_scan_procfs();
 void try_scan_sysfs();
 
+/* print VmSize and VmRSS */
 void print_meminfo();
 
 /* get the number of cpu cores that we may use */
@@ -65,8 +69,6 @@ uint64_t timeval_to_micros(const struct timeval* tv);
 
 /* return the memory size (KB) of the calling process */
 long my_maxrss();
-
-void say(int err, const char* prefix, const char* msg);
 
 #define LOG_ERRO 3
 #define LOG_WARN 2
@@ -93,13 +95,10 @@ inline const char* maybe_getenv(const char* key) {
 }
 
 inline int is_envset(const char* key) {
-  std::string str;
   const char* env;
   env = maybe_getenv(key);
   if (env == NULL || env[0] == 0) return false;
-  str = env;
-
-  return int(str != "0");
+  return strcmp(env, "0") != 0;
 }
 
 inline int getr(int min, int max) {
@@ -110,11 +109,9 @@ inline int getr(int min, int max) {
 }
 
 inline int pthread_cv_notifyall(pthread_cond_t* cv) {
-  errno = 0;
   int r = pthread_cond_broadcast(cv);
   if (r != 0) {
-    errno = r;
-    ABORT("cv_sigall");
+    ABORT("pthread_cond_broadcast");
   }
 
   return 0;
@@ -122,47 +119,39 @@ inline int pthread_cv_notifyall(pthread_cond_t* cv) {
 
 inline int pthread_cv_timedwait(pthread_cond_t* cv, pthread_mutex_t* mtx,
                                 const timespec* due) {
-  errno = 0;
   int r = pthread_cond_timedwait(cv, mtx, due);
   if (r == ETIMEDOUT) {
     return r;
   }
   if (r != 0) {
-    errno = r;
-    ABORT("cv_timedwait");
+    ABORT("pthread_cond_timedwait");
   }
 
   return 0;
 }
 
 inline int pthread_cv_wait(pthread_cond_t* cv, pthread_mutex_t* mtx) {
-  errno = 0;
   int r = pthread_cond_wait(cv, mtx);
   if (r != 0) {
-    errno = r;
-    ABORT("cv_wait");
+    ABORT("pthread_cond_wait");
   }
 
   return 0;
 }
 
 inline int pthread_mtx_lock(pthread_mutex_t* mtx) {
-  errno = 0;
   int r = pthread_mutex_lock(mtx);
   if (r != 0) {
-    errno = r;
-    ABORT("mtx_lock");
+    ABORT("pthread_mutex_lock");
   }
 
   return 0;
 }
 
 inline int pthread_mtx_unlock(pthread_mutex_t* mtx) {
-  errno = 0;
   int r = pthread_mutex_unlock(mtx);
   if (r != 0) {
-    errno = r;
-    ABORT("mtx_unlock");
+    ABORT("pthread_mutex_unlock");
   }
 
   return 0;
