@@ -88,8 +88,8 @@ void PRELOAD_Barrier(MPI_Comm comm) {
   if (pctx.my_rank == 0) {
     dura = MPI_Wtime() - min.time;
 #ifdef PRELOAD_BARRIER_VERBOSE
-    LOG(LOG_INFO, "barrier ok (\n /* rank %d waited longest */\n %s+\n)",
-        min.rank, pretty_dura(dura * 1000000).c_str());
+    logf(LOG_INFO, "barrier ok (\n /* rank %d waited longest */\n %s+\n)",
+         min.rank, pretty_dura(dura * 1000000).c_str());
 #else
     logf(LOG_INFO, "barrier %s+", pretty_dura(dura * 1000000).c_str());
 #endif

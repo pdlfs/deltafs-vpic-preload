@@ -797,9 +797,9 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
-    WARN(
-        "using non-recent MPI release: some features disabled\n>>> "
-        "MPI ver 3 is suggested in production mode");
+    logf(LOG_WARN,
+         "using non-recent MPI release: some features disabled\n>>> "
+         "MPI ver 3 is suggested in production mode");
 #else
     MPI_Get_library_version(mpi_info, &n);
     c = strchr(mpi_info, '\n');
