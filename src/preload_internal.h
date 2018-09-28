@@ -143,13 +143,13 @@ typedef struct preload_ctx {
   int nomon;  /* skip monitoring */
   int nopapi; /* skip papi monitoring  */
   int nodist; /* skip releasing mon and sampling results */
-
-  int logfd; /* descriptor for the testing log file */
-  int monfd; /* descriptor for the mon dump file */
+  int monfd;  /* descriptor for the mon dump file */
 
   int bgsngcomp; /* use a single background thread for memtable compaction */
   int bgpause;   /* no background activities during compuation */
   int verbose;   /* verbose mode */
+
+  FILE* trace;
 
 } preload_ctx_t;
 

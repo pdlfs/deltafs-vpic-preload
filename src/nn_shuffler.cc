@@ -304,26 +304,14 @@ static void* rpc_work(void* arg) {
 /* nn_shuffler_bgwait: wait for background rpc work execution */
 void nn_shuffler_bgwait() {
   useconds_t delay;
-
-#ifndef NDEBUG
-  char msg[50];
-  int n;
-#endif
-
   delay = 1000; /* 1000 us */
-
   pthread_mtx_lock(&mtx[wk_cv]);
   while (items_completed < items_submitted) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[wk_cv]);
-#ifndef NDEBUG
-      if (pctx.logfd != -1) {
-        n = snprintf(msg, sizeof(msg), "[BGWAIT] %d us\n", int(delay));
-        n = write(pctx.logfd, msg, n);
-
-        errno = 0;
+      if (pctx.trace != NULL) {
+        fprintf(pctx.trace, "[DELIV-WAIT] %d us\n", int(delay));
       }
-#endif
       usleep(delay);
       delay <<= 1;
 
@@ -332,6 +320,7 @@ void nn_shuffler_bgwait() {
       pthread_cv_wait(&cv[wk_cv], &mtx[wk_cv]);
     }
   }
+
   pthread_mtx_unlock(&mtx[wk_cv]);
 }
 
@@ -397,11 +386,6 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   int rank;
   int rv;
 
-#ifndef NDEBUG
-  char msg[200];
-  int n;
-#endif
-
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
 
@@ -423,18 +407,14 @@ hg_return_t nn_shuffler_write_rpc_handler(hg_handle_t h, write_info_t* info) {
   if (dst != rank) {
     ABORT("rpc msg misrouted (bad dst)");
   }
-#ifndef NDEBUG
+
   /* write trace if we are in testing mode */
   if (pctx.testin) {
-    if (pctx.logfd != -1) {
-      n = snprintf(msg, sizeof(msg), "[IN] %u bytes r%d << r%d\n", write_in.sz,
-                   dst, src);
-      n = write(pctx.logfd, msg, n);
-
-      errno = 0;
+    if (pctx.trace != NULL) {
+      fprintf(pctx.trace, "[RECV] %u bytes r%d << r%d\n", write_in.sz, dst,
+              src);
     }
   }
-#endif
   write_out.rv = 0;
   input_left = write_info.sz = write_in.sz;
   epoch = write_in.epo;
@@ -557,28 +537,20 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   int rank;
   int e;
 
-#ifndef NDEBUG
-  char msg[200];
-  int n;
-#endif
-
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
   assert(write_in->dst == peer_rank);
   assert(write_in->src == rank);
 
-#ifndef NDEBUG
   /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(msg, sizeof(msg), "[OUT] %u bytes r%d >> r%d\n", write_in->sz,
-                 rank, peer_rank);
-
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
+  if (pctx.testin) {
+    if (pctx.trace != NULL) {
+      fprintf(pctx.trace, "[SEND] %u bytes r%d >> r%d\n", write_in->sz, rank,
+              peer_rank);
+    }
   }
-#endif
+
   delay = 1000; /* 1000 us */
 
   /* wait for slot */
@@ -586,14 +558,9 @@ int nn_shuffler_write_send_async(write_in_t* write_in, int peer_rank,
   while (cb_left == 0) { /* no slots available */
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[cb_cv]);
-#ifndef NDEBUG
-      if (pctx.logfd != -1) {
-        n = snprintf(msg, sizeof(msg), "[BLOCK-SLOT] %d us\n", int(delay));
-        n = write(pctx.logfd, msg, n);
-
-        errno = 0;
+      if (pctx.trace != NULL) {
+        fprintf(pctx.trace, "[SEND-SLOT] %d us\n", int(delay));
       }
-#endif
       usleep(delay);
       delay <<= 1;
 
@@ -664,25 +631,16 @@ void nn_shuffler_waitcb() {
   useconds_t delay;
   int e;
 
-#ifndef NDEBUG
-  char msg[50];
-  int n;
-#endif
-
   delay = 1000; /* 1000 us */
 
   pthread_mtx_lock(&mtx[cb_cv]);
   while (cb_left != cb_allowed) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[cb_cv]);
-#ifndef NDEBUG
-      if (pctx.logfd != -1) {
-        n = snprintf(msg, sizeof(msg), "[WAIT] %d us\n", int(delay));
-        n = write(pctx.logfd, msg, n);
-
-        errno = 0;
+      if (pctx.trace != NULL) {
+        fprintf(pctx.trace, "[REPLY-WAIT] %d us\n", int(delay));
       }
-#endif
+
       usleep(delay);
       delay <<= 1;
 
@@ -738,28 +696,19 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   int rank;
   int e;
 
-#ifndef NDEBUG
-  char msg[200];
-  int n;
-#endif
-
   assert(nnctx.mssg != NULL);
   rank = mssg_get_rank(nnctx.mssg);
   assert(write_in != NULL);
   assert(write_in->dst == peer_rank);
   assert(write_in->src == rank);
 
-#ifndef NDEBUG
-  /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
-    n = snprintf(msg, sizeof(msg), "[OUT] %u bytes r%d >> r%d\n", write_in->sz,
-                 rank, peer_rank);
-
-    n = write(pctx.logfd, msg, n);
-
-    errno = 0;
+  if (pctx.testin) {
+    if (pctx.trace != NULL) {
+      fprintf(pctx.trace, "[SEND] %u bytes r%d >> r%d\n", write_in->sz, rank,
+              peer_rank);
+    }
   }
-#endif
+
   peer_addr = mssg_get_addr(nnctx.mssg, peer_rank);
   if (peer_addr == HG_ADDR_NULL) {
     ABORT("mssg_get_addr");
@@ -784,15 +733,11 @@ int nn_shuffler_write_send(write_in_t* write_in, int peer_rank) {
   while (write_cb.ok == 0) { /* rpc not completed */
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[rpc_cv]);
-#ifndef NDEBUG
-      if (pctx.logfd != -1) {
-        n = snprintf(msg, sizeof(msg), "[WAIT] r%d >> r%d %d us\n", rank,
-                     peer_rank, int(delay));
-        n = write(pctx.logfd, msg, n);
-
-        errno = 0;
+      if (pctx.trace != NULL) {
+        fprintf(pctx.trace, "[REPLY-WAIT] r%d >> r%d %d us\n", rank, peer_rank,
+                int(delay));
       }
-#endif
+
       usleep(delay);
       delay <<= 1;
 
@@ -845,11 +790,6 @@ void nn_shuffler_enqueue(char* req, unsigned char req_sz, int epoch,
   void* arg2;
   int e;
 
-#ifndef NDEBUG
-  char msg[200];
-  int n;
-#endif
-
   assert(nnctx.mssg != NULL);
   assert(rank == mssg_get_rank(nnctx.mssg));
   world_sz = mssg_get_count(nnctx.mssg);
@@ -877,14 +817,10 @@ void nn_shuffler_enqueue(char* req, unsigned char req_sz, int epoch,
   while (rpcq->busy != 0) {
     if (pctx.testin) {
       pthread_mtx_unlock(&mtx[qu_cv]);
-#ifndef NDEBUG
-      if (pctx.logfd != -1) {
-        n = snprintf(msg, sizeof(msg), "[BLOCK-QUEUE] %d us\n", int(delay));
-        n = write(pctx.logfd, msg, n);
-
-        errno = 0;
+      if (pctx.trace != NULL) {
+        fprintf(pctx.trace, "[ENQUEUE-WAIT] %d us\n", int(delay));
       }
-#endif
+
       usleep(delay);
       delay <<= 1;
 

@@ -347,25 +347,17 @@ namespace {
 #ifndef NDEBUG
 void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
                          int epoch, int src, int dst) {
-  char msg[200];
-  int n;
-
-  int h = pdlfs::xxhash32(buf, buf_sz, 0);
+  const int h = pdlfs::xxhash32(buf, buf_sz, 0);
 
   if (src != dst || ctx->force_rpc) {
-    n = snprintf(msg, sizeof(msg),
-                 "[SEND] %u bytes (ep=%d) r%d >> r%d (xx=%08x)\n", buf_sz,
-                 epoch, src, dst, h);
+    fprintf(pctx.trace, "[SH] %u bytes (ep=%d) r%d >> r%d (xx=%08x)\n", buf_sz,
+            epoch, src, dst, h);
   } else {
-    n = snprintf(msg, sizeof(msg),
-                 "[LO] %u bytes (ep=%d) "
-                 "(xx=%08x)\n",
-                 buf_sz, epoch, h);
+    fprintf(pctx.trace,
+            "[LO] %u bytes (ep=%d) "
+            "(xx=%08x)\n",
+            buf_sz, epoch, h);
   }
-
-  n = write(pctx.logfd, msg, n);
-
-  errno = 0;
 }
 #endif
 }  // namespace
@@ -393,12 +385,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   peer_rank = shuffle_target(ctx, buf, buf_sz);
   rank = shuffle_rank(ctx);
 
-#ifndef NDEBUG
   /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
+  if (pctx.testin && pctx.trace != NULL)
     shuffle_write_debug(ctx, buf, buf_sz, epoch, rank, peer_rank);
-  }
-#endif
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
@@ -420,19 +409,12 @@ namespace {
 #ifndef NDEBUG
 void shuffle_handle_debug(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                           int epoch, int src, int dst) {
-  char msg[200];
-  int n;
+  const int h = pdlfs::xxhash32(buf, buf_sz, 0);
 
-  int h = pdlfs::xxhash32(buf, buf_sz, 0);
-
-  n = snprintf(msg, sizeof(msg),
-               "[RECV] %u bytes (ep=%d) r%d << r%d "
-               "(xx=%08x)\n",
-               buf_sz, epoch, dst, src, h);
-
-  n = write(pctx.logfd, msg, n);
-
-  errno = 0;
+  fprintf(pctx.trace,
+          "[RM] %u bytes (ep=%d) r%d << r%d "
+          "(xx=%08x)\n",
+          buf_sz, epoch, dst, src, h);
 }
 #endif
 }  // namespace
@@ -446,12 +428,10 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
     ABORT("unexpected incoming shuffle request size");
   rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
                     ctx->data_len, epoch);
-#ifndef NDEBUG
-  /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.logfd != -1) {
+
+  if (pctx.testin && pctx.trace != NULL)
     shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
-  }
-#endif
+
   return rv;
 }
 
@@ -687,7 +667,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (pctx.my_rank == 0) {
     if (!ctx->force_rpc) {
       logf(LOG_WARN,
-           "shuffle force_rpc is OFF (will skip shuffle if addr is local)\n>>> "
+           "shuffle force_rpc is OFF (will skip shuffle if addr is "
+           "local)\n>>> "
            "main thread may be blocked on writing");
     } else {
       logf(LOG_INFO,

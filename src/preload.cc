@@ -160,9 +160,9 @@ static void preload_init() {
   must_getnextdlsym(reinterpret_cast<void**>(&nxt.ftell), "ftell");
 
   pctx.plfsfd = -1;
-
-  pctx.logfd = -1;
   pctx.monfd = -1;
+
+  pctx.trace = NULL;
 
 #ifdef PRELOAD_HAS_PAPI
   pctx.papi_events = new std::vector<const char*>;
@@ -563,11 +563,8 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat,
     }
 
     /* dump txt mon stats to log file if in testing mode */
-    if (pctx.testin) {
-      if (pctx.logfd != -1) {
-        mon_dumpstate(pctx.logfd, mon);
-      }
-    }
+    if (pctx.testin && pctx.trace != NULL)
+      mon_dumpstate(fileno(pctx.trace), mon);
 
     if (pctx.monfd != -1) {
       if (pctx.my_rank == 0) {
@@ -895,9 +892,11 @@ int MPI_Init(int* argc, char*** argv) {
     /* ignore error since directory may exist */
     nxt.mkdir(dirpath, 0777);
 
-    pctx.logfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-    if (pctx.logfd == -1) {
-      ABORT("cannot create log");
+    pctx.trace = fopen(path, "w");
+    if (pctx.trace != NULL) {
+      setvbuf(pctx.trace, NULL, _IOLBF, 0);
+    } else {
+      ABORT("!fopen");
     }
   }
 
@@ -1812,9 +1811,9 @@ int MPI_Finalize(void) {
   }
 
   /* close testing log file */
-  if (pctx.logfd != -1) {
-    close(pctx.logfd);
-    pctx.logfd = -1;
+  if (pctx.trace != NULL) {
+    fflush(pctx.trace);
+    fclose(pctx.trace);
   }
 
   /* release the receiver communicator */
