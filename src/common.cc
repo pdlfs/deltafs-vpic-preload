@@ -330,8 +330,6 @@ void try_scan_sysfs() {
     }
     closedir(d);
   }
-
-  errno = 0;
 }
 
 /*
@@ -383,8 +381,6 @@ void try_scan_procfs() {
   }
 
   logf(LOG_INFO, "[os] %s (VM page: %d bytes)", os.c_str(), getpagesize());
-
-  errno = 0;
 }
 
 void maybe_warn_rlimit(int myrank, int worldsz) {
@@ -426,8 +422,6 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
     logf(LOG_INFO, "[ulimit] max memlock size: %lld soft, %lld hard",
          softmemlock, hardmemlock);
   }
-
-  errno = 0;
 }
 
 void maybe_warn_numa() {
@@ -471,7 +465,6 @@ void maybe_warn_numa() {
   fputc('\n', stderr);
 
 #endif
-  errno = 0;
 }
 
 void print_meminfo() {
@@ -484,8 +477,6 @@ void print_meminfo() {
           "[MEMINFO] %s Pages\n      (VM_size rss sha txt lib dat dt)\n   "
           "RUSAGE[maxrss]=%ld KiB\n",
           info.c_str(), my_maxrss());
-
-  errno = 0;
 }
 
 long my_maxrss() {
