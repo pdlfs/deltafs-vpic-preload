@@ -905,18 +905,14 @@ int MPI_Init(int* argc, char*** argv) {
 
   /* probe system info */
   if (pctx.my_rank == 0) {
-    maybe_warn_numa();
-    maybe_warn_rlimit(pctx.my_rank, pctx.comm_sz);
-
-    if (pctx.noscan) {
-      logf(LOG_WARN, "CERTAIN PLATFORM HARDWARE PROBING DISABLED");
-    } else { /* will skip if we don't have access */
-      try_scan_procfs();
-      try_scan_sysfs();
-    }
-
 #ifndef NDEBUG
     check_clockres();
+#endif
+    maybe_warn_rlimit(pctx.my_rank, pctx.comm_sz);
+    if (!pctx.noscan) try_scan_procfs();
+    if (!pctx.noscan) try_scan_sysfs();
+    maybe_warn_numa();
+#ifndef NDEBUG
     check_sse42();
 #endif
   }
@@ -991,8 +987,7 @@ int MPI_Init(int* argc, char*** argv) {
        * receiver group */
       assert(pctx.recv_rank == 0);
       assert(pctx.recv_sz != -1);
-      logf(LOG_INFO,
-           "****** receiver MPI_Comm formed ---> sz=%d (world_sz=%d) ******",
+      logf(LOG_INFO, "recv MPI_Comm formed ---> sz=%d (world_sz=%d)",
            pctx.recv_sz, pctx.comm_sz);
     }
 
@@ -1128,7 +1123,7 @@ int MPI_Init(int* argc, char*** argv) {
       assert(pctx.papi_events != NULL);
       if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
         if (pctx.my_rank == 0)
-          logf(LOG_WARN, "TOO MANY PAPI EVENTS AND SOME EVENTS ARE IGNORED");
+          logf(LOG_WARN, "too many papi events so some are ignored");
         pctx.papi_events->resize(MAX_PAPI_EVENTS);
       }
 
@@ -1164,16 +1159,15 @@ int MPI_Init(int* argc, char*** argv) {
         logf(LOG_WARN, "particle sampling skipped");
       }
 
-      if (pctx.fake_data)
-        logf(LOG_WARN, "VPIC OUTPUT DATA IS REPLACED BY FAKE DATA");
+      if (pctx.fake_data) {
+        logf(LOG_WARN, "fake_data is on");
+      }
       if (pctx.paranoid_checks)
         logf(LOG_WARN,
              "paranoid checks enabled: benchmarks unnecessarily slow "
              "and memory usage unnecessarily high\n>>> "
              "rerun with \"export PRELOAD_No_paranoid_checks=1\" to disable");
-      if (pctx.nomon)
-        logf(LOG_WARN,
-             "self-mon disabled: detailed stats reporting not available");
+      if (pctx.nomon) logf(LOG_WARN, "mon off: some stats not available");
 
       if (IS_BYPASS_WRITE(pctx.mode)) {
         logf(LOG_WARN, "particle writes bypassed");
@@ -1564,8 +1558,7 @@ int MPI_Finalize(void) {
 
           if (!go) {
             if (pctx.my_rank == 0) {
-              logf(LOG_WARN,
-                   "UNABLE TO MERGE EPOCH STATS AND OPERATION CANCELLED");
+              logf(LOG_WARN, "unable to merge epoch stats");
             }
           } else {
             /* per-rank total writes = local writes + foreign writes */
@@ -1584,11 +1577,11 @@ int MPI_Finalize(void) {
             if (pctx.my_rank == 0) {
               if (glob.nlw + glob.nfw != glob.nw)
                 logf(LOG_WARN,
-                     "TOTAL LOCAL & REMOTE WRITES != TOTAL VPIC PARTICLES!?");
+                     "total local and remote writes != total num particles !?");
               if (glob.nms != glob.nmd)
-                logf(LOG_WARN, "NUM MSG SENT != NUM MSG DELIVERED!?");
+                logf(LOG_WARN, "num msg sent != num msg delivered !?");
               if (glob.nms != glob.nmr)
-                logf(LOG_WARN, "NUM MSG SENT != NUM MSG RECV'ED!?");
+                logf(LOG_WARN, "num msg sent != num msg recv'ed !?");
               io_time += glob.max_dura / 1000.0 / 1000.0;
               if (mon_dump_txt) mon_dumpstate(fd2, &glob);
               if (mon_dump_bin) {
