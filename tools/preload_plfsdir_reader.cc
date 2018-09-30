@@ -374,11 +374,11 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
 
   m.latencies->push_back(end - start);
   m.table_seeks[SUM] += table_seeks;
-  m.table_seeks[MIN] = std::min(table_seeks, m.table_seeks[MIN]);
-  m.table_seeks[MAX] = std::max(table_seeks, m.table_seeks[MAX]);
+  m.table_seeks[MIN] = std::min<uint64_t>(table_seeks, m.table_seeks[MIN]);
+  m.table_seeks[MAX] = std::max<uint64_t>(table_seeks, m.table_seeks[MAX]);
   m.seeks[SUM] += seeks;
-  m.seeks[MIN] = std::min(seeks, m.seeks[MIN]);
-  m.seeks[MAX] = std::max(seeks, m.seeks[MAX]);
+  m.seeks[MIN] = std::min<uint64_t>(seeks, m.seeks[MIN]);
+  m.seeks[MAX] = std::max<uint64_t>(seeks, m.seeks[MAX]);
   m.bytes += sz;
   if (sz != 0) m.okops++;
   m.ops++;
