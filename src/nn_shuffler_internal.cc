@@ -30,26 +30,26 @@
 
 #include "nn_shuffler_internal.h"
 
+#include <assert.h>
 #include <mercury_proc.h>
 #include <mercury_proc_string.h>
 
 #include <pdlfs-common/xxhash.h>
 #define ORD(x, seed) pdlfs::xxhash32(&x, sizeof(x), seed)
 #define HASH(msg, sz) pdlfs::xxhash32(msg, sz, 0)
+
 #include <algorithm>
 #include <vector>
-
-#include <assert.h>
 
 /* The global nn shuffler context */
 nn_ctx_t nnctx = {0};
 
 namespace {
-typedef struct std_less_than {
+struct std_less_than {
   explicit std_less_than(int seed) : seed_(seed) {}
   bool operator()(int i, int j) { return (ORD(i, seed_) < ORD(j, seed_)); }
   int seed_;
-} std_less_than_t;
+};
 }  // namespace
 
 void nn_vector_random_shuffle(int seed, std::vector<int>* input) {
@@ -89,7 +89,7 @@ hg_uint32_t nn_shuffler_maybe_hashsig(const write_in_t* in) {
 hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
 
-  write_in_t* in = static_cast<write_in_t*>(data);
+  write_in_t* const in = static_cast<write_in_t*>(data);
   hg_proc_op_t op = hg_proc_get_op(proc);
 
   if (op == HG_ENCODE) {
@@ -132,7 +132,7 @@ hg_return_t nn_shuffler_write_in_proc(hg_proc_t proc, void* data) {
 hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
   hg_return_t hret;
 
-  write_out_t* out = reinterpret_cast<write_out_t*>(data);
+  write_out_t* const out = reinterpret_cast<write_out_t*>(data);
   hg_proc_op_t op = hg_proc_get_op(proc);
 
   if (op == HG_ENCODE) {
