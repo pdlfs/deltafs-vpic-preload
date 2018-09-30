@@ -540,7 +540,7 @@ int logf(int lvl, const char* fmt, ...) {
 }
 
 int loge(const char* op, const char* path) {
-  logf(LOG_ERRO, "!%s(%s): %s", strerror(errno), op, path);
+  return logf(LOG_ERRO, "!%s(%s): %s", strerror(errno), op, path);
 }
 
 void msg_abort(int err, const char* msg, const char* func, const char* file,
