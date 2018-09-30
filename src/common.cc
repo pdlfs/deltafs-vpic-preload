@@ -33,6 +33,7 @@
 #include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sched.h>
 #include <stdarg.h>
 #include <sys/resource.h>
@@ -139,7 +140,7 @@ void check_sse42() {
 
 /* read a line from file */
 static std::string readline(const char* fname) {
-  char tmp[1000];
+  char tmp[256];
   ssize_t l;
   ssize_t n;
   int fd;
@@ -170,7 +171,7 @@ static std::string readline(const char* fname) {
 
 /* remove leading and tailing space */
 static std::string trim(const char* str, size_t limit) {
-  char tmp[1000];
+  char tmp[256];
   size_t start;
   size_t off;
   size_t sz;
@@ -191,6 +192,7 @@ static std::string trim(const char* str, size_t limit) {
  * try_scan_sysfs(): scan sysfs for important system information.
  */
 void try_scan_sysfs() {
+#if defined(__linux)
   DIR* d;
   DIR* dd;
   struct dirent* dent;
@@ -330,13 +332,15 @@ void try_scan_sysfs() {
     }
     closedir(d);
   }
+#endif
 }
 
 /*
  * try_scan_procfs(): scan procfs for important device information.
  */
 void try_scan_procfs() {
-  char line[500];
+#if defined(__linux)
+  char line[256];
   int num_cpus;
   std::string cpu_type;
   std::string L1_cache_size;
@@ -381,6 +385,7 @@ void try_scan_procfs() {
   }
 
   logf(LOG_INFO, "[os] %s (VM page: %d bytes)", os.c_str(), getpagesize());
+#endif
 }
 
 void maybe_warn_rlimit(int myrank, int worldsz) {
@@ -425,7 +430,7 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
 }
 
 void maybe_warn_numa() {
-#ifdef PRELOAD_HAS_NUMA
+#if defined(__linux) && PRELOAD_HAS_NUMA
   int os;
   int my;
   int r;
@@ -468,6 +473,7 @@ void maybe_warn_numa() {
 }
 
 void print_meminfo() {
+#if defined(__linux)
   char fp[100];
 
   snprintf(fp, sizeof(fp), "/proc/%d/statm", getpid());
@@ -477,30 +483,32 @@ void print_meminfo() {
           "[MEMINFO] %s Pages\n      (VM_size rss sha txt lib dat dt)\n   "
           "RUSAGE[maxrss]=%ld KiB\n",
           info.c_str(), my_maxrss());
+#endif
 }
 
 long my_maxrss() {
+#if defined(__linux)
   struct rusage ru;
   int r;
 
   r = getrusage(RUSAGE_SELF, &ru);
   if (r == 0) return ru.ru_maxrss;
-
+#endif
   return 0;
 }
 
 int my_cpu_cores() {
+  int ncpus = 0;
+#if defined(__linux)
   cpu_set_t cpuset;
-  int ncpus;
   int n;
 
   CPU_ZERO(&cpuset);
-  ncpus = 0;
   n = sched_getaffinity(0, sizeof(cpuset), &cpuset);
   if (n == 0) {
     ncpus = CPU_COUNT(&cpuset);
   }
-
+#endif
   return ncpus;
 }
 
