@@ -57,18 +57,13 @@
 #define RPC_FAILED_FILENAME \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define RPC_FAILED(msg, ret) \
-  rpc_failed(msg, ret, __func__, RPC_FAILED_FILENAME, __LINE__)
+  rpc_failed(hret, msg, __func__, RPC_FAILED_FILENAME, __LINE__)
 
 /*
  * rpc_failed: abort with a mercury rpc error
  */
-inline void rpc_failed(const char* msg, hg_return_t hret, const char* func,
-                       const char* file, int line) {
-  const char* hstr = HG_Error_to_string(hret);
-  fprintf(stderr, "*** RPC *** (%s:%d) %s()] %s: %s(hret=%d)\n", file, line,
-          func, msg, hstr, int(hret));
-  abort();
-}
+void rpc_failed(hg_return_t hret, const char* msg, const char* func,
+                const char* file, int line);
 
 /*
  * nn_rusage: cpu usage report.

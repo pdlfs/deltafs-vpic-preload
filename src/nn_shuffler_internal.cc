@@ -145,3 +145,15 @@ hg_return_t nn_shuffler_write_out_proc(hg_proc_t proc, void* data) {
 
   return hret;
 }
+
+void rpc_failed(hg_return_t hret, const char* msg, const char* func,
+                const char* file, int line) {
+  fputs("*** RPC *** ", stderr);
+  fprintf(stderr, "@@ %s:%d @@ %s] ", file, line, func);
+  fputs(msg, stderr);
+  const char* hstr = HG_Error_to_string(hret);
+  fprintf(stderr, ": %s (hret=%d)", hstr, int(hret));
+  fputc('\n', stderr);
+  print_meminfo();
+  abort();
+}
