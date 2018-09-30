@@ -545,8 +545,10 @@ int loge(const char* op, const char* path) {
 
 void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line) {
-  fprintf(stderr, "*** ABORT *** (%s:%d) %s()] %s", file, line, func, msg);
+  fputs("*** ABORT *** ", stderr);
+  fprintf(stderr, "@@ %s:%d @@ %s] ", file, line, func);
+  fputs(msg, stderr);
   if (err != 0) fprintf(stderr, ": %s (errno=%d)", strerror(err), err);
-  fprintf(stderr, "\n");
+  fputc('\n', stderr);
   abort();
 }
