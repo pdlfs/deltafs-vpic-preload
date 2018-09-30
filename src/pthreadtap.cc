@@ -137,8 +137,11 @@ static void tap_cleanup(void* arg) {
 static void* tap_wrap(void* arg) {
   struct pthreadtap* tap = (struct pthreadtap*)arg;
   void* rv;
-
+#if defined(__linux)
   tapuseprobe_start(&tap->up, RUSAGE_THREAD); /* linux only! */
+#else
+  tapuseprobe_start(&tap->up, RUSAGE_SELF);
+#endif
   pthread_cleanup_push(tap_cleanup, tap);
   rv = tap->user_start_routine(tap->user_start_arg);
   pthread_cleanup_pop(0);
