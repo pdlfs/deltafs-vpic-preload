@@ -18,10 +18,15 @@ set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set (THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package (Threads REQUIRED)
 
-find_package (NUMA REQUIRED)
-add_definitions (-DPRELOAD_HAS_NUMA)
-find_package (PAPI REQUIRED)
-add_definitions (-DPRELOAD_HAS_PAPI)
+if (PRELOAD_NUMA)
+    find_package (NUMA REQUIRED)
+    add_definitions (-DPRELOAD_HAS_NUMA)
+endif ()
+
+if (PRELOAD_PAPI)
+    find_package (PAPI REQUIRED)
+    add_definitions (-DPRELOAD_HAS_PAPI)
+endif ()
 
 #
 # create the library target

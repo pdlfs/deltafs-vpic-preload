@@ -70,6 +70,10 @@ find_package (mssg CONFIG REQUIRED)
 include (xpkg-import)     # just to document, comes with deltafs
 xpkg_import_module (ch-placement REQUIRED ch-placement)
 
+# If libnuma and libpapi should be linked
+set (PRELOAD_NUMA "ON" CACHE BOOL "If libnuma should be used")
+set (PRELOAD_PAPI "ON" CACHE BOOL "If libpapi should be used")
+
 # user hook to build tools
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
 
