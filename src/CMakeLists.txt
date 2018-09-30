@@ -18,14 +18,14 @@ set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set (THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package (Threads REQUIRED)
 
-if (PRELOAD_NUMA)
-    find_package (NUMA REQUIRED)
-    add_definitions (-DPRELOAD_HAS_NUMA)
-endif ()
-
 if (PRELOAD_PAPI)
     find_package (PAPI REQUIRED)
     add_definitions (-DPRELOAD_HAS_PAPI)
+endif ()
+
+if (PRELOAD_NUMA)
+    find_package (NUMA REQUIRED)
+    add_definitions (-DPRELOAD_HAS_NUMA)
 endif ()
 
 #
@@ -38,7 +38,15 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         pthreadtap.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury mssg ch-placement
-        deltafs-nexus papi numa Threads::Threads ${CMAKE_DL_LIBS})
+        deltafs-nexus Threads::Threads ${CMAKE_DL_LIBS})
+
+if (PRELOAD_PAPI)
+    target_link_libraries(deltafs-preload papi)
+endif ()
+
+if (PRELOAD_NUMA)
+    target_link_libraries(deltafs-preload numa)
+endif ()
 
 #
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
