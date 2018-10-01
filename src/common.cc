@@ -345,6 +345,8 @@ void try_scan_procfs() {
   std::string cpu_type;
   std::string L1_cache_size;
   const char* sep;
+  std::string overcommit_memory;
+  std::string overcommit_ratio;
   std::string value;
   std::string key;
   std::string os;
@@ -379,12 +381,18 @@ void try_scan_procfs() {
     }
   }
 
+  overcommit_memory = readline("/proc/sys/vm/overcommit_memory");
+  overcommit_ratio = readline("/proc/sys/vm/overcommit_ratio");
+
+  logf(LOG_INFO, "[vm] page size: %d bytes (overcommit memory: %s, ratio: %s)",
+       getpagesize(), overcommit_memory.c_str(), overcommit_ratio.c_str());
+
   os = readline("/proc/version_signature");
   if (strcmp(os.c_str(), "?") == 0) {
     os = readline("/proc/version");
   }
 
-  logf(LOG_INFO, "[os] %s (VM page: %d bytes)", os.c_str(), getpagesize());
+  logf(LOG_INFO, "[os] %s", os.c_str());
 #endif
 }
 
