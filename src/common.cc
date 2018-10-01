@@ -516,7 +516,6 @@ void print_meminfo() {
   for (i = 0; i < info.size(); i++) {
     fputs("      > ", stderr);
     fputs(info[i].c_str(), stderr);
-    fputc('\n', stderr);
   }
 
   fputs("   RUSAGE[maxrss]=", stderr);
