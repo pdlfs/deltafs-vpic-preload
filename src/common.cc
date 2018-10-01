@@ -40,6 +40,9 @@
 #include <sys/time.h>
 #include <time.h>
 
+#include <string>
+#include <vector>
+
 #ifdef PRELOAD_HAS_NUMA
 #include <numa.h>
 #endif
@@ -482,15 +485,43 @@ void maybe_warn_numa() {
 
 void print_meminfo() {
 #if defined(__linux)
-  char fp[100];
+  char fp[100], line[256];
+  std::vector<std::string> info;
+  std::string statm;
+  FILE* meminfo;
+  size_t i;
+
+  if (access("/proc", R_OK) != 0) /* give up */
+    return;
 
   snprintf(fp, sizeof(fp), "/proc/%d/statm", getpid());
-  std::string info = readline(fp);
+  statm = readline(fp);
 
-  fprintf(stderr,
-          "[MEMINFO] %s Pages\n      (VM_size rss sha txt lib dat dt)\n   "
-          "RUSAGE[maxrss]=%ld KiB\n",
-          info.c_str(), my_maxrss());
+  meminfo = fopen("/proc/meminfo", "r");
+  if (meminfo != NULL) {
+    while (fgets(line, sizeof(line), meminfo) != NULL) {
+      if (strncmp(line, "Mem", 3) == 0) {
+        info.push_back(line);
+      } else if (strncmp(line, "Commit", 6) == 0) {
+        info.push_back(line);
+      } else {
+        /* skip */
+      }
+    }
+    fclose(meminfo);
+  }
+
+  fprintf(stderr, "[MEMINFO] %s Pages\n", statm.c_str());
+  fputs("   Fmt: VM_size rss sha txt lib dat dt\n", stderr);
+  for (i = 0; i < info.size(); i++) {
+    fputs("      > ", stderr);
+    fputs(info[i].c_str(), stderr);
+    fputc('\n', stderr);
+  }
+
+  fputs("   RUSAGE[maxrss]=", stderr);
+  fprintf(stderr, "%ld KiB", my_maxrss());
+  fputc('\n', stderr);
 #endif
 }
 
