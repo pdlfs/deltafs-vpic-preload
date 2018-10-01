@@ -511,11 +511,14 @@ void print_meminfo() {
     fclose(meminfo);
   }
 
-  fprintf(stderr, "[MEMINFO] %s Pages\n", statm.c_str());
+  fprintf(stderr, "[MEMINFO] %s Pages (Per-Process)\n", statm.c_str());
   fputs("   Fmt: VM_size rss sha txt lib dat dt\n", stderr);
   for (i = 0; i < info.size(); i++) {
     fputs("      > ", stderr);
+    info[i][info[i].size() - 1] = 0; /* remove the eof */
     fputs(info[i].c_str(), stderr);
+    if (i == 0) fputs(" (Per-Node)", stderr);
+    fputc('\n', stderr);
   }
 
   fputs("   RUSAGE[maxrss]=", stderr);
