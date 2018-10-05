@@ -779,6 +779,7 @@ int MPI_Init(int* argc, char*** argv) {
       }
       logf(LOG_INFO, "LIB initializing ... %s MPI ranks (MPI wait=%d ms)",
            pretty_num(pctx.comm_sz).c_str(), pctx.mpi_wait);
+      print_meminfo();
     }
   } else {
     return rv;
@@ -1817,10 +1818,13 @@ int MPI_Finalize(void) {
 
   /* !!! OK !!! */
   rv = nxt.MPI_Finalize();
-  if (pctx.my_rank == 0) logf(LOG_INFO, "all done!");
   if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "all done!");
+    print_meminfo();
+
     logf(LOG_INFO, "BYE");
   }
+
   return rv;
 }
 
