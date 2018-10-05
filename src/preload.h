@@ -67,6 +67,8 @@
  *    Skip copying mon files out
  *  PRELOAD_Skip_papi
  *    Skip PAPI events collection
+ *  PRELOAD_Print_meminfo
+ *    If per-process mem info should be collected and printed
  *  PRELOAD_Enable_verbose_mode
  *    Print more information
  *  PRELOAD_Enable_bg_pause

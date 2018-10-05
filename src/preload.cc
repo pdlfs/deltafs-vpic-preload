@@ -387,6 +387,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Skip_papi")) pctx.nopapi = 1;
   if (is_envset("PRELOAD_Skip_mon_dist")) pctx.nodist = 1;
   if (is_envset("PRELOAD_Enable_verbose_mode")) pctx.verbose = 1;
+  if (is_envset("PRELOAD_Print_meminfo")) pctx.print_meminfo = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
   if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
   if (is_envset("PRELOAD_Enable_wisc")) pctx.sideio = 1;
@@ -779,7 +780,9 @@ int MPI_Init(int* argc, char*** argv) {
       }
       logf(LOG_INFO, "LIB initializing ... %s MPI ranks (MPI wait=%d ms)",
            pretty_num(pctx.comm_sz).c_str(), pctx.mpi_wait);
-      print_meminfo();
+      if (pctx.print_meminfo) {
+        print_meminfo();
+      }
     }
   } else {
     return rv;
@@ -949,14 +952,18 @@ int MPI_Init(int* argc, char*** argv) {
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
         logf(LOG_INFO, "shuffle starting ... (rank 0)");
-        print_meminfo();
+        if (pctx.print_meminfo) {
+          print_meminfo();
+        }
       }
       shuffle_init(&pctx.sctx);
       /* ensures all peers have the shuffle ready */
       PRELOAD_Barrier(MPI_COMM_WORLD);
       if (pctx.my_rank == 0) {
         logf(LOG_INFO, "shuffle started (rank 0)");
-        print_meminfo();
+        if (pctx.print_meminfo) {
+          print_meminfo();
+        }
       }
       if (!shuffle_is_everyone_receiver(&pctx.sctx)) {
         /* rank 0 must be a receiver */
@@ -1280,7 +1287,9 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "LIB finalizing ... (%d epochs)", num_eps);
-    print_meminfo();
+    if (pctx.print_meminfo) {
+      print_meminfo();
+    }
   }
 
   /* resuming background activities */
@@ -1820,7 +1829,9 @@ int MPI_Finalize(void) {
   rv = nxt.MPI_Finalize();
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "all done!");
-    print_meminfo();
+    if (pctx.print_meminfo) {
+      print_meminfo();
+    }
 
     logf(LOG_INFO, "BYE");
   }
@@ -1916,7 +1927,9 @@ DIR* opendir(const char* dir) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "epoch %d begins (rank 0)", num_eps + 1);
-    print_meminfo();
+    if (pctx.print_meminfo) {
+      print_meminfo();
+    }
   }
 
   /* resuming background activities */
@@ -2258,7 +2271,9 @@ int closedir(DIR* dirp) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "epoch ends (rank 0)");
-    print_meminfo();
+    if (pctx.print_meminfo) {
+      print_meminfo();
+    }
   }
 
   return 0;
