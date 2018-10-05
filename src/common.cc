@@ -486,39 +486,36 @@ void maybe_warn_numa() {
 void print_meminfo() {
 #if defined(__linux)
   char fp[100], line[256];
-  std::vector<std::string> info;
-  std::string statm;
-  FILE* meminfo;
-  size_t i;
+  std::string info;
+  FILE* file;
 
   if (access("/proc", R_OK) != 0) /* give up */
     return;
 
   snprintf(fp, sizeof(fp), "/proc/%d/statm", getpid());
-  statm = readline(fp);
+  info = readline(fp);
+  fprintf(stderr, "[MEMINFO] %s Pages (Per-Process)\n", info.c_str());
+  fputs("   Fmt: VM_size rss sha txt lib dat dt\n", stderr);
 
-  meminfo = fopen("/proc/meminfo", "r");
-  if (meminfo != NULL) {
-    while (fgets(line, sizeof(line), meminfo) != NULL) {
-      if (strncmp(line, "Mem", 3) == 0) {
-        info.push_back(line);
-      } else if (strncmp(line, "Commit", 6) == 0) {
-        info.push_back(line);
-      } else {
-        /* skip */
-      }
+  snprintf(fp, sizeof(fp), "/proc/%d/maps", getpid());
+  file = fopen(fp, "r");
+  if (file != NULL) {
+    while (fgets(line, sizeof(line), file) != NULL) {
+      fputs(" -> ", stderr);
+      fputs(line, stderr);
     }
-    fclose(meminfo);
+    fclose(file);
   }
 
-  fprintf(stderr, "[MEMINFO] %s Pages (Per-Process)\n", statm.c_str());
-  fputs("   Fmt: VM_size rss sha txt lib dat dt\n", stderr);
-  for (i = 0; i < info.size(); i++) {
-    fputs("      > ", stderr);
-    info[i][info[i].size() - 1] = 0; /* remove the eof */
-    fputs(info[i].c_str(), stderr);
-    if (i == 0) fputs(" (Per-Node)", stderr);
-    fputc('\n', stderr);
+  file = fopen("/proc/meminfo", "r");
+  if (file != NULL) {
+    while (fgets(line, sizeof(line), file) != NULL) {
+      if (strncmp(line, "Mem", 3) == 0 || strncmp(line, "Commit", 6) == 0) {
+        fputs("      > ", stderr);
+        fputs(line, stderr);
+      }
+    }
+    fclose(file);
   }
 
   fputs("   RUSAGE[maxrss]=", stderr);
