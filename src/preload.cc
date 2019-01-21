@@ -634,11 +634,13 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
     dirc.memtable_size = DEFAULT_MEMTABLE_SIZE;
   }
 
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", pctx.particle_size);
+
   n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
                 dirc.memtable_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
                 dirc.bits_per_key);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
 
   if (is_envset("PLFSDIR_Use_plaindb")) {
     *io_engine = DELTAFS_PLFSDIR_PLAINDB;
@@ -712,7 +714,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter=%s-filter", "bloom");
   n += snprintf(tmp + n, sizeof(tmp) - n, "&filter_bits_per_key=%s",
                 dirc.bits_per_key);
-  snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", pctx.particle_size);
 
   *force_leveldb_fmt = dirc.force_leveldb_format;
   *unordered = dirc.unordered_storage;
