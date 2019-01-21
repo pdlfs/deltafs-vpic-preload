@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, Carnegie Mellon University.
+ * Copyright (c) 2017-2019, Carnegie Mellon University and
+ *     Los Alamos National Laboratory.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

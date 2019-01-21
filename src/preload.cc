@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, Carnegie Mellon University.
+ * Copyright (c) 2017-2019, Carnegie Mellon University and
+ *     Los Alamos National Laboratory.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,12 +59,12 @@
 #define DEFAULT_PARTICLE_BYTES 40
 #define DEFAULT_PARTICLE_BUFSIZE (2 << 20)
 
-/* default number of millisecs to wait for MPI async ops */
+/* default number of million seconds for checking MPI barrier completion */
 #define DEFAULT_MPI_WAIT 50
 
 /* mon output */
 static int mon_dump_bin = 0;
-static int mon_dump_txt = 1;
+static int mon_dump_txt = 0;
 
 /* mutex to protect preload state */
 static pthread_mutex_t preload_mtx = PTHREAD_MUTEX_INITIALIZER;
