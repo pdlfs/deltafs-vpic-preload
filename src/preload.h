@@ -123,8 +123,10 @@
  *  PLFSDIR_Env_name
  *    Name of the underlying env
  *      such as posix.unbufferedio, posix.default, posix.devnull
+ *  PLFSDIR_Use_plaindb
+ *    Use plaindb as the dir's storage engine
  *  PLFSDIR_Use_leveldb
- *    Switch to using leveldb as the storage engine
+ *    Use leveldb as the storage engine
  *  PLFSDIR_Ldb_force_l0
  *    Disable leveldb compaction (l0, not to be confused with lo or lO)
  *  PLFSDIR_Ldb_use_bf

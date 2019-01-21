@@ -640,7 +640,11 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
                 dirc.bits_per_key);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
 
-  if (is_envset("PLFSDIR_Use_leveldb")) {
+  if (is_envset("PLFSDIR_Use_plaindb")) {
+    *io_engine = DELTAFS_PLFSDIR_PLAINDB;
+    dirc.io_engine = *io_engine;
+    return tmp;
+  } else if (is_envset("PLFSDIR_Use_leveldb")) {
     *io_engine = DELTAFS_PLFSDIR_LEVELDB;
     if (is_envset("PLFSDIR_Ldb_force_l0"))
       *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY;
