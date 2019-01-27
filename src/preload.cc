@@ -1491,7 +1491,7 @@ int MPI_Finalize(void) {
               fprintf(f0, "%s\n", it->first.c_str());
 
               num_names++;
-              if (pctx.my_rank && pctx.verbose) {
+              if (pctx.my_rank == 0 && pctx.verbose) {
                 if (num_names <= 7) {
                   fputs(" !! ", stderr);
                   fputs(it->first.c_str(), stderr);
