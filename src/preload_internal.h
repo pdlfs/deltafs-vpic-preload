@@ -121,7 +121,8 @@ typedef struct preload_ctx {
 
   int sthres;   /* sample threshold (num samples per 1 million input names) */
   int sampling; /* enable particle name sampling */
-  int sideio;   /* using the wisc-key format */
+  int sideft;   /* use the bloomy format */
+  int sideio;   /* use the wisc-key format */
 
   shuffle_ctx_t sctx; /* shuffle context */
 
@@ -145,7 +146,7 @@ typedef struct preload_ctx {
   int nodist; /* skip releasing mon and sampling results */
   int monfd;  /* descriptor for the mon dump file */
 
-  int bgsngcomp; /* use a single background thread for memtable compaction */
+  int bgsglcomp; /* use a single background thread for memtable compaction */
   int bgpause;   /* no background activities during compuation */
   int print_meminfo; /* if mem info should be collected and printed */
   int verbose;       /* verbose mode */

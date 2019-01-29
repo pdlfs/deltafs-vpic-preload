@@ -390,7 +390,8 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_mode")) pctx.verbose = 1;
   if (is_envset("PRELOAD_Print_meminfo")) pctx.print_meminfo = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
-  if (is_envset("PRELOAD_Enable_bg_sngcomp")) pctx.bgsngcomp = 1;
+  if (is_envset("PRELOAD_Enable_bg_sglcomp")) pctx.bgsglcomp = 1;
+  if (is_envset("PRELOAD_Enable_bloomy")) pctx.sideft = 1;
   if (is_envset("PRELOAD_Enable_wisc")) pctx.sideio = 1;
 
   if (is_envset("PRELOAD_No_paranoid_checks")) pctx.paranoid_checks = 0;
@@ -1061,7 +1062,7 @@ int MPI_Init(int* argc, char*** argv) {
           deltafs_plfsdir_set_side_io_buf_size(pctx.plfshdl,
                                                pctx.particle_buf_size);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
-          pctx.plfstp = deltafs_tp_init(pctx.bgsngcomp ? 1 : pctx.plfsparts);
+          pctx.plfstp = deltafs_tp_init(pctx.bgsglcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
           pctx.plfsenv = deltafs_env_init(
               1, reinterpret_cast<void**>(const_cast<char**>(&env)));
@@ -1078,7 +1079,7 @@ int MPI_Init(int* argc, char*** argv) {
                    "unordered=%d, leveldb_fmt=%d) opened (rank 0)\n>>> bg "
                    "thread pool size: %d",
                    env, io_engine, unordered, force_leveldb_fmt,
-                   pctx.bgsngcomp ? 1 : pctx.plfsparts);
+                   pctx.bgsglcomp ? 1 : pctx.plfsparts);
             }
           }
 
