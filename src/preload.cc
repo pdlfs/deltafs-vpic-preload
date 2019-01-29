@@ -1094,6 +1094,18 @@ int MPI_Init(int* argc, char*** argv) {
             }
           }
 
+          if (pctx.sideft) {
+            rv = deltafs_plfsdir_filter_open(pctx.plfshdl, path);
+            if (rv != 0) {
+              ABORT("cannot open plfsdir filter");
+            } else {
+              if (pctx.my_rank == 0) {
+                logf(LOG_INFO, "plfsdir side filter opened\n>>> num keys: %s",
+                     pretty_num(pctx.particle_count).c_str());
+              }
+            }
+          }
+
           if (pctx.sideio) {
             rv = deltafs_plfsdir_io_open(pctx.plfshdl, path);
             if (rv != 0) {
