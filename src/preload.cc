@@ -179,6 +179,7 @@ static void preload_init() {
   pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
   pctx.particle_size = DEFAULT_PARTICLE_BYTES;
   pctx.particle_buf_size = DEFAULT_PARTICLE_BUFSIZE;
+  pctx.particle_count = 0;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
   pctx.sampling = 1;
@@ -298,6 +299,14 @@ static void preload_init() {
       pctx.local_root[0] != '/' ||
       pctx.local_root[pctx.len_local_root - 1] == '/')
     ABORT("bad local_root");
+
+  tmp = maybe_getenv("PRELOAD_Particle_count");
+  if (tmp != NULL) {
+    pctx.particle_count = atoi(tmp);
+    if (pctx.particle_count < 0) {
+      ABORT("bad particle count");
+    }
+  }
 
   tmp = maybe_getenv("PRELOAD_Particle_buf_size");
   if (tmp != NULL) {
@@ -1061,6 +1070,8 @@ int MPI_Init(int* argc, char*** argv) {
           deltafs_plfsdir_set_unordered(pctx.plfshdl, unordered);
           deltafs_plfsdir_set_side_io_buf_size(pctx.plfshdl,
                                                pctx.particle_buf_size);
+          deltafs_plfsdir_set_side_filter_size(pctx.plfshdl,
+                                               pctx.particle_count);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
           pctx.plfstp = deltafs_tp_init(pctx.bgsglcomp ? 1 : pctx.plfsparts);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
