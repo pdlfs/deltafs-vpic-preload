@@ -300,7 +300,7 @@ static void preload_init() {
       pctx.local_root[pctx.len_local_root - 1] == '/')
     ABORT("bad local_root");
 
-  tmp = maybe_getenv("PRELOAD_Particle_count");
+  tmp = maybe_getenv("PRELOAD_Number_particles_per_rank");
   if (tmp != NULL) {
     pctx.particle_count = atoi(tmp);
     if (pctx.particle_count < 0) {

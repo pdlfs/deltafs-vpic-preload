@@ -46,7 +46,7 @@
  *    Bytes of each particle
  *  PRELOAD_Particle_extra_size
  *    Extra bytes for each particle
- *  PRELOAD_Particle_count
+ *  PRELOAD_Number_particles_per_rank
  *    Number of particles per rank
  *  PRELOAD_Pthread_tap
  *    Rank# less than this will get their rusage tapped
