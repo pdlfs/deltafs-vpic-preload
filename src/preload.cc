@@ -1395,6 +1395,7 @@ int MPI_Finalize(void) {
       if (pctx.my_rank == 0) {
         logf(LOG_INFO, "finalizing plfsdir ... (rank 0)");
       }
+      if (pctx.sideft) deltafs_plfsdir_filter_finish(pctx.plfshdl);
       if (pctx.sideio) deltafs_plfsdir_io_finish(pctx.plfshdl);
       deltafs_plfsdir_finish(pctx.plfshdl);
       finish_end = now_micros();
@@ -2004,6 +2005,9 @@ DIR* opendir(const char* dir) {
           flush_start = now_micros();
           logf(LOG_INFO, "flushing plfsdir ... (rank 0)");
         }
+
+        if (pctx.sideft && deltafs_plfsdir_filter_flush(pctx.plfshdl) != 0)
+          ABORT("fail to flush plfsdir side filter");
         if (pctx.sideio && deltafs_plfsdir_io_flush(pctx.plfshdl) != 0)
           ABORT("fail to flush plfsdir side io");
         if (deltafs_plfsdir_epoch_flush(pctx.plfshdl, num_eps - 1) != 0)
@@ -2430,29 +2434,43 @@ int fclose(FILE* stream) {
     }
   }
 
-  if (pctx.sideio) {
+  if (pctx.sideft) { /* switch to the bloomy fmt */
     if (IS_BYPASS_WRITE(pctx.mode)) {
-      /* empty */
+      /* noop */
+
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+      assert(pctx.plfshdl != NULL);
+      n = deltafs_plfsdir_append(pctx.plfshdl, fname, num_eps - 1, ff->data(),
+                                 ff->size());
+      if (n != ff->size()) {
+        ABORT("plfsdir write failed");
+      }
+    } else {
+      ABORT("not implemented");
+    }
+
+    data_len = 0;
+    data = NULL;
+
+  } else if (pctx.sideio) { /* switch to the wisc-key fmt */
+    if (IS_BYPASS_WRITE(pctx.mode)) {
+      /* noop */
 
     } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
       assert(pctx.plfshdl != NULL);
       n = deltafs_plfsdir_io_append(pctx.plfshdl, ff->data(), ff->size());
-
       if (n != ff->size()) {
         ABORT("plfsdir sideio write failed");
       }
-
-    } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
-      ABORT("not implemented");
 
     } else {
       ABORT("not implemented");
     }
 
     data_len = sizeof(off);
-    data = reinterpret_cast<char*>(&off);
+    data = reinterpret_cast<char*>(&off);  // FIXME
 
-  } else {
+  } else { /* use the default fmt */
     data_len = ff->size();
     data = ff->data();
   }
@@ -2639,10 +2657,8 @@ long ftell(FILE* stream) {
  */
 int preload_write(const char* fname, unsigned char fname_len, char* data,
                   unsigned char data_len, int epoch) {
-  int rv;
-  char path[PATH_MAX];
   ssize_t n;
-  int fd;
+  int rv;
 
   if (epoch == -1) {
     epoch = num_eps - 1;
@@ -2681,29 +2697,20 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     }
   }
 
-  rv = EOF; /* Return 0 on success, or EOF on errors */
+  rv = 0;
 
   if (IS_BYPASS_WRITE(pctx.mode)) {
-    rv = 0; /* noop */
+    /* noop */
 
   } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-    assert(pctx.plfshdl != NULL);
-    n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, data_len);
-
-    if (n == data_len) {
-      rv = 0;
-    }
-
-  } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
-    snprintf(path, sizeof(path), "%s/%s", pctx.local_root, fname);
-    fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
-
-    if (fd != -1) {
-      n = write(fd, data, data_len);
-      if (n == data_len) {
-        rv = 0;
+    if (pctx.sideft) {
+      rv = deltafs_plfsdir_filter_put(pctx.plfshdl, fname, fname_len,
+                                      0);  // FIXME
+    } else {
+      n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, data_len);
+      if (n != data_len) {
+        rv = EOF;
       }
-      close(fd);
     }
 
   } else {

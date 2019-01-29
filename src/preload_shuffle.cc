@@ -616,7 +616,13 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   ctx->fname_len = TOUCHAR(pctx.particle_id_size);
   ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
-  ctx->data_len = pctx.sideio ? 8 : TOUCHAR(pctx.particle_size);
+  if (pctx.sideft) {
+    ctx->data_len = 0;
+  } else if (pctx.sideio) {
+    ctx->data_len = 8;
+  } else {
+    ctx->data_len = TOUCHAR(pctx.particle_size);
+  }
   if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
   if (ctx->fname_len == 0) {
