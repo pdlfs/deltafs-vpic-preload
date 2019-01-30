@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2018, Carnegie Mellon University.
+ * Copyright (c) 2018-2019, Carnegie Mellon University and
+ *     Los Alamos National Laboratory.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -75,6 +76,8 @@ static struct deltafs_conf {
   int unordered_storage;
   int io_engine;
   int comm_sz;
+  int bloom_fmt;
+  int wisc_fmt;
 } c; /* plfsdir conf */
 
 /*
@@ -299,6 +302,10 @@ static void get_manifest() {
     } else if (strncmp(ch, "comm_sz=", strlen("comm_sz=")) == 0) {
       c.comm_sz = atoi(ch + strlen("comm_sz="));
       if (c.comm_sz < 0) complain("bad comm_sz from manifests");
+    } else if (strcmp(ch, "fmt=bloom") == 0) {
+      c.bloom_fmt = 1;
+    } else if (strcmp(ch, "fmt=wisc") == 0) {
+      c.wisc_fmt = 1;
     }
   }
 
@@ -548,6 +555,8 @@ int main(int argc, char* argv[]) {
   printf("\tbypass shuffle: %d\n", c.bypass_shuffle);
   printf("\tlg parts: %d\n", c.lg_parts);
   printf("\tcomm sz: %d\n", c.comm_sz);
+  printf("\tbloom fmt: %d\n", c.bloom_fmt);
+  printf("\twisc fmt: %d\n", c.wisc_fmt);
   printf("\n");
 
   signal(SIGALRM, sigalarm);
