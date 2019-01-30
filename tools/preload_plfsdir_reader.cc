@@ -302,9 +302,9 @@ static void get_manifest() {
     } else if (strncmp(ch, "comm_sz=", strlen("comm_sz=")) == 0) {
       c.comm_sz = atoi(ch + strlen("comm_sz="));
       if (c.comm_sz < 0) complain("bad comm_sz from manifests");
-    } else if (strcmp(ch, "fmt=bloom") == 0) {
+    } else if (strcmp(ch, "fmt=bloom\n") == 0) {
       c.bloom_fmt = 1;
-    } else if (strcmp(ch, "fmt=wisc") == 0) {
+    } else if (strcmp(ch, "fmt=wisc\n") == 0) {
       c.wisc_fmt = 1;
     }
   }
