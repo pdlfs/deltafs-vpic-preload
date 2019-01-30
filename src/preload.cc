@@ -1371,6 +1371,12 @@ int MPI_Finalize(void) {
           fprintf(f0, "unordered_storage=%d\n", dirc.unordered_storage);
           fprintf(f0, "io_engine=%d\n", dirc.io_engine);
           fprintf(f0, "comm_sz=%d\n", pctx.recv_sz);
+          if (pctx.sideft)
+            fprintf(f0, "fmt=bloomy\n");
+          else if (pctx.sideio)
+            fprintf(f0, "fmt=wisckey\n");
+          else
+            fprintf(f0, "fmt=imd\n");
 
           fflush(f0);
           fclose(f0);
