@@ -394,7 +394,8 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
       deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
   if (!data) {
     complain("error reading %s: %s", name, strerror(errno));
-  } else if (sz == 0 && !g.a && !c.bypass_shuffle && c.value_size != 0) {
+  } else if (sz == 0 && c.value_size != 0 && !c.bloom_fmt && !g.a &&
+             !c.bypass_shuffle) {
     complain("file %s is empty!!", name);
   }
 
@@ -430,11 +431,51 @@ static void do_reads(int rank, std::string* names, int num_names) {
   deltafs_plfsdir_set_fixed_kv(dir, 1);
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
 
+  if (g.v) info("\topen rank %d: %d reads", rank, num_names);
   if (deltafs_plfsdir_open(dir, g.dirname) != 0)
     complain("error opening plfsdir: %s", strerror(errno));
 
   for (int i = 0; i < num_names; i++) {
     do_read(dir, names[i].c_str());
+  }
+
+  m.under_bytes +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
+  m.under_files +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
+  m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
+
+  deltafs_plfsdir_free_handle(dir);
+}
+
+/*
+ * read_withft: perform read operations with a filter against
+ * a series of names under a given data partition.
+ */
+static void read_withft(int rank, std::string* names, int num_names) {
+  deltafs_plfsdir_t* dir;
+  size_t num_ranks;
+  char conf[20];
+
+  snprintf(conf, sizeof(conf), "rank=%d", rank);
+  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
+  if (!dir) complain("fail to create dir handle");
+  deltafs_plfsdir_enable_io_measurement(dir, 1);
+  if (deltafs_plfsdir_open(dir, g.dirname) != 0)
+    complain("error opening plfsdir: %s", strerror(errno));
+  if (deltafs_plfsdir_filter_open(dir, g.dirname) != 0)
+    complain("error opening plfsdir filter: %s", strerror(errno));
+
+  for (int i = 0; i < num_names; i++) {
+    int* ranks = deltafs_plfsdir_filter_get(dir, names[i].data(),
+                                            names[i].size(), &num_ranks);
+    if (ranks) {
+      for (int r = 0; r < num_ranks; r++) {
+        do_reads(ranks[r], &names[i], 1);
+      }
+    }
+
+    free(ranks);
   }
 
   m.under_bytes +=
@@ -459,7 +500,12 @@ static void run_queries(int rank) {
   if (g.v)
     info("rank %d (%d reads) ...\t\t(%d samples available)", rank, reads,
          int(names.size()));
-  do_reads(rank, &names[0], reads);
+
+  if (c.bloom_fmt) {
+    read_withft(rank, &names[0], reads);
+  } else {
+    do_reads(rank, &names[0], reads);
+  }
 
   m.partitions++;
 }
