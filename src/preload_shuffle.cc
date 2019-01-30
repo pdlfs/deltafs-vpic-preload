@@ -630,8 +630,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "shuffle format: K=%u+1 bytes, V=%u bytes", ctx->fname_len,
-         ctx->extra_data_len + ctx->data_len);
+    logf(LOG_INFO, "shuffle format: K = %u (+ 1) bytes, V = %u bytes",
+         ctx->fname_len, ctx->extra_data_len + ctx->data_len);
   }
 
   ctx->receiver_rate = 1;
