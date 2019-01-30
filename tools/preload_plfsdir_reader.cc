@@ -322,8 +322,7 @@ static void get_manifest() {
 /*
  * prepare_conf: generate plfsdir conf
  */
-static void prepare_conf(int rank, int* io_engine, int* unordered,
-                         int* force_leveldb_fmt) {
+static char* prepare_conf(int rank) {
   int n;
 
   if (g.bg && !tp) tp = deltafs_tp_init(g.bg);
@@ -335,7 +334,7 @@ static void prepare_conf(int rank, int* io_engine, int* unordered,
   n += snprintf(cf + n, sizeof(cf) - n, "&bf_bits_per_key=%s",
                 c.filter_bits_per_key);
 
-  if (!c.io_engine) {
+  if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT) {
     n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
     n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
     n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
@@ -344,51 +343,10 @@ static void prepare_conf(int rank, int* io_engine, int* unordered,
     n += snprintf(cf + n, sizeof(cf) - n, "&ignore_filters=%d", g.nobf);
     snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
   }
-
-  *force_leveldb_fmt = c.force_leveldb_format;
-  *unordered = c.unordered_storage;
-  *io_engine = c.io_engine;
 #ifndef NDEBUG
   info(cf);
 #endif
-}
-
-/*
- * do_read: read from plfsdir and measure the performance.
- */
-static void do_read(deltafs_plfsdir_t* dir, const char* name) {
-  char* data;
-  uint64_t start;
-  uint64_t end;
-  size_t table_seeks;
-  size_t seeks;
-  size_t sz;
-
-  table_seeks = seeks = 0;
-  start = now();
-
-  data = static_cast<char*>(
-      deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
-  if (data == NULL) {
-    complain("error reading %s: %s", name, strerror(errno));
-  } else if (sz == 0 && !g.a && !c.bypass_shuffle && c.value_size != 0) {
-    complain("file %s is empty!!", name);
-  }
-
-  end = now();
-
-  free(data);
-
-  m.latencies->push_back(end - start);
-  m.table_seeks[SUM] += table_seeks;
-  m.table_seeks[MIN] = std::min<uint64_t>(table_seeks, m.table_seeks[MIN]);
-  m.table_seeks[MAX] = std::max<uint64_t>(table_seeks, m.table_seeks[MAX]);
-  m.seeks[SUM] += seeks;
-  m.seeks[MIN] = std::min<uint64_t>(seeks, m.seeks[MIN]);
-  m.seeks[MAX] = std::max<uint64_t>(seeks, m.seeks[MAX]);
-  m.bytes += sz;
-  if (sz != 0) m.okops++;
-  m.ops++;
+  return cf;
 }
 
 /*
@@ -418,35 +376,64 @@ static void get_names(int rank, std::vector<std::string>* results) {
 }
 
 /*
- * run_queries: open plfsdir and do reads on a specific rank.
+ * do_read: perform a read operation against a specific
+ * name under a given plfsdir.
  */
-static void run_queries(int rank) {
-  std::vector<std::string> names;
+static void do_read(deltafs_plfsdir_t* dir, const char* name) {
+  char* data;
+  uint64_t start;
+  uint64_t end;
+  size_t table_seeks;
+  size_t seeks;
+  size_t sz;
+
+  table_seeks = seeks = 0;
+  start = now();
+
+  data = static_cast<char*>(
+      deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
+  if (!data) {
+    complain("error reading %s: %s", name, strerror(errno));
+  } else if (sz == 0 && !g.a && !c.bypass_shuffle && c.value_size != 0) {
+    complain("file %s is empty!!", name);
+  }
+
+  end = now();
+
+  free(data);
+
+  m.latencies->push_back(end - start);
+  m.table_seeks[SUM] += table_seeks;
+  m.table_seeks[MIN] = std::min<uint64_t>(table_seeks, m.table_seeks[MIN]);
+  m.table_seeks[MAX] = std::max<uint64_t>(table_seeks, m.table_seeks[MAX]);
+  m.seeks[SUM] += seeks;
+  m.seeks[MIN] = std::min<uint64_t>(seeks, m.seeks[MIN]);
+  m.seeks[MAX] = std::max<uint64_t>(seeks, m.seeks[MAX]);
+  m.bytes += sz;
+  if (sz != 0) m.okops++;
+  m.ops++;
+}
+
+/*
+ * do_reads: perform one or more read operations against
+ * a series of names under a given data partition.
+ */
+static void do_reads(int rank, std::string* names, int num_names) {
   deltafs_plfsdir_t* dir;
-  int unordered;
-  int force_leveldb_fmt;
-  int io_engine;
-  int r;
+  char* conf = prepare_conf(rank);
 
-  get_names((g.a || c.bypass_shuffle) ? 0 : rank, &names);
-  std::random_shuffle(names.begin(), names.end());
-  prepare_conf(rank, &io_engine, &unordered, &force_leveldb_fmt);
-
-  dir = deltafs_plfsdir_create_handle(cf, O_RDONLY, io_engine);
+  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, c.io_engine);
   if (!dir) complain("fail to create dir handle");
   deltafs_plfsdir_enable_io_measurement(dir, 1);
-  deltafs_plfsdir_force_leveldb_fmt(dir, force_leveldb_fmt);
-  deltafs_plfsdir_set_unordered(dir, unordered);
+  deltafs_plfsdir_force_leveldb_fmt(dir, c.force_leveldb_format);
+  deltafs_plfsdir_set_unordered(dir, c.unordered_storage);
   deltafs_plfsdir_set_fixed_kv(dir, 1);
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
 
-  r = deltafs_plfsdir_open(dir, g.dirname);
-  if (r) complain("error opening plfsdir: %s", strerror(errno));
+  if (deltafs_plfsdir_open(dir, g.dirname) != 0)
+    complain("error opening plfsdir: %s", strerror(errno));
 
-  if (g.v)
-    info("rank %d (%d reads) ...\t\t(%d samples available)", rank,
-         std::min(g.d, int(names.size())), int(names.size()));
-  for (int i = 0; i < g.d && i < int(names.size()); i++) {
+  for (int i = 0; i < num_names; i++) {
     do_read(dir, names[i].c_str());
   }
 
@@ -455,7 +442,24 @@ static void run_queries(int rank) {
   m.under_files +=
       deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
   m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
+
   deltafs_plfsdir_free_handle(dir);
+}
+
+/*
+ * run_queries: perform reads against a specific data partition.
+ */
+static void run_queries(int rank) {
+  std::vector<std::string> names;
+  get_names((g.a || c.bypass_shuffle) ? 0 : rank, &names);
+  std::random_shuffle(names.begin(), names.end());
+
+  const int reads = std::min(g.d, int(names.size()));
+
+  if (g.v)
+    info("rank %d (%d reads) ...\t\t(%d samples available)", rank, reads,
+         int(names.size()));
+  do_reads(rank, &names[0], reads);
 
   m.partitions++;
 }
