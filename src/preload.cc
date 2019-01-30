@@ -1369,14 +1369,14 @@ int MPI_Finalize(void) {
           fprintf(f0, "bypass_shuffle=%d\n", IS_BYPASS_SHUFFLE(pctx.mode));
           fprintf(f0, "force_leveldb_format=%d\n", dirc.force_leveldb_format);
           fprintf(f0, "unordered_storage=%d\n", dirc.unordered_storage);
+          fprintf(f0, "particle_id_size=%d\n", pctx.particle_id_size);
+          fprintf(f0, "particle_size=%d\n", pctx.particle_size);
           fprintf(f0, "io_engine=%d\n", dirc.io_engine);
           fprintf(f0, "comm_sz=%d\n", pctx.recv_sz);
           if (pctx.sideft)
-            fprintf(f0, "fmt=bloom\n");
+            fprintf(f0, "fmt=bloomy\n");
           else if (pctx.sideio)
             fprintf(f0, "fmt=wisc\n");
-          else
-            fprintf(f0, "fmt=imd\n");
 
           fflush(f0);
           fclose(f0);
