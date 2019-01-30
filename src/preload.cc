@@ -2425,8 +2425,8 @@ int fputc(int character, FILE* stream) {
  * fclose.   returns EOF on error.
  */
 int fclose(FILE* stream) {
+  static uint64_t off = 0;
   ssize_t n;
-  uint64_t off;
   const char* fname;
   size_t fname_len;
   char* data;
@@ -2443,7 +2443,7 @@ int fclose(FILE* stream) {
   fake_file* const ff = reinterpret_cast<fake_file*>(stream);
   fname = ff->file_name();
   assert(fname != NULL);
-  off = 0;
+  n = 0;
 
   /* check file path and remove parent directories */
   assert(pctx.len_plfsdir != 0 && pctx.plfsdir != NULL);
@@ -2497,7 +2497,8 @@ int fclose(FILE* stream) {
     }
 
     data_len = sizeof(off);
-    data = reinterpret_cast<char*>(&off);  // FIXME
+    data = reinterpret_cast<char*>(&off);
+    off += n;
 
   } else { /* use the default fmt */
     data_len = ff->size();
@@ -2687,6 +2688,7 @@ long ftell(FILE* stream) {
 int preload_write(const char* fname, unsigned char fname_len, char* data,
                   unsigned char data_len, int epoch, int src) {
   ssize_t n;
+  char buf[12];
   int rv;
 
   if (epoch == -1) {
@@ -2732,9 +2734,17 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     /* noop */
 
   } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-    if (pctx.sideft) {
+    if (pctx.sideft) { /* use the bloomy fmt */
       rv = deltafs_plfsdir_filter_put(pctx.plfshdl, fname, fname_len, src);
     } else {
+      if (pctx.sideio) { /* use the wisc-key fmt */
+        memcpy(buf, &src, 4);
+        assert(data_len == 8);
+        memcpy(buf + 4, data, 8);
+        data_len = 12;
+        data = buf;
+      }
+
       n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, data_len);
       if (n != data_len) {
         rv = EOF;
