@@ -174,7 +174,7 @@
  * preload_write: ship data to fs.
  */
 extern int preload_write(const char* id, unsigned char id_sz, char* data,
-                         unsigned char data_len, int epoch);
+                         unsigned char data_len, int epoch, int src);
 
 /*
  * Default hash key size for encoding file names.

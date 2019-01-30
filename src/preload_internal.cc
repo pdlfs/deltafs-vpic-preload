@@ -36,7 +36,7 @@
 preload_ctx_t pctx = {0};
 
 int exotic_write(const char* fname, unsigned char fname_len, char* data,
-                 unsigned char data_len, int epoch) {
+                 unsigned char data_len, int epoch, int src) {
   int rv;
 
   rv = preload_write(fname, fname_len, data, data_len, epoch);

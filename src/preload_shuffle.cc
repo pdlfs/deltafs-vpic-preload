@@ -423,7 +423,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
     ABORT("unexpected incoming shuffle request size");
   rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
-                    ctx->data_len, epoch);
+                    ctx->data_len, epoch, src);
 
   if (pctx.testin && pctx.trace != NULL)
     shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);

@@ -163,7 +163,7 @@ extern preload_ctx_t pctx;
  * return 0 on success, or EOF on errors.
  */
 extern int exotic_write(const char* fname, unsigned char fname_len, char* data,
-                        unsigned char data_len, int epoch);
+                        unsigned char data_len, int epoch, int src);
 
 /*
  * native_write: perform a direct local write.

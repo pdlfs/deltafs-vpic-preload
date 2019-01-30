@@ -2685,7 +2685,7 @@ long ftell(FILE* stream) {
  * preload_write
  */
 int preload_write(const char* fname, unsigned char fname_len, char* data,
-                  unsigned char data_len, int epoch) {
+                  unsigned char data_len, int epoch, int src) {
   ssize_t n;
   int rv;
 
@@ -2733,8 +2733,7 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
 
   } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
     if (pctx.sideft) {
-      rv = deltafs_plfsdir_filter_put(pctx.plfshdl, fname, fname_len,
-                                      0);  // FIXME
+      rv = deltafs_plfsdir_filter_put(pctx.plfshdl, fname, fname_len, src);
     } else {
       n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, data_len);
       if (n != data_len) {
