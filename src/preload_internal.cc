@@ -39,7 +39,8 @@ int exotic_write(const char* fname, unsigned char fname_len, char* data,
                  unsigned char data_len, int epoch, int src) {
   int rv;
 
-  rv = preload_write(fname, fname_len, data, data_len, epoch);
+  rv = preload_write(fname, fname_len, data, data_len, epoch, src);
+
   pctx.mctx.nfw++;
 
   return rv;
@@ -49,7 +50,8 @@ int native_write(const char* fname, unsigned char fname_len, char* data,
                  unsigned char data_len, int epoch) {
   int rv;
 
-  rv = preload_write(fname, fname_len, data, data_len, epoch);
+  rv = preload_write(fname, fname_len, data, data_len, epoch, pctx.my_rank);
+
   pctx.mctx.nlw++;
 
   return rv;
