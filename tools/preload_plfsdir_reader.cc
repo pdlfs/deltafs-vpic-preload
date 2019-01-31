@@ -76,7 +76,9 @@ static struct deltafs_conf {
   int unordered_storage;
   int io_engine;
   int comm_sz;
-  int bloom_fmt;
+  int particle_id_size;
+  int particle_size;
+  int bloomy_fmt;
   int wisc_fmt;
 } c; /* plfsdir conf */
 
@@ -243,6 +245,29 @@ static void usage(const char* msg) {
   exit(1);
 }
 
+static bool parse_manifest_int(char* ch, const char* prefix, int* result) {
+  size_t n = strlen(prefix);
+  if (strncmp(ch, prefix, n) == 0) {
+    *result = atoi(ch + n);
+    if (*result < 0) complain("bad %s", prefix);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static bool parse_manifest_string(char* ch, const char* prefix, char** result) {
+  size_t n = strlen(prefix);
+  if (strncmp(ch, prefix, n) == 0) {
+    *result = strdup(ch + n);
+    if ((*result)[0] != 0 && (*result)[strlen(*result) - 1] == '\n')
+      (*result)[strlen(*result) - 1] = 0;
+    return true;
+  } else {
+    return false;
+  }
+}
+
 /*
  * get_manifest: parse the conf from the dir manifest file
  */
@@ -257,53 +282,24 @@ static void get_manifest() {
   if (!f) complain("error opening %s: %s", fname, strerror(errno));
 
   while ((ch = fgets(tmp, sizeof(tmp), f)) != NULL) {
-    if (strncmp(ch, "num_epochs=", strlen("num_epochs=")) == 0) {
-      c.num_epochs = atoi(ch + strlen("num_epochs="));
-      if (c.num_epochs < 0) complain("bad num_epochs from manifest");
-    } else if (strncmp(ch, "key_size=", strlen("key_size=")) == 0) {
-      c.key_size = atoi(ch + strlen("key_size="));
-      if (c.key_size < 0) complain("bad key_size from manifest");
-    } else if (strncmp(ch, "value_size=", strlen("value_size=")) == 0) {
-      c.value_size = atoi(ch + strlen("value_size="));
-      if (c.value_size < 0) complain("bad value_size from manifest");
-    } else if (strncmp(ch, "filter_bits_per_key=",
-                       strlen("filter_bits_per_key=")) == 0) {
-      c.filter_bits_per_key = strdup(ch + strlen("filter_bits_per_key="));
-      if (c.filter_bits_per_key[0] != 0 &&
-          c.filter_bits_per_key[strlen(c.filter_bits_per_key) - 1] == '\n')
-        c.filter_bits_per_key[strlen(c.filter_bits_per_key) - 1] = 0;
-    } else if (strncmp(ch, "memtable_size=", strlen("memtable_size=")) == 0) {
-      c.memtable_size = strdup(ch + strlen("memtable_size="));
-      if (c.memtable_size[0] != 0 &&
-          c.memtable_size[strlen(c.memtable_size) - 1] == '\n')
-        c.memtable_size[strlen(c.memtable_size) - 1] = 0;
-    } else if (strncmp(ch, "lg_parts=", strlen("lg_parts=")) == 0) {
-      c.lg_parts = atoi(ch + strlen("lg_parts="));
-      if (c.lg_parts < 0) complain("bad lg_parts from manifest");
-    } else if (strncmp(ch, "skip_checksums=", strlen("skip_checksums=")) == 0) {
-      c.skip_crc32c = atoi(ch + strlen("skip_checksums="));
-      if (c.skip_crc32c < 0) complain("bad skip_checksums from manifest");
-    } else if (strncmp(ch, "bypass_shuffle=", strlen("bypass_shuffle=")) == 0) {
-      c.bypass_shuffle = atoi(ch + strlen("bypass_shuffle="));
-      if (c.bypass_shuffle < 0) complain("bad bypass_shuffle from manifest");
-    } else if (strncmp(ch, "force_leveldb_format=",
-                       strlen("force_leveldb_format=")) == 0) {
-      c.force_leveldb_format = atoi(ch + strlen("force_leveldb_format="));
-      if (c.force_leveldb_format < 0)
-        complain("bad force_leveldb_format from manifest");
-    } else if (strncmp(ch, "unordered_storage=",
-                       strlen("unordered_storage=")) == 0) {
-      c.unordered_storage = atoi(ch + strlen("unordered_storage="));
-      if (c.unordered_storage < 0)
-        complain("bad unordered_storage from manifest");
-    } else if (strncmp(ch, "io_engine=", strlen("io_engine=")) == 0) {
-      c.io_engine = atoi(ch + strlen("io_engine="));
-      if (c.io_engine < 0) complain("bad io_engine from manifest");
-    } else if (strncmp(ch, "comm_sz=", strlen("comm_sz=")) == 0) {
-      c.comm_sz = atoi(ch + strlen("comm_sz="));
-      if (c.comm_sz < 0) complain("bad comm_sz from manifests");
-    } else if (strcmp(ch, "fmt=bloom\n") == 0) {
-      c.bloom_fmt = 1;
+    if (parse_manifest_int(ch, "num_epochs=", &c.num_epochs) ||
+        parse_manifest_int(ch, "key_size=", &c.key_size) ||
+        parse_manifest_int(ch, "value_size=", &c.value_size) ||
+        parse_manifest_string(ch,
+                              "filter_bits_per_key=", &c.filter_bits_per_key) ||
+        parse_manifest_string(ch, "memtable_size=", &c.memtable_size) ||
+        parse_manifest_int(ch, "lg_parts=", &c.lg_parts) ||
+        parse_manifest_int(ch, "skip_checksums=", &c.skip_crc32c) ||
+        parse_manifest_int(ch, "bypass_shuffle=", &c.bypass_shuffle) ||
+        parse_manifest_int(ch,
+                           "force_leveldb_format=", &c.force_leveldb_format) ||
+        parse_manifest_int(ch, "unordered_storage=", &c.unordered_storage) ||
+        parse_manifest_int(ch, "io_engine=", &c.io_engine) ||
+        parse_manifest_int(ch, "comm_sz=", &c.comm_sz) ||
+        parse_manifest_int(ch, "particle_id_size=", &c.particle_id_size) ||
+        parse_manifest_int(ch, "particle_size=", &c.particle_size)) {
+    } else if (strcmp(ch, "fmt=bloomy\n") == 0) {
+      c.bloomy_fmt = 1;
     } else if (strcmp(ch, "fmt=wisc\n") == 0) {
       c.wisc_fmt = 1;
     }
@@ -449,10 +445,10 @@ static void do_reads(int rank, std::string* names, int num_names) {
 }
 
 /*
- * read_withft: perform read operations with a filter against
+ * do_reads_ft: perform read operations with a filter against
  * a series of names under a given data partition.
  */
-static void read_withft(int rank, std::string* names, int num_names) {
+static void do_reads_ft(int rank, std::string* names, int num_names) {
   deltafs_plfsdir_t* dir;
   size_t num_ranks;
   char conf[20];
@@ -501,8 +497,8 @@ static void run_queries(int rank) {
     info("rank %d (%d reads) ...\t\t(%d samples available)", rank, reads,
          int(names.size()));
 
-  if (c.bloom_fmt) {
-    read_withft(rank, &names[0], reads);
+  if (c.bloomy_fmt) {
+    do_reads_ft(rank, &names[0], reads);
   } else {
     do_reads(rank, &names[0], reads);
   }
@@ -605,7 +601,9 @@ int main(int argc, char* argv[]) {
   printf("\tbypass shuffle: %d\n", c.bypass_shuffle);
   printf("\tlg parts: %d\n", c.lg_parts);
   printf("\tcomm sz: %d\n", c.comm_sz);
-  printf("\tbloom fmt: %d\n", c.bloom_fmt);
+  printf("\tparticle id size: %d\n", c.particle_id_size);
+  printf("\tparticle size: %d\n", c.particle_size);
+  printf("\tbloomy fmt: %d\n", c.bloomy_fmt);
   printf("\twisc fmt: %d\n", c.wisc_fmt);
   printf("\n");
 
