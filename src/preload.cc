@@ -1361,7 +1361,7 @@ int MPI_Finalize(void) {
         if (f0 != NULL) {
           fprintf(f0, "num_epochs=%d\n", num_eps);
           fprintf(f0, "key_size=%s\n", dirc.key_size);
-          fprintf(f0, "value_size=%d\n", pctx.particle_size);
+          fprintf(f0, "value_size=%d\n", pctx.sideio ? 12 : pctx.particle_size);
           fprintf(f0, "filter_bits_per_key=%s\n", dirc.bits_per_key);
           fprintf(f0, "memtable_size=%s\n", dirc.memtable_size);
           fprintf(f0, "lg_parts=%s\n", dirc.lg_parts);
