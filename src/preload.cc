@@ -645,8 +645,8 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   }
 
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", pctx.particle_size);
-
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
+                pctx.sideio ? 12 : pctx.particle_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
                 dirc.memtable_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",

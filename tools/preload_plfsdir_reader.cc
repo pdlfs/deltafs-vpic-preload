@@ -338,10 +338,12 @@ static char* prepare_conf(int rank) {
 
   n = snprintf(cf, sizeof(cf), "rank=%d", rank);
   n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
+#ifndef NDEBUG
+  n += snprintf(cf + n, sizeof(cf) - n, "&value_size=%d", c.value_size);
   n += snprintf(cf + n, sizeof(cf) - n, "&memtable_size=%s", c.memtable_size);
   n += snprintf(cf + n, sizeof(cf) - n, "&bf_bits_per_key=%s",
                 c.filter_bits_per_key);
-
+#endif
   if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT) {
     n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
     n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
