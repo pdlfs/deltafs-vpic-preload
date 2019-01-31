@@ -396,7 +396,7 @@ static void do_extra_reads(int rank, off_t off) {
   if (!dir) complain("fail to create dir handle");
   deltafs_plfsdir_enable_io_measurement(dir, 1);
 
-  if (g.v) info("\t\topen rank %d ... (%s)", rank, __func__);
+  if (g.v) info("  open rank %d ... (%s)", rank, __func__);
   if (deltafs_plfsdir_open(dir, g.dirname) != 0)
     complain("error opening plfsdir: %s", strerror(errno));
   if (deltafs_plfsdir_io_open(dir, g.dirname) != 0)
@@ -480,7 +480,7 @@ static void do_reads(int rank, std::string* names, int num_names) {
   deltafs_plfsdir_set_fixed_kv(dir, 1);
   if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
 
-  if (g.v) info("\topen rank %d ... (%s)", rank, __func__);
+  if (g.v) info(" open rank %d ... (%s)", rank, __func__);
   if (deltafs_plfsdir_open(dir, g.dirname) != 0)
     complain("error opening plfsdir: %s", strerror(errno));
 
