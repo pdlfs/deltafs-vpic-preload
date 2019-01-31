@@ -188,8 +188,9 @@ static void report() {
          m.partitions);
   if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT)
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
-  printf("[R] Total Extra Query Ops: %lu (%lu ok ops)\n", m.extra_ops,
-         m.extra_okops);
+  if (m.extra_ops != 0)
+    printf("[R] Total Extra Query Ops: %lu (%lu ok ops)\n", m.extra_ops,
+           m.extra_okops);
   if (m.extra_okops != 0)
     printf(
         "[R] Total Extra Data Queried: %lu bytes (%lu per entry per epoch)\n",
