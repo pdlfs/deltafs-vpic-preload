@@ -371,6 +371,33 @@ static void get_names(int rank, std::vector<std::string>* results) {
   fclose(f);
 }
 
+static void do_extra_reads(int rank, off_t off) {
+  deltafs_plfsdir_t* dir;
+  char conf[20];
+  char data[1];  // FIXME
+  ssize_t n;
+
+  snprintf(conf, sizeof(conf), "rank=%d", rank);
+  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
+  if (!dir) complain("fail to create dir handle");
+  deltafs_plfsdir_enable_io_measurement(dir, 1);
+  if (deltafs_plfsdir_open(dir, g.dirname) != 0)
+    complain("error opening plfsdir: %s", strerror(errno));
+  if (deltafs_plfsdir_io_open(dir, g.dirname) != 0)
+    complain("error opening plfsdir io: %s", strerror(errno));
+
+  n = deltafs_plfsdir_io_pread(dir, &data, 1, off);
+  if (n != 1) complain("error reading data: %s", strerror(errno));
+
+  m.under_bytes +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
+  m.under_files +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
+  m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
+
+  deltafs_plfsdir_free_handle(dir);
+}
+
 /*
  * do_read: perform a read operation against a specific
  * name under a given plfsdir.
@@ -382,6 +409,8 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
   size_t table_seeks;
   size_t seeks;
   size_t sz;
+  uint64_t off;
+  int rank;
 
   table_seeks = seeks = 0;
   start = now();
@@ -390,9 +419,17 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
       deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
   if (!data) {
     complain("error reading %s: %s", name, strerror(errno));
-  } else if (sz == 0 && c.value_size != 0 && !c.bloom_fmt && !g.a &&
+  } else if (sz == 0 && c.value_size != 0 && !c.bloomy_fmt && !g.a &&
              !c.bypass_shuffle) {
     complain("file %s is empty!!", name);
+  }
+
+  if (c.wisc_fmt) {
+    if (sz != 12) complain("file %s's wisc record size is wrong!!", name);
+    memcpy(&rank, data, 4);
+    memcpy(&off, data + 4, 8);
+
+    do_extra_reads(rank, off);
   }
 
   end = now();
