@@ -2208,7 +2208,7 @@ int closedir(DIR* dirp) {
 
         if (pctx.pre_flushing_wait) {
           if (pctx.my_rank == 0 && pctx.verbose)
-            fputs("   WAIT FOR COMPACTION ... (rank 0)\n", stderr);
+            fputs("   WaitForCompaction\n", stderr);
           if (pctx.sideio && deltafs_plfsdir_io_wait(pctx.plfshdl) != 0)
             ABORT("fail to wait for plfsdir side io");
           if (deltafs_plfsdir_wait(pctx.plfshdl) != 0)
@@ -2216,8 +2216,7 @@ int closedir(DIR* dirp) {
         }
 
         if (pctx.pre_flushing_sync) {
-          if (pctx.my_rank == 0 && pctx.verbose)
-            fputs("   FSYNC IO ... (rank 0)\n", stderr);
+          if (pctx.my_rank == 0 && pctx.verbose) fputs("   FsyncIo\n", stderr);
           if (pctx.sideio && deltafs_plfsdir_io_sync(pctx.plfshdl) != 0)
             ABORT("fail to sync plfsdir side io");
           if (deltafs_plfsdir_sync(pctx.plfshdl) != 0)
