@@ -147,8 +147,8 @@ typedef struct preload_ctx {
   int nodist; /* skip releasing mon and sampling results */
   int monfd;  /* descriptor for the mon dump file */
 
-  int bgsglcomp; /* use a single background thread for memtable compaction */
-  int bgpause;   /* no background activities during compuation */
+  int bgdepth;       /* number of background threads to launch */
+  int bgpause;       /* no background activities during compute */
   int print_meminfo; /* if mem info should be collected and printed */
   int verbose;       /* verbose mode */
 

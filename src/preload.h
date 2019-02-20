@@ -76,9 +76,8 @@
  *    Print more information
  *  PRELOAD_Enable_bg_pause
  *    Pause background threads between I/O phases
- *  PRELOAD_Enable_bg_sglcomp
- *    Use only a single thread for memtable compaction
- *      regardless of the actual number of memtable partitions
+ *  PRELOAD_Bg_threads
+ *    Number of background threads to use
  *  PRELOAD_Enable_wisc
  *    Use the wisc-key format
  *  PRELOAD_Enable_bloomy

@@ -340,6 +340,14 @@ static void preload_init() {
     }
   }
 
+  tmp = maybe_getenv("PRELOAD_Bg_threads");
+  if (tmp != NULL) {
+    pctx.bgdepth = atoi(tmp);
+    if (pctx.bgdepth < 1) {
+      pctx.bgdepth = 1;
+    }
+  }
+
   tmp = maybe_getenv("PRELOAD_Mpi_wait");
   if (tmp != NULL) {
     pctx.mpi_wait = atoi(tmp);
@@ -399,7 +407,6 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_verbose_mode")) pctx.verbose = 1;
   if (is_envset("PRELOAD_Print_meminfo")) pctx.print_meminfo = 1;
   if (is_envset("PRELOAD_Enable_bg_pause")) pctx.bgpause = 1;
-  if (is_envset("PRELOAD_Enable_bg_sglcomp")) pctx.bgsglcomp = 1;
   if (is_envset("PRELOAD_Enable_bloomy")) pctx.sideft = 1;
   if (is_envset("PRELOAD_Enable_wisc")) pctx.sideio = 1;
 
@@ -1073,7 +1080,7 @@ int MPI_Init(int* argc, char*** argv) {
           deltafs_plfsdir_set_side_filter_size(pctx.plfshdl,
                                                pctx.particle_count);
           pctx.plfsparts = deltafs_plfsdir_get_memparts(pctx.plfshdl);
-          pctx.plfstp = deltafs_tp_init(pctx.bgsglcomp ? 1 : pctx.plfsparts);
+          pctx.plfstp = deltafs_tp_init(pctx.bgdepth);
           deltafs_plfsdir_set_thread_pool(pctx.plfshdl, pctx.plfstp);
           pctx.plfsenv = deltafs_env_init(
               1, reinterpret_cast<void**>(const_cast<char**>(&env)));
@@ -1089,8 +1096,7 @@ int MPI_Init(int* argc, char*** argv) {
                    "plfsdir (via deltafs-LT, env=%s, io_engine=%d, "
                    "unordered=%d, leveldb_fmt=%d) opened (rank 0)\n>>> bg "
                    "thread pool size: %d",
-                   env, io_engine, unordered, force_leveldb_fmt,
-                   pctx.bgsglcomp ? 1 : pctx.plfsparts);
+                   env, io_engine, unordered, force_leveldb_fmt, pctx.bgdepth);
             }
           }
 
