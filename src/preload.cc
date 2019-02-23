@@ -82,11 +82,6 @@ static int num_barriers = 0;
 static int num_eps = 0;
 
 /*
- * buffer space for generating fake particle data.
- */
-static char particle_buf[64];
-
-/*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
  */
 static int fake_dirptr = 0;
@@ -482,7 +477,7 @@ namespace {
 class fake_file {
  private:
   std::string path_; /* path of particle file (malloc'd c++) */
-  char data_[64];    /* enough for one VPIC particle */
+  char data_[255];   /* enough for one VPIC particle */
   char* dptr_;       /* ptr to next free space in data_ */
   size_t resid_;     /* residual */
 
@@ -2701,7 +2696,6 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   }
 
   if (pctx.fake_data) {
-    memset(particle_buf, 0, sizeof(particle_buf));
     // TODO
   }
 
