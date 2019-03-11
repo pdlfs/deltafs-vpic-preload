@@ -730,6 +730,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   *unordered = dirc.unordered_storage;
 
   *io_engine = DELTAFS_PLFSDIR_DEFAULT;
+  dirc.io_engine = *io_engine;
 
   return tmp;
 }
