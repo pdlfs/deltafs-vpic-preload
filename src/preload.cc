@@ -417,7 +417,6 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_paranoid_post_barrier"))
     pctx.paranoid_post_barrier = 0;
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
-  if (is_envset("PRELOAD_Inject_fake_data")) pctx.fake_data = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
   /* additional init can go here or MPI_Init() */
@@ -1196,10 +1195,6 @@ int MPI_Init(int* argc, char*** argv) {
              pretty_num(pctx.sthres).c_str(), pretty_num(1000000).c_str());
       } else {
         logf(LOG_WARN, "particle sampling skipped");
-      }
-
-      if (pctx.fake_data) {
-        logf(LOG_WARN, "fake_data is on");
       }
       if (pctx.paranoid_checks)
         logf(LOG_WARN,
@@ -2693,10 +2688,6 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
 
   if (epoch == -1) {
     epoch = num_eps - 1;
-  }
-
-  if (pctx.fake_data) {
-    // TODO
   }
 
   pthread_mtx_lock(&write_mtx);

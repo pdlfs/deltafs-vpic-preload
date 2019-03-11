@@ -128,7 +128,6 @@ typedef struct preload_ctx {
   shuffle_ctx_t sctx; /* shuffle context */
 
   int testin;    /* developer mode - for debug use only */
-  int fake_data; /* replace vpic output with fake data - for debug only */
   int noscan;    /* do not probe sys info */
 
   /* rank# less than this will get tapped */

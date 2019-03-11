@@ -101,8 +101,6 @@
  *    Local file system root that backs deltafs
  *  PRELOAD_Testing
  *    Used by developers to debug code
- *  PRELOAD_Inject_fake_data
- *    Replace particle data with artificial data
  *  PRELOAD_Sample_threshold
  *    Num samples per 1 million input particles
  *  PRELOAD_Skip_sampling
