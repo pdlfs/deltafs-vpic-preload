@@ -91,11 +91,13 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
   const char* subnet;
 
   subnet = maybe_getenv("SHUFFLE_Subnet");
+  if (!subnet || !subnet[0] || strcmp("0.0.0.0", subnet) == 0) {
+    subnet = NULL;
+  }
   if (pctx.my_rank == 0) {
-    if (!subnet || !subnet[0] || strcmp("0.0.0.0", subnet) == 0) {
+    if (!subnet) {
       logf(LOG_WARN,
            "subnet not specified\n>>> will use the 1st non-local ip...");
-      subnet = NULL;
     } else {
       logf(LOG_INFO, "using subnet %s*", subnet);
     }
