@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, Carnegie Mellon University.
+ * Copyright (c) 2017-2019, Carnegie Mellon University and
+ *     Los Alamos National Laboratory.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,15 +48,9 @@
 #include "common.h"
 
 namespace {
-const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
+void shuffle_prepare_sm_uri(char* buf, const char* proto) {
   int min_port, max_port;
   const char* env;
-
-  assert(strstr(proto, "sm") != NULL);
-
-  if (pctx.my_rank == 0) {
-    logf(LOG_WARN, "'%s' ONLY WORKS FOR SINGLE-NODE TESTS", proto);
-  }
 
   env = maybe_getenv("SHUFFLE_Min_port");
   if (env == NULL) {
@@ -81,47 +76,19 @@ const char* shuffle_prepare_sm_uri(char* buf, const char* proto) {
   }
 
   /* finalize uri */
+  assert(strstr(proto, "sm") != NULL);
   sprintf(buf, "%s://%d:%d", proto, int(getpid()), min_port);
 #ifndef NDEBUG
   if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
-
-  return buf;
 }
-}  // namespace
 
-const char* shuffle_prepare_uri(char* buf) {
+void shuffle_determine_ipaddr(char* ip) {
   int family;
-  int port;
-  const char* env;
-  int min_port;
-  int max_port;
   struct ifaddrs *ifaddr, *cur;
-  struct sockaddr_in addr;
-  socklen_t addr_len;
-  MPI_Comm comm;
-  int rank;
-  int size;
   const char* subnet;
-  const char* proto;
-  char ip[50];
-  int opt;
-  int so;
-  int rv;
-  int n;
-
-  proto = maybe_getenv("SHUFFLE_Mercury_proto");
-  if (proto == NULL) {
-    proto = DEFAULT_HG_PROTO;
-  }
-  if (strstr(proto, "sm") != NULL) { /* special handling for sm addrs */
-    return shuffle_prepare_sm_uri(buf, proto);
-  }
-  if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "using %s", proto);
-  }
 
   subnet = maybe_getenv("SHUFFLE_Subnet");
   if (subnet == NULL) {
@@ -162,8 +129,38 @@ const char* shuffle_prepare_uri(char* buf) {
     ABORT("no ip addr");
 
   freeifaddrs(ifaddr);
+}
 
-  /* get port through MPI rank */
+}  // namespace
+
+void shuffle_prepare_uri(char* buf) {
+  int port;
+  const char* env;
+  int min_port;
+  int max_port;
+  struct sockaddr_in addr;
+  socklen_t addr_len;
+  MPI_Comm comm;
+  int rank;
+  int size;
+  const char* proto;
+  char ip[50];
+  int opt;
+  int so;
+  int rv;
+  int n;
+
+  proto = maybe_getenv("SHUFFLE_Mercury_proto");
+  if (proto == NULL) {
+    proto = DEFAULT_HG_PROTO;
+  }
+  if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "using %s", proto);
+  }
+
+  if (strstr(proto, "sm") != NULL) { /* special handling for sm addrs */
+    shuffle_prepare_sm_uri(buf, proto);
+  }
 
   env = maybe_getenv("SHUFFLE_Min_port");
   if (env == NULL) {
@@ -258,14 +255,13 @@ const char* shuffle_prepare_uri(char* buf) {
     ABORT("no free ports");
 
   /* finalize uri */
+  shuffle_determine_ipaddr(ip);
   sprintf(buf, "%s://%s:%d", proto, ip, port);
 #ifndef NDEBUG
   if (pctx.verbose || pctx.my_rank == 0) {
     logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
-
-  return buf;
 }
 
 void shuffle_epoch_pre_start(shuffle_ctx_t* ctx) {

@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2017, Carnegie Mellon University.
+ * Copyright (c) 2017-2019, Carnegie Mellon University and
+ *     Los Alamos National Laboratory.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -84,7 +85,7 @@ typedef struct shuffle_ctx {
  * shuffle_prepare_uri: obtain the mercury server uri to bootstrap the rpc.
  * write the server uri into *buf on success, or abort on errors.
  */
-const char* shuffle_prepare_uri(char* buf);
+void shuffle_prepare_uri(char* buf);
 
 /* return 0 if some ranks are sender-only, 1 otherwise. */
 int shuffle_is_everyone_receiver(shuffle_ctx_t* ctx);
