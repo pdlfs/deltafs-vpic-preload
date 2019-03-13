@@ -17,7 +17,6 @@
 cmake_minimum_required (VERSION 3.1)
 project (deltafs-preload C CXX)
 set (CMAKE_CXX_STANDARD 11)
-enable_testing ()
 
 # add our cmake module directory to the path
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
