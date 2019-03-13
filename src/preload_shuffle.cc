@@ -85,7 +85,7 @@ void shuffle_prepare_sm_uri(char* buf, const char* proto) {
 #endif
 }
 
-void shuffle_determine_ipaddr(char* ip) {
+void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
   int family;
   struct ifaddrs *ifaddr, *cur;
   const char* subnet;
@@ -108,8 +108,8 @@ void shuffle_determine_ipaddr(char* ip) {
       family = cur->ifa_addr->sa_family;
 
       if (family == AF_INET) {
-        if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in), ip,
-                        sizeof(ip), NULL, 0, NI_NUMERICHOST) == -1)
+        if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in), ip, iplen,
+                        NULL, 0, NI_NUMERICHOST) == -1)
           ABORT("getnameinfo");
 
         if (strncmp(subnet, ip, strlen(subnet)) == 0) {
@@ -255,7 +255,7 @@ void shuffle_prepare_uri(char* buf) {
     ABORT("no free ports");
 
   /* finalize uri */
-  shuffle_determine_ipaddr(ip);
+  shuffle_determine_ipaddr(ip, sizeof(ip));
   sprintf(buf, "%s://%s:%d", proto, ip, port);
 #ifndef NDEBUG
   if (pctx.verbose || pctx.my_rank == 0) {
