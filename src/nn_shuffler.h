@@ -161,13 +161,6 @@ extern void nn_shuffler_wakeup();
 #define DEFAULT_VIRTUAL_FACTOR 1024
 
 /*
- * The default subnet.
- *
- * Guaranteed to be wrong in production.
- */
-#define DEFAULT_SUBNET "127.0.0.1"
-
-/*
  * If "mercury_proto" is not specified, we set it to the follows.
  *
  * This assumes the mercury linked by us has been

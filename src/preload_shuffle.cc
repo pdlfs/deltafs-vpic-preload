@@ -91,11 +91,14 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
   const char* subnet;
 
   subnet = maybe_getenv("SHUFFLE_Subnet");
-  if (subnet == NULL) {
-    subnet = DEFAULT_SUBNET;
-  }
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "using subnet %s*", subnet);
+    if (!subnet || !subnet[0]) {
+      logf(LOG_WARN,
+           "subnet not specified\n>>> will use the 1st non-local ip...");
+      subnet = NULL;
+    } else {
+      logf(LOG_INFO, "using subnet %s*", subnet);
+    }
   }
 
   /* settle down an ip addr to use */
@@ -112,7 +115,9 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
                         NULL, 0, NI_NUMERICHOST) == -1)
           ABORT("getnameinfo");
 
-        if (strncmp(subnet, ip, strlen(subnet)) == 0) {
+        if (!subnet && strncmp("127", ip, strlen("127")) != 0) {
+          break;
+        } else if (subnet && strncmp(subnet, ip, strlen(subnet)) == 0) {
           break;
         } else {
 #ifndef NDEBUG
@@ -127,8 +132,11 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
 
   if (cur == NULL) /* maybe a wrong subnet has been specified */
     ABORT("no ip addr");
-
   freeifaddrs(ifaddr);
+
+  if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "using ip %s (rank 0)", ip);
+  }
 }
 
 }  // namespace
