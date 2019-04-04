@@ -12,8 +12,8 @@ find_package (Threads REQUIRED)
 set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-add_executable (simple-vpic-deltafs-reader preload_plfsdir_reader.cc)
-target_link_libraries (simple-vpic-deltafs-reader deltafs)
+add_executable (preload-plfsdir-reader preload_plfsdir_reader.cc)
+target_link_libraries (preload-plfsdir-reader deltafs)
 
 add_executable (preload-runner preload_runner.cc)
 target_link_libraries (preload-runner deltafs-preload Threads::Threads)
@@ -56,5 +56,5 @@ endforeach ()
 install (TARGETS preload-runner preload-runner-no-deltafs
         RUNTIME DESTINATION bin)
 
-install (TARGETS simple-vpic-deltafs-reader
+install (TARGETS preload-plfsdir-reader
          RUNTIME DESTINATION bin)
