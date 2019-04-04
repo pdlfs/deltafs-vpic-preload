@@ -408,15 +408,14 @@ static void do_reads_ft(int rank, std::string* names, int num_names) {
     complain("error opening plfsdir filter: %s", strerror(errno));
 
   for (int i = 0; i < num_names; i++) {
-    int* ranks = deltafs_plfsdir_filter_get(dir, names[i].data(),
-                                            names[i].size(), &num_ranks);
-    if (ranks) {
-      for (int r = 0; r < num_ranks; r++) {
-        do_reads(ranks[r], &names[i], 1);
+    int* possible_ranks = deltafs_plfsdir_filter_get(
+        dir, names[i].data(), names[i].size(), &num_ranks);
+    if (possible_ranks) {
+      for (int j = 0; j < num_ranks; j++) {
+        do_reads(possible_ranks[j], &names[i], 1);
       }
     }
-
-    free(ranks);
+    free(possible_ranks);
   }
 
   m.under_bytes +=
