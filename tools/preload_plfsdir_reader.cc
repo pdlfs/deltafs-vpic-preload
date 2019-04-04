@@ -241,8 +241,8 @@ static void usage(const char* msg) {
  * prepare_dir: generate plfsdir conf and initialize thread pool
  */
 static char* prepare_dir(int myrank) {
-  if (g.r && !tp) tp = deltafs_tp_init(r.bg);
-  if (g.r && !tp) complain("fail to init thread pool");
+  if (r.bg && !tp) tp = deltafs_tp_init(r.bg);
+  if (r.bg && !tp) complain("fail to init thread pool");
   gen_conf(&r, &c, myrank, cf, sizeof(cf));
 
 #ifndef NDEBUG
