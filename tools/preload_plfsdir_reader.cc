@@ -32,7 +32,7 @@
 /*
  * preload_plfsdir_reader.cc
  *
- * a benchmark program for evaluating plfsdir read performance
+ * a benchmark program for evaluating plfsdir read performance.
  */
 
 #include "preload_plfsdir_reader.h"
@@ -128,7 +128,7 @@ struct gs {
   int a;         /* anti-shuffle mode (query rank 0 names across all ranks)*/
   int r;         /* number of ranks to read */
   int d;         /* number of names to read per rank */
-  char* in;      /* path to the dir input dir */
+  char* dirinfo; /* path to dir info */
   char* dirname; /* dir name (path to dir storage) */
   int timeout;   /* alarm timeout */
   int v;         /* be verbose */
@@ -238,13 +238,12 @@ static void usage(const char* msg) {
 }
 
 /*
- * prepare_dir: generate plfsdir conf and initialize thread pool
+ * prepare_dir: generate plfsdir conf string and initialize worker threads
  */
 static char* prepare_dir(int myrank) {
   if (r.bg && !tp) tp = deltafs_tp_init(r.bg);
   if (r.bg && !tp) complain("fail to init thread pool");
   gen_conf(&r, &c, myrank, cf, sizeof(cf));
-
 #ifndef NDEBUG
   info(cf);
 #endif
@@ -262,7 +261,7 @@ static void get_names(int rank, std::vector<std::string>* results) {
 
   results->clear();
 
-  snprintf(fname, sizeof(fname), "%s/NAMES-%07d.txt", g.in, rank);
+  snprintf(fname, sizeof(fname), "%s/NAMES-%07d.txt", g.dirinfo, rank);
   f = fopen(fname, "r");
   if (!f) complain("error opening %s: %s", fname, strerror(errno));
 
@@ -515,24 +514,24 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
-  if (argc != 2) /* plfsdir and infodir must be provided on cli */
+  if (argc != 2) /* dirname and dirinfo must be provided on cli */
     usage("bad args");
   g.dirname = argv[0];
-  g.in = argv[1];
+  g.dirinfo = argv[1];
 
   if (access(g.dirname, R_OK) != 0)
     complain("cannot access %s: %s", g.dirname, strerror(errno));
-  if (access(g.in, R_OK) != 0)
-    complain("cannot access %s: %s", g.in, strerror(errno));
+  if (access(g.dirinfo, R_OK) != 0)
+    complain("cannot access %s: %s", g.dirinfo, strerror(errno));
 
   memset(&c, 0, sizeof(c));
-  get_manifest(g.in, &c);
+  get_manifest(g.dirinfo, &c);
 
   printf("\n%s\n==options:\n", argv0);
   printf("\tqueries: %d x %d (ranks x reads)\n", g.r, g.d);
   printf("\tnum bg threads: %d (reader thread pool)\n", r.bg);
   printf("\tanti-shuffle: %d\n", g.a);
-  printf("\tinfodir: %s\n", g.in);
+  printf("\tinfodir: %s\n", g.dirinfo);
   printf("\tplfsdir: %s\n", g.dirname);
   printf("\ttimeout: %d s\n", g.timeout);
   printf("\tignore bloom filters: %d\n", r.nobf);

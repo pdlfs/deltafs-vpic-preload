@@ -121,7 +121,7 @@ static inline void get_manifest(const char* dirinfo, struct plfsdir_conf* c) {
   snprintf(fname, sizeof(fname), "%s/MANIFEST", dirinfo);
   f = fopen(fname, "r");
   if (!f) {
-    fprintf(stderr, "error opening %s: %s", fname, strerror(errno));
+    fprintf(stderr, "error opening %s: %s\n", fname, strerror(errno));
     exit(1);
   }
 
@@ -150,12 +150,12 @@ static inline void get_manifest(const char* dirinfo, struct plfsdir_conf* c) {
   }
 
   if (ferror(f)) {
-    fprintf(stderr, "error reading %s: %s", fname, strerror(errno));
+    fprintf(stderr, "error reading %s: %s\n", fname, strerror(errno));
     exit(1);
   }
 
   if (c->key_size == 0 || c->comm_sz == 0) {
-    fprintf(stderr, "bad manifest: key_size or comm_sz is 0?!");
+    fprintf(stderr, "bad manifest: key_size or comm_sz is 0?!\n");
     exit(1);
   }
 

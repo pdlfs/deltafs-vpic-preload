@@ -15,6 +15,9 @@ set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 add_executable (preload-plfsdir-reader preload_plfsdir_reader.cc)
 target_link_libraries (preload-plfsdir-reader deltafs)
 
+add_executable (preload-reader preload_reader.cc)
+target_link_libraries (preload-reader deltafs)
+
 add_executable (preload-runner preload_runner.cc)
 target_link_libraries (preload-runner deltafs-preload Threads::Threads)
 
@@ -57,4 +60,7 @@ install (TARGETS preload-runner preload-runner-no-deltafs
         RUNTIME DESTINATION bin)
 
 install (TARGETS preload-plfsdir-reader
-         RUNTIME DESTINATION bin)
+        RUNTIME DESTINATION bin)
+
+install (TARGETS preload-reader
+        RUNTIME DESTINATION bin)
