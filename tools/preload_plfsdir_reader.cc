@@ -32,8 +32,10 @@
 /*
  * preload_plfsdir_reader.cc
  *
- * a simple reader program for reading data out of a plfsdir.
+ * a benchmark program for evaluating plfsdir read performance
  */
+
+#include "preload_plfsdir_reader.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -50,8 +52,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <deltafs/deltafs_api.h>
-
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -60,27 +60,11 @@
  * helper/utility functions, included inline here so we are self-contained
  * in one single source file...
  */
-static char* argv0;      /* argv[0], program name */
-static deltafs_tp_t* tp; /* plfsdir worker thread pool */
-static char cf[500];     /* plfsdir conf str */
-static struct deltafs_conf {
-  int num_epochs;
-  int key_size;
-  int value_size;
-  char* filter_bits_per_key;
-  char* memtable_size;
-  int lg_parts;
-  int skip_crc32c;
-  int bypass_shuffle;
-  int force_leveldb_format;
-  int unordered_storage;
-  int io_engine;
-  int comm_sz;
-  int particle_id_size;
-  int particle_size;
-  int bloomy_fmt;
-  int wisc_fmt;
-} c; /* plfsdir conf */
+static char* argv0;                  /* program name */
+static plfsdir_tp_t* tp;             /* plfsdir background worker thread pool */
+static struct plfsdir_reader_conf r; /* plfsdir reader conf */
+static struct plfsdir_conf c;        /* plfsdir conf */
+static char cf[500];                 /* plfsdir conf str */
 
 /*
  * vcomplain/complain about something and exit.
@@ -144,12 +128,8 @@ struct gs {
   int a;         /* anti-shuffle mode (query rank 0 names across all ranks)*/
   int r;         /* number of ranks to read */
   int d;         /* number of names to read per rank */
-  int bg;        /* number of background worker threads */
-  char* in;      /* path to the input dir */
+  char* in;      /* path to the dir input dir */
   char* dirname; /* dir name (path to dir storage) */
-  int nobf;      /* ignore bloom filters */
-  int crc32c;    /* verify checksums */
-  int paranoid;  /* paranoid checks */
   int timeout;   /* alarm timeout */
   int v;         /* be verbose */
 } g;
@@ -257,102 +237,14 @@ static void usage(const char* msg) {
   exit(1);
 }
 
-static bool parse_manifest_int(char* ch, const char* prefix, int* result) {
-  size_t n = strlen(prefix);
-  if (strncmp(ch, prefix, n) == 0) {
-    *result = atoi(ch + n);
-    if (*result < 0) complain("bad %s", prefix);
-    return true;
-  } else {
-    return false;
-  }
-}
-
-static bool parse_manifest_string(char* ch, const char* prefix, char** result) {
-  size_t n = strlen(prefix);
-  if (strncmp(ch, prefix, n) == 0) {
-    *result = strdup(ch + n);
-    if ((*result)[0] != 0 && (*result)[strlen(*result) - 1] == '\n')
-      (*result)[strlen(*result) - 1] = 0;
-    return true;
-  } else {
-    return false;
-  }
-}
-
 /*
- * get_manifest: parse the conf from the dir manifest file
+ * prepare_dir: generate plfsdir conf and initialize thread pool
  */
-static void get_manifest() {
-  char* ch;
-  char fname[PATH_MAX];
-  char tmp[100];
-  FILE* f;
+static char* prepare_dir(int myrank) {
+  if (g.r && !tp) tp = deltafs_tp_init(r.bg);
+  if (g.r && !tp) complain("fail to init thread pool");
+  gen_conf(&r, &c, myrank, cf, sizeof(cf));
 
-  snprintf(fname, sizeof(fname), "%s/MANIFEST", g.in);
-  f = fopen(fname, "r");
-  if (!f) complain("error opening %s: %s", fname, strerror(errno));
-
-  while ((ch = fgets(tmp, sizeof(tmp), f)) != NULL) {
-    if (parse_manifest_int(ch, "num_epochs=", &c.num_epochs) ||
-        parse_manifest_int(ch, "key_size=", &c.key_size) ||
-        parse_manifest_int(ch, "value_size=", &c.value_size) ||
-        parse_manifest_string(ch,
-                              "filter_bits_per_key=", &c.filter_bits_per_key) ||
-        parse_manifest_string(ch, "memtable_size=", &c.memtable_size) ||
-        parse_manifest_int(ch, "lg_parts=", &c.lg_parts) ||
-        parse_manifest_int(ch, "skip_checksums=", &c.skip_crc32c) ||
-        parse_manifest_int(ch, "bypass_shuffle=", &c.bypass_shuffle) ||
-        parse_manifest_int(ch,
-                           "force_leveldb_format=", &c.force_leveldb_format) ||
-        parse_manifest_int(ch, "unordered_storage=", &c.unordered_storage) ||
-        parse_manifest_int(ch, "io_engine=", &c.io_engine) ||
-        parse_manifest_int(ch, "comm_sz=", &c.comm_sz) ||
-        parse_manifest_int(ch, "particle_id_size=", &c.particle_id_size) ||
-        parse_manifest_int(ch, "particle_size=", &c.particle_size)) {
-    } else if (strcmp(ch, "fmt=bloomy\n") == 0) {
-      c.bloomy_fmt = 1;
-    } else if (strcmp(ch, "fmt=wisc\n") == 0) {
-      c.wisc_fmt = 1;
-    }
-  }
-
-  if (ferror(f)) {
-    complain("error reading %s: %s", fname, strerror(errno));
-  }
-
-  if (c.key_size == 0 || c.comm_sz == 0)
-    complain("bad manifest: key_size or comm_sz is 0?!");
-
-  fclose(f);
-}
-
-/*
- * prepare_conf: generate plfsdir conf
- */
-static char* prepare_conf(int rank) {
-  int n;
-
-  if (g.bg && !tp) tp = deltafs_tp_init(g.bg);
-  if (g.bg && !tp) complain("fail to init thread pool");
-
-  n = snprintf(cf, sizeof(cf), "rank=%d", rank);
-  n += snprintf(cf + n, sizeof(cf) - n, "&key_size=%d", c.key_size);
-#ifndef NDEBUG
-  n += snprintf(cf + n, sizeof(cf) - n, "&value_size=%d", c.value_size);
-  n += snprintf(cf + n, sizeof(cf) - n, "&memtable_size=%s", c.memtable_size);
-  n += snprintf(cf + n, sizeof(cf) - n, "&bf_bits_per_key=%s",
-                c.filter_bits_per_key);
-#endif
-  if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT) {
-    n += snprintf(cf + n, sizeof(cf) - n, "&num_epochs=%d", c.num_epochs);
-    n += snprintf(cf + n, sizeof(cf) - n, "&skip_checksums=%d", c.skip_crc32c);
-    n += snprintf(cf + n, sizeof(cf) - n, "&verify_checksums=%d", g.crc32c);
-    n += snprintf(cf + n, sizeof(cf) - n, "&paranoid_checks=%d", g.paranoid);
-    n += snprintf(cf + n, sizeof(cf) - n, "&parallel_reads=%d", g.bg != 0);
-    n += snprintf(cf + n, sizeof(cf) - n, "&ignore_filters=%d", g.nobf);
-    snprintf(cf + n, sizeof(cf) - n, "&lg_parts=%d", c.lg_parts);
-  }
 #ifndef NDEBUG
   info(cf);
 #endif
@@ -470,7 +362,7 @@ static void do_read(deltafs_plfsdir_t* dir, const char* name) {
  */
 static void do_reads(int rank, std::string* names, int num_names) {
   deltafs_plfsdir_t* dir;
-  char* conf = prepare_conf(rank);
+  char* conf = prepare_dir(rank);
 
   dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, c.io_engine);
   if (!dir) complain("fail to create dir handle");
@@ -579,9 +471,11 @@ int main(int argc, char* argv[]) {
   /* we want lines, even if we are writing to a pipe */
   setlinebuf(stdout);
 
-  /* setup default to zero/null, except as noted below */
+  memset(&r, 0, sizeof(r));
   memset(&g, 0, sizeof(g));
+
   g.timeout = DEF_TIMEOUT;
+
   while ((ch = getopt(argc, argv, "ar:d:j:t:ickv")) != -1) {
     switch (ch) {
       case 'a':
@@ -596,21 +490,21 @@ int main(int argc, char* argv[]) {
         if (g.d < 0) usage("bad depth");
         break;
       case 'j':
-        g.bg = atoi(optarg);
-        if (g.bg < 0) usage("bad bg number");
+        r.bg = atoi(optarg);
+        if (r.bg < 0) usage("bad bg number");
         break;
       case 't':
         g.timeout = atoi(optarg);
         if (g.timeout < 0) usage("bad timeout");
         break;
       case 'i':
-        g.nobf = 1;
+        r.nobf = 1;
         break;
       case 'c':
-        g.crc32c = 1;
+        r.crc32c = 1;
         break;
       case 'k':
-        g.paranoid = 1;
+        r.paranoid = 1;
         break;
       case 'v':
         g.v = 1;
@@ -633,18 +527,18 @@ int main(int argc, char* argv[]) {
     complain("cannot access %s: %s", g.in, strerror(errno));
 
   memset(&c, 0, sizeof(c));
-  get_manifest();
+  get_manifest(g.in, &c);
 
   printf("\n%s\n==options:\n", argv0);
   printf("\tqueries: %d x %d (ranks x reads)\n", g.r, g.d);
-  printf("\tnum bg threads: %d (reader thread pool)\n", g.bg);
+  printf("\tnum bg threads: %d (reader thread pool)\n", r.bg);
   printf("\tanti-shuffle: %d\n", g.a);
   printf("\tinfodir: %s\n", g.in);
   printf("\tplfsdir: %s\n", g.dirname);
   printf("\ttimeout: %d s\n", g.timeout);
-  printf("\tignore bloom filters: %d\n", g.nobf);
-  printf("\tverify crc32: %d\n", g.crc32c);
-  printf("\tparanoid checks: %d\n", g.paranoid);
+  printf("\tignore bloom filters: %d\n", r.nobf);
+  printf("\tverify crc32: %d\n", r.crc32c);
+  printf("\tparanoid checks: %d\n", r.paranoid);
   printf("\tverbose: %d\n", g.v);
   printf("\n==dir manifest\n");
   printf("\tio engine: %d\n", c.io_engine);
