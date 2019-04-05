@@ -314,7 +314,7 @@ static inline void readone(const struct plfsdir_stats* s,
 
   table_seeks = seeks = 0;
 
-  if (s->v) info("read %s ...", fname);
+  if (s->v) info("reading %s ...", fname);
   char* buf = static_cast<char*>(
       deltafs_plfsdir_read(dir, fname, -1, &sz, &table_seeks, &seeks));
   if (!buf) {
