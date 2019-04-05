@@ -262,8 +262,11 @@ int main(int argc, char* argv[]) {
   for (int a = 3; a < argc; a++) {
     read(&s, argv[a]);
   }
-  info("total files written: %lu", z.nfiles);
-  info("total bytes written: %lu", z.nbytes);
+  if (g.v) {
+    info("\n---");
+    info("total files written: %lu", z.nfiles);
+    info("total bytes written: %lu", z.nbytes);
+  }
 
   if (tp) deltafs_tp_close(tp);
   if (c.memtable_size) free(c.memtable_size);
