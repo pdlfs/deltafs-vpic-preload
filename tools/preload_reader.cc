@@ -40,9 +40,11 @@
 #include <assert.h>
 #include <errno.h>
 #include <getopt.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 /*
  * helper/utility functions, included inline here so we are self-contained
