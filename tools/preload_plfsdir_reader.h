@@ -381,8 +381,8 @@ static inline void readnames(const struct plfsdir_stats* s, int rank,
   free(conf);
 }
 
-static inline void ftreadnames(const struct plfsdir_stats* s, int rank,
-                               std::string* fnames, int nnames) {
+static inline void filterreadnames(const struct plfsdir_stats* s, int rank,
+                                   std::string* fnames, int nnames) {
   deltafs_plfsdir_t* dir;
   size_t num_ranks;
   char conf[20];

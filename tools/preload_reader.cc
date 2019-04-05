@@ -52,6 +52,8 @@
  */
 static char* argv0;                  /* program name */
 static plfsdir_tp_t* tp;             /* plfsdir background worker thread pool */
+static struct plfsdir_core_mon x;    /* plfsdir internal monitoring stats */
+static struct plfsdir_mon m;         /* plfsdir monitoring stats */
 static struct plfsdir_reader_conf r; /* plfsdir reader conf */
 static struct plfsdir_conf c;        /* plfsdir conf */
 
@@ -100,12 +102,45 @@ static void usage(const char* msg) {
   exit(1);
 }
 
+#include <pdlfs-common/xxhash.h>
+
+/*
+ * output file
+ */
+static FILE* out;
+static void consume(char* buf, size_t sz) {
+  if (sz != 0) {
+    fwrite(buf, 1, sz, out);
+  }
+}
+
+static void read(const struct plfsdir_stats* s, char* target) {
+  std::string path, fname;
+  int rank;
+
+  fname = target;
+  path = std::string(g.dirdest) + "/" + fname;
+  out = fopen(path.c_str(), "w");
+  if (!out) {
+    complain("cannot create output file %s: %s", target, strerror(errno));
+  }
+  rank = pdlfs::xxhash32(fname.data(), fname.length(), 0) % c.comm_sz;
+
+  if (c.bloomy_fmt) {
+    filterreadnames(s, rank, &fname, 1);
+  } else {
+    readnames(s, rank, &fname, 1);
+  }
+
+  fflush(out);
+  fclose(out);
+}
+
 /*
  * main program
  */
 int main(int argc, char* argv[]) {
   int ch;
-
   argv0 = argv[0];
   tp = NULL;
 
@@ -146,7 +181,7 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
-  if (argc < 3) /* dir name, info dir, dst dir, and fname must appear */
+  if (argc < 3) /* dirname, dirinfo, and dirdest are required */
     usage("bad args");
 
   g.dirname = argv[0];
@@ -196,6 +231,34 @@ int main(int argc, char* argv[]) {
 
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
+
+  memset(&m, 0, sizeof(m));
+  memset(&x, 0, sizeof(x));
+  x.min_table_seeks = ULONG_LONG_MAX;
+  x.min_seeks = ULONG_LONG_MAX;
+
+  if (r.bg) tp = deltafs_tp_init(r.bg);
+  if (r.bg && !tp) complain("fail to init thread pool");
+
+  plfsdir_stats s;
+  memset(&s, 0, sizeof(s));
+  s.tp = tp;
+  s.consume = consume;
+  s.dirname = g.dirname;
+  s.v = g.v;
+
+  s.r = &r;
+  s.c = &c;
+  s.x = &x;
+  s.m = &m;
+
+  for (int a = 3; a < argc; a++) {
+    read(&s, argv[a]);
+  }
+
+  if (tp) deltafs_tp_close(tp);
+  if (c.memtable_size) free(c.memtable_size);
+  if (c.filter_bits_per_key) free(c.filter_bits_per_key);
 
   if (g.v) info("all done!");
   if (g.v) info("bye");

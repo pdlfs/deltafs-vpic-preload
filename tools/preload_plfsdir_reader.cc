@@ -214,7 +214,7 @@ static void getnames(int rank, std::vector<std::string>* results) {
 }
 
 /*
- * runqueries: perform reads against a specific data partition.
+ * runqueries: run queries against a given partition
  */
 static void runqueries(const struct plfsdir_stats* s, int rank) {
   std::vector<std::string> names;
@@ -231,7 +231,7 @@ static void runqueries(const struct plfsdir_stats* s, int rank) {
   start = now();
 
   if (c.bloomy_fmt) {
-    ftreadnames(s, rank, &names[0], reads);
+    filterreadnames(s, rank, &names[0], reads);
   } else {
     readnames(s, rank, &names[0], reads);
   }
@@ -297,7 +297,7 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
-  if (argc != 2) /* dirname and dirinfo must be provided on cli */
+  if (argc != 2) /* dirname and dirinfo must be specified via cmd */
     usage("bad args");
   g.dirname = argv[0];
   g.dirinfo = argv[1];
