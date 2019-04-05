@@ -105,12 +105,17 @@ static void usage(const char* msg) {
 #include <pdlfs-common/xxhash.h>
 
 /*
- * output file
+ * output stats
  */
+static struct {
+  uint64_t nfiles; /* total files copied out */
+  uint64_t nbytes; /* total bytes written */
+} z;
 static FILE* out;
 static void consume(char* buf, size_t sz) {
   if (sz != 0) {
     fwrite(buf, 1, sz, out);
+    z.nbytes += sz;
   }
 }
 
@@ -125,6 +130,7 @@ static void read(const struct plfsdir_stats* s, char* target) {
     complain("cannot create output file %s: %s", target, strerror(errno));
   }
   rank = pdlfs::xxhash32(fname.data(), fname.length(), 0) % c.comm_sz;
+  z.nfiles++;
 
   if (c.bloomy_fmt) {
     filterreadnames(s, rank, &fname, 1);
@@ -252,9 +258,12 @@ int main(int argc, char* argv[]) {
   s.x = &x;
   s.m = &m;
 
+  memset(&z, 0, sizeof(z));
   for (int a = 3; a < argc; a++) {
     read(&s, argv[a]);
   }
+  info("total files written: %lu", z.nfiles);
+  info("total bytes written: %lu", z.nbytes);
 
   if (tp) deltafs_tp_close(tp);
   if (c.memtable_size) free(c.memtable_size);

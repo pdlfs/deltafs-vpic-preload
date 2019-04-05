@@ -275,7 +275,6 @@ static inline void onemore(const struct plfsdir_stats* s, int rank, off_t off) {
     complain("fail to create plfsdir handle");
   }
 
-  if (s->v) info("open rank %d ...", rank);
   deltafs_plfsdir_enable_io_measurement(dir, 1);
   if (deltafs_plfsdir_open(dir, s->dirname) != 0)
     complain("error opening plfsdir: %s", strerror(errno));
@@ -315,6 +314,7 @@ static inline void readone(const struct plfsdir_stats* s,
 
   table_seeks = seeks = 0;
 
+  if (s->v) info("read %s ...", fname);
   char* buf = static_cast<char*>(
       deltafs_plfsdir_read(dir, fname, -1, &sz, &table_seeks, &seeks));
   if (!buf) {
@@ -362,7 +362,6 @@ static inline void readnames(const struct plfsdir_stats* s, int rank,
   deltafs_plfsdir_set_unordered(dir, s->c->unordered_storage);
   deltafs_plfsdir_set_fixed_kv(dir, 1);
 
-  if (s->v) info("open rank %d ...", rank);
   if (deltafs_plfsdir_open(dir, s->dirname) != 0)
     complain("error opening plfsdir: %s", strerror(errno));
   for (int i = 0; i < nnames; i++) {
@@ -384,8 +383,8 @@ static inline void readnames(const struct plfsdir_stats* s, int rank,
 static inline void filterreadnames(const struct plfsdir_stats* s, int rank,
                                    std::string* fnames, int nnames) {
   deltafs_plfsdir_t* dir;
-  size_t num_ranks;
   char conf[20];
+  size_t n;
 
   snprintf(conf, sizeof(conf), "rank=%d", rank);
   dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
@@ -393,7 +392,6 @@ static inline void filterreadnames(const struct plfsdir_stats* s, int rank,
     complain("fail to create plfsdir handle");
   }
 
-  if (s->v) info("open rank %d ...", rank);
   deltafs_plfsdir_enable_io_measurement(dir, 1);
   if (deltafs_plfsdir_open(dir, s->dirname) != 0)
     complain("error opening plfsdir: %s", strerror(errno));
@@ -401,10 +399,10 @@ static inline void filterreadnames(const struct plfsdir_stats* s, int rank,
     complain("error opening plfsdir filter: %s", strerror(errno));
 
   for (int i = 0; i < nnames; i++) {
-    int* possible_ranks = deltafs_plfsdir_filter_get(
-        dir, fnames[i].data(), fnames[i].size(), &num_ranks);
+    int* possible_ranks =
+        deltafs_plfsdir_filter_get(dir, fnames[i].data(), fnames[i].size(), &n);
     if (possible_ranks) {
-      for (int j = 0; j < num_ranks; j++) {
+      for (int j = 0; j < n; j++) {
         readnames(s, possible_ranks[j], &fnames[i], 1);
       }
     }
