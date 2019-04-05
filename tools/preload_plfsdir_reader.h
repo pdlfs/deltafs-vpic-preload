@@ -40,15 +40,53 @@
 #include <deltafs/deltafs_api.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
+#include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <algorithm>
+#include <string>
 
 /*
  * plfsdir_tp_t: plfsdir thread pool handle type
  */
 typedef deltafs_tp_t plfsdir_tp_t;
+
+/*
+ * vcomplain/complain about something and exit.
+ */
+static inline void vcomplain(const char* format, va_list ap) {
+  fprintf(stderr, "!!! ERROR !!! ");
+  vfprintf(stderr, format, ap);
+  fprintf(stderr, "\n");
+  exit(1);
+}
+
+static inline void complain(const char* format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  vcomplain(format, ap);
+  va_end(ap);
+}
+
+/*
+ * print info messages.
+ */
+static inline void vinfo(const char* format, va_list ap) {
+  vprintf(format, ap);
+  printf("\n");
+}
+
+static inline void info(const char* format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  vinfo(format, ap);
+  va_end(ap);
+}
 
 /*
  * helper functions for parsing plfsdir manifest lines
@@ -110,9 +148,9 @@ struct plfsdir_conf {
 };
 
 /*
- * get_manifest: retrieve dir manifest from *dirinfo and store it to *c
+ * getmanifest: retrieve dir manifest from *dirinfo and store it to *c
  */
-static inline void get_manifest(const char* dirinfo, struct plfsdir_conf* c) {
+static inline void getmanifest(const char* dirinfo, struct plfsdir_conf* c) {
   char* ch;
   char fname[PATH_MAX];
   char tmp[100];
@@ -121,8 +159,7 @@ static inline void get_manifest(const char* dirinfo, struct plfsdir_conf* c) {
   snprintf(fname, sizeof(fname), "%s/MANIFEST", dirinfo);
   f = fopen(fname, "r");
   if (!f) {
-    fprintf(stderr, "error opening %s: %s\n", fname, strerror(errno));
-    exit(1);
+    complain("error opening %s: %s", fname, strerror(errno));
   }
 
   while ((ch = fgets(tmp, sizeof(tmp), f)) != NULL) {
@@ -150,27 +187,25 @@ static inline void get_manifest(const char* dirinfo, struct plfsdir_conf* c) {
   }
 
   if (ferror(f)) {
-    fprintf(stderr, "error reading %s: %s\n", fname, strerror(errno));
-    exit(1);
+    complain("error reading %s: %s", fname, strerror(errno));
   }
 
   if (c->key_size == 0 || c->comm_sz == 0) {
-    fprintf(stderr, "bad manifest: key_size or comm_sz is 0?!\n");
-    exit(1);
+    complain("bad manifest: key_size or comm_sz is 0?!");
   }
 
   fclose(f);
 }
 
 /*
- * gen_conf: generate plfsdir conf and write it into *buf
+ * genconf: generate plfsdir conf and write it into *buf
  */
-static inline char* gen_conf(const struct plfsdir_reader_conf* r,
-                             const struct plfsdir_conf* c, int myrank,
-                             char* buf, size_t bufsize) {
+static inline char* genconf(const struct plfsdir_reader_conf* r,
+                            const struct plfsdir_conf* c, int rank, char* buf,
+                            size_t bufsize) {
   int n;
 
-  n = snprintf(buf, bufsize, "rank=%d", myrank);
+  n = snprintf(buf, bufsize, "rank=%d", rank);
   n += snprintf(buf + n, bufsize - n, "&value_size=%d", c->value_size);
   n += snprintf(buf + n, bufsize - n, "&key_size=%d", c->key_size);
 
@@ -191,4 +226,197 @@ static inline char* gen_conf(const struct plfsdir_reader_conf* r,
   }
 
   return buf;
+}
+
+/* plfsdir_core_mon: plfsdir's internal seek stats */
+struct plfsdir_core_mon {
+  uint64_t total_table_seeks; /* total num of table touched over all read ops */
+  uint64_t min_table_seeks;   /* min per read */
+  uint64_t max_table_seeks;   /* max per read */
+  uint64_t total_seeks;       /* total data block seeks */
+  uint64_t min_seeks;         /* min per read */
+  uint64_t max_seeks;         /* max per read */
+};
+
+/* plfsdir_mon: monitoring stats */
+struct plfsdir_mon {
+  uint64_t under_bytes; /* total amount of underlying data retrieved */
+  uint64_t under_files; /* total amount of underlying files opened */
+  uint64_t under_seeks; /* total amount of underlying storage seeks */
+  uint64_t extra_ops;   /* num extra read ops */
+  uint64_t extra_okops; /* num extra read ops that return non-empty data */
+  uint64_t extra_bytes; /* total extra amount of data read */
+  uint64_t ops;         /* num read ops */
+  uint64_t okops;       /* num read ops that return non-empty data */
+  uint64_t bytes;       /* total amount of data read */
+};
+
+/* plfsdir_stats: read stats */
+struct plfsdir_stats {
+  plfsdir_tp_t* tp;
+  void (*consume)(char*, size_t);
+  const struct plfsdir_reader_conf* r;
+  const struct plfsdir_conf* c;
+  struct plfsdir_core_mon* x;
+  struct plfsdir_mon* m;
+  const char* dirname;
+  int v;
+};
+
+static inline void onemore(const struct plfsdir_stats* s, int rank, off_t off) {
+  size_t sz;
+  deltafs_plfsdir_t* dir;
+  char conf[20];
+  ssize_t n;
+
+  snprintf(conf, sizeof(conf), "rank=%d", rank);
+  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
+  if (!dir) {
+    complain("fail to create plfsdir handle");
+  }
+
+  if (s->v) info("open rank %d ...", rank);
+  deltafs_plfsdir_enable_io_measurement(dir, 1);
+  if (deltafs_plfsdir_open(dir, s->dirname) != 0)
+    complain("error opening plfsdir: %s", strerror(errno));
+  if (deltafs_plfsdir_io_open(dir, s->dirname) != 0)
+    complain("error opening plfsdir io: %s", strerror(errno));
+
+  sz = s->c->particle_size;
+  char* buf = static_cast<char*>(malloc(sz));
+  n = deltafs_plfsdir_io_pread(dir, buf, sz, off);
+  if (n != sz) complain("error reading extra data: %s", strerror(errno));
+  if (s->consume) {
+    s->consume(buf, sz);
+  }
+
+  free(buf);
+
+  s->m->under_bytes +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
+  s->m->under_files +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
+  s->m->under_seeks +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
+  s->m->extra_bytes += n;
+  if (n != 0) s->m->extra_okops++;
+  s->m->extra_ops++;
+
+  deltafs_plfsdir_free_handle(dir);
+}
+
+static inline void readone(const struct plfsdir_stats* s,
+                           deltafs_plfsdir_t* dir, const char* fname) {
+  size_t table_seeks;
+  size_t seeks;
+  size_t sz;
+  uint64_t off;
+  int rank;
+
+  table_seeks = seeks = 0;
+
+  char* buf = static_cast<char*>(
+      deltafs_plfsdir_read(dir, fname, -1, &sz, &table_seeks, &seeks));
+  if (!buf) {
+    complain("error reading %s: %s", fname, strerror(errno));
+  }
+
+  if (s->c->wisc_fmt) { /* need one more read for wisc formatted dirs */
+    if (sz != 12) complain("bad record size: %s", fname);
+    memcpy(&rank, buf, 4);
+    memcpy(&off, buf + 4, 8);
+    onemore(s, rank, off);
+  } else if (s->consume) { /* directly consume data */
+    s->consume(buf, sz);
+  }
+
+  free(buf);
+
+  s->x->total_table_seeks += table_seeks;
+  s->x->min_table_seeks =
+      std::min<uint64_t>(table_seeks, s->x->min_table_seeks);
+  s->x->max_table_seeks =
+      std::max<uint64_t>(table_seeks, s->x->max_table_seeks);
+  s->x->total_seeks += seeks;
+  s->x->min_seeks = std::min<uint64_t>(seeks, s->x->min_seeks);
+  s->x->max_seeks = std::max<uint64_t>(seeks, s->x->max_seeks);
+  s->m->bytes += sz;
+  if (sz != 0) s->m->okops++;
+  s->m->ops++;
+}
+
+static inline void readnames(const struct plfsdir_stats* s, int rank,
+                             std::string* fnames, int nnames) {
+  deltafs_plfsdir_t* dir;
+
+  char* conf = static_cast<char*>(malloc(500));
+  genconf(s->r, s->c, rank, conf, 500);
+  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, s->c->io_engine);
+  if (!dir) {
+    complain("fail to create plfsdir handle");
+  }
+
+  deltafs_plfsdir_enable_io_measurement(dir, 1);
+  if (s->tp) deltafs_plfsdir_set_thread_pool(dir, s->tp);
+  deltafs_plfsdir_force_leveldb_fmt(dir, s->c->force_leveldb_format);
+  deltafs_plfsdir_set_unordered(dir, s->c->unordered_storage);
+  deltafs_plfsdir_set_fixed_kv(dir, 1);
+
+  if (s->v) info("open rank %d ...", rank);
+  if (deltafs_plfsdir_open(dir, s->dirname) != 0)
+    complain("error opening plfsdir: %s", strerror(errno));
+  for (int i = 0; i < nnames; i++) {
+    readone(s, dir, fnames[i].c_str());
+  }
+
+  s->m->under_bytes +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
+  s->m->under_files +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
+  s->m->under_seeks +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
+
+  deltafs_plfsdir_free_handle(dir);
+
+  free(conf);
+}
+
+static inline void ftreadnames(const struct plfsdir_stats* s, int rank,
+                               std::string* fnames, int nnames) {
+  deltafs_plfsdir_t* dir;
+  size_t num_ranks;
+  char conf[20];
+
+  snprintf(conf, sizeof(conf), "rank=%d", rank);
+  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
+  if (!dir) {
+    complain("fail to create plfsdir handle");
+  }
+
+  if (s->v) info("open rank %d ...", rank);
+  deltafs_plfsdir_enable_io_measurement(dir, 1);
+  if (deltafs_plfsdir_open(dir, s->dirname) != 0)
+    complain("error opening plfsdir: %s", strerror(errno));
+  if (deltafs_plfsdir_filter_open(dir, s->dirname) != 0)
+    complain("error opening plfsdir filter: %s", strerror(errno));
+
+  for (int i = 0; i < nnames; i++) {
+    int* possible_ranks = deltafs_plfsdir_filter_get(
+        dir, fnames[i].data(), fnames[i].size(), &num_ranks);
+    if (possible_ranks) {
+      for (int j = 0; j < num_ranks; j++) {
+        readnames(s, possible_ranks[j], &fnames[i], 1);
+      }
+    }
+    free(possible_ranks);
+  }
+
+  s->m->under_bytes +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
+  s->m->under_files +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
+  s->m->under_seeks +=
+      deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
+
+  deltafs_plfsdir_free_handle(dir);
 }

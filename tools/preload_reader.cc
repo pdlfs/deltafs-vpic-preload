@@ -52,40 +52,6 @@ static char* argv0;                  /* program name */
 static plfsdir_tp_t* tp;             /* plfsdir background worker thread pool */
 static struct plfsdir_reader_conf r; /* plfsdir reader conf */
 static struct plfsdir_conf c;        /* plfsdir conf */
-static char cf[500];                 /* plfsdir conf str */
-
-/*
- * vcomplain/complain about something and exit.
- */
-static void vcomplain(const char* format, va_list ap) {
-  fprintf(stderr, "!!! ERROR !!! %s: ", argv0);
-  vfprintf(stderr, format, ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
-static void complain(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  vcomplain(format, ap);
-  va_end(ap);
-}
-
-/*
- * print info messages.
- */
-static void vinfo(const char* format, va_list ap) {
-  printf("-INFO- ");
-  vprintf(format, ap);
-  printf("\n");
-}
-
-static void info(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  vinfo(format, ap);
-  va_end(ap);
-}
 
 /*
  * end of helper/utility functions.
@@ -103,7 +69,6 @@ struct gs {
   char* dirinfo; /* path to dir info */
   char* dirname; /* dir name (path to dir storage) */
   char* dirdest; /* output dir */
-  char* fname;   /* target file to read from the plfsdir */
   int timeout;   /* alarm timeout */
   int v;         /* be verbose */
 } g;
@@ -133,8 +98,6 @@ static void usage(const char* msg) {
   exit(1);
 }
 
-
-
 /*
  * main program
  */
@@ -142,7 +105,6 @@ int main(int argc, char* argv[]) {
   int ch;
 
   argv0 = argv[0];
-  memset(cf, 0, sizeof(cf));
   tp = NULL;
 
   /* we want lines, even if we are writing to a pipe */
@@ -182,13 +144,12 @@ int main(int argc, char* argv[]) {
   argc -= optind;
   argv += optind;
 
-  if (argc != 4) /* dir name, info dir, dst dir, and fname must appear */
+  if (argc < 3) /* dir name, info dir, dst dir, and fname must appear */
     usage("bad args");
 
   g.dirname = argv[0];
   g.dirinfo = argv[1];
   g.dirdest = argv[2];
-  g.fname = argv[3];
 
   if (access(g.dirname, R_OK) != 0)
     complain("cannot access %s: %s", g.dirname, strerror(errno));
@@ -198,7 +159,7 @@ int main(int argc, char* argv[]) {
     complain("cannot access %s: %s", g.dirdest, strerror(errno));
 
   memset(&c, 0, sizeof(c));
-  get_manifest(g.dirinfo, &c);
+  getmanifest(g.dirinfo, &c);
 
   if (g.v) {
     printf("\n%s\n==options:\n", argv0);
@@ -206,7 +167,6 @@ int main(int argc, char* argv[]) {
     printf("\tplfsdir: %s\n", g.dirname);
     printf("\tinfodir: %s\n", g.dirinfo);
     printf("\tdestdir: %s\n", g.dirdest);
-    printf("\tfname: %s\n", g.fname);
     printf("\ttimeout: %d s\n", g.timeout);
     printf("\tignore bloom filters: %d\n", r.nobf);
     printf("\tverify crc32: %d\n", r.crc32c);

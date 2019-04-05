@@ -62,42 +62,10 @@
  */
 static char* argv0;                  /* program name */
 static plfsdir_tp_t* tp;             /* plfsdir background worker thread pool */
+static struct plfsdir_core_mon x;    /* plfsdir internal monitoring stats */
+static struct plfsdir_mon m;         /* plfsdir monitoring stats */
 static struct plfsdir_reader_conf r; /* plfsdir reader conf */
 static struct plfsdir_conf c;        /* plfsdir conf */
-static char cf[500];                 /* plfsdir conf str */
-
-/*
- * vcomplain/complain about something and exit.
- */
-static void vcomplain(const char* format, va_list ap) {
-  fprintf(stderr, "!!! ERROR !!! %s: ", argv0);
-  vfprintf(stderr, format, ap);
-  fprintf(stderr, "\n");
-  exit(1);
-}
-
-static void complain(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  vcomplain(format, ap);
-  va_end(ap);
-}
-
-/*
- * print info messages.
- */
-static void vinfo(const char* format, va_list ap) {
-  printf("-INFO- ");
-  vprintf(format, ap);
-  printf("\n");
-}
-
-static void info(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  vinfo(format, ap);
-  va_end(ap);
-}
 
 /*
  * now: get current time in micros
@@ -139,22 +107,8 @@ struct gs {
  */
 struct ms {
   std::vector<uint64_t>* latencies;
-  uint64_t partitions;     /* num data partitions touched */
-  uint64_t extra_ops;      /* num extra read ops */
-  uint64_t extra_okops;    /* num extra read ops that return non-empty data */
-  uint64_t extra_bytes;    /* total extra amount of data read */
-  uint64_t ops;            /* num read ops */
-  uint64_t okops;          /* num read ops that return non-empty data */
-  uint64_t bytes;          /* total amount of data read */
-  uint64_t under_bytes;    /* total amount of underlying data retrieved */
-  uint64_t under_files;    /* total amount of underlying files opened */
-  uint64_t under_seeks;    /* total amount of underlying storage seeks */
-  uint64_t table_seeks[3]; /* sum/min/max sstable opened */
-  uint64_t seeks[3];       /* sum/min/max data block fetched */
-#define SUM 0
-#define MIN 1
-#define MAX 2
-} m;
+  uint64_t partitions;
+} z;
 
 /*
  * report: print performance measurements
@@ -165,7 +119,7 @@ static void report() {
   printf("=== Query Results ===\n");
   printf("[R] Total Epochs: %d\n", c.num_epochs);
   printf("[R] Total Data Partitions: %d (%lu queried)\n", c.comm_sz,
-         m.partitions);
+         z.partitions);
   if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT)
     printf("[R] Total Data Subpartitions: %d\n", c.comm_sz * (1 << c.lg_parts));
   if (m.extra_ops != 0)
@@ -181,15 +135,15 @@ static void report() {
            m.bytes, m.bytes / m.okops / c.num_epochs);
   if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT)
     printf("[R] SST Touched Per Query: %.3f (min: %lu, max: %lu)\n",
-           double(m.table_seeks[SUM]) / m.ops, m.table_seeks[MIN],
-           m.table_seeks[MAX]);
+           double(x.total_table_seeks) / m.ops, x.min_table_seeks,
+           x.max_table_seeks);
   if (c.io_engine == DELTAFS_PLFSDIR_DEFAULT)
     printf("[R] SST Data Blocks Fetched Per Query: %.3f (min: %lu, max: %lu)\n",
-           double(m.seeks[SUM]) / m.ops, m.seeks[MIN], m.seeks[MAX]);
+           double(x.total_seeks) / m.ops, x.min_seeks, x.max_seeks);
   printf("[R] Total Under Storage Seeks: %lu\n", m.under_seeks);
   printf("[R] Total Under Data Read: %lu bytes\n", m.under_bytes);
   printf("[R] Total Under Files Opened: %lu\n", m.under_files);
-  std::vector<uint64_t>* const lat = m.latencies;
+  std::vector<uint64_t>* const lat = z.latencies;
   if (lat && lat->size() != 0) {
     std::sort(lat->begin(), lat->end());
     uint64_t sum = 0;
@@ -198,7 +152,7 @@ static void report() {
     printf(
         "[R] Latency Per Rank (Partition): "
         "%.3f (med: %3f, min: %.3f, max %.3f) ms\n",
-        double(sum) / m.partitions / 1000,
+        double(sum) / z.partitions / 1000,
         double((*lat)[(lat->size() - 1) / 2]) / 1000, double((*lat)[0]) / 1000,
         double((*lat)[lat->size() - 1]) / 1000);
     printf("[R] Total Read Latency: %.6f s\n", double(sum) / 1000 / 1000);
@@ -238,22 +192,9 @@ static void usage(const char* msg) {
 }
 
 /*
- * prepare_dir: generate plfsdir conf string and initialize worker threads
+ * getnames: load names from input
  */
-static char* prepare_dir(int myrank) {
-  if (r.bg && !tp) tp = deltafs_tp_init(r.bg);
-  if (r.bg && !tp) complain("fail to init thread pool");
-  gen_conf(&r, &c, myrank, cf, sizeof(cf));
-#ifndef NDEBUG
-  info(cf);
-#endif
-  return cf;
-}
-
-/*
- * get_names: load names from an input source.
- */
-static void get_names(int rank, std::vector<std::string>* results) {
+static void getnames(int rank, std::vector<std::string>* results) {
   char* ch;
   char fname[PATH_MAX];
   char tmp[100];
@@ -276,162 +217,12 @@ static void get_names(int rank, std::vector<std::string>* results) {
   fclose(f);
 }
 
-static void do_extra_reads(int rank, off_t off) {
-  const int sz = c.particle_size;
-  deltafs_plfsdir_t* dir;
-  char conf[20];
-  ssize_t n;
-
-  snprintf(conf, sizeof(conf), "rank=%d", rank);
-  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
-  if (!dir) complain("fail to create dir handle");
-  deltafs_plfsdir_enable_io_measurement(dir, 1);
-
-  if (g.v) info("  open rank %d ... (%s)", rank, __func__);
-  if (deltafs_plfsdir_open(dir, g.dirname) != 0)
-    complain("error opening plfsdir: %s", strerror(errno));
-  if (deltafs_plfsdir_io_open(dir, g.dirname) != 0)
-    complain("error opening plfsdir io: %s", strerror(errno));
-
-  char* buf = static_cast<char*>(malloc(sz));
-  n = deltafs_plfsdir_io_pread(dir, buf, sz, off);
-  if (n != sz) complain("error reading extra data: %s", strerror(errno));
-
-  free(buf);
-
-  m.under_bytes +=
-      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
-  m.under_files +=
-      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
-  m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
-  m.extra_bytes += n;
-  if (n != 0) m.extra_okops++;
-  m.extra_ops++;
-
-  deltafs_plfsdir_free_handle(dir);
-}
-
 /*
- * do_read: perform a read operation against a specific
- * name under a given plfsdir.
+ * runqueries: perform reads against a specific data partition.
  */
-static void do_read(deltafs_plfsdir_t* dir, const char* name) {
-  char* data;
-  size_t table_seeks;
-  size_t seeks;
-  size_t sz;
-  uint64_t off;
-  int rank;
-
-  table_seeks = seeks = 0;
-
-  data = static_cast<char*>(
-      deltafs_plfsdir_read(dir, name, -1, &sz, &table_seeks, &seeks));
-  if (!data) {
-    complain("error reading %s: %s", name, strerror(errno));
-  } else if (sz == 0 && c.value_size != 0 && !c.bloomy_fmt && !g.a &&
-             !c.bypass_shuffle) {
-    complain("file %s is empty!!", name);
-  }
-
-  if (c.wisc_fmt) {
-    if (sz != 12) complain("file %s's wisc record size is wrong!!", name);
-    memcpy(&rank, data, 4);
-    memcpy(&off, data + 4, 8);
-
-    do_extra_reads(rank, off);
-  }
-
-  free(data);
-
-  m.table_seeks[SUM] += table_seeks;
-  m.table_seeks[MIN] = std::min<uint64_t>(table_seeks, m.table_seeks[MIN]);
-  m.table_seeks[MAX] = std::max<uint64_t>(table_seeks, m.table_seeks[MAX]);
-  m.seeks[SUM] += seeks;
-  m.seeks[MIN] = std::min<uint64_t>(seeks, m.seeks[MIN]);
-  m.seeks[MAX] = std::max<uint64_t>(seeks, m.seeks[MAX]);
-  m.bytes += sz;
-  if (sz != 0) m.okops++;
-  m.ops++;
-}
-
-/*
- * do_reads: perform one or more read operations against
- * a series of names under a given data partition.
- */
-static void do_reads(int rank, std::string* names, int num_names) {
-  deltafs_plfsdir_t* dir;
-  char* conf = prepare_dir(rank);
-
-  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, c.io_engine);
-  if (!dir) complain("fail to create dir handle");
-  deltafs_plfsdir_enable_io_measurement(dir, 1);
-  deltafs_plfsdir_force_leveldb_fmt(dir, c.force_leveldb_format);
-  deltafs_plfsdir_set_unordered(dir, c.unordered_storage);
-  deltafs_plfsdir_set_fixed_kv(dir, 1);
-  if (tp) deltafs_plfsdir_set_thread_pool(dir, tp);
-
-  if (g.v) info(" open rank %d ... (%s)", rank, __func__);
-  if (deltafs_plfsdir_open(dir, g.dirname) != 0)
-    complain("error opening plfsdir: %s", strerror(errno));
-
-  for (int i = 0; i < num_names; i++) {
-    do_read(dir, names[i].c_str());
-  }
-
-  m.under_bytes +=
-      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
-  m.under_files +=
-      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
-  m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
-
-  deltafs_plfsdir_free_handle(dir);
-}
-
-/*
- * do_reads_ft: perform read operations with a filter against
- * a series of names under a given data partition.
- */
-static void do_reads_ft(int rank, std::string* names, int num_names) {
-  deltafs_plfsdir_t* dir;
-  size_t num_ranks;
-  char conf[20];
-
-  snprintf(conf, sizeof(conf), "rank=%d", rank);
-  dir = deltafs_plfsdir_create_handle(conf, O_RDONLY, DELTAFS_PLFSDIR_NOTHING);
-  if (!dir) complain("fail to create dir handle");
-  deltafs_plfsdir_enable_io_measurement(dir, 1);
-  if (deltafs_plfsdir_open(dir, g.dirname) != 0)
-    complain("error opening plfsdir: %s", strerror(errno));
-  if (deltafs_plfsdir_filter_open(dir, g.dirname) != 0)
-    complain("error opening plfsdir filter: %s", strerror(errno));
-
-  for (int i = 0; i < num_names; i++) {
-    int* possible_ranks = deltafs_plfsdir_filter_get(
-        dir, names[i].data(), names[i].size(), &num_ranks);
-    if (possible_ranks) {
-      for (int j = 0; j < num_ranks; j++) {
-        do_reads(possible_ranks[j], &names[i], 1);
-      }
-    }
-    free(possible_ranks);
-  }
-
-  m.under_bytes +=
-      deltafs_plfsdir_get_integer_property(dir, "io.total_bytes_read");
-  m.under_files +=
-      deltafs_plfsdir_get_integer_property(dir, "io.total_read_open");
-  m.under_seeks += deltafs_plfsdir_get_integer_property(dir, "io.total_seeks");
-
-  deltafs_plfsdir_free_handle(dir);
-}
-
-/*
- * run_queries: perform reads against a specific data partition.
- */
-static void run_queries(int rank) {
+static void runqueries(const struct plfsdir_stats* s, int rank) {
   std::vector<std::string> names;
-  get_names((g.a || c.bypass_shuffle) ? 0 : rank, &names);
+  getnames((g.a || c.bypass_shuffle) ? 0 : rank, &names);
   std::random_shuffle(names.begin(), names.end());
   uint64_t start;
 
@@ -444,26 +235,22 @@ static void run_queries(int rank) {
   start = now();
 
   if (c.bloomy_fmt) {
-    do_reads_ft(rank, &names[0], reads);
+    ftreadnames(s, rank, &names[0], reads);
   } else {
-    do_reads(rank, &names[0], reads);
+    readnames(s, rank, &names[0], reads);
   }
 
-  m.latencies->push_back(now() - start);
+  z.latencies->push_back(now() - start);
 
-  m.partitions++;
+  z.partitions++;
 }
 
 /*
  * main program
  */
 int main(int argc, char* argv[]) {
-  std::vector<int> ranks;
-  int nranks;
   int ch;
-
   argv0 = argv[0];
-  memset(cf, 0, sizeof(cf));
   tp = NULL;
 
   /* we want lines, even if we are writing to a pipe */
@@ -525,7 +312,7 @@ int main(int argc, char* argv[]) {
     complain("cannot access %s: %s", g.dirinfo, strerror(errno));
 
   memset(&c, 0, sizeof(c));
-  get_manifest(g.dirinfo, &c);
+  getmanifest(g.dirinfo, &c);
 
   printf("\n%s\n==options:\n", argv0);
   printf("\tqueries: %d x %d (ranks x reads)\n", g.r, g.d);
@@ -560,10 +347,29 @@ int main(int argc, char* argv[]) {
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
 
+  memset(&z, 0, sizeof(z));
+  z.latencies = new std::vector<uint64_t>;
   memset(&m, 0, sizeof(m));
-  m.latencies = new std::vector<uint64_t>;
-  m.table_seeks[MIN] = ULONG_LONG_MAX;
-  m.seeks[MIN] = ULONG_LONG_MAX;
+  memset(&x, 0, sizeof(x));
+  x.min_table_seeks = ULONG_LONG_MAX;
+  x.min_seeks = ULONG_LONG_MAX;
+
+  if (r.bg) tp = deltafs_tp_init(r.bg);
+  if (r.bg && !tp) complain("fail to init thread pool");
+
+  plfsdir_stats s;
+  memset(&s, 0, sizeof(s));
+  s.tp = tp;
+  s.dirname = g.dirname;
+  s.v = g.v;
+
+  s.r = &r;
+  s.c = &c;
+  s.x = &x;
+  s.m = &m;
+
+  std::vector<int> ranks;
+  int nranks;
   for (int i = 0; i < c.comm_sz; i++) {
     ranks.push_back(i);
   }
@@ -571,14 +377,14 @@ int main(int argc, char* argv[]) {
   nranks = (g.a || c.bypass_shuffle) ? c.comm_sz : g.r;
   if (g.v) info("start queries (%d ranks) ...", std::min(nranks, c.comm_sz));
   for (int i = 0; i < nranks && i < c.comm_sz; i++) {
-    run_queries(ranks[i]);
+    runqueries(&s, ranks[i]);
   }
   report();
 
   if (tp) deltafs_tp_close(tp);
   if (c.memtable_size) free(c.memtable_size);
   if (c.filter_bits_per_key) free(c.filter_bits_per_key);
-  delete m.latencies;
+  delete z.latencies;
 
   if (g.v) info("all done!");
   if (g.v) info("bye");
