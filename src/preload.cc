@@ -1986,15 +1986,19 @@ int opendir_impl(const char* dir) {
     }
   }
 
-  /* if shuffle ON, flush it and wait until all messages are delivered. if
-   * shuffle has been pre-flushed, this is likely a no-op. */
+  /*
+   * if shuffle ON, thanks to the barrier above i must have received all data
+   * belong to me from my peers. the next step is to flush shuffle and wait
+   * until it finishes delivering all data it receives. if shuffle has been
+   * pre-flushed previously, this is likely a no-op.
+   */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (num_eps != 0) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
         logf(LOG_INFO, "flushing shuffle receivers ... (rank 0)");
       }
-      shuffle_epoch_start(&pctx.sctx); /* shuffle flush */
+      shuffle_epoch_start(&pctx.sctx); /* shuffle receiver flush */
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
         logf(LOG_INFO, "receiver flushing done %s",
@@ -2004,15 +2008,16 @@ int opendir_impl(const char* dir) {
   }
 
   /*
-   * i'm a receiver. all senders have data belonging to me sent to me.
-   * now it's time to flush writes.
+   * i'm a receiver. i have received all data belonging to me and i have waited
+   * until shuffle finishes processing all data coming to it. now it's time to
+   * flush writes.
    */
   if (num_eps != 0 && pctx.recv_comm != MPI_COMM_NULL) {
     /*
      * the reason write flush is deferred from as early as closedir()
-     * time until here is that we are likely to progress faster
-     * than other peers at closedir() time and may not have received
-     * all data belonging to us.
+     * time until now is that i am likely to progress faster than
+     * other peers at closedir() time and may not have
+     * received all data belonging to me.
      */
     if (IS_BYPASS_WRITE(pctx.mode)) {
       /* noop */
@@ -2148,22 +2153,15 @@ DIR* opendir(const char* dir) {
 }
 
 /*
- * closedir
+ * close an epoch.
  */
-int closedir(DIR* dirp) {
+int closedir_impl(DIR* dirp) {
   uint64_t tmp_usage_snaptime;
   struct rusage tmp_usage;
   uint64_t flush_start;
   uint64_t flush_end;
   double cpu;
   int rv;
-
-  rv = pthread_once(&init_once, preload_init);
-  if (rv) ABORT("pthread_once");
-
-  if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
-    return nxt.closedir(dirp);
-  }
 
   if (pctx.my_rank == 0) logf(LOG_INFO, "dumping done!!!");
 
@@ -2175,13 +2173,16 @@ int closedir(DIR* dirp) {
     pctx.fnames->clear();
   }
 
-  /* flush the rpc buffer and drain all on-going rpcs */
+  /*
+   * if shuffle is ON, flush all sender buffers and wait until all data
+   * reaches its destinations (or its destination representatives).
+   */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
       logf(LOG_INFO, "flushing shuffle senders ... (rank 0)");
     }
-    shuffle_epoch_end(&pctx.sctx);
+    shuffle_epoch_end(&pctx.sctx); /* shuffle sender flush */
     if (pctx.my_rank == 0) {
       flush_end = now_micros();
       logf(LOG_INFO, "sender flushing done %s",
@@ -2189,16 +2190,27 @@ int closedir(DIR* dirp) {
     }
   }
 
-  /* this ensures we have received all peer messages */
+  /*
+   * i'm a receiver (or a representative of a set of receivers). the barrier
+   * below ensures that i have received all data belong to me (and the peers i
+   * represent). the barrier below is required if bg pause is ON. the barrier
+   * below is rather useless if shuffle is OFF.
+   */
   if (pctx.paranoid_pre_barrier ||
       (!IS_BYPASS_SHUFFLE(pctx.mode) && pctx.bgpause)) {
     PRELOAD_Barrier(MPI_COMM_WORLD);
+    /*
+     * i'm a receiver (or a representative of a set of receivers). thanks to the
+     * barrier above i have received all data belong to me (and the peers i
+     * represent). the next step is to forward data to its real destinations,
+     * and to wait until shuffle finishes delivering all data it receivers.
+     */
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
         logf(LOG_INFO, "pre-flushing shuffle receivers ... (rank 0)");
       }
-      shuffle_epoch_pre_start(&pctx.sctx);
+      shuffle_epoch_pre_start(&pctx.sctx); /* shuffle receiver pre-flush */
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
         logf(LOG_INFO, "receiver pre-flushing done %s",
@@ -2207,7 +2219,12 @@ int closedir(DIR* dirp) {
     }
   }
 
-  /* epoch pre-flush */
+  /*
+   * pre-flush writes so less work is needed at the next opendir(). if the
+   * barrier above is ON, i must have received all data belong to me and have
+   * waited until shuffle finishes processing all data coming to it. in such
+   * cases, all data will be flushed for background compaction at this step.
+   */
   if (pctx.pre_flushing && pctx.recv_comm != MPI_COMM_NULL) {
     if (IS_BYPASS_WRITE(pctx.mode)) {
       /* noop */
@@ -2332,6 +2349,24 @@ int closedir(DIR* dirp) {
       print_meminfo();
     }
   }
+
+  return 0;
+}
+
+/*
+ * closedir
+ */
+int closedir(DIR* dirp) {
+  int rv;
+
+  rv = pthread_once(&init_once, preload_init);
+  if (rv) ABORT("pthread_once");
+
+  if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
+    return nxt.closedir(dirp);
+  }
+
+  closedir_impl(dirp);
 
   return 0;
 }
