@@ -2089,11 +2089,11 @@ int opendir_impl(const char* dir) {
     if (pctx.my_rank == 0) {
       logf(LOG_INFO, "starting papi ... (rank 0)");
     }
-    if ((ret = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
-      ABORT(PAPI_strerror(ret));
+    if ((rv = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
+      ABORT(PAPI_strerror(rv));
     }
-    if ((ret = PAPI_start(pctx.papi_set)) != PAPI_OK) {
-      ABORT(PAPI_strerror(ret));
+    if ((rv = PAPI_start(pctx.papi_set)) != PAPI_OK) {
+      ABORT(PAPI_strerror(rv));
     }
     if (pctx.my_rank == 0) {
       logf(LOG_INFO, "papi on");
