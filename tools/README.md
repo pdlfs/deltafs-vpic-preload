@@ -1,4 +1,42 @@
-# Sample configuration for an all-to-all shuffle test
+# preload-runner
+
+A simple `VPIC` particle I/O emulator using an `one-file-per-particle` I/O model for performance testing on VPIC I/O phases.
+
+## Sample configuration for a direct VPIC I/O run without DeltaFS
+
+```bash
+mpirun -np 2 \
+    -env VPIC_current_working_dir `pwd` \
+    -env PRELOAD_Ignore_dirs "fields:hydro:rundata:names" \
+    -env PRELOAD_Log_home `pwd` \
+    -env PRELOAD_Enable_verbose_error 1 \
+  `pwd`/../preload-runner -T 1 -d 2 -s 5 -b 40 -c 16
+```
+
+The command line options above are written in the `MPICH` format. For `OPENMPI`, change every `-env K V` to `-x K=V`.
+
+This will launch 2 MPI processes (`-np 2`), with 16 particles per process per timestep dump (`-c 16`). There are 2 dumps (`-d 2`) in total. Each dump goes through 5 timesteps (`-s 5`). Each particle is 48 bytes, consisting of an 8-byte particle ID and 40-byte particle data (`-b 40`). Paticle IDs are used as particle filenames during particle I/O.
+
+## Sample configuration for a VPIC I/O run with DeltaFS but bypassing all data processing including data writing
+
+```bash
+mpirun -np 2 \
+    -env VPIC_current_working_dir `pwd` \
+    -env PRELOAD_Ignore_dirs "fields:hydro:rundata:names" \
+    -env PRELOAD_Log_home `pwd` \
+    -env PRELOAD_Enable_verbose_error 1 \
+    -env PRELOAD_Deltafs_mntp particle \
+    -env PRELOAD_Bypass_shuffle 1 \
+    -env PRELOAD_Bypass_write 1 \
+  `pwd`/../preload-runner -T 1 -d 2 -s 5 -b 40 -c 16
+```
+The command line options above are written in the `MPICH` format. For `OPENMPI`, change every `-env K V` to `-x K=V`.
+
+This will launch 2 MPI processes (`-np 2`), with 16 particles per process per timestep dump (`-c 16`). There are 2 dumps (`-d 2`) in total. Each dump goes through 5 timesteps (`-s 5`). Each particle is 48 bytes, consisting of an 8-byte particle ID and 40-byte particle data (`-b 40`).
+
+DeltaFS will be mounted at the "particle" output directory of VPIC (`PRELOAD_Deltafs_mntp`), but will simply translate every particle write into an no-op (due to `PRELOAD_Bypass_shuffle` and `PRELOAD_Bypass_write`).
+
+## Sample configuration for an all-to-all shuffle ONLY test with DeltaFS
 
 ```bash
 export NUM_PARTICLE_PER_RANK=$((1024*1024))
@@ -31,9 +69,9 @@ mpirun -np 2 \
   `pwd`/../preload-runner -T 1 -d 2 -s 5 -c $NUM_PARTICLE_PER_RANK
 ```
 
-The command line options above are written in the MPICH format. For OPENMPI, change every `-env K V` to `-x K=V`.
+The command line options above are written in the `MPICH` format. For `OPENMPI`, change every `-env K V` to `-x K=V`.
 
-This will launch 2 MPI processes (`-np 2`), with 1 million particles per process per timestep dump (`NUM_PARTICLE_PER_RANK`). There are 2 dumps (`-d 2`) in total. Each dump goes through 5 timesteps (`-s 5`). Each particle is 48 bytes, consisting of an 8-byte particle ID (`PRELOAD_Particle_id_size`) and 40-byte data (`PRELOAD_Particle_size`).
+This will launch 2 MPI processes (`-np 2`), with 1 million particles per process per timestep dump (`NUM_PARTICLE_PER_RANK`). There are 2 dumps (`-d 2`) in total. Each dump goes through 5 timesteps (`-s 5`). Each particle is 48 bytes, consisting of an 8-byte particle ID (`PRELOAD_Particle_id_size`) and 40-byte particle data (`PRELOAD_Particle_size`).
 
 The shuffle will use BMI and TCP (`SHUFFLE_Mercury_proto`). Each RPC message is buffered till 32K (`SHUFFLE_Buffer_per_queue`). The shuffle will send at most 4 concurrent messages without hearing from their replies (`SHUFFLE_Num_outstanding_rpc`).
 
