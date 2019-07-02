@@ -4,13 +4,16 @@ namespace rangeutils {
 
 WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
                                      float range_start, float range_end,
-                                     int num_queries, WorkloadPattern wp)
+                                     int num_queries, WorkloadPattern wp,
+                                     int my_rank, int num_ranks)
     : num_bins(num_bins),
       range_start(range_start),
       range_end(range_end),
       queries_total(num_queries),
       queries_left(num_queries),
-      wp(wp) {
+      wp(wp),
+      my_rank(my_rank),
+      num_ranks(num_ranks) {
   assert(num_bins < MAX_BINS);
 
   srand(time(NULL));

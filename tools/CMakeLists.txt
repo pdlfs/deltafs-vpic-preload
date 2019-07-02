@@ -21,6 +21,9 @@ target_link_libraries (preload-reader deltafs)
 add_executable (preload-runner preload_runner.cc)
 target_link_libraries (preload-runner deltafs-preload Threads::Threads)
 
+add_executable (range-runner range_runner.cc workload_generator.cc)
+target_link_libraries (range-runner deltafs-preload Threads::Threads)
+
 add_executable (preload-runner-no-deltafs preload_runner.cc)
 target_link_libraries (preload-runner-no-deltafs Threads::Threads)
 
@@ -28,7 +31,7 @@ target_link_libraries (preload-runner-no-deltafs Threads::Threads)
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
 # prepared by the calling module.
 #
-foreach (tgt preload-runner preload-runner-no-deltafs)
+foreach (tgt preload-runner range-runner preload-runner-no-deltafs)
 
     # mpich on ub14 gives a leading space that we need to trim off
     foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
@@ -56,7 +59,7 @@ endforeach ()
 #
 # "make install" rules
 #
-install (TARGETS preload-runner preload-runner-no-deltafs
+install (TARGETS preload-runner preload-runner-no-deltafs range-runner
         RUNTIME DESTINATION bin)
 
 install (TARGETS preload-plfsdir-reader

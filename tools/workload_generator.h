@@ -1,7 +1,7 @@
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include <cmath>
 #include <ctime>
 
 namespace rangeutils {
@@ -13,7 +13,8 @@ enum class WorkloadPattern { WP_SEQUENTIAL, WP_RANDOM };
 class WorkloadGenerator {
  public:
   WorkloadGenerator(float bins[], int num_bins, float range_start,
-                    float range_end, int num_queries, WorkloadPattern wp);
+                    float range_end, int num_queries, WorkloadPattern wp,
+                    int my_rank, int num_ranks);
 
   int next(float &value);
 
