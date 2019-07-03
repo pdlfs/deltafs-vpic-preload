@@ -183,11 +183,10 @@ skip_prints:
  * struct members must be individually accessed
  * sizeof(struct) != psz because of padding issues
  */
-static struct pd {
+struct pd {
   float energy;
   char* bdata;
 };
-
 
 /*
  * per-rank program state.
@@ -347,7 +346,7 @@ int main(int argc, char* argv[]) {
   run_vpic_app();
   MPI_Barrier(MPI_COMM_WORLD);
   if (myrank == 0) printf("\n== VPIC Done\n");
-  free(p.pdata);
+  free(p.pdata.bdata);
 
   MPI_Finalize();
   return 0;
@@ -443,9 +442,10 @@ static void do_dump() {
     file = fopen(p.pname, "a");
     if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     int ret = wg.next(p_energy);
-    if (!ret)
-      complain(EXIT_FAILRE, 0, "Ran out of particles earlier than expected");
-    fwrite(p_energy, 1, sizeof(float), file);
+    if (ret)
+      complain(EXIT_FAILURE, 0,
+               "[Ret %d] Ran out of particles earlier than expected", ret);
+    fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
     fclose(file);
   }

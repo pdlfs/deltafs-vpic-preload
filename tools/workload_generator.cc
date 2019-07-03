@@ -21,7 +21,7 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
   _seq_cur_bin = 0;
 
   bin_width = (range_end - range_start) / num_bins;
-  float bin_total = 0;
+  bin_total = 0;
 
   for (int bidx = 0; bidx < num_bins; bidx++) {
     bin_weights[bidx] = bins[bidx];
@@ -35,6 +35,126 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
     bin_total -= bin_weights[bidx];
     num_queries -= bin_emits_left[bidx];
   }
+
+  if (num_ranks < 2) return;
+
+  assert(num_queries % num_ranks == 0);
+
+  queries_left = num_queries / num_ranks;
+  adjust_queries_sequential();
+  adjust_queries_random();
+}
+
+void WorkloadGenerator::adjust_queries() {
+  switch (wp) {
+    case WorkloadPattern::WP_SEQUENTIAL:
+      adjust_queries_sequential();
+      break;
+    case WorkloadPattern::WP_RANDOM:
+      adjust_queries_random();
+      break;
+    case WorkloadPattern::WP_RANK_SEQUENTIAL:
+      throw std::invalid_argument("WP_RANK_SEQUENTIAL is not implemented");
+      break;
+  }
+
+  return;
+}
+
+void WorkloadGenerator::adjust_queries_sequential() {
+  int queries_per_rank = queries_total / num_ranks;
+
+  for (int bidx = 0; bidx < num_bins; bidx++) {
+    bin_emits_left[bidx] =
+        roundf(bin_weights[bidx] / bin_total * queries_per_rank);
+
+    bin_total -= bin_weights[bidx];
+    queries_per_rank -= bin_emits_left[bidx];
+  }
+
+  assert(queries_per_rank == 0);
+}
+
+void WorkloadGenerator::adjust_queries_random() {
+  int queries_to_adjust = queries_total - queries_left;
+
+  int bidx = 0;
+
+  while (queries_to_adjust) {
+    int bin = rand() % num_bins;
+    if (bin_emits_left[bidx] > 0) {
+      bin_emits_left[bidx]--;
+      queries_to_adjust--;
+    }
+
+    assert(bidx < num_bins);
+  }
+}
+
+void WorkloadGenerator::adjust_queries_rank_sequential() {
+  int queries_to_adjust = queries_total - queries_left;
+
+  int queries_before = my_rank * queries_total / num_ranks;
+  int queries_to_preserve = queries_total / num_ranks;
+  int queries_after = (num_ranks - my_rank - 1) * queries_total / num_ranks;
+
+  assert(queries_before + queries_after == queries_to_adjust);
+
+  int pos_flag = -1;  // -1 is before, 0 is in, 1 is after
+
+  for (int bidx = 0; bidx < num_bins; bidx++) {
+    if (pos_flag < 0) {
+      assert(queries_before >= 0);
+
+      int cur_reduction = min(queries_before, bin_emits_left[bidx]);
+      bin_emits_left[bidx] -= cur_reduction;
+      assert(bin_emits_left[bidx] >= 0);
+      queries_before -= cur_reduction;
+      queries_to_adjust -= cur_reduction;
+
+      if (queries_before == 0) pos_flag = 0;
+    }
+
+    if (pos_flag == 0) {
+      assert(queries_before == 0);
+      assert(queries_after == queries_to_adjust);
+
+      int cur_preservation = min(queries_to_preserve, bin_emits_left[bidx]);
+      queries_to_preserve -= cur_preservation;
+      if (queries_to_preserve == 0) {
+        if (bin_emits_left[bidx] > cur_preservation) {
+          queries_after -= (bin_emits_left[bidx] - cur_preservation);
+          queries_to_adjust -= (bin_emits_left[bidx] - cur_preservation);
+          continue;
+        }
+        pos_flag = 1;
+      }
+    }
+
+    if (pos_flag > 0) {
+      assert(queries_before == 0);
+      assert(queries_to_preserve == 0);
+      assert(queries_after >= 0);
+
+      queries_after -= bin_emits_left[bidx];
+      queries_to_adjust -= bin_emits_left[bidx];
+
+      bin_emits_left[bidx] = 0;
+    }
+  }
+
+  assert(queries_before == 0);
+  assert(queries_to_preserve == 0);
+  assert(queries_after == 0);
+  assert(queries_to_adjust == 0);
+
+  int new_total = 0;
+
+  for (int bidx = 0; bidx < num_bins; bidx++) {
+    new_total += bin_emits_left[bidx];
+  }
+
+  assert(new_total == queries_left);
 }
 
 int WorkloadGenerator::next(float &value) {
@@ -44,6 +164,8 @@ int WorkloadGenerator::next(float &value) {
       return next_sequential(value);
     case WorkloadPattern::WP_RANDOM:
       return next_random(value);
+    case WorkloadPattern::WP_RANK_SEQUENTIAL:
+      throw std::invalid_argument("WP_RANK_SEQUENTIAL is not implemented");
   }
 }
 
