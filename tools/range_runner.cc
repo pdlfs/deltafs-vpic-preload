@@ -77,7 +77,7 @@ static int num_bins = 5;
 static float range_start = 0;
 static float range_end = 50;
 static rangeutils::WorkloadPattern range_wp =
-    rangeutils::WorkloadPattern::WP_RANDOM;
+    rangeutils::WorkloadPattern::WP_SEQUENTIAL;
 
 /*
  * vcomplain/complain about something.  if ret is non-zero we exit(ret)
@@ -425,8 +425,9 @@ static void do_dump() {
     complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
   }
 
+  // TODO: change to uint64_t if we expect more than 2B particles
   rangeutils::WorkloadGenerator wg(range_bins, num_bins, range_start, range_end,
-                                   g.nps, range_wp, myrank, g.size);
+                                   g.nps * g.size, range_wp, myrank, g.size);
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
 #ifdef PRELOAD_EXASCALE_RUNS
@@ -442,6 +443,7 @@ static void do_dump() {
     file = fopen(p.pname, "a");
     if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     int ret = wg.next(p_energy);
+    fprintf(stderr, "Rank %d, energy: %f\n", myrank, p_energy);
     if (ret)
       complain(EXIT_FAILURE, 0,
                "[Ret %d] Ran out of particles earlier than expected", ret);

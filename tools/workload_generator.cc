@@ -38,11 +38,10 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
 
   if (num_ranks < 2) return;
 
-  assert(num_queries % num_ranks == 0);
+  assert(queries_total % num_ranks == 0);
 
-  queries_left = num_queries / num_ranks;
-  adjust_queries_sequential();
-  adjust_queries_random();
+  queries_left = queries_total / num_ranks;
+  adjust_queries();
 }
 
 void WorkloadGenerator::adjust_queries() {
@@ -62,7 +61,14 @@ void WorkloadGenerator::adjust_queries() {
 }
 
 void WorkloadGenerator::adjust_queries_sequential() {
+  _debug_print_bins("Sequential Before: ");
   int queries_per_rank = queries_total / num_ranks;
+
+  bin_total = 0;
+
+  for (int bidx = 0; bidx < num_bins; bidx++) {
+    bin_total += bin_weights[bidx];
+  }
 
   for (int bidx = 0; bidx < num_bins; bidx++) {
     bin_emits_left[bidx] =
@@ -73,6 +79,7 @@ void WorkloadGenerator::adjust_queries_sequential() {
   }
 
   assert(queries_per_rank == 0);
+  _debug_print_bins("Sequential After: ");
 }
 
 void WorkloadGenerator::adjust_queries_random() {
@@ -81,13 +88,14 @@ void WorkloadGenerator::adjust_queries_random() {
   int bidx = 0;
 
   while (queries_to_adjust) {
-    int bin = rand() % num_bins;
+    bidx = rand() % num_bins;
     if (bin_emits_left[bidx] > 0) {
       bin_emits_left[bidx]--;
       queries_to_adjust--;
     }
 
     assert(bidx < num_bins);
+    assert(bidx > 0);
   }
 }
 
@@ -197,5 +205,13 @@ int WorkloadGenerator::next_random(float &value) {
 
   queries_left--;
   return 0;
+}
+
+void WorkloadGenerator::_debug_print_bins(const char *leadstr) {
+  fprintf(stderr, "%s", leadstr);
+  for (int i = 0; i < num_bins; i++) {
+    fprintf(stderr, "%d ", bin_emits_left[i]);
+  }
+  fprintf(stderr, "\n");
 }
 }  // namespace rangeutils

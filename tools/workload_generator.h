@@ -55,11 +55,11 @@ class WorkloadGenerator {
 
   int next_random(float &value);
 
-  int my_rank;
-  int num_ranks;
+  const int my_rank;
+  const int num_ranks;
 
-  float range_start;
-  float range_end;
+  const float range_start;
+  const float range_end;
 
   float bin_weights[MAX_BINS];
   float bin_starts[MAX_BINS];
@@ -67,12 +67,14 @@ class WorkloadGenerator {
 
   int bin_emits_left[MAX_BINS];
 
-  int queries_total;
+  const int queries_total;
   int queries_left;
 
-  int num_bins;
+  const int num_bins;
   float bin_width;
 
   WorkloadPattern wp;
+
+  void _debug_print_bins(const char *leadstr);
 };
 }  // namespace rangeutils
