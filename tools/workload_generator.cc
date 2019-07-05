@@ -1,6 +1,13 @@
+#include <sys/time.h>
 #include "workload_generator.h"
 
 namespace rangeutils {
+
+static void rand_seed() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  srand(tv.tv_usec);
+}
 
 WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
                                      float range_start, float range_end,
@@ -16,7 +23,7 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
       num_ranks(num_ranks) {
   assert(num_bins < MAX_BINS);
 
-  srand(time(NULL));
+  rand_seed();
 
   _seq_cur_bin = 0;
 
@@ -83,6 +90,7 @@ void WorkloadGenerator::adjust_queries_sequential() {
 }
 
 void WorkloadGenerator::adjust_queries_random() {
+  _debug_print_bins("Random Before: ");
   int queries_to_adjust = queries_total - queries_left;
 
   int bidx = 0;
@@ -97,6 +105,7 @@ void WorkloadGenerator::adjust_queries_random() {
     assert(bidx < num_bins);
     assert(bidx > 0);
   }
+  _debug_print_bins("Random After: ");
 }
 
 void WorkloadGenerator::adjust_queries_rank_sequential() {

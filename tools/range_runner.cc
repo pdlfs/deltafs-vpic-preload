@@ -77,7 +77,7 @@ static int num_bins = 5;
 static float range_start = 0;
 static float range_end = 50;
 static rangeutils::WorkloadPattern range_wp =
-    rangeutils::WorkloadPattern::WP_SEQUENTIAL;
+    rangeutils::WorkloadPattern::WP_RANDOM;
 
 /*
  * vcomplain/complain about something.  if ret is non-zero we exit(ret)
@@ -443,7 +443,6 @@ static void do_dump() {
     file = fopen(p.pname, "a");
     if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
     int ret = wg.next(p_energy);
-    fprintf(stderr, "Rank %d, energy: %f\n", myrank, p_energy);
     if (ret)
       complain(EXIT_FAILURE, 0,
                "[Ret %d] Ran out of particles earlier than expected", ret);
