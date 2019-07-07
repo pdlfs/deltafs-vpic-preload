@@ -60,8 +60,10 @@
 typedef struct shuffle_ctx {
   /* internal shuffle impl */
   void* rep;
+#ifdef PRELOAD_HAS_CH_PLACEMENT
   /* consistent hash context */
   struct ch_placement_instance* chp;
+#endif
   /* whether shuffle should never be bypassed
    * even when destination is local. it is often necessary to
    * avoid bypassing the shuffle. this is because the main thread

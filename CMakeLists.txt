@@ -66,12 +66,18 @@ find_package (deltafs CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
 find_package (mssg CONFIG REQUIRED)
 
-include (xpkg-import)     # just to document, comes with deltafs
-xpkg_import_module (ch-placement REQUIRED ch-placement)
+# libch-placement
+set (PRELOAD_CH_PLACEMENT "ON" CACHE BOOL "Build with libch-placement")
 
-# If libnuma and libpapi should be linked
-set (PRELOAD_NUMA "ON" CACHE BOOL "If libnuma should be used")
-set (PRELOAD_PAPI "ON" CACHE BOOL "If libpapi should be used")
+if (PRELOAD_CH_PLACEMENT)
+    include (xpkg-import) # comes with deltafs
+    xpkg_import_module (ch-placement REQUIRED ch-placement)
+    add_definitions (-DPRELOAD_HAS_CH_PLACEMENT)
+endif ()
+
+# libnuma and libpapi
+set (PRELOAD_NUMA "ON" CACHE BOOL "Build with libnuma")
+set (PRELOAD_PAPI "ON" CACHE BOOL "Build with libpapi")
 
 # user hook to build tools
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")

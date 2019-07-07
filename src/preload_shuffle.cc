@@ -45,9 +45,11 @@
 #include "nn_shuffler_internal.h"
 #include "xn_shuffler.h"
 
-#include <ch-placement.h>
 #include <mercury_config.h>
 #include <pdlfs-common/xxhash.h>
+#ifdef PRELOAD_HAS_CH_PLACEMENT
+#include <ch-placement.h>
+#endif
 
 #include "common.h"
 
@@ -338,14 +340,18 @@ int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
   world_sz = shuffle_world_sz(ctx);
 
   if (world_sz != 1) {
-    if (IS_BYPASS_PLACEMENT(pctx.mode)) {
-      rv = pdlfs::xxhash32(buf, ctx->fname_len, 0) % world_sz;
-    } else {
+#ifdef PRELOAD_HAS_CH_PLACEMENT
+    if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
       assert(ctx->chp != NULL);
       ch_placement_find_closest(
           ctx->chp, pdlfs::xxhash64(buf, ctx->fname_len, 0), 1, &target);
       rv = static_cast<int>(target);
+    } else {
+#endif
+      rv = pdlfs::xxhash32(buf, ctx->fname_len, 0) % world_sz;
+#ifdef PRELOAD_HAS_CH_PLACEMENT
     }
+#endif
   } else {
     rv = shuffle_rank(ctx);
   }
@@ -600,10 +606,12 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     }
 #undef NUM_RUSAGE
   }
+#ifdef PRELOAD_HAS_CH_PLACEMENT
   if (ctx->chp != NULL) {
     ch_placement_finalize(ctx->chp);
     ctx->chp = NULL;
   }
+#endif
 }
 
 namespace {
@@ -724,12 +732,13 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     if (proto == NULL) {
       proto = DEFAULT_PLACEMENT_PROTO;
     }
-
+#ifdef PRELOAD_HAS_CH_PLACEMENT
     ctx->chp = ch_placement_initialize(proto, world_sz, vf /* vir factor */,
                                        0 /* hash seed */);
     if (ctx->chp == NULL) {
       ABORT("ch_init");
     }
+#endif
   }
 
   if (pctx.my_rank == 0) {
