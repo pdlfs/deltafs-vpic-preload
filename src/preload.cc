@@ -1164,8 +1164,8 @@ int MPI_Init(int* argc, char*** argv) {
       }
     }
 
-    if (!pctx.nomon && !pctx.nopapi) {
 #ifdef PRELOAD_HAS_PAPI
+    if (!pctx.nomon && !pctx.nopapi) {
       assert(pctx.papi_events != NULL);
       if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
         if (pctx.my_rank == 0)
@@ -1194,8 +1194,8 @@ int MPI_Init(int* argc, char*** argv) {
           ABORT(PAPI_strerror(rv));
         }
       }
-#endif
     }
+#endif
 
     if (pctx.my_rank == 0) {
       if (pctx.sampling) {

@@ -720,6 +720,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     world_sz = nn_shuffler_world_size();
   }
 
+#ifdef PRELOAD_HAS_CH_PLACEMENT
   if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
     env = maybe_getenv("SHUFFLE_Virtual_factor");
     if (env == NULL) {
@@ -732,13 +733,12 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     if (proto == NULL) {
       proto = DEFAULT_PLACEMENT_PROTO;
     }
-#ifdef PRELOAD_HAS_CH_PLACEMENT
+
     ctx->chp = ch_placement_initialize(proto, world_sz, vf /* vir factor */,
                                        0 /* hash seed */);
     if (ctx->chp == NULL) {
       ABORT("ch_init");
     }
-#endif
   }
 
   if (pctx.my_rank == 0) {
@@ -752,6 +752,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
       logf(LOG_INFO, "ch-placement bypassed");
     }
   }
+#endif
 
   if (pctx.my_rank == 0 && pctx.verbose) {
     logf(LOG_INFO, "HG is configured as follows ...");
