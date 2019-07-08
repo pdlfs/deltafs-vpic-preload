@@ -52,6 +52,19 @@
 #include <set>
 #include <vector>
 
+// TODO: make this configurable
+#define RANGE_BUFSZ 1000
+
+typedef struct particle_mem {
+  float energy; // property for range query
+  void *ptr; // other data
+} particle_mem_t;
+
+enum class range_state_t {
+  RS_INIT,
+  RS_READY
+};
+
 /*
  * preload context:
  *   - run-time state of the preload layer
@@ -157,6 +170,12 @@ typedef struct preload_ctx {
   int verbose;       /* verbose mode */
 
   FILE* trace;
+
+  /* range data structures */
+  range_state_t range_state;
+  std::vector<float> rank_bins;
+  std::vector<particle_mem_t> renego_buffer;
+  std::vector<particle_mem_t> oob_buffer;
 
 } preload_ctx_t;
 

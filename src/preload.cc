@@ -810,6 +810,16 @@ int MPI_Init(int* argc, char*** argv) {
     return rv;
   }
 
+  /* init range structures */
+  // TODO: revisit this if considering 3-hop etc
+  pctx.range_state = range_state_t::RS_INIT;
+  pctx.rank_bins.resize(pctx.comm_sz);
+  pctx.renego_buffer.resize(RANGE_BUFSZ);
+  pctx.oob_buffer.resize(RANGE_BUFSZ);
+
+  const int x;
+  x = 1;
+
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
     logf(LOG_WARN,
