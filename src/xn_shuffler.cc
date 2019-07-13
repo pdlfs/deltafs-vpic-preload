@@ -66,15 +66,29 @@ void xn_local_barrier(xn_ctx_t* ctx) {
 void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
   hg_return_t hret;
   assert(ctx != NULL && ctx->sh != NULL);
+
   hret = shuffler_flush_originqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local origin queues", hret);
   }
+
+  // hret = shuffler_flush_originqs(ctx->psh);
+  // if (hret != HG_SUCCESS) {
+    // RPC_FAILED("fail to flush local priority origin queues", hret);
+  // }
+
+
   xn_local_barrier(ctx);
+
   hret = shuffler_flush_remoteqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush remote queues", hret);
   }
+
+  // hret = shuffler_flush_remoteqs(ctx->psh);
+  // if (hret != HG_SUCCESS) {
+    // RPC_FAILED("fail to flush remote priority queues", hret);
+  // }
 }
 
 /*
@@ -89,19 +103,32 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   hg_uint64_t tmpori;
   hg_uint64_t tmprl;
   assert(ctx != NULL && ctx->sh != NULL);
+
   hret = shuffler_flush_relayqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local relay queues", hret);
   }
+
+  // hret = shuffler_flush_relayqs(ctx->psh);
+  // if (hret != HG_SUCCESS) {
+    // RPC_FAILED("fail to flush local priorty relay queues", hret);
+  // }
+
   xn_local_barrier(ctx);
   ctx->last_stat = ctx->stat;
   shuffler_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
   ctx->stat.local.sends = tmpori + tmprl;
   shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
+
   hret = shuffler_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush delivery", hret);
   }
+
+  // hret = shuffler_flush_delivery(ctx->psh);
+  // if (hret != HG_SUCCESS) {
+    // RPC_FAILED("fail to flush priority delivery", hret);
+  // }
 }
 
 static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
@@ -123,6 +150,17 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
 
   if (hret != HG_SUCCESS) {
     RPC_FAILED("plfsdir shuffler send failed", hret);
+  }
+}
+
+void xn_shuffler_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+                               int epoch, int dst, int src) {
+  hg_return_t hret;
+  assert(ctx->psh != NULL);
+  hret = shuffler_send(ctx->psh, dst, 0, buf, buf_sz);
+
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("plfsdir shuffler priority send failed", hret);
   }
 }
 
@@ -265,13 +303,42 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
                           lsenderlimit, rsenderlimit, lomaxrpc, lobuftarget,
                           lrmaxrpc, lrbuftarget, rmaxrpc, rbuftarget,
-                          deliverq_max, deliverq_min, xn_shuffler_deliver);
+                          deliverq_max, deliverq_min, xn_shuffler_deliver,
+                          true);
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
     logf(LOG_INFO,
          "3-HOP confs: sndlim(l/r)=%d/%d, maxrpc(lo/lr/r)=%d/%d/%d, "
+         "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
+         lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
+         lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
+    if (logfile != NULL && logfile[0] != 0 && strcmp(logfile, "/") != 0) {
+      fputs(">>> LOGGING is ON, will log to ...\n --> ", stderr);
+      fputs(logfile, stderr);
+      fprintf(stderr, ".[0-%d]\n", pctx.comm_sz);
+    }
+  }
+
+  /*
+   * Priority shuffler has identical arguments, except it does not batch RPCs
+   * All buftarget values are set to 1 here, and its network/delivery threads
+   * are disabled, that job is delegated to the regular shuffler
+   *
+   * Last argument is false to direct psh to not start n/w & delivery threads
+   */
+  ctx->psh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_priority"),
+                           lsenderlimit, rsenderlimit, lomaxrpc, 1, lrmaxrpc, 1,
+                           rmaxrpc, 1, deliverq_max, deliverq_min,
+                           xn_shuffler_deliver, false);
+
+  if (ctx->psh == NULL) {
+    ABORT("priority_shuffler_init");
+  } else if (pctx.my_rank == 0) {
+    logf(LOG_INFO,
+         "PRIORITY 3-HOP active; confs: sndlim(l/r)=%d/%d, "
+         "maxrpc(lo/lr/r)=%d/%d/%d, "
          "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
          lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
          lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
@@ -307,6 +374,7 @@ int xn_shuffler_my_rank(xn_ctx_t* ctx) {
 }
 
 void xn_shuffler_destroy(xn_ctx_t* ctx) {
+  fprintf(stderr, "inside xn_shuffler_destroy");
   if (ctx != NULL) {
     if (ctx->sh != NULL) {
 #ifndef NDEBUG
@@ -320,9 +388,16 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
       shuffler_shutdown(ctx->sh);
       ctx->sh = NULL;
     }
+
+    // if (ctx->psh != NULL) {
+      // shuffler_shutdown(ctx->psh);
+      // ctx->psh = NULL;
+    // }
+
     if (ctx->nx != NULL) {
       nexus_destroy(ctx->nx);
       ctx->nx = NULL;
     }
+    fprintf(stderr, "outside xn_shuffler_destroy");
   }
 }

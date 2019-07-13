@@ -856,7 +856,8 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
            int localsenderlimit, int remotesenderlimit,
            int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
            int rmaxrpc, int rbuftarget, int deliverq_max,
-           int deliverq_threshold, shuffler_deliver_t delivercb) {
+           int deliverq_threshold, shuffler_deliver_t delivercb,
+           bool start_threads_flag) {
   int64_t mask, worldsize;
   int myrank, lcv, rv;
   shuffler_t sh;
@@ -913,6 +914,13 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   sh->disablesend = 0;
   sh->boottime = shuftime();
 
+  /* if you're running multiple shufflers with
+   * different params, it is possible for only
+   * one shuffler to run the network/delivery threads and
+   * reduce the overhead of running multiple threads
+   */
+  sh->start_threads = start_threads_flag;
+
   nit = nexus_iter(nxp, 1);
   if (nit == NULL) goto err;
   rv = shuffler_init_outset(&sh->local_orq, lomaxrpc, lobuftarget,
@@ -966,7 +974,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   }
 
   /* now start our three worker threads */
-  if (start_threads(sh) != 0) {
+  if (sh->start_threads && (start_threads(sh) != 0)) {
     pthread_mutex_destroy(&sh->deliverlock);
     pthread_cond_destroy(&sh->delivercv);
     shuffler_flush_discard(sh);
@@ -996,6 +1004,8 @@ err:
 static int start_threads(struct shuffler *sh) {
   int rv;
   mlog(SHUF_CALL, "start_threads called");
+
+  assert(sh->start_threads);
 
   /* start delivery thread */
   rv = pthread_create(&sh->dtask, NULL, delivery_main, (void *)sh);
@@ -1039,6 +1049,8 @@ static int start_threads(struct shuffler *sh) {
 static void stop_threads(struct shuffler *sh) {
   int stranded;
   mlog(SHUF_CALL, "stop_threads");
+
+  assert(sh->start_threads);
 
   /* stop network */
   if (sh->hgt_remote.nrunning) {
@@ -2565,6 +2577,10 @@ static hg_return_t shuffler_rpchand(hg_handle_t handle) {
     abort();   /* should never happen */
   }
   sh = inhgt->hgshuf;
+
+  // identify shuffler for debugging
+  fprintf(stderr, "Shuffler handler executed: %s\n", sh->funname);
+
   islocal = (inhgt == &sh->hgt_local);
   mlog(SHUF_D1, "rpchand: got request hand=%p local=%d", handle, islocal);
   if (islocal)
@@ -3342,7 +3358,8 @@ hg_return_t shuffler_shutdown(shuffler_t sh) {
   shuffler_flush_discard(sh);
 
   /* stop all threads */
-  stop_threads(sh);
+  if (sh->start_threads)
+    stop_threads(sh);
 
   /* purge any orphaned reqs */
   cnt = purge_reqs(sh);

@@ -294,6 +294,7 @@ struct shuffler {
   char *funname;                    /* strdup'd copy of mercury func. name */
   int disablesend;                  /* disable new sends (for shutdown) */
   time_t boottime;                  /* time we started */
+  bool start_threads;               /* whether to start nw/delivery threads */
 
   /* mercury threads */
   struct hgthread hgt_local;        /* local thread (na+sm) */

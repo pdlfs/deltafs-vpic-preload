@@ -100,6 +100,7 @@ typedef struct xn_ctx {
   xn_stat_t stat;
   nexus_ctx_t nx; /* nexus handle */
   shuffler_t sh;
+  shuffler_t psh; /* priority shuffler for control messages */
 } xn_ctx_t;
 
 /* xn_shuffler_init: init the shuffler or die */
@@ -113,6 +114,9 @@ extern int xn_shuffler_my_rank(xn_ctx_t* ctx);
 
 void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
                          int epoch, int dst, int src);
+
+void xn_shuffler_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+                               int epoch, int dst, int src);
 
 /* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */
 extern void xn_shuffler_epoch_end(xn_ctx_t* ctx);
