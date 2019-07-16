@@ -1114,12 +1114,13 @@ static int purge_reqs(struct shuffler *sh) {
     free(req);
     rv++;
   }
-  // while (!sh->deliverq.empty()) {
-    // req = sh->dwaitq.front();
-    // sh->dwaitq.pop_front();
-    // free(req);
-    // rv++;
-  // }
+
+  while (!sh->deliverq.empty()) {
+    req = sh->deliverq.front();
+    sh->deliverq.pop_front();
+    free(req);
+    rv++;
+  }
 
   /* clear local and remote queeus */
   rv += purge_reqs_outset(sh, &sh->local_orq);

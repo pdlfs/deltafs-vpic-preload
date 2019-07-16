@@ -377,11 +377,6 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
   fprintf(stderr, "inside xn_shuffler_destroy");
   if (ctx != NULL) {
     // shutdown the priorty shuffler first
-    if (ctx->psh != NULL) {
-      shuffler_shutdown(ctx->psh);
-      ctx->psh = NULL;
-    }
-
     if (ctx->sh != NULL) {
 #ifndef NDEBUG
       hg_uint64_t tmpori;
@@ -393,6 +388,11 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
 #endif
       shuffler_shutdown(ctx->sh);
       ctx->sh = NULL;
+    }
+
+    if (ctx->psh != NULL) {
+      shuffler_shutdown(ctx->psh);
+      ctx->psh = NULL;
     }
 
     if (ctx->nx != NULL) {

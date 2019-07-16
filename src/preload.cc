@@ -810,10 +810,12 @@ int MPI_Init(int* argc, char*** argv) {
     return rv;
   }
 
+  range_ctx_t *rctx = &pctx.rctx;
+
   /* init range structures */
   // TODO: revisit this if considering 3-hop etc
-  pctx.rank_bins.resize(pctx.comm_sz);
-  pctx.oob_buffer.resize(RANGE_MAX_OOB_THRESHOLD);
+  rctx->rank_bins.resize(pctx.comm_sz);
+  rctx->oob_buffer.resize(RANGE_MAX_OOB_THRESHOLD);
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
@@ -2133,14 +2135,14 @@ DIR* opendir(const char* dir) {
   pctx.fnames->clear();
 
   /* reset range stats */
-  pctx.range_state = range_state_t::RS_INIT;
-  std::fill(pctx.rank_bins.begin(), pctx.rank_bins.end(), 0);
+  pctx.rctx.range_state = range_state_t::RS_INIT;
+  std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
 
-  pctx.negotiated_range_start = 0;
-  pctx.negotiated_range_end = 0;
-  pctx.ts_writes_received = 0;
-  pctx.ts_writes_shuffled = 0;
-  pctx.oob_count = 0;
+  pctx.rctx.negotiated_range_start = 0;
+  pctx.rctx.negotiated_range_end = 0;
+  pctx.rctx.ts_writes_received = 0;
+  pctx.rctx.ts_writes_shuffled = 0;
+  pctx.rctx.oob_count = 0;
 
   return rv;
 }
