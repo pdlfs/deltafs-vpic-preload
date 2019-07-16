@@ -1114,12 +1114,12 @@ static int purge_reqs(struct shuffler *sh) {
     free(req);
     rv++;
   }
-  while (!sh->deliverq.empty()) {
-    req = sh->dwaitq.front();
-    sh->dwaitq.pop_front();
-    free(req);
-    rv++;
-  }
+  // while (!sh->deliverq.empty()) {
+    // req = sh->dwaitq.front();
+    // sh->dwaitq.pop_front();
+    // free(req);
+    // rv++;
+  // }
 
   /* clear local and remote queeus */
   rv += purge_reqs_outset(sh, &sh->local_orq);
@@ -3361,11 +3361,18 @@ hg_return_t shuffler_shutdown(shuffler_t sh) {
   if (sh->start_threads)
     stop_threads(sh);
 
+  fprintf(stderr, "\n\n ---- Check 1 ---\n\n");
+
   /* purge any orphaned reqs */
   cnt = purge_reqs(sh);
+
+  fprintf(stderr, "\n\n ---- Check 22 ---\n\n");
+
   if (cnt) {
     notify(CLNT_CRIT, "shuffler: shutdown warning: %d orphans", cnt);
   }
+
+  fprintf(stderr, "\n\n ---- Check 333 ---\n\n");
 
   /* dump counters */
   dumpstats(sh);

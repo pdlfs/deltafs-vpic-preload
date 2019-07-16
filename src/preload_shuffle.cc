@@ -50,6 +50,7 @@
 #include <pdlfs-common/xxhash.h>
 
 #include "common.h"
+#include "msgfmt.h"
 
 namespace {
 void shuffle_prepare_sm_uri(char* buf, const char* proto) {
@@ -417,8 +418,6 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   float indexed_property =
       static_cast<float>(get_indexable_property(data, data_len));
 
-  char* buf_to_copy;
-
   /* decide which buf to copy to, to avoid an unnecessary copy */
   if ((pctx.range_state == range_state_t::RS_INIT) ||
       (indexed_property > pctx.negotiated_range_end)) {
@@ -427,20 +426,18 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
      */
     assert(pctx.oob_count < RANGE_MAX_OOB_THRESHOLD);
     pctx.oob_buffer[pctx.oob_count].indexed_prop = indexed_property;
-    buf_to_copy = pctx.oob_buffer[pctx.oob_count].ptr;
+    buf_sz = msgfmt_write_data(pctx.oob_buffer[pctx.oob_count].ptr,
+                               RANGE_MAX_PSZ, fname, fname_len, data, data_len,
+                               ctx->extra_data_len);
     pctx.oob_count++;
   } else {
-    buf_to_copy = buf;
+    buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
+                               ctx->extra_data_len);
   }
 
   // XXX: temp until range is working
-  buf_to_copy = buf;
-
-  memcpy(buf_to_copy, fname, fname_len);
-  buf_to_copy[fname_len] = 0;
-  memcpy(buf_to_copy + fname_len + 1, data, data_len);
-
-  if (buf_sz != base_sz) memset(buf + base_sz, 0, buf_sz - base_sz);
+  buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
+                             ctx->extra_data_len);
 
   if (pctx.oob_count < RANGE_MAX_OOB_THRESHOLD &&
       (pctx.range_state == range_state_t::RS_INIT ||
@@ -483,9 +480,10 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
           buf[0], buf[1], buf[2]);
 
   if (ctx->type == SHUFFLE_XN) {
-    // xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-    xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
                         peer_rank, rank);
+    // xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
+    // epoch, peer_rank, rank);
   } else {
     nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
   }
@@ -513,10 +511,18 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
           buf[0], buf[1], buf[2]);
 
   ctx = &pctx.sctx;
-  if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
+  // if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
+  if (buf_sz != msgfmt_get_data_size(ctx->fname_len, ctx->data_len,
+        ctx->extra_data_len))
     ABORT("unexpected incoming shuffle request size");
-  rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
-                    ctx->data_len, epoch, src);
+
+  char *fname, *fdata;
+  msgfmt_parse_data(buf, buf_sz, &fname, ctx->fname_len, &fdata, ctx->data_len);
+
+  // rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
+  // ctx->data_len, epoch, src);
+
+  rv = exotic_write(fname, ctx->fname_len, fdata, ctx->data_len, epoch, src);
 
   if (pctx.testin && pctx.trace != NULL)
     shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
@@ -525,8 +531,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
 }
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
-  if (pctx.my_rank == 0)
-    logf(LOG_INFO, "SHUFFLE SHUTDOWN BEGIN");
+  if (pctx.my_rank == 0) logf(LOG_INFO, "SHUFFLE SHUTDOWN BEGIN");
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
@@ -689,8 +694,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     ch_placement_finalize(ctx->chp);
     ctx->chp = NULL;
   }
-  if (pctx.my_rank == 0)
-    logf(LOG_INFO, "SHUFFLE SHUTDOWN OVER");
+  if (pctx.my_rank == 0) logf(LOG_INFO, "SHUFFLE SHUTDOWN OVER");
 }
 
 namespace {
