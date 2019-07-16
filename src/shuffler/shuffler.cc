@@ -1103,8 +1103,8 @@ static int purge_reqs(struct shuffler *sh) {
     rv++;
   }
   while (!sh->deliverq.empty()) {
-    req = sh->dwaitq.front();
-    sh->dwaitq.pop_front();
+    req = sh->deliverq.front();
+    sh->deliverq.pop_front();
     free(req);
     rv++;
   }

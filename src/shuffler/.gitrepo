@@ -6,6 +6,6 @@
 [subrepo]
 	remote = git@dev.pdl.cmu.edu:pdlfs/nexus-runner.git
 	branch = master
-	commit = ad11f498fdf4adc49cfb749406497542ad573057
-	parent = e9492fcc295ccb0a48fa2bfbe895126a8ad98898
+	commit = 8aafadf8d3159b0d9f0cfff2d3d2ecf5d68b2746
+	parent = a2606e52e0a88f4aca4c1916d17bcd33c3624662
 	cmdver = 0.3.1
