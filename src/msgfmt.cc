@@ -42,4 +42,13 @@ void msgfmt_parse_data(char *buf, int buf_sz, char **fname, int fname_sz,
   return;
 }
 
+uint32_t msgfmt_begin_reneg(char* buf, int buf_sz, int my_rank) {
+  assert((uint32_t) buf_sz >= MSGFMT_TYPE_SIZE + sizeof(int));
+
+  buf[0] = MSGFMT_BEGIN_RENEG;
+  memcpy(&buf[1], static_cast<void *>(&my_rank), sizeof(int));
+
+  return MSGFMT_TYPE_SIZE + sizeof(int);
+}
+
 unsigned char msgfmt_get_msgtype(char *buf) { return buf[0]; }

@@ -405,7 +405,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   int rank;
   int rv;
 
-  range_ctx_t *rctx = &pctx.rctx;
+  range_ctx_t* rctx = &pctx.rctx;
 
   rctx->ts_writes_received++;
 
@@ -420,44 +420,67 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   float indexed_property =
       static_cast<float>(get_indexable_property(data, data_len));
 
-  /* decide which buf to copy to, to avoid an unnecessary copy */
-  if ((rctx->range_state == range_state_t::RS_INIT) ||
-      (indexed_property > rctx->negotiated_range_end)) {
-    /* We always maintain space in OOB buffer;
-     * It is flushed as soon as it hits max size
+  buf_type_t buf_type = buf_type_t::RB_NO_BUF;
+
+  /* There's always space in the buffers. If buffer becomes full with
+   * current write, it will be cleared within current loop itself
+   * TODO: change this assertion to a wait/lock depending on multi
+   * threading design
+   */
+  assert(rctx->oob_left_count + rctx->oob_right_count <
+         RANGE_TOTAL_OOB_THRESHOLD);
+
+  if (rctx->range_state == range_state_t::RS_INIT) {
+    /* In the init state, we always buffer particles into oob_left
+     * We can buffer them into left + right for more sampling before
+     * negotn is triggered, but that would require a cross-buffer sorting
+     * phase, so we just use oob_left as long as state is RS_INIT
      */
-    assert(pctx.oob_count < RANGE_MAX_OOB_THRESHOLD);
-    rctx->oob_buffer[rctx->oob_count].indexed_prop = indexed_property;
-    buf_sz = msgfmt_write_data(rctx->oob_buffer[rctx->oob_count].ptr,
+    buf_type = buf_type_t::RB_BUF_LEFT;
+  } else if (rctx->range_state == range_state_t::RS_RENEGO) {
+    // TODO: block or reason it out
+  } else if (indexed_property < rctx->range_min) {
+    buf_type = buf_type_t::RB_BUF_LEFT;
+  } else if (indexed_property > rctx->range_max) {
+    buf_type = buf_type_t::RB_BUF_RIGHT;
+  }
+
+  if (buf_type == buf_type_t::RB_BUF_LEFT) {
+    rctx->oob_buffer_left[rctx->oob_count_left].indexed_prop = indexed_property;
+    buf_sz = msgfmt_write_data(rctx->oob_buffer_left[rctx->oob_count_left].ptr,
                                RANGE_MAX_PSZ, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
-    rctx->oob_count++;
+    rctx->oob_count_left++;
+    return 0; // XXX: are we sure there's nothing more to do?
+  } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
+    rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop = indexed_property;
+    buf_sz = msgfmt_write_data(rctx->oob_buffer_right[rctx->oob_count_right].ptr,
+                               RANGE_MAX_PSZ, fname, fname_len, data, data_len,
+                               ctx->extra_data_len);
+    rctx->oob_count_right++;
+    return 0; // XXX: are we sure there's nothing more to do?
   } else {
     buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
   }
-
+  
   // XXX: temp until range is working
   buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
                              ctx->extra_data_len);
 
-  if (rctx->oob_count < RANGE_MAX_OOB_THRESHOLD &&
-      (rctx->range_state == range_state_t::RS_INIT ||
-       indexed_property > rctx->negotiated_range_end)) {
-    // Particle has been buffered, nothing to be done
-    // return 0;
-  }
-
-  if (rctx->oob_count == RANGE_MAX_OOB_THRESHOLD) {
+  if (rctx->oob_count_left + rctx->oob_count_right == RANGE_TOTAL_OOB_THRESHOLD) {
     // Buffering caused OOB_MAX, renego
     // renegotiate()
-    if (rctx->range_state == range_state_t::RS_INIT)
-      rctx->range_state = range_state_t::RS_READY;
-  } else {
-    // shuffle current
-    // peer_rank = shuffle_data_target(indexed_property);
+    // change state to ready
   }
 
+  while(!RANGE_IS_READY(rctx)); // TODO: logical hint, remove
+
+  if (buf_type == buf_type_t::RB_NO_BUF) {
+    peer_rank = shuffle_data_target(indexed_property);
+  }
+
+  // XXX: temp until range is working
   peer_rank = shuffle_target(ctx, buf, buf_sz);
   fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
   rank = shuffle_rank(ctx);
@@ -483,9 +506,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if (ctx->type == SHUFFLE_XN) {
     // xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-                        // peer_rank, rank);
+    // peer_rank, rank);
     xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
-    epoch, peer_rank, rank);
+                              epoch, peer_rank, rank);
   } else {
     nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
   }
@@ -514,8 +537,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
 
   ctx = &pctx.sctx;
   // if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
-  if (buf_sz != msgfmt_get_data_size(ctx->fname_len, ctx->data_len,
-        ctx->extra_data_len))
+  if (buf_sz !=
+      msgfmt_get_data_size(ctx->fname_len, ctx->data_len, ctx->extra_data_len))
     ABORT("unexpected incoming shuffle request size");
 
   char *fname, *fdata;

@@ -31,7 +31,7 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line);
 
 #define MSGFMT_DATA (unsigned char)0x01
-#define MSGFMT_CTRL1 (unsigned char)0x02
+#define MSGFMT_BEGIN_RENEG (unsigned char)0x02
 #define MSGFMT_CTRL2 (unsigned char)0x03
 #define MSGFMT_TYPE_SIZE 1u
 
@@ -43,5 +43,7 @@ uint32_t msgfmt_write_data(char* buf, int buf_sz, const char* fname,
 
 void msgfmt_parse_data(char* buf, int buf_sz, char** fname, int fname_sz,
                        char** fdata, int data_sz);
+
+uint32_t msgfmt_begin_reneg(char* buf, int buf_sz, int my_rank);
 
 unsigned char msgfmt_get_msgtype(char* buf);

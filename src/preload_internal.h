@@ -132,7 +132,6 @@ typedef struct preload_ctx {
   int sideio;   /* use the wisc-key format */
 
   shuffle_ctx_t sctx; /* shuffle context */
-  shuffle_ctx_t psctx; /* priority shuffle context */
 
   int testin; /* developer mode - for debug use only */
   int noscan; /* do not probe sys info */

@@ -7,17 +7,11 @@
 
 #include "range_utils.h"
 
-float bins[] = {1, 3, 5, 2, 4, 6};
-std::vector<rb_item_t> bs;
-
-std::vector<float> ubins;
-std::vector<float> ubin_count;
-std::vector<float> samples;
-
 bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
   return (a.bin_val < b.bin_val) || (a.bin_val == b.bin_val && !a.is_start);
 }
 
+#ifdef RANGE_MAIN_DEBUG
 void pbs() {
   for (int i = 0; i < bs.size(); i++) {
     fprintf(stderr, "(%f, %d, %c) ", bs[i].bin_val, bs[i].rank,
@@ -36,6 +30,7 @@ void pub() {
   }
   fprintf(stderr, "\n");
 }
+#endif
 
 void load_bins_into_rbvec(float* bins, std::vector<rb_item_t>& rbvec,
                           int num_bins, int num_ranks, int bins_per_rank) {
@@ -60,6 +55,8 @@ void pivot_union(std::vector<rb_item_t> rb_items,
                  std::vector<float>& unified_bins,
                  std::vector<float>& unified_bin_counts, int num_ranks,
                  int part_per_rank) {
+  assert(rb_items.size() >= 2u);
+
   float rank_bin_start[num_ranks];
   float rank_bin_end[num_ranks];
 
@@ -67,8 +64,8 @@ void pivot_union(std::vector<rb_item_t> rb_items,
 
   std::fill(rank_bin_start, rank_bin_start + num_ranks, BIN_EMPTY);
 
-  int prev_bin_val = bs[0].bin_val;
-  int prev_bp_bin_val = bs[0].bin_val;
+  int prev_bin_val = rb_items[0].bin_val;
+  int prev_bp_bin_val = rb_items[0].bin_val;
 
   /* Ranks that currently have an active bin */
   std::list<int> active_ranks;
@@ -131,7 +128,7 @@ void pivot_union(std::vector<rb_item_t> rb_items,
       rank_bin_start[bp_rank] = bp_bin_val;
       rank_bin_end[bp_rank] = bp_bin_other;
       active_ranks.push_back(bp_rank);
-      if (i == 0) ubins.push_back(bp_bin_val);
+      if (i == 0) unified_bins.push_back(bp_bin_val);
     } else {
       assert(rank_bin_start[bp_rank] != BIN_EMPTY);
       rank_bin_start[bp_rank] = BIN_EMPTY;
@@ -212,17 +209,26 @@ int resample_bins_irregular(const std::vector<float>& bins,
   return 0;
 }
 
-// int main() {
-  // load_bins_into_rbvec(bins, bs, 6, 2, 3);
-  // pbs();
-  // pivot_union(bs, ubins, ubin_count, 2, 20);
-  // fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
-  // pub();
-  // resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
+#ifdef RANGE_MAIN_DEBUG
+float bins[] = {1, 3, 5, 2, 4, 6};
+std::vector<rb_item_t> bs;
 
-  // fprintf(stdout, "------------------\n");
-  // for (int i = 0; i < samples.size(); i++) {
-    // printf("Sample - %f\n", samples[i]);
-  // }
-  // return 0;
-// }
+std::vector<float> ubins;
+std::vector<float> ubin_count;
+std::vector<float> samples;
+
+int main() {
+  load_bins_into_rbvec(bins, bs, 6, 2, 3);
+  pbs();
+  pivot_union(bs, ubins, ubin_count, 2, 20);
+  fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
+  pub();
+  resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
+
+  fprintf(stdout, "------------------\n");
+  for (int i = 0; i < samples.size(); i++) {
+    printf("Sample - %f\n", samples[i]);
+  }
+  return 0;
+}
+#endif

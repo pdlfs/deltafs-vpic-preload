@@ -35,7 +35,7 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         preload_shuffle.cc msgfmt.cc nn_shuffler.cc nn_shuffler_internal.cc
         xn_shuffler.cc shuffler/shuffler.cc shuffler/shuf_mlog.cc
         shuffler/mlog.c shuffler/acnt_wrap.c hstg.cc common.cc
-        pthreadtap.cc)
+        pthreadtap.cc preload_range.cc range_utils.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury mssg ch-placement
         deltafs-nexus Threads::Threads ${CMAKE_DL_LIBS})
