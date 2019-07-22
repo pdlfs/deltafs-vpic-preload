@@ -4,7 +4,7 @@
 #include <vector>
 
 #define RANGE_PARANOID_CHECKS 1
-#define RANGE_DEBUG 1
+#define RANGE_DEBUG 0
 #define RANGE_EPSILON 1e-5
 #define fprintf \
   if (RANGE_DEBUG) fprintf
@@ -17,9 +17,12 @@ typedef struct rb_item {
   bool is_start;
 } rb_item_t;  // rank-bin item
 
+void load_bins_into_rbvec(float* bins, std::vector<rb_item_t>& rbvec,
+                          int num_bins, int num_ranks, int bins_per_rank);
+
 void pivot_union(std::vector<rb_item_t> rb_items,
-                 std::vector<float> unified_bins,
-                 std::vector<float> unified_bin_counts, int num_ranks,
+                 std::vector<float>& unified_bins,
+                 std::vector<float>& unified_bin_counts, int num_ranks,
                  int part_per_rank);
 
 int get_particle_count(int total_ranks, int total_bins, int par_per_bin);
