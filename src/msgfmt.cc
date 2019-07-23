@@ -42,13 +42,39 @@ void msgfmt_parse_data(char *buf, int buf_sz, char **fname, int fname_sz,
   return;
 }
 
-uint32_t msgfmt_begin_reneg(char* buf, int buf_sz, int my_rank) {
-  assert((uint32_t) buf_sz >= MSGFMT_TYPE_SIZE + sizeof(int));
+uint32_t msgfmt_begin_reneg(char *buf, int buf_sz, int my_rank) {
+  assert((uint32_t)buf_sz >= MSGFMT_TYPE_SIZE + sizeof(int));
 
-  buf[0] = MSGFMT_BEGIN_RENEG;
+  buf[0] = MSGFMT_RENEG_BEGIN;
   memcpy(&buf[1], static_cast<void *>(&my_rank), sizeof(int));
 
   return MSGFMT_TYPE_SIZE + sizeof(int);
 }
 
 unsigned char msgfmt_get_msgtype(char *buf) { return buf[0]; }
+
+uint32_t msgfmt_pivot_bytes(int num_pivots) {
+  uint32_t data_bytes = num_pivots * sizeof(float);
+  uint32_t header = MSGFMT_TYPE_SIZE + sizeof(int);
+
+  fprintf(stderr, "MSGFMT hdr: %u, data: %u\n", header, data_bytes);
+
+  return header + data_bytes;
+}
+
+void msgfmt_encode_pivots(char *buf, int buf_sz, std::vector<float> &pivots) {
+  int num_pivots = pivots.size();
+  int bytes_reqd = msgfmt_pivot_bytes(num_pivots);
+  assert(buf_sz >= bytes_reqd);
+
+  fprintf(stderr, "Bytes reqd: %d, bufsz: %d\n", bytes_reqd, buf_sz);
+
+  buf[0] = MSGFMT_RENEG_PIVOTS;
+  std::copy(reinterpret_cast<char *>(&num_pivots),
+            reinterpret_cast<char *>(&num_pivots + sizeof(int)),
+            &buf[1]);
+  std::copy(pivots.begin(), pivots.end(), &buf[1 + sizeof(int)]);
+
+  memset(&buf[bytes_reqd], 0, buf_sz - bytes_reqd);
+  return;
+}

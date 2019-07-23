@@ -437,6 +437,7 @@ static void do_dump() {
 #endif
 
   float p_energy;
+  float p_energy_base = 1;
 
   for (int i = 0; i < g.nps; i++) {
     base64_encoding(p.pname + prefix, (highbits | i));
@@ -446,6 +447,8 @@ static void do_dump() {
     if (ret)
       complain(EXIT_FAILURE, 0,
                "[Ret %d] Ran out of particles earlier than expected", ret);
+    p_energy = p_energy_base + myrank;
+    p_energy_base += 2;
     fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
     fclose(file);

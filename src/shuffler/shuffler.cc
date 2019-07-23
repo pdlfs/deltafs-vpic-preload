@@ -3362,18 +3362,12 @@ hg_return_t shuffler_shutdown(shuffler_t sh) {
   if (sh->start_threads)
     stop_threads(sh);
 
-  fprintf(stderr, "\n\n ---- Check 1 ---\n\n");
-
   /* purge any orphaned reqs */
   cnt = purge_reqs(sh);
-
-  fprintf(stderr, "\n\n ---- Check 22 ---\n\n");
 
   if (cnt) {
     notify(CLNT_CRIT, "shuffler: shutdown warning: %d orphans", cnt);
   }
-
-  fprintf(stderr, "\n\n ---- Check 333 ---\n\n");
 
   /* dump counters */
   dumpstats(sh);

@@ -40,6 +40,7 @@
 #include "preload_internal.h"
 #include "preload_mon.h"
 #include "preload_shuffle.h"
+#include "preload_range.h"
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
@@ -414,13 +415,18 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   if (ctx->fname_len != fname_len) ABORT("bad filename len");
   if (ctx->data_len != data_len) ABORT("bad data len");
 
+  rank = shuffle_rank(ctx);
+
   unsigned char base_sz = 1 + fname_len + data_len;
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
 
   float indexed_property =
       static_cast<float>(get_indexable_property(data, data_len));
 
+  fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
+
   buf_type_t buf_type = buf_type_t::RB_NO_BUF;
+  bool can_proceed = false;
 
   /* There's always space in the buffers. If buffer becomes full with
    * current write, it will be cleared within current loop itself
@@ -429,6 +435,13 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
    */
   assert(rctx->oob_left_count + rctx->oob_right_count <
          RANGE_TOTAL_OOB_THRESHOLD);
+
+  if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
+    fprintf(stderr,
+            "We're receiving particles we don't know\
+        what to do with... HALP\n");
+    return 0;  // we lie: bad :(
+  }
 
   if (rctx->range_state == range_state_t::RS_INIT) {
     /* In the init state, we always buffer particles into oob_left
@@ -446,35 +459,46 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   }
 
   if (buf_type == buf_type_t::RB_BUF_LEFT) {
+    fprintf(stderr, "Writing to idx %d of oob_left\n", rctx->oob_count_left);
     rctx->oob_buffer_left[rctx->oob_count_left].indexed_prop = indexed_property;
     buf_sz = msgfmt_write_data(rctx->oob_buffer_left[rctx->oob_count_left].ptr,
                                RANGE_MAX_PSZ, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
     rctx->oob_count_left++;
-    return 0; // XXX: are we sure there's nothing more to do?
   } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
-    rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop = indexed_property;
-    buf_sz = msgfmt_write_data(rctx->oob_buffer_right[rctx->oob_count_right].ptr,
-                               RANGE_MAX_PSZ, fname, fname_len, data, data_len,
-                               ctx->extra_data_len);
+    fprintf(stderr, "Writing to idx %d of oob_right\n", rctx->oob_count_left);
+    rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop =
+        indexed_property;
+    buf_sz = msgfmt_write_data(
+        rctx->oob_buffer_right[rctx->oob_count_right].ptr, RANGE_MAX_PSZ, fname,
+        fname_len, data, data_len, ctx->extra_data_len);
     rctx->oob_count_right++;
-    return 0; // XXX: are we sure there's nothing more to do?
   } else {
     buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
   }
-  
+
   // XXX: temp until range is working
   buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
                              ctx->extra_data_len);
 
-  if (rctx->oob_count_left + rctx->oob_count_right == RANGE_TOTAL_OOB_THRESHOLD) {
+  if ((RANGE_IS_INIT(rctx) && RANGE_LEFT_OOB_FULL(rctx)) ||
+      RANGE_OOB_FULL(rctx)) {
     // Buffering caused OOB_MAX, renego
     // renegotiate()
-    // change state to ready
+    // if (rank == 0) range_init_negotiation(&pctx);
+    // std::unique_lock<std::mutex> ulock(rctx->block_writes_m);
+    // rctx->block_writes_cv.wait(ulock);
+    fprintf(stderr, "=========> RENEGOTIATE PPLZ <==========\n");
+    return 0;  // we lie: bad :(
   }
 
-  while(!RANGE_IS_READY(rctx)); // TODO: logical hint, remove
+  // if (buf_type != buf_type_t::RB_NO_BUF) {
+    // return 0;  // particles buffered, nothing to do
+  // }
+
+  // while (!RANGE_IS_READY(rctx))
+    // ;  // TODO: logical hint, remove
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
     peer_rank = shuffle_data_target(indexed_property);
@@ -483,7 +507,6 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   // XXX: temp until range is working
   peer_rank = shuffle_target(ctx, buf, buf_sz);
   fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
-  rank = shuffle_rank(ctx);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.trace != NULL)
@@ -535,17 +558,27 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   fprintf(stderr, "At DEST: %d, RCVD from %d, P: %02x%02x%02x\n", dst, src,
           buf[0], buf[1], buf[2]);
 
+  char msg_type = msgfmt_get_msgtype(buf);
+  switch (msg_type) {
+    case MSGFMT_DATA:
+      fprintf(stderr, "At DEST: %d, received MSGFMT_DATA\n", dst);
+      break;
+    case MSGFMT_RENEG_BEGIN:
+      fprintf(stderr, "At DEST: %d, received RENEG_BEGIN\n", dst);
+      break;
+    case MSGFMT_RENEG_PIVOTS:
+      fprintf(stderr, "At DEST: %d, received RENEG_PIVOTS\n", dst);
+      break;
+  }
+
   ctx = &pctx.sctx;
-  // if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
+
   if (buf_sz !=
       msgfmt_get_data_size(ctx->fname_len, ctx->data_len, ctx->extra_data_len))
     ABORT("unexpected incoming shuffle request size");
 
   char *fname, *fdata;
   msgfmt_parse_data(buf, buf_sz, &fname, ctx->fname_len, &fdata, ctx->data_len);
-
-  // rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
-  // ctx->data_len, epoch, src);
 
   rv = exotic_write(fname, ctx->fname_len, fdata, ctx->data_len, epoch, src);
 

@@ -18,8 +18,12 @@
  * TODO: implement better error handling than msg_abort
  */
 
+#include <vector>
 #include "common.h"
 
+/* XXX: we're not strictly following this limit
+ * as the size of the pivot_msg can be anything
+ * revaluate and remove it? */
 #define MSGFMT_MAX_BUFSIZE 255
 
 #define ABORT_FILENAME \
@@ -31,8 +35,8 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line);
 
 #define MSGFMT_DATA (unsigned char)0x01
-#define MSGFMT_BEGIN_RENEG (unsigned char)0x02
-#define MSGFMT_CTRL2 (unsigned char)0x03
+#define MSGFMT_RENEG_BEGIN (unsigned char)0x02
+#define MSGFMT_RENEG_PIVOTS (unsigned char)0x03
 #define MSGFMT_TYPE_SIZE 1u
 
 uint32_t msgfmt_get_data_size(int fname_sz, int data_sz, int extra_data_sz);
@@ -47,3 +51,7 @@ void msgfmt_parse_data(char* buf, int buf_sz, char** fname, int fname_sz,
 uint32_t msgfmt_begin_reneg(char* buf, int buf_sz, int my_rank);
 
 unsigned char msgfmt_get_msgtype(char* buf);
+
+uint32_t msgfmt_pivot_bytes(int num_pivots);
+
+void msgfmt_encode_pivots(char *buf, int buf_sz, std::vector<float> &pivots);
