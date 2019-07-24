@@ -2,6 +2,7 @@
 
 #include <condition_variable>
 #include <mutex>
+#include <atomic>
 #include "common.h"
 
 #define MSGFMT_MAX_BUFSIZE 255
@@ -45,11 +46,19 @@ enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT };
 
 typedef struct range_ctx {
   /* range data structures */
-  float negotiated_range_start;
-  float negotiated_range_end;
 
   int ts_writes_received;
   int ts_writes_shuffled;
+
+  /* must grab this every time you read/write what exactly?
+   * In the common case, this lock is expected to be uncontended
+   * hence not expensive to acquire
+   */
+  std::mutex bin_access_m;
+
+  /*  START Shared variables protected by bin_access_m */
+  float negotiated_range_start;
+  float negotiated_range_end;
 
   range_state_t range_state;
   range_state_t range_state_prev;
@@ -57,10 +66,14 @@ typedef struct range_ctx {
   std::vector<float> rank_bins;
   std::vector<float> rank_bin_count;
   int range_min, range_max;
+  /*  END Shared variables protected by bin_access_m */
 
+  std::mutex snapshot_access_m;
+  /* START Shared variables protected by snapshot_acces_m */
   std::vector<float> rank_bins_ss;
   std::vector<float> rank_bin_count_ss;
   int range_min_ss, range_max_ss;
+  /* END Shared variables protected by snapshot_acces_m */
 
   std::vector<particle_mem_t> oob_buffer_left;
   /* oob_buffers are preallocated to MAX to avoid resize calls
@@ -77,8 +90,11 @@ typedef struct range_ctx {
    */
   // std::vector<particle_mem_t> contingency_queue;
 
-  std::vector<float> my_pivots;
+  float my_pivots[RANGE_NUM_PIVOTS];
 
+  /* Store pivots from all ranks during a negotiation */
+  std::vector<float> all_pivots;
+  std::atomic<int> ranks_responded;
   // XXX: Use atomic?
   volatile bool snapshot_in_progress;
   std::mutex block_writes_m;
@@ -97,3 +113,7 @@ void range_init_negotiation(preload_ctx_t *pctx);
  * @return None
  * */
 void get_local_pivots(range_ctx_t* rctx);
+
+void range_handle_reneg_begin(char *buf, unsigned int buf_sz);
+
+void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank);

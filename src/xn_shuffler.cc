@@ -331,7 +331,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   ctx->psh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_priority"),
                            lsenderlimit, rsenderlimit, lomaxrpc, 1, lrmaxrpc, 1,
                            rmaxrpc, 1, deliverq_max, deliverq_min,
-                           xn_shuffler_deliver, false);
+                           xn_shuffler_deliver, true);
 
   if (ctx->psh == NULL) {
     ABORT("priority_shuffler_init");

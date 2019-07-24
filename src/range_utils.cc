@@ -32,15 +32,16 @@ void pub() {
 }
 #endif
 
-void load_bins_into_rbvec(float* bins, std::vector<rb_item_t>& rbvec,
-                          int num_bins, int num_ranks, int bins_per_rank) {
+void load_bins_into_rbvec(std::vector<float>& bins,
+                          std::vector<rb_item_t>& rbvec, int num_bins,
+                          int num_ranks, int bins_per_rank) {
   assert(num_bins == num_ranks * bins_per_rank);
 
   for (int rank = 0; rank < num_ranks; rank++) {
     for (int bidx = 0; bidx < bins_per_rank - 1; bidx++) {
-      fprintf(stdout, "Rank %d, Start: %f\n", rank,
+      fprintf(stderr, "Rank %d, Start: %f\n", rank,
               bins[rank * bins_per_rank + bidx]);
-      fprintf(stdout, "Rank %d, End: %f\n", rank,
+      fprintf(stderr, "Rank %d, End: %f\n", rank,
               bins[rank * bins_per_rank + bidx + 1]);
       float bin_start = bins[rank * bins_per_rank + bidx];
       float bin_end = bins[rank * bins_per_rank + bidx + 1];

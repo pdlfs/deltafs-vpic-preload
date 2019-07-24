@@ -819,6 +819,7 @@ int MPI_Init(int* argc, char*** argv) {
   rctx->rank_bin_count.resize(pctx.comm_sz + 1);
   rctx->rank_bins_ss.resize(pctx.comm_sz + 1);
   rctx->rank_bin_count_ss.resize(pctx.comm_sz + 1);
+  rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
 
   rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
   rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);

@@ -423,7 +423,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   float indexed_property =
       static_cast<float>(get_indexable_property(data, data_len));
 
-  fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
+  // fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
 
   buf_type_t buf_type = buf_type_t::RB_NO_BUF;
   bool can_proceed = false;
@@ -459,14 +459,14 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   }
 
   if (buf_type == buf_type_t::RB_BUF_LEFT) {
-    fprintf(stderr, "Writing to idx %d of oob_left\n", rctx->oob_count_left);
+    // fprintf(stderr, "Writing to idx %d of oob_left\n", rctx->oob_count_left);
     rctx->oob_buffer_left[rctx->oob_count_left].indexed_prop = indexed_property;
     buf_sz = msgfmt_write_data(rctx->oob_buffer_left[rctx->oob_count_left].ptr,
                                RANGE_MAX_PSZ, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
     rctx->oob_count_left++;
   } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
-    fprintf(stderr, "Writing to idx %d of oob_right\n", rctx->oob_count_left);
+    // fprintf(stderr, "Writing to idx %d of oob_right\n", rctx->oob_count_left);
     rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop =
         indexed_property;
     buf_sz = msgfmt_write_data(
@@ -486,9 +486,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
       RANGE_OOB_FULL(rctx)) {
     // Buffering caused OOB_MAX, renego
     // renegotiate()
-    // if (rank == 0) range_init_negotiation(&pctx);
-    // std::unique_lock<std::mutex> ulock(rctx->block_writes_m);
-    // rctx->block_writes_cv.wait(ulock);
+    if (rank == 0) range_init_negotiation(&pctx);
+    std::unique_lock<std::mutex> ulock(rctx->block_writes_m);
+    rctx->block_writes_cv.wait(ulock);
     fprintf(stderr, "=========> RENEGOTIATE PPLZ <==========\n");
     return 0;  // we lie: bad :(
   }
@@ -506,7 +506,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   // XXX: temp until range is working
   peer_rank = shuffle_target(ctx, buf, buf_sz);
-  fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
+  // fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.trace != NULL)
@@ -565,10 +565,15 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
       break;
     case MSGFMT_RENEG_BEGIN:
       fprintf(stderr, "At DEST: %d, received RENEG_BEGIN\n", dst);
-      break;
+      // shouldn't take much time, can handle inline
+      range_handle_reneg_begin(buf, buf_sz);
+      return 0;
     case MSGFMT_RENEG_PIVOTS:
       fprintf(stderr, "At DEST: %d, received RENEG_PIVOTS\n", dst);
-      break;
+      // XXX: this is slow, should move to its own thread to prevent
+      // head-of-line blocking
+      range_handle_reneg_pivots(buf, buf_sz, src);
+      return 0;
   }
 
   ctx = &pctx.sctx;

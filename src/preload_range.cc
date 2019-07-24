@@ -6,6 +6,7 @@
 #include "preload_internal.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
+#include "range_utils.h"
 #include "xn_shuffler.h"
 
 extern const int num_eps;
@@ -13,7 +14,9 @@ extern const int num_eps;
 /* Forward declarations */
 void take_snapshot(range_ctx_t *rctx);
 void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
-                     int my_rank, int comm_sz);
+                     int my_rank, int comm_sz, bool send_to_self = false);
+void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx);
+void recalculate_local_bins();
 
 /* XXX: Make sure concurrent runs with delivery thread
  * are correct - acquire some shared lock in the beginning
@@ -34,7 +37,7 @@ void range_init_negotiation(preload_ctx_t *pctx) {
 
   fprintf(stderr, "==Check 22==\n");
 
-  take_snapshot(rctx);
+  std::lock_guard<std::mutex> balg(pctx->rctx.bin_access_m);
 
   fprintf(stderr, "==Check 333==\n");
 
@@ -43,33 +46,143 @@ void range_init_negotiation(preload_ctx_t *pctx) {
 
   // Broadcast range state to everyone
   char msg[8];
-  uint32_t msg_sz = msgfmt_begin_reneg(msg, 8, pctx->my_rank);
+  uint32_t msg_sz = msgfmt_encode_reneg_begin(msg, 8, pctx->my_rank);
 
   fprintf(stderr, "==Check 4444==\n");
   if (sctx->type == SHUFFLE_XN) {
+    /* send to all NOT including self */
     send_all_to_all(sctx, msg, msg_sz, pctx->my_rank, pctx->comm_sz);
   } else {
     ABORT("Only 3-hop shuffler supported by range-indexer");
   }
 
-  // Broadcast bins to everyone
+  std::lock_guard<std::mutex> salg(pctx->rctx.snapshot_access_m);
+  // Collect bins from everyone
+  // std::unique_lock<std::mutex> ulock(rctx->block_writes_m);
+  // rctx->range_state = range_state_t::RS_READY;
+  // rctx->block_writes_cv.notify_one();
+  range_collect_and_send_pivots(rctx, sctx);
+  /* After our own receiving thread receives all pivots, it will
+   * wake up the main thread */
+  return;
+}
+
+/* XXX: Must acquire both range_access and snapshot_access locls before calling
+ */
+void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx) {
+  take_snapshot(rctx);
+
   get_local_pivots(rctx);
-  msg_sz = msgfmt_pivot_bytes(RANGE_NUM_PIVOTS);
+
+  uint32_t msg_sz = msgfmt_nbytes_reneg_pivots(RANGE_NUM_PIVOTS);
 
   fprintf(stderr, "==Check 55555 %u==\n", msg_sz);
 
   char pivot_msg[msg_sz];
-  msgfmt_encode_pivots(pivot_msg, msg_sz, rctx->my_pivots);
+  msgfmt_encode_reneg_pivots(pivot_msg, msg_sz, rctx->my_pivots,
+                             RANGE_NUM_PIVOTS);
 
   fprintf(stderr, "==Check 666666 %u==\n", msg_sz);
-  // send_all_to_all(sctx, pivot_msg, msg_sz, pctx->my_rank, pctx->comm_sz);
-  // Collect bins from everyone
-  std::unique_lock<std::mutex> ulock(rctx->block_writes_m);
-  rctx->block_writes_cv.notify_one();
-  return;
+  /* send to all including self */
+  send_all_to_all(sctx, pivot_msg, msg_sz, pctx.my_rank, pctx.comm_sz, true);
+}
+
+void range_handle_reneg_begin(char *buf, unsigned int buf_sz) {
+  char msg_type = msgfmt_get_msgtype(buf);
+  assert(msg_type == MSGFMT_RENEG_BEGIN);
+  int reneg_rank = msgfmt_parse_reneg_begin(buf, buf_sz);
+
+  logf(LOG_INFO, "At %d, Received RENEG initiation from Rank: %d\n",
+       pctx.my_rank, reneg_rank);
+
+  /* Cheap check without acquiring the lock */
+  if (range_state_t::RS_RENEGO == pctx.rctx.range_state) {
+    logf(LOG_INFO, "Rank %d received multiple RENEGO reqs. DROPPING\n",
+         pctx.my_rank);
+    return;
+  }
+
+  std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
+
+  if (range_state_t::RS_RENEGO == pctx.rctx.range_state) {
+    logf(LOG_INFO,
+         "Rank %d - looks like we started our our RENEGO concurrently. "
+         "DROPPING received RENEG request\n",
+         pctx.my_rank);
+    return;
+  }
+
+  pctx.rctx.range_state = range_state_t::RS_RENEGO;
+
+  pctx.rctx.ranks_responded = 0;
+
+  std::lock_guard<std::mutex> salg(pctx.rctx.snapshot_access_m);
+  range_collect_and_send_pivots(&(pctx.rctx), &(pctx.sctx));
+}
+
+template <typename Enumeration>
+auto as_integer(Enumeration const value) ->
+    typename std::underlying_type<Enumeration>::type {
+  return static_cast<typename std::underlying_type<Enumeration>::type>(value);
+}
+
+void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
+  logf(LOG_INFO, "Rank %d received some pivots!!\n", pctx.my_rank);
+
+  fprintf(stderr, " =====> RANGE_STATE %d<=====\n",
+          as_integer(pctx.rctx.range_state));
+
+  char msg_type = msgfmt_get_msgtype(buf);
+  assert(msg_type == MGFMT_RENEG_PIVOTS);
+
+  if (range_state_t::RS_RENEGO != pctx.rctx.range_state) {
+    // panic - this should not happen. did messages arrive
+    // out of order or something?
+    logf(LOG_ERRO, "Rank %d received pivots when we were not in RENEGO phase\n",
+         pctx.my_rank);
+    ABORT("Inconsistency panic");
+  }
+
+  float *pivots;
+  int num_pivots;
+  msgfmt_parse_reneg_pivots(buf, buf_sz, &pivots, &num_pivots);
+
+  logf(LOG_INFO, "Rank %d received %d pivots: %.1f to %.1f\n", pctx.my_rank,
+       num_pivots, pivots[0], pivots[num_pivots - 1]);
+
+  logf(LOG_INFO, "Pivots: %.1f, %.1f, %.1f, %.1f\n", pivots[0], pivots[1],
+       pivots[2], pivots[3]);
+
+  int our_offset = src_rank * RANGE_NUM_PIVOTS;
+  std::copy(pivots, pivots + num_pivots,
+            pctx.rctx.all_pivots.begin() + our_offset);
+
+  for (int i = 0; i < num_pivots; i++) {
+    fprintf(stderr, "Range pivot: %.1f\n",
+            pctx.rctx.all_pivots[src_rank * RANGE_NUM_PIVOTS + i]);
+  }
+  pctx.rctx.ranks_responded++;
+  // XXX: will break if executed concurrently
+  if (pctx.rctx.ranks_responded == pctx.comm_sz) {
+    logf(LOG_INFO, "Rank %d ready to update its bins\n", pctx.my_rank);
+    recalculate_local_bins();
+  }
 }
 
 /***** Private functions - not in header file ******/
+/* XXX: caller must not hold any locks */
+void recalculate_local_bins() {
+  fprintf(stderr, "======> PVTSZ: %zu\n", pctx.rctx.all_pivots.size());
+  for (int i = 0; i < pctx.rctx.all_pivots.size(); i++) {
+    fprintf(stderr, "Rank %d/%d - %.1f\n", pctx.my_rank, i,
+            pctx.rctx.all_pivots[i]);
+  }
+
+  // std::vector<rb_item_t> rbvec;
+  // load_bins_into_rbvec(pctx.rctx.all_pivots, rbvec, pctx.rctx.all_pivots.size(),
+                       // pctx.comm_sz, RANGE_NUM_PIVOTS);
+}
+
 bool comp_particle(const particle_mem_t &a, const particle_mem_t &b) {
   return a.indexed_prop < b.indexed_prop;
 }
@@ -78,8 +191,6 @@ bool comp_particle(const particle_mem_t &a, const particle_mem_t &b) {
  * range are always the first and the last pivots */
 void get_local_pivots(range_ctx_t *rctx) {
   /* hopefully free of cost if already the desired size */
-  rctx->my_pivots.resize(RANGE_NUM_PIVOTS);
-
   std::sort(rctx->oob_buffer_left.begin(), rctx->oob_buffer_left.end(),
             comp_particle);
   std::sort(rctx->oob_buffer_right.begin(), rctx->oob_buffer_right.end(),
@@ -178,9 +289,9 @@ void get_local_pivots(range_ctx_t *rctx) {
 
 /* Move to shuffler? */
 void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
-                     int my_rank, int comm_sz) {
+                     int my_rank, int comm_sz, bool send_to_self) {
   for (int drank = 0; drank < comm_sz; drank++) {
-    if (drank == my_rank) continue;
+    if (!send_to_self && drank == my_rank) continue;
     xn_shuffler_priority_send(static_cast<xn_ctx_t *>(ctx->rep), buf, buf_sz,
                               num_eps - 1, drank, my_rank);
   }
@@ -188,13 +299,8 @@ void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
   return;
 }
 
+/* Needs to be executed under adequate locking */
 void take_snapshot(range_ctx_t *rctx) {
-  assert(rctx->snapshot_in_progress == false);
-
-  rctx->snapshot_in_progress = true;
-
-  asm volatile("mfence" ::: "memory");
-
   int num_ranks = rctx->rank_bins.size();
   std::copy(rctx->rank_bins.begin(), rctx->rank_bins.end(),
             rctx->rank_bins_ss.begin());
@@ -203,9 +309,5 @@ void take_snapshot(range_ctx_t *rctx) {
 
   rctx->range_min_ss = rctx->range_min;
   rctx->range_max_ss = rctx->range_max;
-
-  asm volatile("mfence" ::: "memory");
-
-  rctx->snapshot_in_progress = false;
 }
 
