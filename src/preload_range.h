@@ -38,6 +38,7 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
 typedef struct particle_mem {
   float indexed_prop;       // property for range query
   char ptr[RANGE_MAX_PSZ];  // other data
+  int buf_sz;
 } particle_mem_t;
 
 enum class range_state_t { RS_INIT, RS_READY, RS_RENEGO };
@@ -57,26 +58,25 @@ typedef struct range_ctx {
   std::mutex bin_access_m;
 
   /*  START Shared variables protected by bin_access_m */
-  float negotiated_range_start;
-  float negotiated_range_end;
-
   range_state_t range_state;
   range_state_t range_state_prev;
 
   std::vector<float> rank_bins;
   std::vector<float> rank_bin_count;
-  int range_min, range_max;
+  float range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
   std::mutex snapshot_access_m;
   /* START Shared variables protected by snapshot_acces_m */
   std::vector<float> rank_bins_ss;
   std::vector<float> rank_bin_count_ss;
-  int range_min_ss, range_max_ss;
+  float range_min_ss, range_max_ss;
   /* END Shared variables protected by snapshot_acces_m */
 
+  /* OOB buffers are never handled by reneg threads
+   * and therefore don't need a lock */
   std::vector<particle_mem_t> oob_buffer_left;
-  /* oob_buffers are preallocated to MAX to avoid resize calls
+  /* OOB buffers are preallocated to MAX to avoid resize calls
    * thus we use counters to track actual size */
   int oob_count_left;
 
@@ -88,16 +88,15 @@ typedef struct range_ctx {
    * at some point the rank will come to its senses and flush this
    * queue (read: finish negotiation or flush fixed queues)
    */
-  // std::vector<particle_mem_t> contingency_queue;
+  std::vector<particle_mem_t> contingency_queue;
 
   float my_pivots[RANGE_NUM_PIVOTS];
+  float pivot_width;
 
   /* Store pivots from all ranks during a negotiation */
   std::vector<float> all_pivots;
+  std::vector<float> all_pivot_widths;
   std::atomic<int> ranks_responded;
-  // XXX: Use atomic?
-  volatile bool snapshot_in_progress;
-  std::mutex block_writes_m;
   std::condition_variable block_writes_cv;
 } range_ctx_t;
 

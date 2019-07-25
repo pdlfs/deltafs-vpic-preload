@@ -820,10 +820,10 @@ int MPI_Init(int* argc, char*** argv) {
   rctx->rank_bins_ss.resize(pctx.comm_sz + 1);
   rctx->rank_bin_count_ss.resize(pctx.comm_sz + 1);
   rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
+  rctx->all_pivot_widths.resize(pctx.comm_sz);
 
   rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
   rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
-  rctx->snapshot_in_progress = false;
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
@@ -2148,8 +2148,8 @@ DIR* opendir(const char* dir) {
   std::fill(pctx.rctx.rank_bin_count.begin(),
       pctx.rctx.rank_bin_count.end(), 0);
 
-  pctx.rctx.negotiated_range_start = 0;
-  pctx.rctx.negotiated_range_end = 0;
+  pctx.rctx.range_min = 0;
+  pctx.rctx.range_max = 0;
   pctx.rctx.ts_writes_received = 0;
   pctx.rctx.ts_writes_shuffled = 0;
   pctx.rctx.oob_count_left = 0;

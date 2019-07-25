@@ -57,7 +57,7 @@ unsigned char msgfmt_get_msgtype(char* buf);
 uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots);
 
 void msgfmt_encode_reneg_pivots(char* buf, int buf_sz, float* pivots,
-                                int num_pivots);
+                                float pivot_width, int num_pivots);
 
 void msgfmt_parse_reneg_pivots(char* buf, int buf_sz, float** pivots,
-                               int* num_pivots);
+                               float* pivot_width, int* num_pivots);

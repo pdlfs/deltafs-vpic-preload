@@ -39,12 +39,11 @@ void load_bins_into_rbvec(std::vector<float>& bins,
 
   for (int rank = 0; rank < num_ranks; rank++) {
     for (int bidx = 0; bidx < bins_per_rank - 1; bidx++) {
-      fprintf(stderr, "Rank %d, Start: %f\n", rank,
-              bins[rank * bins_per_rank + bidx]);
-      fprintf(stderr, "Rank %d, End: %f\n", rank,
-              bins[rank * bins_per_rank + bidx + 1]);
       float bin_start = bins[rank * bins_per_rank + bidx];
       float bin_end = bins[rank * bins_per_rank + bidx + 1];
+
+      fprintf(stderr, "Rank %d, Range: %.1f %.1f\n", rank, bin_start, bin_end);
+
       rbvec.push_back({rank, bin_start, bin_end, true});
       rbvec.push_back({rank, bin_end, bin_start, false});
     }
@@ -54,8 +53,8 @@ void load_bins_into_rbvec(std::vector<float>& bins,
 
 void pivot_union(std::vector<rb_item_t> rb_items,
                  std::vector<float>& unified_bins,
-                 std::vector<float>& unified_bin_counts, int num_ranks,
-                 int part_per_rank) {
+                 std::vector<float>& unified_bin_counts,
+                 std::vector<float>& rank_bin_widths, int num_ranks) {
   assert(rb_items.size() >= 2u);
 
   float rank_bin_start[num_ranks];
@@ -80,8 +79,10 @@ void pivot_union(std::vector<rb_item_t> rb_items,
     float bp_bin_other = rb_items[i].bin_other;
     bool bp_is_start = rb_items[i].is_start;
 
+    // fprintf(stderr, "Rank %d/%d - bin %.1f\n", -1, i, bp_bin_val);
+
     std::list<int>::iterator remove_item;
-    /* Can't set iterators to null apparently */
+    /* Can't set iterators to null apparently false means iter is NULL */
     bool remove_item_flag = false;
 
     if (bp_bin_val != prev_bin_val) {
@@ -99,7 +100,10 @@ void pivot_union(std::vector<rb_item_t> rb_items,
 
         float rank_total_range = rank_bin_end[rank] - rank_bin_start[rank];
         float rank_left_range = cur_bin - prev_bp_bin_val;
-        float rank_contrib = part_per_rank * rank_left_range / rank_total_range;
+        // float rank_contrib = part_per_rank * rank_left_range /
+        // rank_total_range;
+        float rank_contrib =
+            rank_bin_widths[rank] * rank_left_range / rank_total_range;
 
         cur_bin_count += rank_contrib;
 
@@ -158,8 +162,7 @@ int get_particle_count(int total_ranks, int total_bins, int par_per_bin) {
 
 int resample_bins_irregular(const std::vector<float>& bins,
                             const std::vector<float>& bin_counts,
-                            std::vector<float>& samples, int nsamples,
-                            int nparticles) {
+                            std::vector<float>& samples, int nsamples) {
   const int bins_size = bins.size();
   const int bin_counts_size = bin_counts.size();
 
@@ -170,14 +173,16 @@ int resample_bins_irregular(const std::vector<float>& bins,
 #ifdef RANGE_PARANOID_CHECKS
   assert(nsamples > 2);
   assert(bins_size > 2);
-  int bin_sum = std::accumulate(bin_counts.begin(), bin_counts.end(), 0);
-  assert(bin_sum == nparticles);
+  // int bin_sum = std::accumulate(bin_counts.begin(), bin_counts.end(), 0);
+  // assert(bin_sum == nparticles);
 #endif
+  // for (int i = 0; i < bin_counts.size(); i++) {
+    // fprintf(stderr, "UnitedBinsOfNegotiation: %.1f - %.1f\t%.1f\n", bins[i],
+            // bins[i + 1], bin_counts[i]);
+  // }
+  float nparticles = std::accumulate(bin_counts.begin(), bin_counts.end(), 0.0f);
 
   const float part_per_rbin = nparticles * 1.0 / (nsamples - 1);
-
-  samples[0] = bins[0];
-  samples[nsamples - 1] = bins[bins_size - 1];
 
   int sidx = 1;
 
@@ -187,7 +192,6 @@ int resample_bins_irregular(const std::vector<float>& bins,
 
     float rbin_start = bins[rbidx];
     float rbin_end = bins[rbidx + 1];
-
     while (accumulated + rcount_total > part_per_rbin - RANGE_EPSILON) {
       float rcount_cur = part_per_rbin - accumulated;
       accumulated = 0;
@@ -205,6 +209,9 @@ int resample_bins_irregular(const std::vector<float>& bins,
     accumulated += rcount_total;
   }
 
+  /* extend bounds marginally to handle edge cases */
+  samples[0] = bins[0] - 1e-6;
+  samples[nsamples - 1] = bins[bins_size - 1] + 1e-6;
   assert(sidx == nsamples);
 
   return 0;

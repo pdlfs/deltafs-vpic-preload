@@ -64,7 +64,8 @@ int msgfmt_parse_reneg_begin(char *buf, int buf_sz) {
 unsigned char msgfmt_get_msgtype(char *buf) { return buf[0]; }
 
 uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots) {
-  uint32_t data_bytes = num_pivots * sizeof(float);
+  /* One extra float for pivot width */
+  uint32_t data_bytes = (num_pivots + 1) * sizeof(float);
   uint32_t header = MSGFMT_TYPE_SIZE + sizeof(int);
 
   fprintf(stderr, "MSGFMT hdr: %u, data: %u\n", header, data_bytes);
@@ -73,30 +74,38 @@ uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots) {
 }
 
 void msgfmt_encode_reneg_pivots(char *buf, int buf_sz, float *pivots,
-                                int num_pivots) {
+                                float pivot_width, int num_pivots) {
   int bytes_reqd = msgfmt_nbytes_reneg_pivots(num_pivots);
   assert(buf_sz >= bytes_reqd);
 
   fprintf(stderr, "Bytes reqd: %d, bufsz: %d\n", bytes_reqd, buf_sz);
 
+  /* message type_id */
   buf[0] = MSGFMT_RENEG_PIVOTS;
-
+  /* num_pivots */
   memcpy(buf + 1, &num_pivots, sizeof(int));
-  memcpy(buf + 1 + sizeof(int), pivots, sizeof(float) * num_pivots);
+  /* pivot width */
+  memcpy(buf + 1 + sizeof(int), &pivot_width, sizeof(float));
+  /* actual pivots */
+  memcpy(buf + 1 + sizeof(int) + sizeof(float), pivots,
+         sizeof(float) * num_pivots);
   memset(&buf[bytes_reqd], 0, buf_sz - bytes_reqd);
 
   return;
 }
 
 void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, float **pivots,
-                               int *num_pivots) {
+                               float *pivot_width, int *num_pivots) {
   assert(MSGFMT_RENEG_PIVOTS == buf[0]);
 
-  int *num_pivots_ptr = reinterpret_cast<int *>(&buf[1]);
+  int *num_pivots_ptr = reinterpret_cast<int *>(buf + 1);
   (*num_pivots) = (*num_pivots_ptr);
+
+  float *pivot_width_ptr = reinterpret_cast<float *>(buf + 1 + sizeof(int));
+  (*pivot_width) = (*pivot_width_ptr);
 
   int bytes_reqd = msgfmt_nbytes_reneg_pivots(*num_pivots);
   assert(buf_sz >= bytes_reqd);
 
-  (*pivots) = reinterpret_cast<float *>(&buf[1 + sizeof(int)]);
+  (*pivots) = reinterpret_cast<float *>(buf + 1 + sizeof(int) + sizeof(float));
 }

@@ -23,12 +23,12 @@ void load_bins_into_rbvec(std::vector<float>& bins,
 
 void pivot_union(std::vector<rb_item_t> rb_items,
                  std::vector<float>& unified_bins,
-                 std::vector<float>& unified_bin_counts, int num_ranks,
-                 int part_per_rank);
+                 std::vector<float>& unified_bin_counts,
+                 std::vector<float>& rank_bin_widths, int num_ranks);
 
 int get_particle_count(int total_ranks, int total_bins, int par_per_bin);
 
 int resample_bins_irregular(const std::vector<float>& bins,
                             const std::vector<float>& bin_counts,
-                            std::vector<float>& samples, int nsamples,
-                            int nparticles);
+                            std::vector<float>& samples, int nsamples);
+                            // int nparticles);

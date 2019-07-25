@@ -39,8 +39,8 @@
 
 #include "preload_internal.h"
 #include "preload_mon.h"
-#include "preload_shuffle.h"
 #include "preload_range.h"
+#include "preload_shuffle.h"
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
@@ -377,7 +377,8 @@ int shuffle_data_target(const float& indexed_prop) {
   auto rank_iter = std::lower_bound(pctx.rctx.rank_bins.begin(),
                                     pctx.rctx.rank_bins.end(), indexed_prop);
 
-  int rank = rank_iter - pctx.rctx.rank_bins.begin();
+  int rank = rank_iter - pctx.rctx.rank_bins.begin() - 1;
+
   return rank;
 }
 
@@ -397,6 +398,66 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
   }
 }
 }  // namespace
+
+/* Only to be used with preprocessed particle_mem_t structs
+ * NOT for external use
+ */
+int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
+  int oob_count_left = rctx->oob_count_left;
+  for (int oidx = oob_count_left - 1; oidx >= 0; oidx--) {
+    particle_mem_t& p = rctx->oob_buffer_left[oidx];
+    fprintf(stderr, "Flushing particle with energy %.1f\n", p.indexed_prop);
+    if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
+      // should never happen since we flush after a reneg
+      logf(LOG_ERRO, "Flushed particle lies out-of-bounds!"
+          " Don't know what to do. Dropping particle");
+      ABORT("panic");
+      continue; // drop this particle
+    }
+    int peer_rank = shuffle_data_target(p.indexed_prop);
+
+    if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
+      logf(LOG_ERRO, "Invalid shuffle_data_target for particle %.1f at %d: %d!\n",
+          p.indexed_prop, pctx.my_rank, peer_rank);
+      logf(LOG_ERRO, "INVALID %f\n", p.indexed_prop - rctx->rank_bins[pctx.comm_sz]);
+    }
+
+    rctx->rank_bin_count[peer_rank]++;
+
+    fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
+    // TODO: copy everything
+    // xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+        // peer_rank, rank);
+  }
+
+  rctx->oob_count_left = 0;
+
+  int oob_count_right = rctx->oob_count_right;
+  for (int oidx = oob_count_right - 1; oidx >= 0; oidx--) {
+    particle_mem_t& p = rctx->oob_buffer_right[oidx];
+    fprintf(stderr, "Flushing particle with energy %.1f\n", p.indexed_prop);
+    if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
+      // should never happen since we flush after a reneg
+      logf(LOG_ERRO, "Flushed particle lies out-of-bounds!"
+          " Don't know what to do. Dropping particle");
+      ABORT("panic");
+      continue; // drop this particle
+    }
+    int peer_rank = shuffle_data_target(p.indexed_prop);
+    rctx->rank_bin_count[peer_rank]++;
+
+    if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
+      return 0;
+    }
+
+    fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
+    // TODO: copy everything
+    // xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+        // peer_rank, rank);
+  }
+
+  rctx->oob_count_right = 0;
+}
 
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
                   unsigned char fname_len, char* data, unsigned char data_len,
@@ -438,8 +499,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
     fprintf(stderr,
-            "We're receiving particles we don't know\
-        what to do with... HALP\n");
+            "We're receiving particles we don't know"
+            "what to do with... HALP\n");
     return 0;  // we lie: bad :(
   }
 
@@ -464,14 +525,18 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     buf_sz = msgfmt_write_data(rctx->oob_buffer_left[rctx->oob_count_left].ptr,
                                RANGE_MAX_PSZ, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
+    rctx->oob_buffer_left[rctx->oob_count_left].buf_sz = buf_sz;
     rctx->oob_count_left++;
   } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
-    // fprintf(stderr, "Writing to idx %d of oob_right\n", rctx->oob_count_left);
+    // fprintf(stderr, "Writing to idx %d of oob_right\n",
+    // rctx->oob_count_left);
     rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop =
         indexed_property;
     buf_sz = msgfmt_write_data(
         rctx->oob_buffer_right[rctx->oob_count_right].ptr, RANGE_MAX_PSZ, fname,
         fname_len, data, data_len, ctx->extra_data_len);
+    rctx->oob_buffer_right[rctx->oob_count_right].buf_sz = buf_sz;
+
     rctx->oob_count_right++;
   } else {
     buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
@@ -485,27 +550,25 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   if ((RANGE_IS_INIT(rctx) && RANGE_LEFT_OOB_FULL(rctx)) ||
       RANGE_OOB_FULL(rctx)) {
     // Buffering caused OOB_MAX, renego
-    // renegotiate()
     if (rank == 0) range_init_negotiation(&pctx);
-    std::unique_lock<std::mutex> ulock(rctx->block_writes_m);
-    rctx->block_writes_cv.wait(ulock);
-    fprintf(stderr, "=========> RENEGOTIATE PPLZ <==========\n");
-    return 0;  // we lie: bad :(
+    std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
+    rctx->block_writes_cv.wait(ulock, [] {
+      return (pctx.rctx.range_state == range_state_t::RS_READY);
+    });
+    fprintf(stderr, "=========> RENEGOTIATED PPLZ <==========\n");
+    shuffle_flush_oob(ctx, rctx, epoch);
   }
 
   // if (buf_type != buf_type_t::RB_NO_BUF) {
-    // return 0;  // particles buffered, nothing to do
+  // return 0;  // particles buffered, nothing to do
   // }
-
-  // while (!RANGE_IS_READY(rctx))
-    // ;  // TODO: logical hint, remove
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
     peer_rank = shuffle_data_target(indexed_property);
   }
 
   // XXX: temp until range is working
-  peer_rank = shuffle_target(ctx, buf, buf_sz);
+  // peer_rank = shuffle_target(ctx, buf, buf_sz);
   // fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
 
   /* write trace if we are in testing mode */
@@ -528,10 +591,10 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
           buf[0], buf[1], buf[2]);
 
   if (ctx->type == SHUFFLE_XN) {
-    // xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-    // peer_rank, rank);
-    xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
-                              epoch, peer_rank, rank);
+    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+        peer_rank, rank);
+    // xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
+                              // epoch, peer_rank, rank);
   } else {
     nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
   }
