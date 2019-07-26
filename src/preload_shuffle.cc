@@ -549,14 +549,15 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if ((RANGE_IS_INIT(rctx) && RANGE_LEFT_OOB_FULL(rctx)) ||
       RANGE_OOB_FULL(rctx)) {
-    // Buffering caused OOB_MAX, renego
+    /* Buffering caused OOB_MAX, renegotiate */
     if (rank == 0) range_init_negotiation(&pctx);
     std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
     rctx->block_writes_cv.wait(ulock, [] {
+        /* having a condition ensures we ignore spurious wakes */
       return (pctx.rctx.range_state == range_state_t::RS_READY);
     });
-    fprintf(stderr, "=========> RENEGOTIATED PPLZ <==========\n");
     shuffle_flush_oob(ctx, rctx, epoch);
+    logf(LOG_INFO, "Rank %d flushed its OOB buffers\n", pctx.my_rank);
   }
 
   // if (buf_type != buf_type_t::RB_NO_BUF) {
@@ -565,6 +566,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
     peer_rank = shuffle_data_target(indexed_property);
+    fprintf(stderr, "Current particle %f to %d\n", indexed_property, peer_rank);
   }
 
   // XXX: temp until range is working

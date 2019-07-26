@@ -1,8 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
-#include <atomic>
 #include "common.h"
 
 #define MSGFMT_MAX_BUFSIZE 255
@@ -102,17 +102,18 @@ typedef struct range_ctx {
 
 typedef struct preload_ctx preload_ctx_t;
 
-void range_init_negotiation(preload_ctx_t *pctx);
+void range_init_negotiation(preload_ctx_t* pctx);
 
 /* get_local_pivots: Take the bins stored in bin_snapshots and OOB buffers
  * and store their pivots in rctx->my_pivots. Return nothing
  * XXX TODO: Also need to snapshot OOB buffers (if only indexable_prob) in
+ * TODO: don't really have to snapshot buffers, if we can snapshot the idx
  * addition to bins.
  * @param rctx range_ctx
  * @return None
  * */
 void get_local_pivots(range_ctx_t* rctx);
 
-void range_handle_reneg_begin(char *buf, unsigned int buf_sz);
+void range_handle_reneg_begin(char* buf, unsigned int buf_sz);
 
-void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank);
+void range_handle_reneg_pivots(char* buf, unsigned int buf_sz, int src_rank);

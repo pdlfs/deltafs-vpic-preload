@@ -30,14 +30,10 @@ void range_init_negotiation(preload_ctx_t *pctx) {
   range_ctx_t *rctx = &(pctx->rctx);
   shuffle_ctx_t *sctx = &(pctx->sctx);
 
-  fprintf(stderr, "==Check 1==\n");
-
   if (!(rctx->range_state == range_state_t::RS_INIT) &&
       !(rctx->range_state == range_state_t::RS_READY)) {
     return;
   }
-
-  fprintf(stderr, "==Check 22==\n");
 
   std::lock_guard<std::mutex> balg(pctx->rctx.bin_access_m);
 
@@ -50,6 +46,7 @@ void range_init_negotiation(preload_ctx_t *pctx) {
 
   rctx->range_state_prev = rctx->range_state;
   rctx->range_state = range_state_t::RS_RENEGO;
+  rctx->ranks_responded = 0;
 
   // Broadcast range state to everyone
   char msg[8];
@@ -123,24 +120,15 @@ void range_handle_reneg_begin(char *buf, unsigned int buf_sz) {
   range_collect_and_send_pivots(&(pctx.rctx), &(pctx.sctx));
 }
 
-template <typename Enumeration>
-auto as_integer(Enumeration const value) ->
-    typename std::underlying_type<Enumeration>::type {
-  return static_cast<typename std::underlying_type<Enumeration>::type>(value);
-}
-
 void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
   logf(LOG_INFO, "Rank %d received some pivots!!\n", pctx.my_rank);
-
-  fprintf(stderr, " =====> RANGE_STATE %d<=====\n",
-          as_integer(pctx.rctx.range_state));
 
   char msg_type = msgfmt_get_msgtype(buf);
   assert(msg_type == MGFMT_RENEG_PIVOTS);
 
   if (range_state_t::RS_RENEGO != pctx.rctx.range_state) {
-    // panic - this should not happen. did messages arrive
-    // out of order or something?
+    /* panic - this should not happen. did messages arrive
+     * out of order or something? */
     logf(LOG_ERRO, "Rank %d received pivots when we were not in RENEGO phase\n",
          pctx.my_rank);
     ABORT("Inconsistency panic");
@@ -167,7 +155,8 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
             pctx.rctx.all_pivots[src_rank * RANGE_NUM_PIVOTS + i]);
   }
   pctx.rctx.ranks_responded++;
-  // XXX: will break if executed concurrently
+  logf(LOG_INFO, "Rank %d received %d pivot sets thus far\n", pctx.my_rank,
+       pctx.rctx.ranks_responded.load());
   if (pctx.rctx.ranks_responded == pctx.comm_sz) {
     logf(LOG_INFO, "Rank %d ready to update its bins\n", pctx.my_rank);
     recalculate_local_bins();
@@ -189,8 +178,6 @@ void recalculate_local_bins() {
 
   load_bins_into_rbvec(pctx.rctx.all_pivots, rbvec, pctx.rctx.all_pivots.size(),
                        pctx.comm_sz, RANGE_NUM_PIVOTS);
-  // XXX TODO: we need each rank's bin size or particle count
-  // XXX TODO: HACK HACK HACK
   pivot_union(rbvec, unified_bins, unified_bin_counts,
               pctx.rctx.all_pivot_widths, pctx.comm_sz);
   resample_bins_irregular(unified_bins, unified_bin_counts, samples,
@@ -325,6 +312,7 @@ void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
                      int my_rank, int comm_sz, bool send_to_self) {
   for (int drank = 0; drank < comm_sz; drank++) {
     if (!send_to_self && drank == my_rank) continue;
+    fprintf(stderr, "All to all from %d to %d\n", my_rank, drank);
     xn_shuffler_priority_send(static_cast<xn_ctx_t *>(ctx->rep), buf, buf_sz,
                               num_eps - 1, drank, my_rank);
   }
