@@ -2580,9 +2580,6 @@ static hg_return_t shuffler_rpchand(hg_handle_t handle) {
   }
   sh = inhgt->hgshuf;
 
-  // identify shuffler for debugging
-  fprintf(stderr, "Shuffler handler executed: %s\n", sh->funname);
-
   islocal = (inhgt == &sh->hgt_local);
   mlog(SHUF_D1, "rpchand: got request hand=%p local=%d", handle, islocal);
   if (islocal)
@@ -2623,8 +2620,6 @@ static hg_return_t shuffler_rpchand(hg_handle_t handle) {
     /* determine next hop */
     nexus = nexus_next_hop(sh->nxp, req->dst, &rank, &dstaddr);
     mlog(SHUF_D1, "rpchand: new req=%p dst=%d nexus=%d", req, req->dst, nexus);
-
-    fprintf(stderr, "Req in rpchand: Dest: %d, nexthop: %d\n", req->dst, rank);
 
     /* case 1: we are dst of this request */
     if (nexus == NX_DONE) {

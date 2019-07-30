@@ -6,12 +6,13 @@
 #include <list>
 
 #include "range_utils.h"
+#define RANGE_MAIN_DEBUG
 
 bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
   return (a.bin_val < b.bin_val) || (a.bin_val == b.bin_val && !a.is_start);
 }
 
-#ifdef RANGE_MAIN_DEBUG
+#ifdef RANGE_MAIN_DEBUG2
 void pbs() {
   for (int i = 0; i < bs.size(); i++) {
     fprintf(stderr, "(%f, %d, %c) ", bs[i].bin_val, bs[i].rank,
@@ -177,10 +178,11 @@ int resample_bins_irregular(const std::vector<float>& bins,
   // assert(bin_sum == nparticles);
 #endif
   // for (int i = 0; i < bin_counts.size(); i++) {
-    // fprintf(stderr, "UnitedBinsOfNegotiation: %.1f - %.1f\t%.1f\n", bins[i],
-            // bins[i + 1], bin_counts[i]);
+  // fprintf(stderr, "UnitedBinsOfNegotiation: %.1f - %.1f\t%.1f\n", bins[i],
+  // bins[i + 1], bin_counts[i]);
   // }
-  float nparticles = std::accumulate(bin_counts.begin(), bin_counts.end(), 0.0f);
+  float nparticles =
+      std::accumulate(bin_counts.begin(), bin_counts.end(), 0.0f);
 
   const float part_per_rbin = nparticles * 1.0 / (nsamples - 1);
 
@@ -217,26 +219,119 @@ int resample_bins_irregular(const std::vector<float>& bins,
   return 0;
 }
 
-#ifdef RANGE_MAIN_DEBUG
-float bins[] = {1, 3, 5, 2, 4, 6};
-std::vector<rb_item_t> bs;
+void repartition_bin_counts(std::vector<float>& old_bins,
+                            std::vector<float>& old_bin_counts,
+                            std::vector<float>& new_bins,
+                            std::vector<float>& new_bin_counts) {
+  int ob_sz = old_bins.size() - 1;
+  int nb_sz = new_bins.size() - 1; 
+  new_bin_counts.resize(new_bins.size() - 1);
+  std::fill(new_bin_counts.begin(), new_bin_counts.end(), 0);
 
-std::vector<float> ubins;
-std::vector<float> ubin_count;
-std::vector<float> samples;
+  int oidx = 0;
+  int nidx = 0;
+
+  float nbin_sum = 0;
+  float obin_left = old_bin_counts[0];
+
+  while (1) {
+    if (oidx == ob_sz) {
+      break;
+    }
+
+    if (nidx == nb_sz) {
+      break;
+    }
+
+    float obs = old_bins[oidx]; // old bin start
+    float obe = old_bins[oidx + 1]; // old bin end
+    float obw = obe - obs; // old bin width
+
+    int obc = old_bin_counts[oidx]; // old bin count
+
+    float nbs = new_bins[nidx]; // new bin start
+    float nbe = new_bins[nidx + 1]; // new bin end
+    float nbw  = nbe - nbs; // new bin width
+
+    if (obe <= nbs) {
+      /* no overlap between ob and nb */
+      oidx++;
+      continue;
+    }
+
+    if (nbe <= obs) {
+      /* zero count for current nbin */
+      new_bin_counts[nidx] = nbin_sum;
+      nbin_sum = 0;
+      nidx++;
+      continue;
+    }
+
+    // types of overlap
+    if (obs <= nbs && obe <= nbe) {
+      /* left overlap */
+      nbin_sum += (obe - nbs) * obc / obw;
+      oidx++;
+    } else if (obs <= nbs && obe > nbe) {
+      /* ob engulfs nb */
+      nbin_sum += (nbw * obc / obw);
+      new_bin_counts[nidx] = nbin_sum;
+      nbin_sum = 0;
+      nidx++;
+    } else if (obs > nbs && obe <= nbe) {
+      /* nb engulfs ob */
+      nbin_sum += obc;
+      oidx++;
+    } else {
+      /* right overlap */
+      nbin_sum += (nbe - obs) * obc / obw;
+      new_bin_counts[nidx] = nbin_sum;
+      nbin_sum = 0;
+      nidx++;
+    }
+  }
+  // fprintf(stderr, "Case 4: nbinprev: %.1f\n", nbin_sum);
+  // fprintf(stdout, "(%.1f %.1f) (%.1f %.1f)\n", obs, obe, nbs, nbe);
+
+  if (nidx < nb_sz - 1)
+      new_bin_counts[nidx] = nbin_sum;
+}
+
+#ifdef RANGE_MAIN_DEBUG
+// float bins[] = {1, 3, 5, 2, 4, 6};
+// std::vector<rb_item_t> bs;
+
+// std::vector<float> ubins;
+// std::vector<float> ubin_count;
+// std::vector<float> samples;
+
+// int main2() {
+  // load_bins_into_rbvec(bins, bs, 6, 2, 3);
+  // pbs();
+  // pivot_union(bs, ubins, ubin_count, 2, 20);
+  // fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
+  // pub();
+  // resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
+
+  // fprintf(stdout, "------------------\n");
+  // for (int i = 0; i < samples.size(); i++) {
+    // printf("Sample - %f\n", samples[i]);
+  // }
+  // return 0;
+// }
 
 int main() {
-  load_bins_into_rbvec(bins, bs, 6, 2, 3);
-  pbs();
-  pivot_union(bs, ubins, ubin_count, 2, 20);
-  fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
-  pub();
-  resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
+  std::vector<float> v1 = {1, 9.5, 16.1};
+  std::vector<float> v1c = {4, 4};
+  std::vector<float> v2 = {1, 16.9, 32.5};
+  std::vector<float> v2c;
+  repartition_bin_counts(v1, v1c, v2, v2c);
 
-  fprintf(stdout, "------------------\n");
-  for (int i = 0; i < samples.size(); i++) {
-    printf("Sample - %f\n", samples[i]);
+  printf("V2count: ");
+  for (int i = 0; i < v2c.size(); i++) {
+    printf("%.1f ", v2c[i]);
   }
+  printf("\n");
   return 0;
 }
 #endif

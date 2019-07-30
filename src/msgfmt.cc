@@ -68,8 +68,6 @@ uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots) {
   uint32_t data_bytes = (num_pivots + 1) * sizeof(float);
   uint32_t header = MSGFMT_TYPE_SIZE + sizeof(int);
 
-  fprintf(stderr, "MSGFMT hdr: %u, data: %u\n", header, data_bytes);
-
   return header + data_bytes;
 }
 
@@ -77,8 +75,6 @@ void msgfmt_encode_reneg_pivots(char *buf, int buf_sz, float *pivots,
                                 float pivot_width, int num_pivots) {
   int bytes_reqd = msgfmt_nbytes_reneg_pivots(num_pivots);
   assert(buf_sz >= bytes_reqd);
-
-  fprintf(stderr, "Bytes reqd: %d, bufsz: %d\n", bytes_reqd, buf_sz);
 
   /* message type_id */
   buf[0] = MSGFMT_RENEG_PIVOTS;

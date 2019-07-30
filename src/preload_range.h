@@ -22,8 +22,9 @@
 #define RANGE_TOTAL_OOB_THRESHOLD 2 * RANGE_MAX_OOB_THRESHOLD
 #define RANGE_NUM_PIVOTS 4
 
-#define RANGE_IS_READY(x) (x->range_state == range_state_t::RS_READY)
 #define RANGE_IS_INIT(x) (x->range_state == range_state_t::RS_INIT)
+#define RANGE_IS_READY(x) (x->range_state == range_state_t::RS_READY)
+#define RANGE_IS_RENEGO(x) (x->range_state == range_state_t::RS_RENEGO)
 
 #define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == RANGE_MAX_OOB_THRESHOLD)
 #define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == RANGE_MAX_OOB_THRESHOLD)
@@ -40,11 +41,26 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
 
 typedef struct particle_mem {
   float indexed_prop;       // property for range query
-  char ptr[RANGE_MAX_PSZ];  // other data
+  char buf[RANGE_MAX_PSZ];  // other data
   int buf_sz;
 } particle_mem_t;
 
-enum class range_state_t { RS_INIT, RS_READY, RS_RENEGO };
+/* Allowed transitions:
+ * INIT -> RENEGO
+ * INIT -> BLOCKED
+ * RENEGO -> READY
+ * BLOCKED -> READY
+ * READY -> BLOCKED
+ * READY -> RENEGO
+ */
+enum class range_state_t {
+  RS_INIT,
+  RS_READY, /* oob buffers have space and we're ready to shuffle */
+  RS_RENEGO, /* currently in the middle of an active renegotn */
+ /* we need a renegotiation but one hasn't been triggered
+  * for some reason. writer sets this as soon as OOB buffers max out */
+  RS_BLOCKED
+};
 
 enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
 

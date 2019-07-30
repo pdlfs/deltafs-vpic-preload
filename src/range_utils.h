@@ -31,4 +31,8 @@ int get_particle_count(int total_ranks, int total_bins, int par_per_bin);
 int resample_bins_irregular(const std::vector<float>& bins,
                             const std::vector<float>& bin_counts,
                             std::vector<float>& samples, int nsamples);
-                            // int nparticles);
+
+void repartition_bin_counts(std::vector<float>& old_bins,
+                            std::vector<float>& old_bin_counts,
+                            std::vector<float>& new_bins,
+                            std::vector<float>& new_bin_counts);
