@@ -31,6 +31,9 @@
 #define RANGE_OOB_FULL(x) \
   (x->oob_count_left + x->oob_count_right == RANGE_TOTAL_OOB_THRESHOLD)
 
+#define RANGE_BUF_OOB(buf) \
+  (buf_type_t::RB_BUF_LEFT == buf) || (buf_type_t::RB_BUF_RIGHT == buf)
+
 /* abort with an error message: forward decl */
 void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line);
@@ -43,7 +46,7 @@ typedef struct particle_mem {
 
 enum class range_state_t { RS_INIT, RS_READY, RS_RENEGO };
 
-enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT };
+enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
 
 typedef struct range_ctx {
   /* range data structures */

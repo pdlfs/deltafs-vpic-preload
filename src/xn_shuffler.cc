@@ -326,12 +326,12 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
    * All buftarget values are set to 1 here, and its network/delivery threads
    * are disabled, that job is delegated to the regular shuffler
    *
-   * Last argument is false to direct psh to not start n/w & delivery threads
+   * Last argument is false to direct psh to not start network threads
    */
   ctx->psh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_priority"),
                            lsenderlimit, rsenderlimit, lomaxrpc, 1, lrmaxrpc, 1,
                            rmaxrpc, 1, deliverq_max, deliverq_min,
-                           xn_shuffler_deliver, true);
+                           xn_shuffler_deliver, false);
 
   if (ctx->psh == NULL) {
     ABORT("priority_shuffler_init");

@@ -487,7 +487,6 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   // fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
 
   buf_type_t buf_type = buf_type_t::RB_NO_BUF;
-  bool can_proceed = false;
 
   /* There's always space in the buffers. If buffer becomes full with
    * current write, it will be cleared within current loop itself
@@ -512,11 +511,13 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
      */
     buf_type = buf_type_t::RB_BUF_LEFT;
   } else if (rctx->range_state == range_state_t::RS_RENEGO) {
-    // TODO: block or reason it out
+    buf_type = buf_type_t::RB_NO_BUF;
   } else if (indexed_property < rctx->range_min) {
     buf_type = buf_type_t::RB_BUF_LEFT;
   } else if (indexed_property > rctx->range_max) {
     buf_type = buf_type_t::RB_BUF_RIGHT;
+  } else {
+    buf_type = buf_type_t::RB_UNDECIDED;
   }
 
   if (buf_type == buf_type_t::RB_BUF_LEFT) {
@@ -560,9 +561,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     logf(LOG_INFO, "Rank %d flushed its OOB buffers\n", pctx.my_rank);
   }
 
-  // if (buf_type != buf_type_t::RB_NO_BUF) {
-  // return 0;  // particles buffered, nothing to do
-  // }
+  if (RANGE_BUF_OOB(buf_type)) {
+    return 0;  //[> particles buffered, nothing to do <]
+  }
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
     peer_rank = shuffle_data_target(indexed_property);
@@ -570,8 +571,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   }
 
   // XXX: temp until range is working
-  // peer_rank = shuffle_target(ctx, buf, buf_sz);
-  // fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
+  peer_rank = shuffle_target(ctx, buf, buf_sz);
+  fprintf(stderr, "Rank %d, peer rank: %d\n", pctx.my_rank, peer_rank);
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.trace != NULL)
@@ -593,10 +594,10 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
           buf[0], buf[1], buf[2]);
 
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-        peer_rank, rank);
-    // xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
-                              // epoch, peer_rank, rank);
+    // xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+        // peer_rank, rank);
+    xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
+                              epoch, peer_rank, rank);
   } else {
     nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
   }

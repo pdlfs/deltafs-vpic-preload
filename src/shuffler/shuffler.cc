@@ -857,7 +857,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
            int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
            int rmaxrpc, int rbuftarget, int deliverq_max,
            int deliverq_threshold, shuffler_deliver_t delivercb,
-           bool start_threads_flag) {
+           bool start_nwthreads_flag) {
   int64_t mask, worldsize;
   int myrank, lcv, rv;
   shuffler_t sh;
@@ -919,7 +919,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
    * one shuffler to run the network/delivery threads and
    * reduce the overhead of running multiple threads
    */
-  sh->start_threads = start_threads_flag;
+  sh->start_nwthreads = start_nwthreads_flag;
 
   nit = nexus_iter(nxp, 1);
   if (nit == NULL) goto err;
@@ -974,7 +974,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   }
 
   /* now start our three worker threads */
-  if (sh->start_threads && (start_threads(sh) != 0)) {
+  if (start_threads(sh) != 0) {
     pthread_mutex_destroy(&sh->deliverlock);
     pthread_cond_destroy(&sh->delivercv);
     shuffler_flush_discard(sh);
@@ -1005,8 +1005,6 @@ static int start_threads(struct shuffler *sh) {
   int rv;
   mlog(SHUF_CALL, "start_threads called");
 
-  assert(sh->start_threads);
-
   /* start delivery thread */
   rv = pthread_create(&sh->dtask, NULL, delivery_main, (void *)sh);
    if (rv != 0) {
@@ -1015,6 +1013,11 @@ static int start_threads(struct shuffler *sh) {
      return(-1);
    }
    sh->drunning = 1;
+
+   if (!sh->start_nwthreads) {
+      mlog(SHUF_CALL, "start_threads delivery-only SUCCESS!");
+     return(0);
+   }
 
    /* start local na+sm thread */
   rv = pthread_create(&sh->hgt_local.ntask, NULL,
@@ -1049,8 +1052,6 @@ static int start_threads(struct shuffler *sh) {
 static void stop_threads(struct shuffler *sh) {
   int stranded;
   mlog(SHUF_CALL, "stop_threads");
-
-  assert(sh->start_threads);
 
   /* stop network */
   if (sh->hgt_remote.nrunning) {
@@ -2618,9 +2619,12 @@ static hg_return_t shuffler_rpchand(hg_handle_t handle) {
     /* remove req from front of list */
     XSIMPLEQ_REMOVE_HEAD(&in.inreqs, next);
 
+
     /* determine next hop */
     nexus = nexus_next_hop(sh->nxp, req->dst, &rank, &dstaddr);
     mlog(SHUF_D1, "rpchand: new req=%p dst=%d nexus=%d", req, req->dst, nexus);
+
+    fprintf(stderr, "Req in rpchand: Dest: %d, nexthop: %d\n", req->dst, rank);
 
     /* case 1: we are dst of this request */
     if (nexus == NX_DONE) {
@@ -3359,8 +3363,7 @@ hg_return_t shuffler_shutdown(shuffler_t sh) {
   shuffler_flush_discard(sh);
 
   /* stop all threads */
-  if (sh->start_threads)
-    stop_threads(sh);
+  stop_threads(sh);
 
   /* purge any orphaned reqs */
   cnt = purge_reqs(sh);

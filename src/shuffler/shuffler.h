@@ -164,7 +164,7 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
            int lomaxrpc, int lobuftarget, int lrmaxrpc, int lrbuftarget,
            int rmaxrpc, int rbuftarget, int deliverq_max,
            int deliverq_threshold, shuffler_deliver_t delivercb,
-           bool start_threads_flag);
+           bool start_nwthreads_flag);
 
 
 /*
