@@ -76,8 +76,8 @@ if (PRELOAD_CH_PLACEMENT)
 endif ()
 
 # libnuma and libpapi
-set (PRELOAD_NUMA "OFF" CACHE BOOL "Build with libnuma")
-set (PRELOAD_PAPI "OFF" CACHE BOOL "Build with libpapi")
+set (PRELOAD_NUMA "ON" CACHE BOOL "Build with libnuma if present")
+set (PRELOAD_PAPI "ON" CACHE BOOL "Build with libpapi if present")
 
 # user hook to build tools
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")

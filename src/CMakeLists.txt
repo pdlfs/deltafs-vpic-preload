@@ -19,13 +19,17 @@ set (THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package (Threads REQUIRED)
 
 if (PRELOAD_PAPI)
-    find_package (PAPI REQUIRED)
-    add_definitions (-DPRELOAD_HAS_PAPI)
+    find_package (PAPI MODULE)
+    if (PAPI_FOUND)
+        add_definitions (-DPRELOAD_HAS_PAPI)
+    endif ()
 endif ()
 
 if (PRELOAD_NUMA)
-    find_package (NUMA REQUIRED)
-    add_definitions (-DPRELOAD_HAS_NUMA)
+    find_package (NUMA MODULE)
+    if (NUMA_FOUND)
+        add_definitions (-DPRELOAD_HAS_NUMA)
+    endif ()
 endif ()
 
 #
@@ -45,11 +49,15 @@ if (PRELOAD_CH_PLACEMENT)
 endif ()
 
 if (PRELOAD_PAPI)
-    target_link_libraries(deltafs-preload papi)
+    if (PAPI_FOUND)
+        target_link_libraries(deltafs-preload papi)
+    endif ()
 endif ()
 
 if (PRELOAD_NUMA)
-    target_link_libraries(deltafs-preload numa)
+    if (NUMA_FOUND)
+        target_link_libraries(deltafs-preload numa)
+    endif ()
 endif ()
 
 #
