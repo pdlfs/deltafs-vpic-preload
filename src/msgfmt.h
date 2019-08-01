@@ -48,16 +48,20 @@ uint32_t msgfmt_write_data(char* buf, int buf_sz, const char* fname,
 void msgfmt_parse_data(char* buf, int buf_sz, char** fname, int fname_sz,
                        char** fdata, int data_sz);
 
-uint32_t msgfmt_encode_reneg_begin(char* buf, int buf_sz, int my_rank);
+uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
+                                   int my_rank);
 
-int msgfmt_parse_reneg_begin(char* buf, int buf_sz);
+void msgfmt_parse_reneg_begin(char *buf, int buf_sz, int *round_no,
+                              int *my_rank);
 
 unsigned char msgfmt_get_msgtype(char* buf);
 
 uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots);
 
-void msgfmt_encode_reneg_pivots(char* buf, int buf_sz, float* pivots,
-                                float pivot_width, int num_pivots);
+void msgfmt_encode_reneg_pivots(char *buf, int buf_sz, int round_no,
+                                float *pivots, float pivot_width,
+                                int num_pivots);
 
-void msgfmt_parse_reneg_pivots(char* buf, int buf_sz, float** pivots,
-                               float* pivot_width, int* num_pivots);
+void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, int *round_no,
+                               float **pivots, float *pivot_width,
+                               int *num_pivots);

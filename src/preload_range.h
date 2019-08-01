@@ -67,6 +67,10 @@ enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
 typedef struct range_ctx {
   /* range data structures */
 
+  /* Current/next negotiation round number
+   * (use range_state to check if you're in a negotiation round */
+  int neg_round_num;
+
   int ts_writes_received;
   int ts_writes_shuffled;
 

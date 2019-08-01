@@ -476,6 +476,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   int rank;
   int rv;
 
+
   range_ctx_t* rctx = &pctx.rctx;
 
   rctx->ts_writes_received++;
@@ -510,8 +511,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
          "OOB buffers full (%d/%d)... don't know what to do with particles"
          " at rank %d\n",
          rctx->oob_count_left, rctx->oob_count_right, pctx.my_rank);
-    return 0;
-    // return -10; XXX: lie
+    // return 0;
+    return -10;// XXX: lie
   }
 
   if (rctx->range_state == range_state_t::RS_INIT) {
@@ -562,10 +563,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   // buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
   // ctx->extra_data_len);
 
-  // if ((RANGE_IS_INIT(rctx) && RANGE_LEFT_OOB_FULL(rctx)) ||
-  // RANGE_OOB_FULL(rctx)) {
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
     /* Buffering caused OOB_MAX, renegotiate */
+    // for (int iii = 0; iii < 100; iii++) {
     fprintf(stderr, "--------- NEED RENEGO @ R%d ----------\n", pctx.my_rank);
     // if (0 == pctx.my_rank) 
       range_init_negotiation(&pctx);
@@ -582,11 +582,13 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
       /* having a condition ensures we ignore spurious wakes */
       return (pctx.rctx.range_state == range_state_t::RS_READY);
     });
+
     fprintf(stderr, "--------- DONE RENEGO @ R%d ----------\n", pctx.my_rank);
-    // shuffle_flush_oob(ctx, rctx, epoch);
+    shuffle_flush_oob(ctx, rctx, epoch);
     logf(LOG_INFO, "Rank %d flushed its OOB buffers\n", pctx.my_rank);
     fprintf(stderr, "Main fn from flush-rank %d (%d/%d)\n", pctx.my_rank,
             rctx->oob_count_left, rctx->oob_count_right);
+    // }
   }
 
   if (RANGE_BUF_OOB(buf_type)) {

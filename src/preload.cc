@@ -816,9 +816,9 @@ int MPI_Init(int* argc, char*** argv) {
   /* init range structures */
   // TODO: revisit this if considering 3-hop etc
   rctx->rank_bins.resize(pctx.comm_sz + 1);
-  rctx->rank_bin_count.resize(pctx.comm_sz + 1);
+  rctx->rank_bin_count.resize(pctx.comm_sz);
   rctx->rank_bins_ss.resize(pctx.comm_sz + 1);
-  rctx->rank_bin_count_ss.resize(pctx.comm_sz + 1);
+  rctx->rank_bin_count_ss.resize(pctx.comm_sz);
   rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
   rctx->all_pivot_widths.resize(pctx.comm_sz);
 
@@ -2148,6 +2148,7 @@ DIR* opendir(const char* dir) {
   std::fill(pctx.rctx.rank_bin_count.begin(),
       pctx.rctx.rank_bin_count.end(), 0);
 
+  pctx.rctx.neg_round_num = 0;
   pctx.rctx.range_min = 0;
   pctx.rctx.range_max = 0;
   pctx.rctx.ts_writes_received = 0;

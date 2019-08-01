@@ -43,22 +43,31 @@ void msgfmt_parse_data(char *buf, int buf_sz, char **fname, int fname_sz,
   return;
 }
 
-uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int my_rank) {
-  assert((uint32_t)buf_sz >= MSGFMT_TYPE_SIZE + sizeof(int));
+uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
+                                   int my_rank) {
+  assert((uint32_t)buf_sz >= MSGFMT_TYPE_SIZE + 2 * sizeof(int));
+
+  fprintf(stderr, "ENCODE reneg begin round num: %d\n", round_no);
+  fprintf(stderr, "ENCODE reneg begin RANK: %d\n", my_rank);
 
   buf[0] = MSGFMT_RENEG_BEGIN;
-  memcpy(&buf[1], static_cast<void *>(&my_rank), sizeof(int));
+  memcpy(buf + 1, reinterpret_cast<void *>(&round_no), sizeof(int));
+  memcpy(buf + 1 + sizeof(int), reinterpret_cast<void *>(&my_rank),
+         sizeof(int));
+  // memcpy(&buf[1], static_cast<void *>(&my_rank), sizeof(int));
 
-  return MSGFMT_TYPE_SIZE + sizeof(int);
+  return MSGFMT_TYPE_SIZE + 2*sizeof(int);
 }
 
-int msgfmt_parse_reneg_begin(char *buf, int buf_sz) {
+void msgfmt_parse_reneg_begin(char *buf, int buf_sz, int *round_no,
+                              int *my_rank) {
   assert((uint32_t)buf_sz >= MSGFMT_TYPE_SIZE + sizeof(int));
   assert(MSGFMT_RENEG_BEGIN == buf[0]);
 
-  int *rank_ptr = reinterpret_cast<int *>(&buf[1]);
+  (*round_no) = *(reinterpret_cast<int *>(buf + 1));
+  (*my_rank) = *(reinterpret_cast<int *>(buf + 1 + sizeof(int)));
 
-  return *rank_ptr;
+  return;
 }
 
 unsigned char msgfmt_get_msgtype(char *buf) { return buf[0]; }
@@ -66,42 +75,50 @@ unsigned char msgfmt_get_msgtype(char *buf) { return buf[0]; }
 uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots) {
   /* One extra float for pivot width */
   uint32_t data_bytes = (num_pivots + 1) * sizeof(float);
-  uint32_t header = MSGFMT_TYPE_SIZE + sizeof(int);
+  /* One int for sender_rank, another for round_no  */
+  uint32_t header = MSGFMT_TYPE_SIZE + 2 * sizeof(int);
 
   return header + data_bytes;
 }
 
-void msgfmt_encode_reneg_pivots(char *buf, int buf_sz, float *pivots,
-                                float pivot_width, int num_pivots) {
+void msgfmt_encode_reneg_pivots(char *buf, int buf_sz, int round_no,
+                                float *pivots, float pivot_width,
+                                int num_pivots) {
   int bytes_reqd = msgfmt_nbytes_reneg_pivots(num_pivots);
   assert(buf_sz >= bytes_reqd);
 
   /* message type_id */
   buf[0] = MSGFMT_RENEG_PIVOTS;
+  memcpy(buf + 1, &round_no, sizeof(int));
   /* num_pivots */
-  memcpy(buf + 1, &num_pivots, sizeof(int));
+  memcpy(buf + 1 + sizeof(int), &num_pivots, sizeof(int));
   /* pivot width */
-  memcpy(buf + 1 + sizeof(int), &pivot_width, sizeof(float));
+  memcpy(buf + 1 + 2 * sizeof(int), &pivot_width, sizeof(float));
   /* actual pivots */
-  memcpy(buf + 1 + sizeof(int) + sizeof(float), pivots,
+  memcpy(buf + 1 + 2 * sizeof(int) + sizeof(float), pivots,
          sizeof(float) * num_pivots);
   memset(&buf[bytes_reqd], 0, buf_sz - bytes_reqd);
 
   return;
 }
 
-void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, float **pivots,
-                               float *pivot_width, int *num_pivots) {
+void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, int *round_no,
+                               float **pivots, float *pivot_width,
+                               int *num_pivots) {
   assert(MSGFMT_RENEG_PIVOTS == buf[0]);
 
-  int *num_pivots_ptr = reinterpret_cast<int *>(buf + 1);
+  int *round_num_ptr = reinterpret_cast<int *>(buf + 1);
+  (*round_no) = (*round_num_ptr);
+
+  int *num_pivots_ptr = reinterpret_cast<int *>(buf + 1 + sizeof(int));
   (*num_pivots) = (*num_pivots_ptr);
 
-  float *pivot_width_ptr = reinterpret_cast<float *>(buf + 1 + sizeof(int));
+  float *pivot_width_ptr = reinterpret_cast<float *>(buf + 1 + 2 * sizeof(int));
   (*pivot_width) = (*pivot_width_ptr);
 
   int bytes_reqd = msgfmt_nbytes_reneg_pivots(*num_pivots);
   assert(buf_sz >= bytes_reqd);
 
-  (*pivots) = reinterpret_cast<float *>(buf + 1 + sizeof(int) + sizeof(float));
+  (*pivots) =
+      reinterpret_cast<float *>(buf + 1 + 2 * sizeof(int) + sizeof(float));
 }

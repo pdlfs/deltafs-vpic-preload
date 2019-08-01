@@ -5,11 +5,16 @@
 #include <algorithm>
 #include <list>
 
+#include "preload_internal.h"
 #include "range_utils.h"
 #define RANGE_MAIN_DEBUG
 
+/* return true if a is smaller - we prioritize smaller bin_val
+ * and for same bin_val, we prioritize ending items (is_start == false)
+ * first */
 bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
-  return (a.bin_val < b.bin_val) || (a.bin_val == b.bin_val && !a.is_start);
+  return (a.bin_val < b.bin_val) ||
+         ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
 }
 
 #ifdef RANGE_MAIN_DEBUG2
@@ -33,6 +38,8 @@ void pub() {
 }
 #endif
 
+extern preload_ctx_t pctx;
+
 void load_bins_into_rbvec(std::vector<float>& bins,
                           std::vector<rb_item_t>& rbvec, int num_bins,
                           int num_ranks, int bins_per_rank) {
@@ -43,7 +50,8 @@ void load_bins_into_rbvec(std::vector<float>& bins,
       float bin_start = bins[rank * bins_per_rank + bidx];
       float bin_end = bins[rank * bins_per_rank + bidx + 1];
 
-      fprintf(stderr, "Rank %d, Range: %.1f %.1f\n", rank, bin_start, bin_end);
+      fprintf(stderr, "Rank %d, Range: %.1f %.1f (%lu-%d)\n", rank, bin_start,
+              bin_end, bins.size(), rank * bins_per_rank + bidx + 1);
 
       rbvec.push_back({rank, bin_start, bin_end, true});
       rbvec.push_back({rank, bin_end, bin_start, false});
@@ -224,7 +232,7 @@ void repartition_bin_counts(std::vector<float>& old_bins,
                             std::vector<float>& new_bins,
                             std::vector<float>& new_bin_counts) {
   int ob_sz = old_bins.size() - 1;
-  int nb_sz = new_bins.size() - 1; 
+  int nb_sz = new_bins.size() - 1;
   new_bin_counts.resize(new_bins.size() - 1);
   std::fill(new_bin_counts.begin(), new_bin_counts.end(), 0);
 
@@ -243,15 +251,15 @@ void repartition_bin_counts(std::vector<float>& old_bins,
       break;
     }
 
-    float obs = old_bins[oidx]; // old bin start
-    float obe = old_bins[oidx + 1]; // old bin end
-    float obw = obe - obs; // old bin width
+    float obs = old_bins[oidx];      // old bin start
+    float obe = old_bins[oidx + 1];  // old bin end
+    float obw = obe - obs;           // old bin width
 
-    int obc = old_bin_counts[oidx]; // old bin count
+    int obc = old_bin_counts[oidx];  // old bin count
 
-    float nbs = new_bins[nidx]; // new bin start
-    float nbe = new_bins[nidx + 1]; // new bin end
-    float nbw  = nbe - nbs; // new bin width
+    float nbs = new_bins[nidx];      // new bin start
+    float nbe = new_bins[nidx + 1];  // new bin end
+    float nbw = nbe - nbs;           // new bin width
 
     if (obe <= nbs) {
       /* no overlap between ob and nb */
@@ -293,8 +301,7 @@ void repartition_bin_counts(std::vector<float>& old_bins,
   // fprintf(stderr, "Case 4: nbinprev: %.1f\n", nbin_sum);
   // fprintf(stdout, "(%.1f %.1f) (%.1f %.1f)\n", obs, obe, nbs, nbe);
 
-  if (nidx < nb_sz - 1)
-      new_bin_counts[nidx] = nbin_sum;
+  if (nidx < nb_sz - 1) new_bin_counts[nidx] = nbin_sum;
 }
 
 #ifdef RANGE_MAIN_DEBUG
@@ -306,18 +313,18 @@ void repartition_bin_counts(std::vector<float>& old_bins,
 // std::vector<float> samples;
 
 // int main2() {
-  // load_bins_into_rbvec(bins, bs, 6, 2, 3);
-  // pbs();
-  // pivot_union(bs, ubins, ubin_count, 2, 20);
-  // fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
-  // pub();
-  // resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
+// load_bins_into_rbvec(bins, bs, 6, 2, 3);
+// pbs();
+// pivot_union(bs, ubins, ubin_count, 2, 20);
+// fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
+// pub();
+// resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
 
-  // fprintf(stdout, "------------------\n");
-  // for (int i = 0; i < samples.size(); i++) {
-    // printf("Sample - %f\n", samples[i]);
-  // }
-  // return 0;
+// fprintf(stdout, "------------------\n");
+// for (int i = 0; i < samples.size(); i++) {
+// printf("Sample - %f\n", samples[i]);
+// }
+// return 0;
 // }
 
 int main() {
