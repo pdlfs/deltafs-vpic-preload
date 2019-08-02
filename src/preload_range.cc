@@ -219,30 +219,30 @@ void recalculate_local_bins() {
   { /* lock guard scope begin */
     std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
-    // if (range_state_t::RS_RENEGO != pctx.rctx.range_state_prev) {
-    // repartition_bin_counts(pctx.rctx.rank_bins, pctx.rctx.rank_bin_count,
-    // samples, sample_counts);
+    if (range_state_t::RS_RENEGO != pctx.rctx.range_state_prev) {
+      repartition_bin_counts(pctx.rctx.rank_bins, pctx.rctx.rank_bin_count,
+                             samples, sample_counts);
 
-    // fprintf(stderr, "===>%d  SAMPLE CNTS1: %.1f %.1f %.1f\n", pctx.my_rank,
-    // pctx.rctx.rank_bins[0], pctx.rctx.rank_bins[1],
-    // pctx.rctx.rank_bins[2], pctx.rctx.rank_bins[3]);
-    // fprintf(stderr, "===>%d  SAMPLE CNTS2: %.1f %.1f\n", pctx.my_rank,
-    // pctx.rctx.rank_bin_count[0], pctx.rctx.rank_bin_count[1]);
-    // fprintf(stderr, "===>%d  SAMPLE CNTS3: %.1f %.1f %.1f\n", pctx.my_rank,
-    // samples[0], samples[1], samples[2]);
-    // fprintf(stderr, "===>%d  SAMPLE CNTS4: %.1f %.1f\n", pctx.my_rank,
-    // sample_counts[0], sample_counts[1]);
+      fprintf(stderr, "===>%d  SAMPLE CNTS1: %.1f %.1f %.1f\n", pctx.my_rank,
+              pctx.rctx.rank_bins[0], pctx.rctx.rank_bins[1],
+              pctx.rctx.rank_bins[2]);
+      fprintf(stderr, "===>%d  SAMPLE CNTS2: %.1f %.1f\n", pctx.my_rank,
+              pctx.rctx.rank_bin_count[0], pctx.rctx.rank_bin_count[1]);
+      fprintf(stderr, "===>%d  SAMPLE CNTS3: %.1f %.1f %.1f\n", pctx.my_rank,
+              samples[0], samples[1], samples[2]);
+      fprintf(stderr, "===>%d  SAMPLE CNTS4: %.1f %.1f\n", pctx.my_rank,
+              sample_counts[0], sample_counts[1]);
 
-    // std::copy(sample_counts.begin(), sample_counts.end(),
-    // pctx.rctx.rank_bin_count.begin());
-    // } else {
-    // std::fill(pctx.rctx.rank_bin_count.begin(),
-    // pctx.rctx.rank_bin_count.end(), 0);
-    // }
+      std::copy(sample_counts.begin(), sample_counts.end(),
+                pctx.rctx.rank_bin_count.begin());
+    } else {
+      std::fill(pctx.rctx.rank_bin_count.begin(),
+                pctx.rctx.rank_bin_count.end(), 0);
+    }
 
     std::copy(samples.begin(), samples.end(), pctx.rctx.rank_bins.begin());
-    std::fill(pctx.rctx.rank_bin_count.begin(), pctx.rctx.rank_bin_count.end(),
-              0);
+    // std::fill(pctx.rctx.rank_bin_count.begin(),
+    // pctx.rctx.rank_bin_count.end(), 0);
 
     // fprintf(stderr, "Bin counts r%d: %.1f %.1f\n", pctx.my_rank,
     // sample_counts[0], sample_counts[1]);
@@ -266,16 +266,17 @@ bool comp_particle(const particle_mem_t &a, const particle_mem_t &b) {
   return a.indexed_prop < b.indexed_prop;
 }
 
-/* Total pivots written is RANGE_NUM_PIVOTS + 2, the start and the end of the
- * range are always the first and the last pivots
- * XXX: DO WE NEED A LOCK HERE?
+/* This function is supposed to produce all zeroes if there are no
+ * particles with the current rank (either pre-shuffled or OOB'ed)
+ * and is supposed to produce valid pivots in every single other
+ * case even if there's only one pivot. XXX: We're not sure whether
+ * that's currently the case
  * */
 void get_local_pivots(range_ctx_t *rctx) {
-
   // std::sort(rctx->oob_buffer_left.begin(), rctx->oob_buffer_left.end(),
-            // comp_particle);
+  // comp_particle);
   // std::sort(rctx->oob_buffer_right.begin(), rctx->oob_buffer_right.end(),
-            // comp_particle);
+  // comp_particle);
 
   float range_start = rctx->range_min_ss;
   float range_end = rctx->range_max_ss;
@@ -289,12 +290,25 @@ void get_local_pivots(range_ctx_t *rctx) {
   std::sort(oobl.begin(), oobl.begin() + oobl_sz, comp_particle);
   std::sort(oobr.begin(), oobr.begin() + oobr_sz, comp_particle);
 
+  // Compute total particles
+  float particle_count = std::accumulate(rctx->rank_bin_count_ss.begin(),
+                                         rctx->rank_bin_count_ss.end(), 0.f);
+
+  int my_rank = pctx.my_rank;
+
   if (rctx->range_state_prev == range_state_t::RS_INIT) {
-    range_start = oobl_sz ? oobl[0].indexed_prop :  0;
+    range_start = oobl_sz ? oobl[0].indexed_prop : 0;
     range_end = oobl_sz ? oobl[oobl_sz - 1].indexed_prop : 0;
-  } else {
+  } else if (particle_count > 1e-5) {
     range_start = rctx->range_min_ss;
     range_end = rctx->range_max_ss;
+    // range_start = rctx->rank_bins_ss[my_rank];
+    // range_end = (my_rank + 1 == pctx.comm_sz) ? rctx->range_max_ss
+                                              // : rctx->rank_bins_ss[my_rank + 1];
+  } else {
+    /* all pivots need to be zero but algorithm below handles the rest */
+    range_start = 0;
+    range_end = 0;
   }
 
   /* update the left boundary of the new range */
@@ -308,16 +322,18 @@ void get_local_pivots(range_ctx_t *rctx) {
   logf(LOG_INFO, "Rank %d: Pivot range  (%.1f, %.1f)\n", pctx.my_rank,
        range_start, range_end);
 
-  // Compute total particles
-  float particle_count = std::accumulate(rctx->rank_bin_count_ss.begin(),
-                                         rctx->rank_bin_count_ss.end(), 0.f);
-
   fprintf(stderr, "r%d ptclcnt: %f\n", pctx.my_rank, particle_count);
   particle_count += (oobl_sz + oobr_sz);
 
   int cur_pivot = 1;
   float part_per_pivot = particle_count * 1.0 / (RANGE_NUM_PIVOTS - 1);
   fprintf(stderr, "ppp: %f\n", part_per_pivot);
+
+  if (part_per_pivot < 1e-5) {
+    std::fill(rctx->my_pivots, rctx->my_pivots + RANGE_NUM_PIVOTS, 0);
+    fprintf(stderr, "rank %d, filling zeroes\n", pctx.my_rank);
+    return;
+  }
 
   for (int i = 0; i < rctx->oob_count_right; i++) {
     fprintf(stderr, "rank%d ptcl %.1f\n", pctx.my_rank,
@@ -327,18 +343,19 @@ void get_local_pivots(range_ctx_t *rctx) {
   /**********************/
   std::vector<float> &ff = rctx->rank_bin_count_ss;
   std::vector<float> &gg = rctx->rank_bins_ss;
-  fprintf(stderr,
-          "rank%d get_local_pivots state_dump "
-          "oob_count_left: %d, oob_count_right: %d\n"
-          "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-          "rbc: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
-          "bin: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
-          "prevIsInit: %s\n",
-          pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
-          particle_count, ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6],
-          ff[7], ff[8], ff.size(), gg[0], gg[1], gg[2], gg[3], gg[4], gg[5],
-          gg[6], gg[7], gg[8], gg[9], gg.size(),
-          (rctx->range_state_prev == range_state_t::RS_INIT) ? "true" : "false");
+  fprintf(
+      stderr,
+      "rank%d get_local_pivots state_dump "
+      "oob_count_left: %d, oob_count_right: %d\n"
+      "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
+      "rbc: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
+      "bin: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
+      "prevIsInit: %s\n",
+      pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
+      ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6], ff[7], ff[8], ff.size(),
+      gg[0], gg[1], gg[2], gg[3], gg[4], gg[5], gg[6], gg[7], gg[8], gg[9],
+      gg.size(),
+      (rctx->range_state_prev == range_state_t::RS_INIT) ? "true" : "false");
   /**********************/
 
   float accumulated_ppp = 0;
@@ -347,7 +364,7 @@ void get_local_pivots(range_ctx_t *rctx) {
   int oob_index = 0;
   while (1) {
     int part_left = oobl_sz - oob_index;
-    if (part_left < part_per_pivot) {
+    if (part_per_pivot < 1e-5 || part_left < part_per_pivot) {
       particles_carried_over += part_left;
       break;
     }
@@ -390,6 +407,8 @@ void get_local_pivots(range_ctx_t *rctx) {
   // particles_carried_over += rctx->rank_bin_count_ss[bidx];
   // }
   // }
+  fprintf(stderr, "r%d ptcls carried over: %.1f\n", pctx.my_rank,
+          particles_carried_over);
 
   if (rctx->range_state_prev != range_state_t::RS_INIT)
     for (int bidx = 0; bidx < rctx->rank_bins_ss.size() - 1; bidx++) {
@@ -398,7 +417,7 @@ void get_local_pivots(range_ctx_t *rctx) {
       float bin_end = rctx->rank_bins[bidx + 1];
 
       fprintf(stderr, "rank%d bin (%.1f-%.1f): left %.1f\n", pctx.my_rank,
-          bin_start, bin_end, cur_bin_left);
+              bin_start, bin_end, cur_bin_left);
 
       while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
         float take_from_bin = part_per_pivot - particles_carried_over;
@@ -410,6 +429,8 @@ void get_local_pivots(range_ctx_t *rctx) {
         bin_start += width_to_remove;
         rctx->my_pivots[cur_pivot] = bin_start;
 
+        fprintf(stderr, "rank %d pivotFoundB: %.1f %.1f %.1f\n", pctx.my_rank, bin_width, cur_bin_left, take_from_bin);
+        fprintf(stderr, "rank %d pivotFoundBB: %.1f %.1f %.1f\n", pctx.my_rank, cur_bin_left, particles_carried_over, part_per_pivot);
         fprintf(stderr, "rank%d pivotFoundB[%d]: %.1f\n", pctx.my_rank,
                 cur_pivot, bin_start);
 
@@ -419,8 +440,10 @@ void get_local_pivots(range_ctx_t *rctx) {
         particles_carried_over = 0;
       }
 
-      assert(cur_bin_left >= 0);
+      assert(cur_bin_left >= -1e-5);
       particles_carried_over += cur_bin_left;
+      fprintf(stderr, "r%d ptcls carried over: %.1f\n", pctx.my_rank,
+              particles_carried_over);
     }
 
   oob_index = 0;
@@ -432,7 +455,8 @@ void get_local_pivots(range_ctx_t *rctx) {
           particles_carried_over);
   while (1) {
     int part_left = oobr_sz - oob_index;
-    if (part_left + particles_carried_over < part_per_pivot - 1e-5) {
+    if (part_per_pivot < 1e-5 ||
+        part_left + particles_carried_over < part_per_pivot - 1e-5) {
       particles_carried_over += part_left;
       break;
     }
@@ -444,9 +468,11 @@ void get_local_pivots(range_ctx_t *rctx) {
     // accumulated_ppp += part_per_pivot;
     // int cur_part_idx = round(accumulated_ppp);
     int cur_part_idx = round(next_idx);
+    if (cur_part_idx >= oobr_sz) cur_part_idx = oobr_sz - 1;
+
     rctx->my_pivots[cur_pivot] = oobr[cur_part_idx].indexed_prop;
     fprintf(stderr, "rank%d pivotFoundC[%d], oobr_idx: %d\n", pctx.my_rank,
-        cur_pivot, cur_part_idx);
+            cur_pivot, cur_part_idx);
     cur_pivot++;
     oob_index = cur_part_idx + 1;
   }

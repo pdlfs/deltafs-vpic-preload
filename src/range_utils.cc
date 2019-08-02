@@ -90,7 +90,7 @@ void pivot_union(std::vector<rb_item_t> rb_items,
     float bp_bin_other = rb_items[i].bin_other;
     bool bp_is_start = rb_items[i].is_start;
 
-    // fprintf(stderr, "Rank %d/%d - bin %.1f\n", -1, i, bp_bin_val);
+    fprintf(stderr, "Rank %d/%d - bin %.1f\n", -1, i, bp_bin_val);
 
     std::list<int>::iterator remove_item;
     /* Can't set iterators to null apparently false means iter is NULL */
