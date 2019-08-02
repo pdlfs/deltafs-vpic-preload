@@ -103,7 +103,7 @@ void WorkloadGenerator::adjust_queries_random() {
     }
 
     assert(bidx < num_bins);
-    assert(bidx > 0);
+    assert(bidx >= 0);
   }
   _debug_print_bins("Random After: ");
 }

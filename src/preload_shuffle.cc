@@ -503,7 +503,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
    * TODO: change this assertion to a wait/lock depending on multi
    * threading design
    */
-  assert(rctx->oob_left_count + rctx->oob_right_count <
+  assert(rctx->oob_count_left + rctx->oob_count_right <
          RANGE_TOTAL_OOB_THRESHOLD);
 
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {

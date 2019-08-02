@@ -7,7 +7,6 @@
 
 #include "preload_internal.h"
 #include "range_utils.h"
-#define RANGE_MAIN_DEBUG
 
 /* return true if a is smaller - we prioritize smaller bin_val
  * and for same bin_val, we prioritize ending items (is_start == false)
@@ -50,8 +49,11 @@ void load_bins_into_rbvec(std::vector<float>& bins,
       float bin_start = bins[rank * bins_per_rank + bidx];
       float bin_end = bins[rank * bins_per_rank + bidx + 1];
 
-      fprintf(stderr, "Rank %d, Range: %.1f %.1f (%lu-%d)\n", rank, bin_start,
-              bin_end, bins.size(), rank * bins_per_rank + bidx + 1);
+      if (bin_start == bin_end) continue;
+
+      fprintf(stderr, "Rank %d, bin rank %d, Range: %.1f %.1f (%lu-%d)\n",
+              pctx.my_rank, rank, bin_start, bin_end, bins.size(),
+              rank * bins_per_rank + bidx + 1);
 
       rbvec.push_back({rank, bin_start, bin_end, true});
       rbvec.push_back({rank, bin_end, bin_start, false});
@@ -327,7 +329,7 @@ void repartition_bin_counts(std::vector<float>& old_bins,
 // return 0;
 // }
 
-int main() {
+int main3() {
   std::vector<float> v1 = {1, 9.5, 16.1};
   std::vector<float> v1c = {4, 4};
   std::vector<float> v2 = {1, 16.9, 32.5};
@@ -340,5 +342,38 @@ int main() {
   }
   printf("\n");
   return 0;
+}
+
+int main() {
+  std::vector<float> all_pivots = {
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    4.0, 10.0, 14.0, 18.0, 5.0, 11.0, 15.0, 19.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 9.0, 15.0, 19.0, 23.0
+  };
+
+#define DD 2.6666667
+
+  std::vector<float> pivot_widths = {
+    0.0, 0.0, 0.0, DD, DD, 0.0, 0.0, 0.0, DD
+  };
+
+  printf("===> Vec size: %zu\n", all_pivots.size());
+
+  std::vector<rb_item_t> rbvec;
+  std::vector<float> unified_bins;
+  std::vector<float> unified_bin_counts;
+  std::vector<float> samples;
+  std::vector<float> sample_counts;
+
+  load_bins_into_rbvec(all_pivots, rbvec, pctx.rctx.all_pivots.size(),
+                       pctx.comm_sz, 4);
+  pivot_union(rbvec, unified_bins, unified_bin_counts,
+              pivot_widths, 9);
+  resample_bins_irregular(unified_bins, unified_bin_counts, samples,  10);
+
+  for (int i = 0; i < samples.size(); i++) {
+    fprintf(stderr, "RankSample %d/%d - %.1f\n", pctx.my_rank, i, samples[i]);
+  }
+
 }
 #endif

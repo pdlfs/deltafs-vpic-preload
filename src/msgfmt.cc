@@ -45,7 +45,7 @@ void msgfmt_parse_data(char *buf, int buf_sz, char **fname, int fname_sz,
 
 uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
                                    int my_rank) {
-  assert((uint32_t)buf_sz >= MSGFMT_TYPE_SIZE + 2 * sizeof(int));
+  assert(((uint32_t) buf_sz) >= MSGFMT_TYPE_SIZE + 2 * sizeof(int));
 
   fprintf(stderr, "ENCODE reneg begin round num: %d\n", round_no);
   fprintf(stderr, "ENCODE reneg begin RANK: %d\n", my_rank);

@@ -66,9 +66,9 @@ void range_init_negotiation(preload_ctx_t *pctx) {
   rctx->ranks_responded = 0;
 
   // Broadcast range state to everyone
-  char msg[8];
+  char msg[12];
   uint32_t msg_sz =
-      msgfmt_encode_reneg_begin(msg, 8, rctx->neg_round_num, pctx->my_rank);
+      msgfmt_encode_reneg_begin(msg, 12, rctx->neg_round_num, pctx->my_rank);
 
   if (sctx->type == SHUFFLE_XN) {
     /* send to all NOT including self */
@@ -145,7 +145,7 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
        src_rank);
 
   char msg_type = msgfmt_get_msgtype(buf);
-  assert(msg_type == MGFMT_RENEG_PIVOTS);
+  assert(msg_type == MSGFMT_RENEG_PIVOTS);
 
   int round_num;
   float *pivots;
@@ -445,9 +445,8 @@ void get_local_pivots(range_ctx_t *rctx) {
     // int cur_part_idx = round(accumulated_ppp);
     int cur_part_idx = round(next_idx);
     rctx->my_pivots[cur_pivot] = oobr[cur_part_idx].indexed_prop;
-    fprintf(stderr, "r%d +> oob: %d, ppp: %.1f, pco: %.1f\n", pctx.my_rank,
-            oob_index, part_per_pivot, particles_carried_over);
-    fprintf(stderr, "r%d +> curpivotC %d\n", pctx.my_rank, cur_pivot);
+    fprintf(stderr, "rank%d pivotFoundC[%d], oobr_idx: %d\n", pctx.my_rank,
+        cur_pivot, cur_part_idx);
     cur_pivot++;
     oob_index = cur_part_idx + 1;
   }
