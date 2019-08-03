@@ -302,6 +302,8 @@ void get_local_pivots(range_ctx_t *rctx) {
   } else if (particle_count > 1e-5) {
     range_start = rctx->range_min_ss;
     range_end = rctx->range_max_ss;
+    fprintf(stderr, "rank%d, snapshot range(%.1f %.1f)\n", pctx.my_rank,
+        range_start, range_end);
     // range_start = rctx->rank_bins_ss[my_rank];
     // range_end = (my_rank + 1 == pctx.comm_sz) ? rctx->range_max_ss
                                               // : rctx->rank_bins_ss[my_rank + 1];
@@ -312,10 +314,21 @@ void get_local_pivots(range_ctx_t *rctx) {
   }
 
   /* update the left boundary of the new range */
-  if (oobl_sz > 0) range_start = oobl[0].indexed_prop;
+  if (oobl_sz > 0) {
+    range_start = oobl[0].indexed_prop;
+    if (particle_count < 1e-5 && oobr_sz == 0) {
+      range_end = oobl[oobl_sz - 1].indexed_prop;
+    }
+  }
   /* update the right boundary of the new range */
-  if (oobr_sz > 0) range_end = oobr[oobr_sz - 1].indexed_prop;
+  if (oobr_sz > 0) {
+    range_end = oobr[oobr_sz - 1].indexed_prop;
+    if (particle_count < 1e-5 && oobl_sz == 0) {
+      range_start = oobr[0].indexed_prop;
+    }
+  }
 
+  assert(range_end >= range_start);
   rctx->my_pivots[0] = range_start;
   rctx->my_pivots[RANGE_NUM_PIVOTS - 1] = range_end;
 
@@ -335,8 +348,13 @@ void get_local_pivots(range_ctx_t *rctx) {
     return;
   }
 
+  for (int i = 0; i < rctx->oob_count_left; i++) {
+    fprintf(stderr, "rank%d ptcll %.1f\n", pctx.my_rank,
+            rctx->oob_buffer_left[i].indexed_prop);
+  }
+
   for (int i = 0; i < rctx->oob_count_right; i++) {
-    fprintf(stderr, "rank%d ptcl %.1f\n", pctx.my_rank,
+    fprintf(stderr, "rank%d ptclr %.1f\n", pctx.my_rank,
             rctx->oob_buffer_right[i].indexed_prop);
   }
 
@@ -475,6 +493,10 @@ void get_local_pivots(range_ctx_t *rctx) {
             cur_pivot, cur_part_idx);
     cur_pivot++;
     oob_index = cur_part_idx + 1;
+  }
+
+  for(; cur_pivot < RANGE_NUM_PIVOTS - 1; cur_pivot++) {
+    rctx->my_pivots[cur_pivot] = rctx->my_pivots[RANGE_NUM_PIVOTS - 1];
   }
 
   rctx->pivot_width = part_per_pivot;

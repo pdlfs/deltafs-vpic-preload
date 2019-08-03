@@ -221,9 +221,31 @@ int resample_bins_irregular(const std::vector<float>& bins,
     accumulated += rcount_total;
   }
 
+  if (accumulated > RANGE_EPSILON && sidx < nsamples - 1) {
+    samples[sidx] = bins[bins_size -1 ];
+    sidx++;
+  }
+
+  if (pctx.my_rank == 0) {
+    for (int i = 0; i < bins_size - 1; i++) {
+      fprintf(stderr, "Rank 0, bin (%.1f, %.1f): %.1f\n", bins[i], bins[i + 1],
+          bin_counts[i]);
+    }
+
+    fprintf(stderr, "---> nparticles: %.1f\n", nparticles);
+
+    for (int i = 0; i < nsamples; i++) {
+      fprintf(stderr, "plensample: %.1f\n", samples[i]);
+    }
+  }
+
   /* extend bounds marginally to handle edge cases */
   samples[0] = bins[0] - 1e-6;
   samples[nsamples - 1] = bins[bins_size - 1] + 1e-6;
+
+  if (sidx != nsamples) {
+    logf(LOG_ERRO, "rank %d,sidx expected to be equal to nsamples, %d-%d, accumulated: %.1f\n", pctx.my_rank, sidx,  nsamples, accumulated);
+  }
   assert(sidx == nsamples);
 
   return 0;
