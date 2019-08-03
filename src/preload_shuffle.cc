@@ -660,14 +660,9 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
       // fprintf(stderr, "At DEST: %d, received MSGFMT_DATA\n", dst);
       break;
     case MSGFMT_RENEG_BEGIN:
-      fprintf(stderr, "At DEST: %d, received RENEG_BEGIN\n", dst);
-      // shouldn't take much time, can handle inline
       range_handle_reneg_begin(buf, buf_sz);
       return 0;
     case MSGFMT_RENEG_PIVOTS:
-      fprintf(stderr, "At DEST: %d, received RENEG_PIVOTS\n", dst);
-      // XXX: this is slow, should move to its own thread to prevent
-      // head-of-line blocking
       range_handle_reneg_pivots(buf, buf_sz, src);
       return 0;
   }

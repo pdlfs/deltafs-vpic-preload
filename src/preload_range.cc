@@ -141,7 +141,7 @@ void range_handle_reneg_begin(char *buf, unsigned int buf_sz) {
 }
 
 void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
-  logf(LOG_INFO, "Rank %d received some pivots from %d!!\n", pctx.my_rank,
+  logf(LOG_INFO, "Rank %d received RENEG PIVOTS from %d!!\n", pctx.my_rank,
        src_rank);
 
   char msg_type = msgfmt_get_msgtype(buf);
