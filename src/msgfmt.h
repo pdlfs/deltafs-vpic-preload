@@ -37,6 +37,8 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
 #define MSGFMT_DATA (unsigned char)0x01
 #define MSGFMT_RENEG_BEGIN (unsigned char)0x02
 #define MSGFMT_RENEG_PIVOTS (unsigned char)0x03
+#define MSGFMT_RENEG_ACK (unsigned char)0x04
+
 #define MSGFMT_TYPE_SIZE 1u
 
 uint32_t msgfmt_get_data_size(int fname_sz, int data_sz, int extra_data_sz);
@@ -65,3 +67,7 @@ void msgfmt_encode_reneg_pivots(char *buf, int buf_sz, int round_no,
 void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, int *round_no,
                                float **pivots, float *pivot_width,
                                int *num_pivots);
+
+void msgfmt_encode_ack(char *buf, int buf_sz, int rank, int round_no);
+
+void msgfmt_parse_ack(char *buf, int buf_sz, int *rank, int *round_no);

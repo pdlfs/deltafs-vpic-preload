@@ -121,4 +121,30 @@ void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, int *round_no,
 
   (*pivots) =
       reinterpret_cast<float *>(buf + 1 + 2 * sizeof(int) + sizeof(float));
+
+  return;
+}
+
+void msgfmt_encode_ack(char *buf, int buf_sz, int rank, int round_no) {
+  assert(buf_sz >= 1 + 2 * sizeof(int));
+
+  buf[0] = MSGFMT_RENEG_ACK;
+
+  memcpy(buf + 1, &rank, sizeof(int));
+  memcpy(buf + 1 + sizeof(int), &round_no, sizeof(int));
+
+  return;
+}
+
+void msgfmt_parse_ack(char *buf, int buf_sz, int *rank, int *round_no) {
+  assert(buf_sz >= 1 + 2 * sizeof(int));
+  assert(buf[0] = MSGFMT_RENEG_ACK);
+
+  int *rank_ptr = reinterpret_cast<int *>(buf + 1);
+  (*rank) = (*rank_ptr);
+
+  int *round_no_ptr = reinterpret_cast<int *>(buf + 1 + sizeof(int));
+  (*round_no) =  (*round_no_ptr);
+
+  return;
 }

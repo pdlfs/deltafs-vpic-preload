@@ -825,6 +825,9 @@ int MPI_Init(int* argc, char*** argv) {
   rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
   rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
 
+  std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
+  rctx->ranks_acked_count = 0;
+
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
     logf(LOG_WARN,
@@ -2095,6 +2098,31 @@ DIR* opendir(const char* dir) {
   /* epoch count is increased before the beginning of each epoch */
   num_eps++; /* must go before the barrier below */
 
+  {
+    /* reset range stats */
+    std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
+
+    pctx.rctx.range_state = range_state_t::RS_INIT;
+    std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
+    std::fill(pctx.rctx.rank_bin_count.begin(),
+        pctx.rctx.rank_bin_count.end(), 0);
+
+    pctx.rctx.neg_round_num = 0;
+    pctx.rctx.range_min = 0;
+    pctx.rctx.range_max = 0;
+    pctx.rctx.ts_writes_received = 0;
+    pctx.rctx.ts_writes_shuffled = 0;
+    pctx.rctx.oob_count_left = 0;
+    pctx.rctx.oob_count_right = 0;
+
+    /* XXX: we don't have an explicit flush mechanism before
+     * so this might fail but currently we block fwrites during negotiation
+     * so it should not fail, but we might lose OOB buffered particles until
+     * we implement OOB flushing at the end of an epoch
+     */
+    assert(pctx.rctx.ranks_acked_count == 0);
+  }
+
   if (pctx.paranoid_post_barrier) {
     /*
      * this ensures all writes made for the next epoch
@@ -2141,20 +2169,6 @@ DIR* opendir(const char* dir) {
 
   /* restart paranoid checking status */
   pctx.fnames->clear();
-
-  /* reset range stats */
-  pctx.rctx.range_state = range_state_t::RS_INIT;
-  std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
-  std::fill(pctx.rctx.rank_bin_count.begin(),
-      pctx.rctx.rank_bin_count.end(), 0);
-
-  pctx.rctx.neg_round_num = 0;
-  pctx.rctx.range_min = 0;
-  pctx.rctx.range_max = 0;
-  pctx.rctx.ts_writes_received = 0;
-  pctx.rctx.ts_writes_shuffled = 0;
-  pctx.rctx.oob_count_left = 0;
-  pctx.rctx.oob_count_right = 0;
 
   return rv;
 }

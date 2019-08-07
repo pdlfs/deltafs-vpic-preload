@@ -4,10 +4,7 @@
 #include <vector>
 
 #define RANGE_PARANOID_CHECKS 1
-#define RANGE_DEBUG 1
 #define RANGE_EPSILON 1e-5
-#define fprintf \
-  if (RANGE_DEBUG) fprintf
 #define _fprintf fprintf
 
 typedef struct rb_item {

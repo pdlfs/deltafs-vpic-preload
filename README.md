@@ -23,3 +23,9 @@ XXXXXXXXX        XXXXXXX   XX    XX        XX  XX      XX
 ```
 
 DeltaFS was developed, in part, under U.S. Government contract 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is operated by Triad National Security, LLC for the U.S. Department of Energy/National Nuclear Security Administration. Please see the accompanying [LICENSE.txt](LICENSE.txt) for further information.
+
+Range TODO
+==========
+
+1. You can receive RENEG\_BEGIN from the next round while you're still processing pivot updates from the current round.
+2. You can receive RENEG\_PIVOTS from current round before you have seen RENEG\_BEGIN from the current round. This can be solved using an implicit Phase 1 message.

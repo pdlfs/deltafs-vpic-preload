@@ -69,7 +69,7 @@ typedef struct range_ctx {
 
   /* Current/next negotiation round number
    * (use range_state to check if you're in a negotiation round */
-  int neg_round_num;
+  std::atomic<int> neg_round_num;
 
   int ts_writes_received;
   int ts_writes_shuffled;
@@ -120,6 +120,9 @@ typedef struct range_ctx {
   std::vector<float> all_pivots;
   std::vector<float> all_pivot_widths;
   std::atomic<int> ranks_responded;
+
+  std::vector<bool> ranks_acked;
+  std::atomic<int> ranks_acked_count;
   std::condition_variable block_writes_cv;
 } range_ctx_t;
 

@@ -51,9 +51,11 @@ void load_bins_into_rbvec(std::vector<float>& bins,
 
       if (bin_start == bin_end) continue;
 
+#ifdef RANGE_DEBUG
       fprintf(stderr, "Rank %d, bin rank %d, Range: %.1f %.1f (%lu-%d)\n",
               pctx.my_rank, rank, bin_start, bin_end, bins.size(),
               rank * bins_per_rank + bidx + 1);
+#endif
 
       rbvec.push_back({rank, bin_start, bin_end, true});
       rbvec.push_back({rank, bin_end, bin_start, false});
@@ -90,7 +92,9 @@ void pivot_union(std::vector<rb_item_t> rb_items,
     float bp_bin_other = rb_items[i].bin_other;
     bool bp_is_start = rb_items[i].is_start;
 
+#ifdef RANGE_DEBUG
     fprintf(stderr, "Rank %d/%d - bin %.1f\n", -1, i, bp_bin_val);
+#endif
 
     std::list<int>::iterator remove_item;
     /* Can't set iterators to null apparently false means iter is NULL */
@@ -231,18 +235,18 @@ int resample_bins_irregular(const std::vector<float>& bins,
    */
   if (sidx == nsamples - 1) sidx++;
 
-  if (pctx.my_rank == 0) {
-    for (int i = 0; i < bins_size - 1; i++) {
-      fprintf(stderr, "Rank 0, bin (%.1f, %.1f): %.1f\n", bins[i], bins[i + 1],
-          bin_counts[i]);
-    }
+  // if (pctx.my_rank == 0) {
+    // for (int i = 0; i < bins_size - 1; i++) {
+      // fprintf(stderr, "Rank 0, bin (%.1f, %.1f): %.1f\n", bins[i], bins[i + 1],
+          // bin_counts[i]);
+    // }
 
-    fprintf(stderr, "---> nparticles: %.1f\n", nparticles);
+    // fprintf(stderr, "---> nparticles: %.1f\n", nparticles);
 
-    for (int i = 0; i < nsamples; i++) {
-      fprintf(stderr, "plensample: %.1f\n", samples[i]);
-    }
-  }
+    // for (int i = 0; i < nsamples; i++) {
+      // fprintf(stderr, "plensample: %.1f\n", samples[i]);
+    // }
+  // }
 
 
   if (sidx != nsamples) {
@@ -395,9 +399,11 @@ int main() {
               pivot_widths, 9);
   resample_bins_irregular(unified_bins, unified_bin_counts, samples,  10);
 
+#ifdef RANGE_DEBUG
   for (int i = 0; i < samples.size(); i++) {
     fprintf(stderr, "RankSample %d/%d - %.1f\n", pctx.my_rank, i, samples[i]);
   }
+#endif
 
 }
 #endif
