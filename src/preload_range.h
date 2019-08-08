@@ -143,3 +143,5 @@ void get_local_pivots(range_ctx_t* rctx);
 void range_handle_reneg_begin(char* buf, unsigned int buf_sz);
 
 void range_handle_reneg_pivots(char* buf, unsigned int buf_sz, int src_rank);
+
+void range_handle_reneg_acks(char* buf, unsigned int buf_sz);

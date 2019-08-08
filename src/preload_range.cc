@@ -328,7 +328,7 @@ void send_all_acks() {
  * even  a single pivot. It is possible that by the time you call send_all_acks
  * you might have received every other ack
  */
-void handle_ack(char *buf, int buf_sz) {
+void range_handle_reneg_acks(char *buf, int buf_sz) {
   int srank;
   int sround_num;
 

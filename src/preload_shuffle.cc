@@ -665,6 +665,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
     case MSGFMT_RENEG_PIVOTS:
       range_handle_reneg_pivots(buf, buf_sz, src);
       return 0;
+    case MSGFMT_RENEG_ACK:
+      range_handle_reneg_acks(buf, buf_sz);
   }
 
   ctx = &pctx.sctx;
