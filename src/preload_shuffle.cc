@@ -651,8 +651,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
-  // fprintf(stderr, "At DEST: %d, RCVD from %d, P: %02x%02x%02x\n", dst, src,
-          // buf[0], buf[1], buf[2]);
+  fprintf(stderr, "At DEST: %d, RCVD from %d, P: %02x%02x%02x\n", dst, src,
+          buf[0], buf[1], buf[2]);
 
   char msg_type = msgfmt_get_msgtype(buf);
   switch (msg_type) {
@@ -666,7 +666,11 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
       range_handle_reneg_pivots(buf, buf_sz, src);
       return 0;
     case MSGFMT_RENEG_ACK:
+      fprintf(stderr, "Rank %d received RENEG ACK\n",  pctx.my_rank);
       range_handle_reneg_acks(buf, buf_sz);
+      return 0;
+    default:
+      ABORT("Unknown msg_type");
   }
 
   ctx = &pctx.sctx;

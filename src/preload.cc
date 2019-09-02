@@ -814,19 +814,25 @@ int MPI_Init(int* argc, char*** argv) {
   range_ctx_t* rctx = &pctx.rctx;
 
   /* init range structures */
-  // TODO: revisit this if considering 3-hop etc
+  // XXX: revisit this if considering 3-hop etc
   rctx->rank_bins.resize(pctx.comm_sz + 1);
   rctx->rank_bin_count.resize(pctx.comm_sz);
   rctx->rank_bins_ss.resize(pctx.comm_sz + 1);
   rctx->rank_bin_count_ss.resize(pctx.comm_sz);
   rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
   rctx->all_pivot_widths.resize(pctx.comm_sz);
+  rctx->ranks_acked.resize(pctx.comm_sz);
 
   rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
   rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
 
   std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
+
+  /* Round number is never reset, it keeps monotonically increasing
+   * even through all the epochs */
+  rctx->neg_round_num = 0;
   rctx->ranks_acked_count = 0;
+  rctx->range_state = range_state_t::RS_INIT;
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
@@ -2102,12 +2108,14 @@ DIR* opendir(const char* dir) {
     /* reset range stats */
     std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
+    assert(range_state_t::RS_RENEGO != pctx.rctx.range_state);
+
     pctx.rctx.range_state = range_state_t::RS_INIT;
     std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
     std::fill(pctx.rctx.rank_bin_count.begin(),
         pctx.rctx.rank_bin_count.end(), 0);
 
-    pctx.rctx.neg_round_num = 0;
+    // pctx.rctx.neg_round_num = 0;
     pctx.rctx.range_min = 0;
     pctx.rctx.range_max = 0;
     pctx.rctx.ts_writes_received = 0;

@@ -15,6 +15,7 @@ extern const int num_eps;
 void take_snapshot(range_ctx_t *rctx);
 void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
                      int my_rank, int comm_sz, bool send_to_self = false);
+void send_all_acks();
 void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx);
 void recalculate_local_bins();
 
@@ -283,8 +284,8 @@ void recalculate_local_bins() {
     fprintf(stderr, "Min: %.1f, Max: %.1f\n", pctx.rctx.range_min,
             pctx.rctx.range_max);
     std::vector<float> &f = pctx.rctx.rank_bins;
-    fprintf(stderr, "RankSample%d, %.1f %.1f %.1f\n", pctx.my_rank, f[0],
-    f[1], f[2]);
+    fprintf(stderr, "RankSample%d, %.1f %.1f %.1f\n", pctx.my_rank, f[0], f[1],
+            f[2]);
     // pctx.rctx.neg_round_num++;
     // pctx.rctx.range_state_prev = pctx.rctx.range_state;
     // pctx.rctx.range_state = range_state_t::RS_READY;
@@ -293,6 +294,7 @@ void recalculate_local_bins() {
   // shouldn't be more than one waiter anyway
   logf(LOG_INFO, "Rank %d updated its bins. Sending acks now\n", pctx.my_rank);
   // pctx.rctx.block_writes_cv.notify_all();
+  send_all_acks();
 }
 
 /* XXX: This function does not grab locks for most of its operation,
@@ -314,7 +316,8 @@ void send_all_acks() {
    * will only become true in a handle_ack call
    */
   if (sctx->type == SHUFFLE_XN) {
-    /* send to all NOT including self */
+    /* send to all INCLUDING self */
+    logf(LOG_INFO, "Rank %d sending RENEG ACKs to-all", pctx.my_rank);
     send_all_to_all(sctx, buf, 255, pctx.my_rank, pctx.comm_sz, true);
   } else {
     ABORT("Only 3-hop shuffler supported by range-indexer");
@@ -328,34 +331,45 @@ void send_all_acks() {
  * even  a single pivot. It is possible that by the time you call send_all_acks
  * you might have received every other ack
  */
-void range_handle_reneg_acks(char *buf, int buf_sz) {
+
+#define IS_NEGOTIATING(x) (range_state_t::RS_RENEGO == x.range_state)
+#define IS_NOT_NEGOTIATING(x) (range_state_t::RS_RENEGO != x.range_state)
+#define IS_RNUM_VALID(theirs, ours, rctx) \
+  (IS_NEGOTIATING(rctx) && (theirs == ours)) \
+  || (IS_NOT_NEGOTIATING(rctx) && (theirs == ours - 1))
+
+void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   int srank;
   int sround_num;
 
   msgfmt_parse_ack(buf, buf_sz, &srank, &sround_num);
 
-  logf(LOG_INFO, "Rank %d rcvd RENEG ACK from %d for R$d\n",
-      pctx.my_rank, srank, sround_num);
+  logf(LOG_INFO, "Rank %d rcvd RENEG ACK from %d for R%d\n", pctx.my_rank,
+       srank, sround_num);
 
   std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
-  if (sround_num != pctx.rctx.neg_round_num) {
-  logf(LOG_ERRO, "Rank %d rcvd R+1 RENEG ACK from %d for R$d\n",
-      pctx.my_rank, srank, sround_num);
+  // if (sround_num != pctx.rctx.neg_round_num.load()) {
+  if (!IS_RNUM_VALID(sround_num, pctx.rctx.neg_round_num.load(), pctx.rctx)) {
+    logf(LOG_ERRO,
+         "Rank %d rcvd R+1 RENEG ACK from %d for R%d (ours: %d, %s)\n",
+         pctx.my_rank, srank, sround_num, pctx.rctx.neg_round_num.load(),
+         pctx.rctx.range_state == range_state_t::RS_RENEGO ? "RENEGO"
+                                                           : "NOT RENEGO");
 
     ABORT("Received RENEG ACK for R+1!");
   }
 
   if (srank < 0 || srank >= pctx.comm_sz) {
-  logf(LOG_ERRO, "Rank %d rcvd RENEG ACK from invalid rank %d.",
-      pctx.my_rank, srank);
+    logf(LOG_ERRO, "Rank %d rcvd RENEG ACK from invalid rank %d.", pctx.my_rank,
+         srank);
 
     ABORT("Invalid sender rank for ACK");
   }
-  
-  if(pctx.rctx.ranks_acked[srank]) {
-  logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
-      pctx.my_rank, srank);
+
+  if (pctx.rctx.ranks_acked[srank]) {
+    logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
+         pctx.my_rank, srank);
 
     ABORT("Duplicate ACK");
   }
@@ -363,8 +377,10 @@ void range_handle_reneg_acks(char *buf, int buf_sz) {
   pctx.rctx.ranks_acked[srank] = true;
   pctx.rctx.ranks_acked_count++;
 
-  if(pctx.rctx.ranks_acked_count == pctx.comm_sz - 1) {
-    std::fill(pctx.rctx.ranks_acked.begin(), pctx.rctx.ranks_acked.end(), false);
+  /* ACKs sent to everyone INCLUDING self */
+  if (pctx.rctx.ranks_acked_count == pctx.comm_sz) {
+    std::fill(pctx.rctx.ranks_acked.begin(), pctx.rctx.ranks_acked.end(),
+              false);
     pctx.rctx.ranks_acked_count = 0;
 
     pctx.rctx.neg_round_num++;
