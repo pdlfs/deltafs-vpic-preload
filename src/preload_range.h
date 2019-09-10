@@ -123,6 +123,10 @@ typedef struct range_ctx {
 
   std::vector<bool> ranks_acked;
   std::atomic<int> ranks_acked_count;
+
+  std::vector<bool> ranks_acked_next;
+  std::atomic<int> ranks_acked_count_next;
+
   std::condition_variable block_writes_cv;
 } range_ctx_t;
 

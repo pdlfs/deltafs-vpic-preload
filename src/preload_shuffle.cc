@@ -468,6 +468,8 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
           rctx->oob_count_left, rctx->oob_count_right);
 }
 
+void send_all_acks();
+
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
                   unsigned char fname_len, char* data, unsigned char data_len,
                   int epoch) {
@@ -476,8 +478,29 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   int rank;
   int rv;
 
-
   range_ctx_t* rctx = &pctx.rctx;
+
+#define TEST_START 1
+
+  fprintf(stderr, "======> TESTING ACKs @ %d <==========\n", pctx.my_rank);
+
+  for (int ack_no = 0; ack_no < 1000; ack_no++) {
+    fprintf(stdout, "At Rank %d, Ack#: %d\n", pctx.my_rank, ack_no);
+    rctx->range_state = range_state_t::RS_RENEGO;
+    send_all_acks();
+
+    std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
+
+    rctx->block_writes_cv.wait(ulock, [] {
+      /* having a condition ensures we ignore spurious wakes */
+      return (pctx.rctx.range_state == range_state_t::RS_READY);
+    });
+  }
+
+  fprintf(stderr, "======> RETURNING ACKs @ %d <==========\n", pctx.my_rank);
+  return 0;
+
+#define TEST_END 1
 
   rctx->ts_writes_received++;
 
@@ -512,7 +535,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
          " at rank %d\n",
          rctx->oob_count_left, rctx->oob_count_right, pctx.my_rank);
     // return 0;
-    return -10;// XXX: lie
+    return -10;  // XXX: lie
   }
 
   if (rctx->range_state == range_state_t::RS_INIT) {
@@ -567,13 +590,13 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     /* Buffering caused OOB_MAX, renegotiate */
     // for (int iii = 0; iii < 100; iii++) {
     fprintf(stderr, "--------- NEED RENEGO @ R%d ----------\n", pctx.my_rank);
-    // if (0 == pctx.my_rank) 
-      range_init_negotiation(&pctx);
+    // if (0 == pctx.my_rank)
+    range_init_negotiation(&pctx);
     std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
 
     /* we change the range state to prevent the CV from returning
      * immediately */
-    if(range_state_t::RS_READY == pctx.rctx.range_state) {
+    if (range_state_t::RS_READY == pctx.rctx.range_state) {
       pctx.rctx.range_state = range_state_t::RS_BLOCKED;
       pctx.rctx.range_state_prev = range_state_t::RS_READY;
     }
@@ -666,7 +689,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
       range_handle_reneg_pivots(buf, buf_sz, src);
       return 0;
     case MSGFMT_RENEG_ACK:
-      fprintf(stderr, "Rank %d received RENEG ACK\n",  pctx.my_rank);
+      fprintf(stderr, "Rank %d received RENEG ACK\n", pctx.my_rank);
       range_handle_reneg_acks(buf, buf_sz);
       return 0;
     default:

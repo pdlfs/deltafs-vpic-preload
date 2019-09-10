@@ -334,9 +334,14 @@ void send_all_acks() {
 
 #define IS_NEGOTIATING(x) (range_state_t::RS_RENEGO == x.range_state)
 #define IS_NOT_NEGOTIATING(x) (range_state_t::RS_RENEGO != x.range_state)
+// #define IS_RNUM_VALID(theirs, ours, rctx) \
+  // ((IS_NEGOTIATING(rctx) && ((theirs == ours) || (theirs == ours + 1)) \
+  // || (IS_NOT_NEGOTIATING(rctx) && (theirs == ours - 1)))
+  //
+  //
 #define IS_RNUM_VALID(theirs, ours, rctx) \
-  (IS_NEGOTIATING(rctx) && (theirs == ours)) \
-  || (IS_NOT_NEGOTIATING(rctx) && (theirs == ours - 1))
+ ((theirs == ours) || (theirs == ours + 1))
+
 
 void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   int srank;
@@ -350,7 +355,9 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
   // if (sround_num != pctx.rctx.neg_round_num.load()) {
-  if (!IS_RNUM_VALID(sround_num, pctx.rctx.neg_round_num.load(), pctx.rctx)) {
+  int round_num = pctx.rctx.neg_round_num.load();
+  // if (!IS_RNUM_VALID(sround_num, pctx.rctx.neg_round_num.load(), pctx.rctx)) {
+  if (!IS_RNUM_VALID(sround_num, round_num, pctx.rctx)) {
     logf(LOG_ERRO,
          "Rank %d rcvd R+1 RENEG ACK from %d for R%d (ours: %d, %s)\n",
          pctx.my_rank, srank, sround_num, pctx.rctx.neg_round_num.load(),
@@ -367,21 +374,39 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
     ABORT("Invalid sender rank for ACK");
   }
 
-  if (pctx.rctx.ranks_acked[srank]) {
-    logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
-         pctx.my_rank, srank);
+  if (sround_num == round_num + 1) {
+    if (pctx.rctx.ranks_acked_next[srank]) {
+      logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
+           pctx.my_rank, srank);
 
-    ABORT("Duplicate ACK");
+      ABORT("Duplicate ACK");
+    }
+    pctx.rctx.ranks_acked_next[srank] = true;
+    pctx.rctx.ranks_acked_count_next++;
+  } else if(sround_num == round_num) {
+    if (pctx.rctx.ranks_acked[srank]) {
+      logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
+           pctx.my_rank, srank);
+
+      ABORT("Duplicate ACK");
+    }
+    pctx.rctx.ranks_acked[srank] = true;
+    pctx.rctx.ranks_acked_count++;
+  } else {
+    ABORT("panic"); // paranoid check
   }
-
-  pctx.rctx.ranks_acked[srank] = true;
-  pctx.rctx.ranks_acked_count++;
 
   /* ACKs sent to everyone INCLUDING self */
   if (pctx.rctx.ranks_acked_count == pctx.comm_sz) {
-    std::fill(pctx.rctx.ranks_acked.begin(), pctx.rctx.ranks_acked.end(),
-              false);
-    pctx.rctx.ranks_acked_count = 0;
+    std::copy(pctx.rctx.ranks_acked_next.begin(),
+        pctx.rctx.ranks_acked_next.end(),
+        pctx.rctx.ranks_acked.begin());
+
+    std::fill(pctx.rctx.ranks_acked_next.begin(),
+        pctx.rctx.ranks_acked_next.end(), false);
+
+    pctx.rctx.ranks_acked_count = pctx.rctx.ranks_acked_count_next.load();
+    pctx.rctx.ranks_acked_count_next = 0;
 
     pctx.rctx.neg_round_num++;
     pctx.rctx.range_state_prev = pctx.rctx.range_state;

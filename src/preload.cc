@@ -821,17 +821,24 @@ int MPI_Init(int* argc, char*** argv) {
   rctx->rank_bin_count_ss.resize(pctx.comm_sz);
   rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
   rctx->all_pivot_widths.resize(pctx.comm_sz);
+
   rctx->ranks_acked.resize(pctx.comm_sz);
+  rctx->ranks_acked_next.resize(pctx.comm_sz);
 
   rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
   rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
 
   std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
+  std::fill(rctx->ranks_acked_next.begin(), rctx->ranks_acked_next.end(),
+            false);
 
   /* Round number is never reset, it keeps monotonically increasing
    * even through all the epochs */
   rctx->neg_round_num = 0;
+
   rctx->ranks_acked_count = 0;
+  rctx->ranks_acked_count_next = 0;
+
   rctx->range_state = range_state_t::RS_INIT;
 
   if (pctx.my_rank == 0) {
@@ -2112,8 +2119,8 @@ DIR* opendir(const char* dir) {
 
     pctx.rctx.range_state = range_state_t::RS_INIT;
     std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
-    std::fill(pctx.rctx.rank_bin_count.begin(),
-        pctx.rctx.rank_bin_count.end(), 0);
+    std::fill(pctx.rctx.rank_bin_count.begin(), pctx.rctx.rank_bin_count.end(),
+              0);
 
     // pctx.rctx.neg_round_num = 0;
     pctx.rctx.range_min = 0;
