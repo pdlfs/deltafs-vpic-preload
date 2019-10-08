@@ -121,7 +121,7 @@ static void fatal(const char* f, int d, const char* msg) {
 #define DEF_NDUMPS 3        /* total epoch dumps */
 #define DEF_PARTICLESIZE 40 /* bytes per particle */
 #define DEF_NPARTICLES 16   /* total particles per rank */
-#define DEF_TIMEOUT 120     /* alarm timeout */
+#define DEF_TIMEOUT 240     /* alarm timeout */
 
 /*
  * gs: shared global data (e.g. from the command line)

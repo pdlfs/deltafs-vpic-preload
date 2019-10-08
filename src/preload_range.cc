@@ -9,15 +9,37 @@
 #include "range_utils.h"
 #include "xn_shuffler.h"
 
+#define fprintf \
+  if (1) fprintf
+
 extern const int num_eps;
 
 /* Forward declarations */
 void take_snapshot(range_ctx_t *rctx);
 void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
-                     int my_rank, int comm_sz, bool send_to_self = false);
+                     int my_rank, int comm_sz, bool send_to_self, int label);
 void send_all_acks();
 void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx);
 void recalculate_local_bins();
+
+char rs_pb_buf[256];
+char *print_state(range_state_t state) {
+  /* good (in retrospect no) reason not to use switch case here */
+
+  if (state == range_state_t::RS_INIT) {
+    snprintf(rs_pb_buf, 256, "RS_INIT");
+  } else if (state == range_state_t::RS_READY) {
+    snprintf(rs_pb_buf, 256, "RS_READY");
+  } else if (state == range_state_t::RS_RENEGO) {
+    snprintf(rs_pb_buf, 256, "RS_RENEGO");
+  } else if (state == range_state_t::RS_BLOCKED) {
+    snprintf(rs_pb_buf, 256, "RS_BLOCKED");
+  } else if (state == range_state_t::RS_ACK) {
+    snprintf(rs_pb_buf, 256, "RS_ACK");
+  }
+
+  return rs_pb_buf;
+}
 
 /* XXX: Make sure concurrent runs with delivery thread
  * are correct - acquire some shared lock in the beginning
@@ -33,11 +55,17 @@ void range_init_negotiation(preload_ctx_t *pctx) {
   range_ctx_t *rctx = &(pctx->rctx);
   shuffle_ctx_t *sctx = &(pctx->sctx);
 
-  if (RANGE_IS_RENEGO(rctx)) {
+  std::lock_guard<std::mutex> balg(pctx->rctx.bin_access_m);
+
+  // if (RANGE_IS_RENEGO(rctx)) {
+  // if (RANGE_IS_BLOCKED(rctx)) {
+  /* can proceed if READY or blocked */
+  if (!(RANGE_IS_INIT(rctx) || RANGE_IS_READY(rctx))) {
+    // || RANGE_IS_BLOCKED(rctx))) {
     /* we are already renegotiating */
     logf(LOG_INFO,
          "Rank %d is already negotiating. Aborting"
-         " self-initiated negotiation.\n",
+         " self-initiated negotiation - 1.\n",
          pctx->my_rank);
 
     return;
@@ -47,36 +75,35 @@ void range_init_negotiation(preload_ctx_t *pctx) {
    * a renego initiated by someone else, we just don't
    * know of it */
 
-  std::lock_guard<std::mutex> balg(pctx->rctx.bin_access_m);
-
   // if (!(rctx->range_state == range_state_t::RS_INIT) &&
   // !(rctx->range_state == range_state_t::RS_READY)) {
   // return;
   // }
-  if (RANGE_IS_RENEGO(rctx)) {
-    /* we are already renegotiating */
-    logf(LOG_INFO,
-         "Rank %d is already negotiating. Aborting"
-         " self-initiated negotiation.\n",
-         pctx->my_rank);
-    return;
-  }
+  // if (RANGE_IS_RENEGO(rctx)) {
+  // [> we are already renegotiating <]
+  // logf(LOG_INFO,
+  // "Rank %d is already negotiating. Aborting"
+  // " self-initiated negotiation.\n",
+  // pctx->my_rank);
+  // return;
+  // }
 
   rctx->range_state_prev = rctx->range_state;
   rctx->range_state = range_state_t::RS_RENEGO;
   rctx->ranks_responded = 0;
 
+  /* We no longer send RENEG_BEGIN */
   // Broadcast range state to everyone
-  char msg[12];
-  uint32_t msg_sz = msgfmt_encode_reneg_begin(
-      msg, 12, rctx->neg_round_num.load(), pctx->my_rank);
+  // char msg[12];
+  // uint32_t msg_sz = msgfmt_encode_reneg_begin(
+  // msg, 12, rctx->neg_round_num.load(), pctx->my_rank);
 
-  if (sctx->type == SHUFFLE_XN) {
-    /* send to all NOT including self */
-    send_all_to_all(sctx, msg, msg_sz, pctx->my_rank, pctx->comm_sz);
-  } else {
-    ABORT("Only 3-hop shuffler supported by range-indexer");
-  }
+  // if (sctx->type == SHUFFLE_XN) {
+  // [> send to all NOT including self <]
+  // send_all_to_all(sctx, msg, msg_sz, pctx->my_rank, pctx->comm_sz);
+  // } else {
+  // ABORT("Only 3-hop shuffler supported by range-indexer");
+  // }
 
   std::lock_guard<std::mutex> salg(pctx->rctx.snapshot_access_m);
   range_collect_and_send_pivots(rctx, sctx);
@@ -95,12 +122,12 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx) {
   uint32_t msg_sz = msgfmt_nbytes_reneg_pivots(RANGE_NUM_PIVOTS);
 
   char pivot_msg[msg_sz];
-  msgfmt_encode_reneg_pivots(pivot_msg, msg_sz, rctx->neg_round_num.load(),
+  msgfmt_encode_reneg_pivots(pivot_msg, msg_sz, rctx->pvt_round_num.load(),
                              rctx->my_pivots, rctx->pivot_width,
                              RANGE_NUM_PIVOTS);
 
   /* send to all including self */
-  send_all_to_all(sctx, pivot_msg, msg_sz, pctx.my_rank, pctx.comm_sz, true);
+  send_all_to_all(sctx, pivot_msg, msg_sz, pctx.my_rank, pctx.comm_sz, true, 1);
 }
 
 void range_handle_reneg_begin(char *buf, unsigned int buf_sz) {
@@ -112,51 +139,79 @@ void range_handle_reneg_begin(char *buf, unsigned int buf_sz) {
 
   logf(LOG_INFO,
        "At %d, Received RENEG initiation from Rank %d (theirs %d, ours %d)\n",
-       pctx.my_rank, reneg_rank, round_num, pctx.rctx.neg_round_num.load());
+       pctx.my_rank, reneg_rank, round_num, pctx.rctx.pvt_round_num.load());
 
   /* Cheap check without acquiring the lock */
   if (range_state_t::RS_RENEGO == pctx.rctx.range_state) {
     logf(LOG_INFO,
          "Rank %d received multiple RENEGO reqs. DROPPING"
          " (theirs: %d, ours: %d)\n",
-         pctx.my_rank, round_num, pctx.rctx.neg_round_num.load());
+         pctx.my_rank, round_num, pctx.rctx.pvt_round_num.load());
 
-    if (round_num > pctx.rctx.neg_round_num) {
+    if (round_num > pctx.rctx.pvt_round_num) {
       logf(LOG_ERRO,
            "Rank %d received BEGIN_RENEGO from %d for next round"
            " (theirs: %d, ours: %d)\n",
-           pctx.my_rank, reneg_rank, round_num, pctx.rctx.neg_round_num.load());
+           pctx.my_rank, reneg_rank, round_num, pctx.rctx.pvt_round_num.load());
       ABORT("panic");
     }
 
     return;
   }
 
-  std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
+  {
+    std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
-  if (range_state_t::RS_RENEGO == pctx.rctx.range_state) {
-    logf(LOG_INFO,
-         "Rank %d - looks like we started our our RENEGO concurrently. "
-         "DROPPING received RENEG request (theirs: %d, ours:  %d)\n",
-         pctx.my_rank, round_num, pctx.rctx.neg_round_num.load());
+    if (range_state_t::RS_RENEGO == pctx.rctx.range_state) {
+      logf(LOG_INFO,
+           "Rank %d - looks like we started our our RENEGO concurrently. "
+           "DROPPING received RENEG request (theirs: %d, ours:  %d)\n",
+           pctx.my_rank, round_num, pctx.rctx.pvt_round_num.load());
 
-    if (round_num > pctx.rctx.neg_round_num) {
-      logf(LOG_ERRO,
-           "Rank %d received BEGIN_RENEGO from %d for next round"
-           " (theirs: %d, ours: %d)\n",
-           pctx.my_rank, reneg_rank, round_num, pctx.rctx.neg_round_num.load());
-      ABORT("panic");
+      if (round_num > pctx.rctx.ack_round_num) {
+        logf(LOG_ERRO,
+             "Rank %d received BEGIN_RENEGO from %d for next round"
+             " (theirs: %d, ours: %d)\n",
+             pctx.my_rank, reneg_rank, round_num,
+             pctx.rctx.pvt_round_num.load());
+        ABORT("panic");
+      }
+
+      return;
     }
 
-    return;
+    pctx.rctx.range_state = range_state_t::RS_RENEGO;
+    // pctx.rctx.ranks_responded = 0;
+    //
+    // pctx.rctx.ranks_acked_count += pctx.rctx.ranks_acked_count_next.load();
+    // for (int idx = 0; idx < pctx.comm_sz; idx++) {
+    // if (pctx.rctx.ranks_acked_next[idx]) {
+    // pctx.rctx.ranks_acked[idx] = true;
+    // }
+    // // pctx.rctx.ranks_acked[idx] |= pctx.rctx.ranks_acked_next[idx];
+    // }
+
+    // fprintf(stderr, "At Rank %d, Ack Count Incremented: %d (+ %d)\n",
+    // pctx.rctx.ranks_acked_count.load(),
+    // pctx.rctx.ranks_acked_count_next.load());
+
+    // std::fill(pctx.rctx.ranks_acked_next.begin(),
+    // pctx.rctx.ranks_acked_next.end(), false);
+    // pctx.rctx.ranks_acked_count_next = 0;
+
+    {
+      std::lock_guard<std::mutex> salg(pctx.rctx.snapshot_access_m);
+      range_collect_and_send_pivots(&(pctx.rctx), &(pctx.sctx));
+    }
+
+    if (pctx.rctx.ranks_responded.load() == pctx.comm_sz) {
+      logf(LOG_INFO,
+           "Delayed RENEG BEGIN - Rank %d immediately ready to update its "
+           "bins\n",
+           pctx.my_rank);
+      recalculate_local_bins();
+    }
   }
-
-  pctx.rctx.range_state = range_state_t::RS_RENEGO;
-
-  pctx.rctx.ranks_responded = 0;
-
-  std::lock_guard<std::mutex> salg(pctx.rctx.snapshot_access_m);
-  range_collect_and_send_pivots(&(pctx.rctx), &(pctx.sctx));
 }
 
 void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
@@ -173,48 +228,103 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
   msgfmt_parse_reneg_pivots(buf, buf_sz, &round_num, &pivots, &pivot_width,
                             &num_pivots);
 
+  int comm_sz;
+  int ranks_responded;
+  range_state_t state;
+
+  /* Goal of ACKs is to guarantee that once you see a RANGE_PIVOT_R+1 message,
+   * you'll never see another RANGE_PIVOT_R message. _ALL_ other message
+   * reorderings are possible
+   */
+
   {
     std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
-    if (range_state_t::RS_RENEGO != pctx.rctx.range_state) {
-      /* panic - this should not happen. did messages arrive
-       * out of order or something? */
-      logf(LOG_ERRO,
+    // if (range_state_t::RS_RENEGO != pctx.rctx.range_state) {
+    range_ctx_t *rptr = &(pctx.rctx);
+    if ((RANGE_IS_READY(rptr))
+        || (RANGE_IS_INIT(rptr))
+        || (RANGE_IS_ACK(rptr))) {
+      /* first pivot of new round */
+
+      /* We can't enter here on BLOCKED.  */
+
+      logf(LOG_INFO,
            "Rank %d received pivots when we were not in RENEGO phase "
-           "(theirs: %d, ours: %d)\n",
-           pctx.my_rank, round_num, pctx.rctx.neg_round_num.load());
-      ABORT("Inconsistency panic");
+           "(theirs: %d, ours: %d). Buffering (PS: %s)\n",
+           // pctx.my_rank, round_num, pctx.rctx.neg_round_num.load());
+           pctx.my_rank, round_num, pctx.rctx.pvt_round_num.load(),
+           print_state(pctx.rctx.range_state));
+
+      /* XXX: should be exactly equal, but we are testing for
+       * "can't be less than" for now
+       */
+      assert(round_num >= pctx.rctx.pvt_round_num.load());
+
+      /* Implicit reneg begin */
+      std::lock_guard<std::mutex> salg(pctx.rctx.snapshot_access_m);
+      pctx.rctx.range_state_prev = pctx.rctx.range_state;
+      pctx.rctx.range_state = range_state_t::RS_RENEGO;
+      pctx.rctx.ranks_responded = 0;
+      range_collect_and_send_pivots(&(pctx.rctx), &(pctx.sctx));
+    } else {
+      assert(RANGE_IS_RENEGO((&(pctx.rctx))));
     }
-  }
 
-  logf(LOG_INFO,
-       "Rank %d received %d pivots: %.1f to %.1f \
+    logf(LOG_INFO,
+         "Rank %d received %d pivots: %.1f to %.1f \
       (theirs: %d, ours: %d)\n",
-       pctx.my_rank, num_pivots, pivots[0], pivots[num_pivots - 1], round_num,
-       pctx.rctx.neg_round_num.load());
+         pctx.my_rank, num_pivots, pivots[0], pivots[num_pivots - 1], round_num,
+         pctx.rctx.pvt_round_num.load());
 
-  logf(LOG_INFO, "Pivots: %.1f, %.1f, %.1f, %.1f\n", pivots[0], pivots[1],
-       pivots[2], pivots[3]);
+    /* can't ever receive pivots of next round as they
+     * are separated by acks */
+    if (round_num != pctx.rctx.pvt_round_num.load()) {
+      ABORT("Invalid pivot order!");
+    }
 
-  int our_offset = src_rank * RANGE_NUM_PIVOTS;
-  std::copy(pivots, pivots + num_pivots,
-            pctx.rctx.all_pivots.begin() + our_offset);
-  pctx.rctx.all_pivot_widths[src_rank] = pivot_width;
+    logf(LOG_INFO, "Pivots: %.1f, %.1f, %.1f, %.1f\n", pivots[0], pivots[1],
+         pivots[2], pivots[3]);
+
+    int our_offset = src_rank * RANGE_NUM_PIVOTS;
+    std::copy(pivots, pivots + num_pivots,
+              pctx.rctx.all_pivots.begin() + our_offset);
+    pctx.rctx.all_pivot_widths[src_rank] = pivot_width;
 
 #ifdef RANGE_DEBUG
-  for (int i = 0; i < num_pivots; i++) {
-    fprintf(stderr, "Range pivot: %.1f\n",
-            pctx.rctx.all_pivots[src_rank * RANGE_NUM_PIVOTS + i]);
-  }
+    for (int i = 0; i < num_pivots; i++) {
+      fprintf(stderr, "Range pivot: %.1f\n",
+              pctx.rctx.all_pivots[src_rank * RANGE_NUM_PIVOTS + i]);
+    }
 #endif
 
-  pctx.rctx.ranks_responded++;
+    pctx.rctx.ranks_responded++;
+
+    assert(pctx.rctx.ranks_responded.load() <= pctx.comm_sz);
+
+    comm_sz = pctx.comm_sz;
+    state = pctx.rctx.range_state;
+    ranks_responded = pctx.rctx.ranks_responded.load();
+  }
+
+  // XXX: here be dragons. We assume that all RPC handlers are serialized
+  // by the delivery thread. handlers ARE NOT thread safe w/ each other
+  // they're only thread safe w/ non-RPC threads
+  //
+  // 3hop does not pre-empt handlers to invoke another. but if it did, we'd
+  // have a problem
 
   logf(LOG_INFO, "Rank %d received %d pivot sets thus far\n", pctx.my_rank,
        pctx.rctx.ranks_responded.load());
-  if (pctx.rctx.ranks_responded == pctx.comm_sz) {
+  if (ranks_responded == comm_sz) {
+    assert(range_state_t::RS_RENEGO == state);
     logf(LOG_INFO, "Rank %d ready to update its bins\n", pctx.my_rank);
     recalculate_local_bins();
+  } else if (ranks_responded == comm_sz) {
+    logf(LOG_INFO,
+         "Rank %d ready to update its bins but BEGIN RENEG"
+         " not received.",
+         pctx.my_rank);
   }
 }
 
@@ -286,15 +396,17 @@ void recalculate_local_bins() {
     std::vector<float> &f = pctx.rctx.rank_bins;
     fprintf(stderr, "RankSample%d, %.1f %.1f %.1f\n", pctx.my_rank, f[0], f[1],
             f[2]);
-    // pctx.rctx.neg_round_num++;
-    // pctx.rctx.range_state_prev = pctx.rctx.range_state;
-    // pctx.rctx.range_state = range_state_t::RS_READY;
+    pctx.rctx.pvt_round_num++;
+    pctx.rctx.range_state_prev = pctx.rctx.range_state;
+    pctx.rctx.range_state = range_state_t::RS_ACK;
   } /* lock guard scope end */
 
   // shouldn't be more than one waiter anyway
   logf(LOG_INFO, "Rank %d updated its bins. Sending acks now\n", pctx.my_rank);
+  assert(pctx.rctx.range_state != range_state_t::RS_READY);
   // pctx.rctx.block_writes_cv.notify_all();
   send_all_acks();
+  // pctx.rctx.neg_round_num++;
 }
 
 /* XXX: This function does not grab locks for most of its operation,
@@ -304,12 +416,12 @@ void recalculate_local_bins() {
  * current status is RS_RENEGO, and the main thread also remains blocked
  */
 void send_all_acks() {
-  assert(range_state_t::RS_RENEGO == pctx.rctx.range_state);
+  assert(range_state_t::RS_ACK == pctx.rctx.range_state);
 
   shuffle_ctx_t *sctx = &(pctx.sctx);
 
   char buf[255];
-  msgfmt_encode_ack(buf, 255, pctx.my_rank, pctx.rctx.neg_round_num);
+  msgfmt_encode_ack(buf, 255, pctx.my_rank, pctx.rctx.ack_round_num);
 
   /* if send_to_self is false, the all_acks_rcvd condition might be
    * satisfied in this function itself. Setting it to true ensures it
@@ -317,8 +429,8 @@ void send_all_acks() {
    */
   if (sctx->type == SHUFFLE_XN) {
     /* send to all INCLUDING self */
-    logf(LOG_INFO, "Rank %d sending RENEG ACKs to-all", pctx.my_rank);
-    send_all_to_all(sctx, buf, 255, pctx.my_rank, pctx.comm_sz, true);
+    // logf(LOG_INFO, "Rank %d sending RENEG ACKs to-all", pctx.my_rank);
+    send_all_to_all(sctx, buf, 255, pctx.my_rank, pctx.comm_sz, true, 2);
   } else {
     ABORT("Only 3-hop shuffler supported by range-indexer");
   }
@@ -337,11 +449,10 @@ void send_all_acks() {
 // #define IS_RNUM_VALID(theirs, ours, rctx) \
   // ((IS_NEGOTIATING(rctx) && ((theirs == ours) || (theirs == ours + 1)) \
   // || (IS_NOT_NEGOTIATING(rctx) && (theirs == ours - 1)))
-  //
-  //
-#define IS_RNUM_VALID(theirs, ours, rctx) \
- ((theirs == ours) || (theirs == ours + 1))
-
+//
+//
+#define IS_ACK_RNUM_VALID(theirs, ours, rctx) \
+  ((theirs == ours) || (theirs == ours + 1))
 
 void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   int srank;
@@ -349,18 +460,25 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
 
   msgfmt_parse_ack(buf, buf_sz, &srank, &sround_num);
 
-  logf(LOG_INFO, "Rank %d rcvd RENEG ACK from %d for R%d\n", pctx.my_rank,
-       srank, sround_num);
-
   std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
+  logf(LOG_INFO, "Rank %d rcvd RENEG ACK from %d for R%d/%d\n", pctx.my_rank,
+       srank, sround_num, pctx.rctx.ack_round_num.load());
+
   // if (sround_num != pctx.rctx.neg_round_num.load()) {
-  int round_num = pctx.rctx.neg_round_num.load();
-  // if (!IS_RNUM_VALID(sround_num, pctx.rctx.neg_round_num.load(), pctx.rctx)) {
-  if (!IS_RNUM_VALID(sround_num, round_num, pctx.rctx)) {
+  int round_num = pctx.rctx.ack_round_num.load();
+
+  int pvt_round_num = pctx.rctx.pvt_round_num.load();
+  int round_delta = pvt_round_num - round_num;
+  assert(round_delta >= 0 && round_delta <= 1);
+
+  // round_num -= 1;  // because we increment it after sending acks
+  // if (!IS_RNUM_VALID(sround_num, pctx.rctx.neg_round_num.load(), pctx.rctx))
+  // {
+  if (!IS_ACK_RNUM_VALID(sround_num, round_num, pctx.rctx)) {
     logf(LOG_ERRO,
          "Rank %d rcvd R+1 RENEG ACK from %d for R%d (ours: %d, %s)\n",
-         pctx.my_rank, srank, sround_num, pctx.rctx.neg_round_num.load(),
+         pctx.my_rank, srank, sround_num, pctx.rctx.ack_round_num.load(),
          pctx.rctx.range_state == range_state_t::RS_RENEGO ? "RENEGO"
                                                            : "NOT RENEGO");
 
@@ -383,36 +501,78 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
     }
     pctx.rctx.ranks_acked_next[srank] = true;
     pctx.rctx.ranks_acked_count_next++;
-  } else if(sround_num == round_num) {
+
+    /* If we're still in ACK barrier R, ACK barrier R+1 should
+     * never be complete, as it will always be waiting for our own
+     * ACK */
+    assert(pctx.rctx.ranks_acked_count_next < pctx.comm_sz);
+
+    fprintf(stderr,
+            "At Rank %d, Ack UNEXPECTED_1 (%d/%d from %d)"
+            " Count: %d!!\n",
+            pctx.my_rank, sround_num, round_num + 1, srank,
+            pctx.rctx.ranks_acked_count_next.load());
+
+  } else if (sround_num == round_num) {
     if (pctx.rctx.ranks_acked[srank]) {
       logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
            pctx.my_rank, srank);
 
       ABORT("Duplicate ACK");
     }
+
+    fprintf(stderr, "At Rank %d, Ack Count: %d, sround_num: %d/%d from %d\n",
+            pctx.my_rank, pctx.rctx.ranks_acked_count.load(), sround_num,
+            round_num, srank);
+
     pctx.rctx.ranks_acked[srank] = true;
     pctx.rctx.ranks_acked_count++;
   } else {
-    ABORT("panic"); // paranoid check
+    fprintf(stderr, "At Rank %d, Ack UNEXPECTED_2!!\n", pctx.my_rank);
+    ABORT("panic");  // paranoid check
   }
 
   /* ACKs sent to everyone INCLUDING self */
   if (pctx.rctx.ranks_acked_count == pctx.comm_sz) {
     std::copy(pctx.rctx.ranks_acked_next.begin(),
-        pctx.rctx.ranks_acked_next.end(),
-        pctx.rctx.ranks_acked.begin());
+              pctx.rctx.ranks_acked_next.end(), pctx.rctx.ranks_acked.begin());
 
     std::fill(pctx.rctx.ranks_acked_next.begin(),
-        pctx.rctx.ranks_acked_next.end(), false);
+              pctx.rctx.ranks_acked_next.end(), false);
 
     pctx.rctx.ranks_acked_count = pctx.rctx.ranks_acked_count_next.load();
     pctx.rctx.ranks_acked_count_next = 0;
 
-    pctx.rctx.neg_round_num++;
-    pctx.rctx.range_state_prev = pctx.rctx.range_state;
-    pctx.rctx.range_state = range_state_t::RS_READY;
-    pctx.rctx.block_writes_cv.notify_all();
+    fprintf(stdout, "At Rank %d, transferring %d pre-acks\n", pctx.my_rank,
+            pctx.rctx.ranks_acked_count_next.load());
+    fprintf(stdout, "At Rank %d, Waking up main thread\n", pctx.my_rank);
+
+    pctx.rctx.ack_round_num++;
+
+    /* Ack Round is over - whom to transfer back control to?
+     * Case 1. No more renegs were started
+     * > To shuffle thread
+     * Case 2. Someone already forced us into next reneg round
+     * > don't do anything?
+     */
+
+    if (pctx.rctx.range_state == range_state_t::RS_ACK) {
+      /* Everything was blocked on us */
+      pctx.rctx.range_state_prev = pctx.rctx.range_state;
+      pctx.rctx.range_state = range_state_t::RS_READY;
+      pctx.rctx.block_writes_cv.notify_all();
+      /* Note that from here on, either a new RENEG_PIVOT or MT can win
+       * both of which should be, (and hopefully are) okay
+       */
+    } else if (pctx.rctx.range_state == range_state_t::RS_RENEGO) {
+      /* someone forced us into R+1. Last ACK_R handler should do nothing? */
+    } else {
+      ABORT("Last ACK handler saw unexpected state");
+    }
   }
+
+  // fprintf(stderr, "handler %d.%d completed\n", pctx.my_rank, handler_id);
+  return;
 }
 
 bool comp_particle(const particle_mem_t &a, const particle_mem_t &b) {
@@ -655,12 +815,10 @@ void get_local_pivots(range_ctx_t *rctx) {
 
 /* Move to shuffler? */
 void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
-                     int my_rank, int comm_sz, bool send_to_self) {
+                     int my_rank, int comm_sz, bool send_to_self, int label) {
   for (int drank = 0; drank < comm_sz; drank++) {
     if (!send_to_self && drank == my_rank) continue;
-#ifdef RANGE_DEBUG
-    fprintf(stderr, "All to all from %d to %d\n", my_rank, drank);
-#endif
+    fprintf(stderr, "All to all: %d from %d to %d\n", label, my_rank, drank);
     xn_shuffler_priority_send(static_cast<xn_ctx_t *>(ctx->rep), buf, buf_sz,
                               num_eps - 1, drank, my_rank);
   }

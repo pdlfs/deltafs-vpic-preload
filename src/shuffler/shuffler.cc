@@ -875,7 +875,9 @@ shuffler_t shuffler_init(nexus_ctx_t nxp, char *funname,
   }
 
   myrank = nexus_global_rank(nxp);
-  shuffler_openlog(myrank);
+
+  if (!start_nwthreads_flag)
+    shuffler_openlog(myrank);
 
   mlog(SHUF_CALL,
        "shuffler_init maxrpc(lo/lr/r)=%d/%d/%d targ(lo/lr/r)=%d/%d/%d",

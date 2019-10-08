@@ -834,7 +834,16 @@ int MPI_Init(int* argc, char*** argv) {
 
   /* Round number is never reset, it keeps monotonically increasing
    * even through all the epochs */
-  rctx->neg_round_num = 0;
+  rctx->nneg_round_num = 0;
+
+  rctx->pvt_round_num = 0;
+  rctx->ack_round_num = 0;
+
+  /* Ranks_responded is reset after the end of the previous round
+   * because when the next round starts is ambiguous and either
+   * a RENEG ACK or a RENEG PIVOT can initiate the next round
+   */
+  rctx->ranks_responded = 0;
 
   rctx->ranks_acked_count = 0;
   rctx->ranks_acked_count_next = 0;

@@ -25,6 +25,8 @@
 #define RANGE_IS_INIT(x) (x->range_state == range_state_t::RS_INIT)
 #define RANGE_IS_READY(x) (x->range_state == range_state_t::RS_READY)
 #define RANGE_IS_RENEGO(x) (x->range_state == range_state_t::RS_RENEGO)
+#define RANGE_IS_BLOCKED(x) (x->range_state == range_state_t::RS_BLOCKED)
+#define RANGE_IS_ACK(x) (x->range_state == range_state_t::RS_ACK)
 
 #define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == RANGE_MAX_OOB_THRESHOLD)
 #define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == RANGE_MAX_OOB_THRESHOLD)
@@ -47,10 +49,6 @@ typedef struct particle_mem {
 
 /* Allowed transitions:
  * INIT -> RENEGO
- * INIT -> BLOCKED
- * RENEGO -> READY
- * BLOCKED -> READY
- * READY -> BLOCKED
  * READY -> RENEGO
  */
 enum class range_state_t {
@@ -59,7 +57,8 @@ enum class range_state_t {
   RS_RENEGO, /* currently in the middle of an active renegotn */
  /* we need a renegotiation but one hasn't been triggered
   * for some reason. writer sets this as soon as OOB buffers max out */
-  RS_BLOCKED
+  RS_ACK,
+  RS_BLOCKED, /* don't really need this but verify */
 };
 
 enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
@@ -69,7 +68,11 @@ typedef struct range_ctx {
 
   /* Current/next negotiation round number
    * (use range_state to check if you're in a negotiation round */
-  std::atomic<int> neg_round_num;
+  std::atomic<int> nneg_round_num;
+
+  /* assert 0 <= (pvt - ack) <= 1 */
+  std::atomic<int> pvt_round_num;
+  std::atomic<int> ack_round_num;
 
   int ts_writes_received;
   int ts_writes_shuffled;

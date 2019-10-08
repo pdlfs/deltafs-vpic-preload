@@ -56,6 +56,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <signal.h>
 
 typedef struct shuffle_ctx {
   /* internal shuffle impl */

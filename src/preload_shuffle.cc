@@ -413,7 +413,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
       logf(LOG_ERRO,
            "Flushed particle lies out-of-bounds!"
            " Don't know what to do. Dropping particle");
-      ABORT("panic");
+      // ABORT("panic");
       continue;  // drop this particle
     }
     int peer_rank = shuffle_data_target(p.indexed_prop);
@@ -429,7 +429,6 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
     rctx->rank_bin_count[peer_rank]++;
 
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
-    // TODO: copy everything
     xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
                         epoch, peer_rank, pctx.my_rank);
   }
@@ -446,7 +445,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
       logf(LOG_ERRO,
            "Flushed particle lies out-of-bounds!"
            " Don't know what to do. Dropping particle");
-      ABORT("panic");
+      // ABORT("panic");
       continue;  // drop this particle
     }
     int peer_rank = shuffle_data_target(p.indexed_prop);
@@ -470,6 +469,16 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 
 void send_all_acks();
 
+void sigusr1(int foo) {
+  fprintf(stderr, "Received SIGUSR at Rank %d\n", pctx.my_rank);
+  xn_ctx_t *xctx = static_cast<xn_ctx_t *>(pctx.sctx.rep);
+  shuffler_statedump(xctx->psh, 0);
+  exit(0);
+}
+
+void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
+                     int my_rank, int comm_sz, bool send_to_self);
+
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
                   unsigned char fname_len, char* data, unsigned char data_len,
                   int epoch) {
@@ -482,23 +491,30 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
 #define TEST_START 1
 
-  fprintf(stderr, "======> TESTING ACKs @ %d <==========\n", pctx.my_rank);
+  // signal(SIGUSR1, sigusr1);
 
-  for (int ack_no = 0; ack_no < 1000; ack_no++) {
-    fprintf(stdout, "At Rank %d, Ack#: %d\n", pctx.my_rank, ack_no);
-    rctx->range_state = range_state_t::RS_RENEGO;
-    send_all_acks();
+  // fprintf(stderr, "======> TESTING ACKs @ %d <==========\n", pctx.my_rank);
 
-    std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
+  // for (int ack_no = 0; ack_no < 1; ack_no++) {
+    // if (1 || ack_no % 1000 == 0) {
+      // fprintf(stdout, "At Rank %d, Ack Start#: %d\n", pctx.my_rank, ack_no);
+    // }
+    // rctx->range_state = range_state_t::RS_RENEGO;
+    // send_all_acks();
 
-    rctx->block_writes_cv.wait(ulock, [] {
-      /* having a condition ensures we ignore spurious wakes */
-      return (pctx.rctx.range_state == range_state_t::RS_READY);
-    });
-  }
+    // std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
+    // rctx->block_writes_cv.wait(ulock, [] {
+      // // [> having a condition ensures we ignore spurious wakes <]
+      // return (pctx.rctx.range_state == range_state_t::RS_READY);
+    // });
 
-  fprintf(stderr, "======> RETURNING ACKs @ %d <==========\n", pctx.my_rank);
-  return 0;
+    // if (1 || ack_no % 1000 == 0) {
+      // fprintf(stdout, "At Rank %d, Ack Complete#: %d\n", pctx.my_rank, ack_no);
+    // }
+  // }
+
+  // fprintf(stderr, "======> RETURNING ACKs @ %d <==========\n", pctx.my_rank);
+  // return 0;
 
 #define TEST_END 1
 
@@ -596,10 +612,17 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
     /* we change the range state to prevent the CV from returning
      * immediately */
-    if (range_state_t::RS_READY == pctx.rctx.range_state) {
-      pctx.rctx.range_state = range_state_t::RS_BLOCKED;
-      pctx.rctx.range_state_prev = range_state_t::RS_READY;
-    }
+    // if (range_state_t::RS_READY == pctx.rctx.range_state) {
+      // pctx.rctx.range_state = range_state_t::RS_BLOCKED;
+      // pctx.rctx.range_state_prev = range_state_t::RS_READY;
+    // }
+
+    /* Since we've called a RENEG, either we'll go into the RENEG
+     * state, or we're already in a RENEG/ACK state. Implies moving
+     * away from READY/INIT
+     */
+    range_ctx_t *rptr = &(pctx.rctx);
+    assert(!(RANGE_IS_READY(rptr) || RANGE_IS_INIT(rptr)));
 
     rctx->block_writes_cv.wait(ulock, [] {
       /* having a condition ensures we ignore spurious wakes */
@@ -674,8 +697,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
-  fprintf(stderr, "At DEST: %d, RCVD from %d, P: %02x%02x%02x\n", dst, src,
-          buf[0], buf[1], buf[2]);
+  // fprintf(stderr, "At DEST: %d, RCVD from %d, P: %02x%02x%02x\n", dst, src,
+          // buf[0], buf[1], buf[2]);
 
   char msg_type = msgfmt_get_msgtype(buf);
   switch (msg_type) {
@@ -689,7 +712,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
       range_handle_reneg_pivots(buf, buf_sz, src);
       return 0;
     case MSGFMT_RENEG_ACK:
-      fprintf(stderr, "Rank %d received RENEG ACK\n", pctx.my_rank);
+      // fprintf(stderr, "Rank %d received RENEG ACK\n", pctx.my_rank);
       range_handle_reneg_acks(buf, buf_sz);
       return 0;
     default:
