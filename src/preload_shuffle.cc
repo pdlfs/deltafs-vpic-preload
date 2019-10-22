@@ -53,6 +53,32 @@
 #include "common.h"
 #include "msgfmt.h"
 
+char buf_type_buf[256];
+
+char *print_buf_type(buf_type_t bt) {
+  switch (bt) {
+    case buf_type_t::RB_BUF_LEFT:
+      snprintf(buf_type_buf, 256, "RB_BUF_LEFT");
+      break;
+    case buf_type_t::RB_BUF_RIGHT:
+      snprintf(buf_type_buf, 256, "RB_BUF_RIGHT");
+      break;
+    case buf_type_t::RB_NO_BUF:
+      snprintf(buf_type_buf, 256, "RB_NO_BUF");
+      break;
+    case buf_type_t::RB_UNDECIDED:
+      snprintf(buf_type_buf, 256, "RB_UNDECIDED");
+      break;
+    default:
+      snprintf(buf_type_buf, 256, "RB_BUF_TYPE UNKNOWN!");
+      break;
+  }
+
+  return buf_type_buf;
+}
+
+
+
 namespace {
 void shuffle_prepare_sm_uri(char* buf, const char* proto) {
   int min_port, max_port;
@@ -411,8 +437,9 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
     if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
       // should never happen since we flush after a reneg
       logf(LOG_ERRO,
-           "Flushed particle lies out-of-bounds!"
-           " Don't know what to do. Dropping particle");
+           "Flushed particle %f @ %d lies out-of-bounds!"
+           " Don't know what to do. Dropping particle",
+           pctx.my_rank, p.indexed_prop);
       // ABORT("panic");
       continue;  // drop this particle
     }
@@ -428,7 +455,9 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 
     rctx->rank_bin_count[peer_rank]++;
 
+#ifdef RANGE_DEBUG
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
+#endif
     xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
                         epoch, peer_rank, pctx.my_rank);
   }
@@ -438,8 +467,10 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
   int oob_count_right = rctx->oob_count_right;
   for (int oidx = oob_count_right - 1; oidx >= 0; oidx--) {
     particle_mem_t& p = rctx->oob_buffer_right[oidx];
+#ifdef RANGE_DEBUG
     fprintf(stderr, "Rank %d, flushing particle with energy %.1f\n",
             pctx.my_rank, p.indexed_prop);
+#endif
     if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
       // should never happen since we flush after a reneg
       logf(LOG_ERRO,
@@ -455,7 +486,9 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
       return 0;
     }
 
+#ifdef RANGE_DEBUG
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
+#endif
     // TODO: copy everything
     xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
                         epoch, peer_rank, pctx.my_rank);
@@ -463,20 +496,22 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 
   rctx->oob_count_right = 0;
 
+#ifdef RANGE_DEBUG
   fprintf(stderr, "Returning from flush-rank %d (%d/%d)\n", pctx.my_rank,
           rctx->oob_count_left, rctx->oob_count_right);
+#endif
 }
 
 void send_all_acks();
 
 void sigusr1(int foo) {
   fprintf(stderr, "Received SIGUSR at Rank %d\n", pctx.my_rank);
-  xn_ctx_t *xctx = static_cast<xn_ctx_t *>(pctx.sctx.rep);
+  xn_ctx_t* xctx = static_cast<xn_ctx_t*>(pctx.sctx.rep);
   shuffler_statedump(xctx->psh, 0);
   exit(0);
 }
 
-void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
+void send_all_to_all(shuffle_ctx_t* ctx, char* buf, uint32_t buf_sz,
                      int my_rank, int comm_sz, bool send_to_self);
 
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
@@ -488,35 +523,6 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   int rv;
 
   range_ctx_t* rctx = &pctx.rctx;
-
-#define TEST_START 1
-
-  // signal(SIGUSR1, sigusr1);
-
-  // fprintf(stderr, "======> TESTING ACKs @ %d <==========\n", pctx.my_rank);
-
-  // for (int ack_no = 0; ack_no < 1; ack_no++) {
-    // if (1 || ack_no % 1000 == 0) {
-      // fprintf(stdout, "At Rank %d, Ack Start#: %d\n", pctx.my_rank, ack_no);
-    // }
-    // rctx->range_state = range_state_t::RS_RENEGO;
-    // send_all_acks();
-
-    // std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
-    // rctx->block_writes_cv.wait(ulock, [] {
-      // // [> having a condition ensures we ignore spurious wakes <]
-      // return (pctx.rctx.range_state == range_state_t::RS_READY);
-    // });
-
-    // if (1 || ack_no % 1000 == 0) {
-      // fprintf(stdout, "At Rank %d, Ack Complete#: %d\n", pctx.my_rank, ack_no);
-    // }
-  // }
-
-  // fprintf(stderr, "======> RETURNING ACKs @ %d <==========\n", pctx.my_rank);
-  // return 0;
-
-#define TEST_END 1
 
   rctx->ts_writes_received++;
 
@@ -534,6 +540,15 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
       static_cast<float>(get_indexable_property(data, data_len));
 
   // fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
+  
+  std::unique_lock<std::mutex> bin_access_ul(rctx->bin_access_m);
+
+  if (!(RANGE_IS_READY(rctx) || RANGE_IS_INIT(rctx))) {
+    rctx->block_writes_cv.wait(bin_access_ul, [] {
+      /* having a condition ensures we ignore spurious wakes */
+      return (pctx.rctx.range_state == range_state_t::RS_READY);
+    });
+  }
 
   buf_type_t buf_type = buf_type_t::RB_NO_BUF;
 
@@ -554,21 +569,22 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     return -10;  // XXX: lie
   }
 
+  /* In the init state, we always buffer particles into oob_left
+   * We can buffer them into left + right for more sampling before
+   * negotn is triggered, but that would require a cross-buffer sorting
+   * phase, so we just use oob_left as long as state is RS_INIT
+   */
   if (rctx->range_state == range_state_t::RS_INIT) {
-    /* In the init state, we always buffer particles into oob_left
-     * We can buffer them into left + right for more sampling before
-     * negotn is triggered, but that would require a cross-buffer sorting
-     * phase, so we just use oob_left as long as state is RS_INIT
-     */
     buf_type = buf_type_t::RB_BUF_LEFT;
-  } else if (rctx->range_state == range_state_t::RS_RENEGO) {
-    buf_type = buf_type_t::RB_NO_BUF;
   } else if (indexed_property < rctx->range_min) {
+    assert(RANGE_IS_READY(rctx));
     buf_type = buf_type_t::RB_BUF_LEFT;
   } else if (indexed_property > rctx->range_max) {
+    assert(RANGE_IS_READY(rctx));
     buf_type = buf_type_t::RB_BUF_RIGHT;
   } else {
-    buf_type = buf_type_t::RB_UNDECIDED;
+    assert(RANGE_IS_READY(rctx));
+    buf_type = buf_type_t::RB_NO_BUF;
   }
 
   if (buf_type == buf_type_t::RB_BUF_LEFT) {
@@ -595,8 +611,11 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
                                ctx->extra_data_len);
   }
 
-  fprintf(stderr, "shuffle_write main: r%d (%d/%d), ip: %.1f\n", pctx.my_rank,
-          rctx->oob_count_left, rctx->oob_count_right, indexed_property);
+  fprintf(stderr, "shuffle_write main: r%d (%d/%d), ip: %.1f, bt: %s\n",
+          pctx.my_rank, rctx->oob_count_left, rctx->oob_count_right,
+          indexed_property, print_buf_type(buf_type));
+#ifdef RANGE_DEBUG
+#endif
 
   // XXX: temp until range is working
   // buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
@@ -604,36 +623,35 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
     /* Buffering caused OOB_MAX, renegotiate */
-    // for (int iii = 0; iii < 100; iii++) {
-    fprintf(stderr, "--------- NEED RENEGO @ R%d ----------\n", pctx.my_rank);
-    // if (0 == pctx.my_rank)
+    bin_access_ul.unlock();
+    /* Allow the range code access the lock */
     range_init_negotiation(&pctx);
-    std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
-
-    /* we change the range state to prevent the CV from returning
-     * immediately */
-    // if (range_state_t::RS_READY == pctx.rctx.range_state) {
-      // pctx.rctx.range_state = range_state_t::RS_BLOCKED;
-      // pctx.rctx.range_state_prev = range_state_t::RS_READY;
-    // }
+    bin_access_ul.lock();
+    // std::unique_lock<std::mutex> ulock(rctx->bin_access_m);
 
     /* Since we've called a RENEG, either we'll go into the RENEG
      * state, or we're already in a RENEG/ACK state. Implies moving
      * away from READY/INIT
      */
-    range_ctx_t *rptr = &(pctx.rctx);
+    range_ctx_t* rptr = &(pctx.rctx);
     assert(!(RANGE_IS_READY(rptr) || RANGE_IS_INIT(rptr)));
 
-    rctx->block_writes_cv.wait(ulock, [] {
+    /* In the init state, we always buffer particles into oob_left
+     * We can buffer them into left + right for more sampling before
+     * negotn is triggered, but that would require a cross-buffer sorting
+     * phase, so we just use oob_left as long as state is RS_INIT
+     */
+    rctx->block_writes_cv.wait(bin_access_ul, [] {
       /* having a condition ensures we ignore spurious wakes */
       return (pctx.rctx.range_state == range_state_t::RS_READY);
     });
 
-    fprintf(stderr, "--------- DONE RENEGO @ R%d ----------\n", pctx.my_rank);
     shuffle_flush_oob(ctx, rctx, epoch);
+#ifdef RANGE_DEBUG
     logf(LOG_INFO, "Rank %d flushed its OOB buffers\n", pctx.my_rank);
     fprintf(stderr, "Main fn from flush-rank %d (%d/%d)\n", pctx.my_rank,
             rctx->oob_count_left, rctx->oob_count_right);
+#endif
     // }
   }
 
@@ -643,7 +661,9 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
     peer_rank = shuffle_data_target(indexed_property);
+#ifdef RANGE_DEBUG
     fprintf(stderr, "Current particle %f to %d\n", indexed_property, peer_rank);
+#endif
   }
 
   // XXX: temp until range is working
@@ -666,8 +686,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   rctx->ts_writes_shuffled++;
 
-  fprintf(stderr, "At SRC: %d, SEND to %d, P: %02x%02x%02x\n", rank, peer_rank,
-          buf[0], buf[1], buf[2]);
+  // fprintf(stderr, "At SRC: %d, SEND to %d, P: %02x%02x%02x\n", rank,
+  // peer_rank, buf[0], buf[1], buf[2]);
 
   if (ctx->type == SHUFFLE_XN) {
     xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
@@ -698,7 +718,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   int rv;
 
   // fprintf(stderr, "At DEST: %d, RCVD from %d, P: %02x%02x%02x\n", dst, src,
-          // buf[0], buf[1], buf[2]);
+  // buf[0], buf[1], buf[2]);
 
   char msg_type = msgfmt_get_msgtype(buf);
   switch (msg_type) {

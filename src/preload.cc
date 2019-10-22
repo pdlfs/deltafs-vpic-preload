@@ -1879,6 +1879,7 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "final stats...");
+    logf(LOG_INFO, "num renegotiations: %d\n", pctx.rctx.pvt_round_num.load());
     logf(LOG_INFO, "== dir data compaction");
     logf(LOG_INFO,
          "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
