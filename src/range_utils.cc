@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <algorithm>
@@ -15,27 +16,6 @@ bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
   return (a.bin_val < b.bin_val) ||
          ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
 }
-
-#ifdef RANGE_MAIN_DEBUG2
-void pbs() {
-  for (int i = 0; i < bs.size(); i++) {
-    fprintf(stderr, "(%f, %d, %c) ", bs[i].bin_val, bs[i].rank,
-            bs[i].is_start ? 's' : 'e');
-  }
-  fprintf(stderr, "\n");
-}
-
-void pub() {
-  assert(ubins.size() == ubin_count.size() + 1u);
-  fprintf(stderr, "%0.1f", ubins[0]);
-
-  for (auto i = 0; i < ubin_count.size(); i++) {
-    fprintf(stderr, " - %0.1f - ", ubin_count[i]);
-    fprintf(stderr, "%0.1f,  %0.1f", ubins[i + 1], ubins[i + 1]);
-  }
-  fprintf(stderr, "\n");
-}
-#endif
 
 extern preload_ctx_t pctx;
 
@@ -115,8 +95,6 @@ void pivot_union(std::vector<rb_item_t> rb_items,
 
         float rank_total_range = rank_bin_end[rank] - rank_bin_start[rank];
         float rank_left_range = cur_bin - prev_bp_bin_val;
-        // float rank_contrib = part_per_rank * rank_left_range /
-        // rank_total_range;
         float rank_contrib =
             rank_bin_widths[rank] * rank_left_range / rank_total_range;
 
@@ -160,6 +138,14 @@ void pivot_union(std::vector<rb_item_t> rb_items,
         active_ranks.remove(bp_rank);
 
         int new_len = active_ranks.size();
+
+        if (old_len != new_len + 1) {
+          fprintf(stderr,
+                  "PIVOT_CALC ASSERT_FAIL"
+                  "Old Len: %d, New Len: %d\n",
+                  old_len, new_len + 1);
+        }
+
         assert(old_len == new_len + 1);
       }
     }
@@ -184,17 +170,9 @@ int resample_bins_irregular(const std::vector<float>& bins,
   samples.resize(nsamples);
 
   assert(bins_size == bin_counts_size + 1);
+  assert(nsamples >= 2);
+  assert(bins_size >= 2);
 
-#ifdef RANGE_PARANOID_CHECKS
-  assert(nsamples > 2);
-  assert(bins_size > 2);
-  // int bin_sum = std::accumulate(bin_counts.begin(), bin_counts.end(), 0);
-  // assert(bin_sum == nparticles);
-#endif
-  // for (int i = 0; i < bin_counts.size(); i++) {
-  // fprintf(stderr, "UnitedBinsOfNegotiation: %.1f - %.1f\t%.1f\n", bins[i],
-  // bins[i + 1], bin_counts[i]);
-  // }
   float nparticles =
       std::accumulate(bin_counts.begin(), bin_counts.end(), 0.0f);
 
@@ -235,23 +213,13 @@ int resample_bins_irregular(const std::vector<float>& bins,
    */
   if (sidx == nsamples - 1) sidx++;
 
-  // if (pctx.my_rank == 0) {
-    // for (int i = 0; i < bins_size - 1; i++) {
-      // fprintf(stderr, "Rank 0, bin (%.1f, %.1f): %.1f\n", bins[i], bins[i + 1],
-          // bin_counts[i]);
-    // }
-
-    // fprintf(stderr, "---> nparticles: %.1f\n", nparticles);
-
-    // for (int i = 0; i < nsamples; i++) {
-      // fprintf(stderr, "plensample: %.1f\n", samples[i]);
-    // }
-  // }
-
-
   if (sidx != nsamples) {
-    logf(LOG_ERRO, "rank %d,sidx expected to be equal to nsamples, %d-%d, accumulated: %.1f\n", pctx.my_rank, sidx,  nsamples, accumulated);
+    logf(LOG_ERRO,
+         "rank %d,sidx expected to be equal to nsamples, %d-%d, accumulated: "
+         "%.1f\n",
+         pctx.my_rank, sidx, nsamples, accumulated);
   }
+
   assert(sidx == nsamples);
 
   return 0;
@@ -285,7 +253,7 @@ void repartition_bin_counts(std::vector<float>& old_bins,
     float obe = old_bins[oidx + 1];  // old bin end
     float obw = obe - obs;           // old bin width
 
-    int obc = old_bin_counts[oidx];  // old bin count
+    float obc = old_bin_counts[oidx];  // old bin count
 
     float nbs = new_bins[nidx];      // new bin start
     float nbe = new_bins[nidx + 1];  // new bin end
@@ -328,82 +296,17 @@ void repartition_bin_counts(std::vector<float>& old_bins,
       nidx++;
     }
   }
-  // fprintf(stderr, "Case 4: nbinprev: %.1f\n", nbin_sum);
-  // fprintf(stdout, "(%.1f %.1f) (%.1f %.1f)\n", obs, obe, nbs, nbe);
 
-  if (nidx < nb_sz - 1) new_bin_counts[nidx] = nbin_sum;
-}
+  if (nidx < nb_sz) new_bin_counts[nidx] = nbin_sum;
 
-#ifdef RANGE_MAIN_DEBUG
-// float bins[] = {1, 3, 5, 2, 4, 6};
-// std::vector<rb_item_t> bs;
+#ifdef RANGE_PARANOID_CHECKS
+  float osum_temp =
+      std::accumulate(old_bin_counts.begin(), old_bin_counts.end(), 0.f);
+  float nsum_temp =
+      std::accumulate(new_bin_counts.begin(), new_bin_counts.end(), 0.f);
 
-// std::vector<float> ubins;
-// std::vector<float> ubin_count;
-// std::vector<float> samples;
-
-// int main2() {
-// load_bins_into_rbvec(bins, bs, 6, 2, 3);
-// pbs();
-// pivot_union(bs, ubins, ubin_count, 2, 20);
-// fprintf(stderr, "Ubin: %zu %zu\n", ubins.size(), ubin_count.size());
-// pub();
-// resample_bins_irregular(ubins, ubin_count, samples, 10, 80);
-
-// fprintf(stdout, "------------------\n");
-// for (int i = 0; i < samples.size(); i++) {
-// printf("Sample - %f\n", samples[i]);
-// }
-// return 0;
-// }
-
-int main3() {
-  std::vector<float> v1 = {1, 9.5, 16.1};
-  std::vector<float> v1c = {4, 4};
-  std::vector<float> v2 = {1, 16.9, 32.5};
-  std::vector<float> v2c;
-  repartition_bin_counts(v1, v1c, v2, v2c);
-
-  printf("V2count: ");
-  for (int i = 0; i < v2c.size(); i++) {
-    printf("%.1f ", v2c[i]);
-  }
-  printf("\n");
-  return 0;
-}
-
-int main() {
-  std::vector<float> all_pivots = {
-    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-    4.0, 10.0, 14.0, 18.0, 5.0, 11.0, 15.0, 19.0, 0.0, 0.0, 0.0, 0.0,
-    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 9.0, 15.0, 19.0, 23.0
-  };
-
-#define DD 2.6666667
-
-  std::vector<float> pivot_widths = {
-    0.0, 0.0, 0.0, DD, DD, 0.0, 0.0, 0.0, DD
-  };
-
-  printf("===> Vec size: %zu\n", all_pivots.size());
-
-  std::vector<rb_item_t> rbvec;
-  std::vector<float> unified_bins;
-  std::vector<float> unified_bin_counts;
-  std::vector<float> samples;
-  std::vector<float> sample_counts;
-
-  load_bins_into_rbvec(all_pivots, rbvec, pctx.rctx.all_pivots.size(),
-                       pctx.comm_sz, 4);
-  pivot_union(rbvec, unified_bins, unified_bin_counts,
-              pivot_widths, 9);
-  resample_bins_irregular(unified_bins, unified_bin_counts, samples,  10);
-
-#ifdef RANGE_DEBUG
-  for (int i = 0; i < samples.size(); i++) {
-    fprintf(stderr, "RankSample %d/%d - %.1f\n", pctx.my_rank, i, samples[i]);
-  }
+  assert(fabs(osum_temp - nsum_temp) < 1e-3);
 #endif
 
+  return;
 }
-#endif
