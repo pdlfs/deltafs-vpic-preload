@@ -9,6 +9,8 @@
 #include "preload_internal.h"
 #include "range_utils.h"
 
+#define RANGE_DEBUG_T 1
+
 /* return true if a is smaller - we prioritize smaller bin_val
  * and for same bin_val, we prioritize ending items (is_start == false)
  * first */
@@ -31,7 +33,7 @@ void load_bins_into_rbvec(std::vector<float>& bins,
 
       if (bin_start == bin_end) continue;
 
-#ifdef RANGE_DEBUG
+#ifdef RANGE_DEBUG_T
       fprintf(stderr, "Rank %d, bin rank %d, Range: %.1f %.1f (%lu-%d)\n",
               pctx.my_rank, rank, bin_start, bin_end, bins.size(),
               rank * bins_per_rank + bidx + 1);
@@ -72,8 +74,10 @@ void pivot_union(std::vector<rb_item_t> rb_items,
     float bp_bin_other = rb_items[i].bin_other;
     bool bp_is_start = rb_items[i].is_start;
 
-#ifdef RANGE_DEBUG
-    fprintf(stderr, "Rank %d/%d - bin %.1f\n", -1, i, bp_bin_val);
+#ifdef RANGE_DEBUG_T
+    fprintf(stderr, "BP_ERR Rank %d/%d - bin_prop: %d %.1f %.1f %s\n",
+            pctx.my_rank, i, bp_rank, bp_bin_val, bp_bin_other,
+            bp_is_start ? "true" : "false");
 #endif
 
     std::list<int>::iterator remove_item;

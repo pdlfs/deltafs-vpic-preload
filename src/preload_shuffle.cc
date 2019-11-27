@@ -661,6 +661,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
     peer_rank = shuffle_data_target(indexed_property);
+    rctx->rank_bin_count[peer_rank]++;
 #ifdef RANGE_DEBUG
     fprintf(stderr, "Current particle %f to %d\n", indexed_property, peer_rank);
 #endif

@@ -15,6 +15,9 @@
 #define logf \
   if (1) logf
 
+#define RANGE_DEBUG_T 1
+#define RANGE_PARANOID_CHECKS 1
+
 extern const int num_eps;
 
 /* Forward declarations */
@@ -26,6 +29,7 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx);
 void recalculate_local_bins();
 
 char rs_pb_buf[256];
+char rs_pb_buf2[256];
 char rs_pbin_buf[1024];
 
 char *print_state(range_state_t state) {
@@ -64,6 +68,30 @@ char *print_pivots(preload_ctx_t *pctx, range_ctx_t *rctx) {
   start_ptr += snprintf(&(start[start_ptr]), 1024 - start_ptr, "\n");
 
   return rs_pbin_buf;
+}
+
+char *print_vec(char *buf, int buf_len, float *v, int vlen) {
+  int start_ptr = 0;
+
+  for (int item = 0; item < vlen; item++) {
+    start_ptr += snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ",
+        v[item]);
+  }
+
+  return buf;
+}
+
+char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) {
+  assert(v.size() >= vlen);
+
+  int start_ptr = 0;
+
+  for (int item = 0; item < vlen; item++) {
+    start_ptr += snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ",
+        v[item]);
+  }
+
+  return buf;
 }
 
 /* XXX: Make sure concurrent runs with delivery thread
@@ -145,6 +173,23 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx) {
   take_snapshot(rctx);
 
   get_local_pivots(rctx);
+
+#ifdef RANGE_PARANOID_CHECKS
+  bool bad_pivots = false;
+
+  for (int pvt_i = 1; pvt_i < RANGE_NUM_PIVOTS; pvt_i++) {
+    if (rctx->my_pivots[pvt_i] < rctx->my_pivots[pvt_i-1]) {
+      bad_pivots = true;
+    }
+  }
+
+  if (bad_pivots) {
+    fprintf(stderr, "Rank %d sending out bad pivots: %s\n", pctx.my_rank,
+        print_vec(rs_pb_buf, 256, rctx->my_pivots, RANGE_NUM_PIVOTS));
+  }
+
+  assert(!bad_pivots);
+#endif
 
   uint32_t msg_sz = msgfmt_nbytes_reneg_pivots(RANGE_NUM_PIVOTS);
 
@@ -243,7 +288,7 @@ void range_handle_reneg_begin(char *buf, unsigned int buf_sz) {
 
 void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
   // logf(LOG_INFO, "Rank %d received RENEG PIVOTS from %d!!\n", pctx.my_rank,
-       // src_rank);
+  // src_rank);
 
   char msg_type = msgfmt_get_msgtype(buf);
   assert(msg_type == MSGFMT_RENEG_PIVOTS);
@@ -254,6 +299,14 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
   float pivot_width;
   msgfmt_parse_reneg_pivots(buf, buf_sz, &round_num, &pivots, &pivot_width,
                             &num_pivots);
+
+#ifdef RANGE_PARANOID_CHECKS
+
+  for (int pvt_i = 1; pvt_i < num_pivots; pvt_i++) {
+    assert(pivots[pvt_i] >= pivots[pvt_i-1]);
+  }
+
+#endif
 
   int comm_sz;
   int ranks_responded;
@@ -311,9 +364,11 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
       ABORT("Invalid pivot order!");
     }
 
-#ifdef RANGE_DEBUG
-    logf(LOG_INFO, "Pivots: %.1f, %.1f, %.1f, %.1f\n", pivots[0], pivots[1],
-         pivots[2], pivots[3]);
+#ifdef RANGE_DEBUG_T
+    logf(LOG_INFO, "RENEG_PVT Rank %d from %d: "
+        "Pivots: %.1f, %.1f, %.1f, %.1f\n", 
+        pctx.my_rank, src_rank, 
+        pivots[0], pivots[1], pivots[2], pivots[3]);
 #endif
 
     int our_offset = src_rank * RANGE_NUM_PIVOTS;
@@ -393,6 +448,7 @@ void recalculate_local_bins() {
     std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
     if (range_state_t::RS_RENEGO != pctx.rctx.range_state_prev) {
+      // XXX: bin counts are globally distributed in resample_bins now.
       repartition_bin_counts(pctx.rctx.rank_bins, pctx.rctx.rank_bin_count,
                              samples, sample_counts);
 
@@ -404,9 +460,13 @@ void recalculate_local_bins() {
               pctx.rctx.rank_bin_count[0], pctx.rctx.rank_bin_count[1]);
       fprintf(stderr, "===>%d  SAMPLE CNTS3: %.1f %.1f %.1f\n", pctx.my_rank,
               samples[0], samples[1], samples[2]);
-      fprintf(stderr, "===>%d  SAMPLE CNTS4: %.1f %.1f\n", pctx.my_rank,
-              sample_counts[0], sample_counts[1]);
+      fprintf(stderr, "===>%d  SAMPLE CNTS4: %.1f %.1f %.1f %.1f\n",
+              pctx.my_rank, sample_counts[0], sample_counts[1],
+              sample_counts[2], sample_counts[3]);
 #endif
+      fprintf(stderr, "===>%d  SAMPLE CNTS4: %.1f %.1f %.1f %.1f\n",
+              pctx.my_rank, sample_counts[0], sample_counts[1],
+              sample_counts[2], sample_counts[3]);
 
       std::copy(sample_counts.begin(), sample_counts.end(),
                 pctx.rctx.rank_bin_count.begin());
@@ -719,7 +779,8 @@ void get_local_pivots(range_ctx_t *rctx) {
     return;
   }
 
-#ifdef RANGE_DEBUG
+#ifdef RANGE_DEBUG_T
+
   for (int i = 0; i < rctx->oob_count_left; i++) {
     fprintf(stderr, "rank%d ptcll %.1f\n", pctx.my_rank,
             rctx->oob_buffer_left[i].indexed_prop);
@@ -738,13 +799,17 @@ void get_local_pivots(range_ctx_t *rctx) {
       "rank%d get_local_pivots state_dump "
       "oob_count_left: %d, oob_count_right: %d\n"
       "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-      "rbc: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
-      "bin: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
+      // "rbc: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
+      "rbc: %s (%zu)\n"
+      // "bin: %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f %.1f (%zu)\n"
+      "bin: %s (%zu)\n"
       "prevIsInit: %s\n",
       pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
-      ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6], ff[7], ff[8], ff.size(),
-      gg[0], gg[1], gg[2], gg[3], gg[4], gg[5], gg[6], gg[7], gg[8], gg[9],
-      gg.size(),
+      // ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6], ff[7], ff[8], ff.size(),
+      print_vec(rs_pb_buf, 256, ff, ff.size()), ff.size(),
+      // gg[0], gg[1], gg[2], gg[3], gg[4], gg[5], gg[6], gg[7], gg[8], gg[9],
+      print_vec(rs_pb_buf2, 256, gg, gg.size()), gg.size(),
+      // gg.size(),
       (rctx->range_state_prev == range_state_t::RS_INIT) ? "true" : "false");
   /**********************/
 #endif
@@ -816,7 +881,13 @@ void get_local_pivots(range_ctx_t *rctx) {
         particles_carried_over = 0;
       }
 
-      assert(cur_bin_left >= -1e-5);
+      // XXX: Arbitrarily chosen threshold, may cause troubles at
+      // large scales
+      if (cur_bin_left < -1e-3) {
+        fprintf(stderr, "rank %d curBinLeft: %f\n", pctx.my_rank, cur_bin_left);
+      }
+      assert(cur_bin_left >= -1e-3);
+
       particles_carried_over += cur_bin_left;
 #ifdef RANGE_DEBUG
       fprintf(stderr, "r%d ptcls carried over: %.1f\n", pctx.my_rank,
