@@ -96,6 +96,8 @@ typedef struct range_ctx {
   /* START Shared variables protected by snapshot_acces_m */
   std::vector<float> rank_bins_ss;
   std::vector<float> rank_bin_count_ss;
+  std::vector<float> oob_buffer_left_ss;
+  std::vector<float> oob_buffer_right_ss;
   float range_min_ss, range_max_ss;
   /* END Shared variables protected by snapshot_acces_m */
 

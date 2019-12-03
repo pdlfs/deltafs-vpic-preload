@@ -74,8 +74,8 @@ char *print_vec(char *buf, int buf_len, float *v, int vlen) {
   int start_ptr = 0;
 
   for (int item = 0; item < vlen; item++) {
-    start_ptr += snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ",
-        v[item]);
+    start_ptr +=
+        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ", v[item]);
   }
 
   return buf;
@@ -87,8 +87,8 @@ char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) {
   int start_ptr = 0;
 
   for (int item = 0; item < vlen; item++) {
-    start_ptr += snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ",
-        v[item]);
+    start_ptr +=
+        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ", v[item]);
   }
 
   return buf;
@@ -178,14 +178,14 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx) {
   bool bad_pivots = false;
 
   for (int pvt_i = 1; pvt_i < RANGE_NUM_PIVOTS; pvt_i++) {
-    if (rctx->my_pivots[pvt_i] < rctx->my_pivots[pvt_i-1]) {
+    if (rctx->my_pivots[pvt_i] < rctx->my_pivots[pvt_i - 1]) {
       bad_pivots = true;
     }
   }
 
   if (bad_pivots) {
     fprintf(stderr, "Rank %d sending out bad pivots: %s\n", pctx.my_rank,
-        print_vec(rs_pb_buf, 256, rctx->my_pivots, RANGE_NUM_PIVOTS));
+            print_vec(rs_pb_buf, 256, rctx->my_pivots, RANGE_NUM_PIVOTS));
   }
 
   assert(!bad_pivots);
@@ -303,7 +303,7 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
 #ifdef RANGE_PARANOID_CHECKS
 
   for (int pvt_i = 1; pvt_i < num_pivots; pvt_i++) {
-    assert(pivots[pvt_i] >= pivots[pvt_i-1]);
+    assert(pivots[pvt_i] >= pivots[pvt_i - 1]);
   }
 
 #endif
@@ -365,10 +365,10 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
     }
 
 #ifdef RANGE_DEBUG_T
-    logf(LOG_INFO, "RENEG_PVT Rank %d from %d: "
-        "Pivots: %.1f, %.1f, %.1f, %.1f\n", 
-        pctx.my_rank, src_rank, 
-        pivots[0], pivots[1], pivots[2], pivots[3]);
+    logf(LOG_INFO,
+         "RENEG_PVT Rank %d from %d: "
+         "Pivots: %.1f, %.1f, %.1f, %.1f\n",
+         pctx.my_rank, src_rank, pivots[0], pivots[1], pivots[2], pivots[3]);
 #endif
 
     int our_offset = src_rank * RANGE_NUM_PIVOTS;
@@ -704,14 +704,18 @@ void get_local_pivots(range_ctx_t *rctx) {
   float range_start = rctx->range_min_ss;
   float range_end = rctx->range_max_ss;
 
-  std::vector<particle_mem_t> &oobl = rctx->oob_buffer_left;
-  std::vector<particle_mem_t> &oobr = rctx->oob_buffer_right;
+  std::vector<float> &oobl = rctx->oob_buffer_left_ss;
+  std::vector<float> &oobr = rctx->oob_buffer_right_ss;
 
-  const int oobl_sz = rctx->oob_count_left;
-  const int oobr_sz = rctx->oob_count_right;
+  // const int oobl_sz = rctx->oob_count_left;
+  const int oobl_sz = oobl.size();
+  // const int oobr_sz = rctx->oob_count_right;
+  const int oobr_sz = oobr.size();
 
-  std::sort(oobl.begin(), oobl.begin() + oobl_sz, comp_particle);
-  std::sort(oobr.begin(), oobr.begin() + oobr_sz, comp_particle);
+  // std::sort(oobl.begin(), oobl.begin() + oobl_sz, comp_particle);
+  std::sort(oobl.begin(), oobl.begin() + oobl_sz);
+  // std::sort(oobr.begin(), oobr.begin() + oobr_sz, comp_particle);
+  std::sort(oobr.begin(), oobr.begin() + oobr_sz);
 
   // Compute total particles
   float particle_count = std::accumulate(rctx->rank_bin_count_ss.begin(),
@@ -720,8 +724,8 @@ void get_local_pivots(range_ctx_t *rctx) {
   int my_rank = pctx.my_rank;
 
   if (rctx->range_state_prev == range_state_t::RS_INIT) {
-    range_start = oobl_sz ? oobl[0].indexed_prop : 0;
-    range_end = oobl_sz ? oobl[oobl_sz - 1].indexed_prop : 0;
+    range_start = oobl_sz ? oobl[0] : 0;
+    range_end = oobl_sz ? oobl[oobl_sz - 1] : 0;
   } else if (particle_count > 1e-5) {
     range_start = rctx->range_min_ss;
     range_end = rctx->range_max_ss;
@@ -741,16 +745,16 @@ void get_local_pivots(range_ctx_t *rctx) {
 
   /* update the left boundary of the new range */
   if (oobl_sz > 0) {
-    range_start = oobl[0].indexed_prop;
+    range_start = oobl[0];
     if (particle_count < 1e-5 && oobr_sz == 0) {
-      range_end = oobl[oobl_sz - 1].indexed_prop;
+      range_end = oobl[oobl_sz - 1];
     }
   }
   /* update the right boundary of the new range */
   if (oobr_sz > 0) {
-    range_end = oobr[oobr_sz - 1].indexed_prop;
+    range_end = oobr[oobr_sz - 1];
     if (particle_count < 1e-5 && oobl_sz == 0) {
-      range_start = oobr[0].indexed_prop;
+      range_start = oobr[0];
     }
   }
 
@@ -781,14 +785,12 @@ void get_local_pivots(range_ctx_t *rctx) {
 
 #ifdef RANGE_DEBUG_T
 
-  for (int i = 0; i < rctx->oob_count_left; i++) {
-    fprintf(stderr, "rank%d ptcll %.1f\n", pctx.my_rank,
-            rctx->oob_buffer_left[i].indexed_prop);
+  for (int i = 0; i < oobl_sz; i++) {
+    fprintf(stderr, "rank%d ptcll %.1f\n", pctx.my_rank, oobl[i]);
   }
 
-  for (int i = 0; i < rctx->oob_count_right; i++) {
-    fprintf(stderr, "rank%d ptclr %.1f\n", pctx.my_rank,
-            rctx->oob_buffer_right[i].indexed_prop);
+  for (int i = 0; i < oobr_sz; i++) {
+    fprintf(stderr, "rank%d ptclr %.1f\n", pctx.my_rank, oobr[i]);
   }
 
   /**********************/
@@ -805,7 +807,8 @@ void get_local_pivots(range_ctx_t *rctx) {
       "bin: %s (%zu)\n"
       "prevIsInit: %s\n",
       pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
-      // ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6], ff[7], ff[8], ff.size(),
+      // ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6], ff[7], ff[8],
+      // ff.size(),
       print_vec(rs_pb_buf, 256, ff, ff.size()), ff.size(),
       // gg[0], gg[1], gg[2], gg[3], gg[4], gg[5], gg[6], gg[7], gg[8], gg[9],
       print_vec(rs_pb_buf2, 256, gg, gg.size()), gg.size(),
@@ -827,7 +830,7 @@ void get_local_pivots(range_ctx_t *rctx) {
 
     accumulated_ppp += part_per_pivot;
     int cur_part_idx = round(accumulated_ppp);
-    rctx->my_pivots[cur_pivot] = oobl[cur_part_idx].indexed_prop;
+    rctx->my_pivots[cur_pivot] = oobl[cur_part_idx];
     cur_pivot++;
 
 #ifdef RANGE_DEBUG
@@ -921,7 +924,7 @@ void get_local_pivots(range_ctx_t *rctx) {
     int cur_part_idx = round(next_idx);
     if (cur_part_idx >= oobr_sz) cur_part_idx = oobr_sz - 1;
 
-    rctx->my_pivots[cur_pivot] = oobr[cur_part_idx].indexed_prop;
+    rctx->my_pivots[cur_pivot] = oobr[cur_part_idx];
 #ifdef RANGE_DEBUG
     fprintf(stderr, "rank%d pivotFoundC[%d], oobr_idx: %d\n", pctx.my_rank,
             cur_pivot, cur_part_idx);
@@ -975,5 +978,65 @@ void take_snapshot(range_ctx_t *rctx) {
 
   rctx->range_min_ss = rctx->range_min;
   rctx->range_max_ss = rctx->range_max;
+
+  std::vector<particle_mem_t> &oob_left = rctx->oob_buffer_left;
+  std::vector<particle_mem_t> &oob_right = rctx->oob_buffer_right;
+
+  std::vector<float> &oob_left_ss = rctx->oob_buffer_left_ss;
+  std::vector<float> &oob_right_ss = rctx->oob_buffer_right_ss;
+
+  oob_left_ss.resize(0);
+  oob_right_ss.resize(0);
+
+  assert(oob_left_ss.size() == 0);
+  assert(oob_right_ss.size() == 0);
+
+  float bins_min = rctx->rank_bins_ss[0];
+  float bins_max = rctx->rank_bins_ss[pctx.comm_sz];
+
+  fprintf(stderr, "At Rank %d, Repartitioning OOBs using bin range %.1f-%.1f\n",
+          pctx.my_rank, bins_min, bins_max);
+
+  for (int oob_idx = 0; oob_idx < oob_left.size(); oob_idx++) {
+    float prop = oob_left[oob_idx].indexed_prop;
+
+    if (prop < bins_min) {
+      oob_left_ss.push_back(prop);
+    } else if (rctx->range_state_prev == range_state_t::RS_INIT) {
+      oob_left_ss.push_back(prop);
+    } else if (prop > bins_max) {
+      oob_right_ss.push_back(prop);
+    } else {
+      fprintf(stderr,
+              "Dropping OOBL item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
+              "(%zu %zu)\n",
+              prop, pctx.my_rank, bins_min, bins_max, oob_left_ss.size(),
+              oob_right_ss.size());
+    }
+  }
+
+  for (int oob_idx = 0; oob_idx < oob_right.size(); oob_idx++) {
+    float prop = oob_right[oob_idx].indexed_prop;
+
+    if (prop < bins_min) {
+      oob_left_ss.push_back(prop);
+    } else if (rctx->range_state_prev == range_state_t::RS_INIT) {
+      oob_left_ss.push_back(prop);
+    } else if (oob_right[oob_idx].indexed_prop > bins_max) {
+      oob_right_ss.push_back(prop);
+    } else {
+      fprintf(
+          stderr,
+          "Dropping OOBR item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
+          "(%zu %zu)\n",
+          prop, pctx.my_rank, bins_min, bins_max, oob_left_ss.size(),
+          oob_right_ss.size());
+    }
+  }
+
+  // fprintf(stderr, "Rank %d After SS OOBL: %s\n", pctx.my_rank,
+          // print_vec(rs_pb_buf, 256, oob_left_ss, oob_left_ss.size()));
+  // fprintf(stderr, "Rank %d After SS OOBR: %s\n", pctx.my_rank,
+          // print_vec(rs_pb_buf, 256, oob_right_ss, oob_right_ss.size()));
 }
 
