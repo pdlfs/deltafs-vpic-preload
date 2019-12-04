@@ -127,6 +127,8 @@ void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
 }
 
 void xn_shuffler_init(xn_ctx_t* ctx) {
+  hg_class_t *hgcls;
+  hg_context_t *hgctx;
   int deliverq_min;
   int deliverq_max;
   int lrmaxrpc;
@@ -144,10 +146,50 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   assert(ctx != NULL);
 
-  shuffle_prepare_uri(uri);
-  ctx->nx = nexus_bootstrap_uri(uri);
+  shuffle_prepare_uri(uri);     /* uri is an 'out', XXX: uri fixed sized */
+  hgcls = HG_Init(uri, HG_TRUE);
+  if (!hgcls) {
+    ABORT("xn_shuffle_init:HG_Init net");
+  }
+  hgctx = HG_Context_create(hgcls);
+  if (!hgctx) {
+    ABORT("xn_shuffle_init:HG_Context_create net");
+  }
+  ctx->nethand = mercury_progressor_init(hgcls, hgctx);
+  if (!ctx->nethand) {
+    ABORT("xn_shuffle_init:progressor_init net");
+  }
+  ctx->localhand = NULL;    /* NULL means create a new na+sm */
+
+  /*
+   * these NEXUS vars migrated here when we added progressor, but
+   * we keep the name for backward compat.
+   */
+  if (is_envset("NEXUS_BYPASS_LOCAL")) {
+
+    /* use remote for all local comm. */
+    ctx->localhand = ctx->nethand;
+
+  } else if ((env = maybe_getenv("NEXUS_ALT_LOCAL")) != NULL) {
+
+    /* use an alternate local mercury */
+    hgcls = HG_Init(env, HG_TRUE);
+    if (!hgcls) {
+      ABORT("xn_shuffle_init:HG_Init alt-local");
+    }
+    hgctx = HG_Context_create(hgcls);
+    if (!hgctx) {
+      ABORT("xn_shuffle_init:HG_Context_create alt-local");
+    }
+    ctx->localhand = mercury_progressor_init(hgcls, hgctx);
+    if (!ctx->localhand) {
+      ABORT("xn_shuffle_init:progressor_init alt-local");
+    }
+  }
+
+  ctx->nx = nexus_bootstrap(ctx->nethand, ctx->localhand);
   if (ctx->nx == NULL) {
-    ABORT("nexus_bootstrap_uri");
+    ABORT("nexus_bootstrap");
   }
   if (pctx.paranoid_checks) {
     if (nexus_global_size(ctx->nx) != pctx.comm_sz ||
@@ -323,6 +365,15 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
     if (ctx->nx != NULL) {
       nexus_destroy(ctx->nx);
       ctx->nx = NULL;
+    }
+    if (ctx->localhand && ctx->localhand != ctx->nethand) {
+      /* for NEXUS_ALT_LOCAL case */
+      mercury_progressor_freehandle(ctx->localhand);
+    }
+    ctx->localhand = NULL;
+    if (ctx->nethand) {
+      mercury_progressor_freehandle(ctx->nethand);
+      ctx->nethand = NULL;
     }
   }
 }

@@ -176,6 +176,7 @@ void shuffle_prepare_uri(char* buf) {
 
   if (strstr(proto, "sm") != NULL) { /* special handling for sm addrs */
     shuffle_prepare_sm_uri(buf, proto);
+    return;
   }
 
   env = maybe_getenv("SHUFFLE_Min_port");

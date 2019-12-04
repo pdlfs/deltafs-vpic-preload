@@ -98,6 +98,8 @@ typedef struct xn_ctx {
   int force_global_barrier;
   xn_stat_t last_stat;
   xn_stat_t stat;
+  progressor_handle_t *nethand;
+  progressor_handle_t *localhand;
   nexus_ctx_t nx; /* nexus handle */
   shuffler_t sh;
 } xn_ctx_t;
