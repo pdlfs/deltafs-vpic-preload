@@ -60,22 +60,24 @@
  * the shuffler queue config controls how much buffering is used and
  * how many RPCs can be active at one time.
  *
- * usage: nexus-runner [options] mercury-protocol subnet
+ * usage: nexus-runner [options] mercury-protocol [subnet]
  *
  * options:
  *  -c count     number of shuffle send ops to perform
  *  -e           exclude sending to ourself (skip those sends)
  *  -f rate      do a flush (collective) every 'rate' sends
  *  -l           loop through dsts rather than random sends
+ *  -N filespec  do a nexus_dump() to filespec at startup
  *  -n minsndr   rank must be >= minsndr to send requests
  *  -o m         add 'm' msec output delay to delivery
  *  -p baseport  base port number
  *  -q           quiet mode - don't print during RPCs
- *  -r n         enable tag suffix with this run number
  *  -R n         only send to rank 'n'
+ *  -r n         enable tag suffix with this run number
  *  -s maxsndr   rank must be <= maxsndr to send requests
  *  -T           report extra time/usage stats info for instance thread
  *  -t secs      timeout (alarm)
+ *  -x           use network progressor for local requests (single hg mode)
  *
  * shuffler queue config:
  *  -B bytes     batch buffer target for network output queues
@@ -125,6 +127,8 @@
  */
 
 #include <ctype.h>
+#include <ifaddrs.h>
+#include <netdb.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -135,6 +139,7 @@
 #include <unistd.h>
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -269,6 +274,136 @@ int64_t getsize(char *from) {
     return(rv);
 }
 
+/**
+ * mpi_localcfg: get local-node mpi config (for working around bmi+tcp issues)
+ *
+ * assumes MPI has been init'd.  this is a collective MPI call.
+ *
+ * @param world our top-level comm
+ * @param lrnk local rank will be placed here
+ * @param lsz local size will be placed here
+ * @return 0 or -1 on error
+ */
+int mpi_localcfg(MPI_Comm world, int *lrnk, int *lsz) {
+    MPI_Comm local;
+    int ok;
+
+    /* split the world into local and remote */
+    if (MPI_Comm_split_type(world, MPI_COMM_TYPE_SHARED, 0,
+                            MPI_INFO_NULL, &local) != MPI_SUCCESS)
+    return(-1);
+
+    ok = MPI_Comm_rank(local, lrnk) == MPI_SUCCESS &&
+         MPI_Comm_size(local, lsz) == MPI_SUCCESS;
+
+    MPI_Comm_free(&local);    /* ignore errors */
+    return(ok ? 0 : -1);
+}
+
+/*
+ * mercury_gen_ipurl: generate a mercury IP url using subnet spec
+ * to select the network to use.  if subnet is NULL or empty, we
+ * use the first non-127.0.0.1 IP address.
+ *
+ * @param protocol mercury protocol (e.g. "bmi+tcp")
+ * @param subnet IP subnet to use (e.g. "10.92")
+ * @param port port number to use, zero means any
+ * @param wa_base work-around base port (for bmi+tcp workaround)
+ * @param wa_stride work-around port stride (for bmi+tcp workaround)
+ * @return a malloc'd buffer with the new URL, or NULL on error
+ */
+char *mercury_gen_ipurl(char *protocol, const char *subnet, int port,
+                        int wa_base, int wa_stride) {
+    int snetlen, rlen, so, n, lcv;
+    struct ifaddrs *ifaddr, *cur;
+    char tmpip[16];   /* strlen("111.222.333.444") == 15 */
+    char *ret;
+    struct sockaddr_in addr;
+    socklen_t addr_len = sizeof(addr);
+
+    /* query socket layer to get our IP address list */
+    if (getifaddrs(&ifaddr) == -1) {
+        fprintf(stderr, "mercury_gen_ipurl: getifaddrs failed?\n");
+        return(NULL);
+    }
+
+    snetlen = (subnet) ? strlen(subnet) : 0;
+
+    /* walk list looking for match */
+    for (cur = ifaddr ; cur != NULL ; cur = cur->ifa_next) {
+
+        /* skip interfaces without an IP address */
+        if (cur->ifa_addr == NULL || cur->ifa_addr->sa_family != AF_INET)
+            continue;
+
+        /* get full IP address */
+        if (getnameinfo(cur->ifa_addr, sizeof(struct sockaddr_in),
+                        tmpip, sizeof(tmpip), NULL, 0, NI_NUMERICHOST) == -1)
+            continue;
+
+        if (snetlen == 0) {
+          if (strcmp(tmpip, "127.0.0.1") == 0)
+            continue; /* skip localhost */
+          break;      /* take first non-localhost match */
+        }
+        if (strncmp(subnet, tmpip, snetlen) == 0)
+          break;
+    }
+
+    /* dump the ifaddr list and return if there was no match */
+    freeifaddrs(ifaddr);
+    if (cur == NULL)
+        return(NULL);
+
+    rlen = strlen(protocol) + 32; /* +32 enough for ip, port, etc. */
+    ret = (char *)malloc(rlen);
+    if (ret == NULL)
+      return(NULL);
+
+    if (port != 0 || strcmp(protocol, "bmi+tcp") != 0) {
+        /* set port 0, let OS fill it, collect later w/HG_Addr_to_string */
+        snprintf(ret, rlen, "%s://%s:%d", protocol, tmpip, port);
+        return(ret);
+    }
+
+    /*
+     * XXX: bmi+tcp HG_Addr_to_string() is broken.  if we request
+     * port 0 (to let the OS fill it in) and later use HG_Addr_to_string()
+     * to request the actual port number allocated, it still returns
+     * 0 as the port number...  here's an attempt to hack around this
+     * problem.  we take wa_base and wa_stride as hints on how to pick
+     * a port number so that it doesn't conflict with other local ports.
+     * e.g. wa_base= X+my_local_rank, wa_stride=#local_ranks
+     */
+    if (wa_base < 1) wa_base = 10000;
+    if (wa_stride < 1) wa_stride = 1;
+    so = socket(PF_INET, SOCK_STREAM, 0);
+    if (so < 0) {
+        perror("socket");
+        free(ret);
+        return(NULL);
+    }
+    n = 1;
+    setsockopt(so, SOL_SOCKET, SO_REUSEADDR, &n, sizeof(n));
+    for (lcv = 0 ; lcv < 1024 ; lcv++) {   /* try up to 1024 times */
+        port = wa_base + (lcv * wa_stride);
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = INADDR_ANY;
+        addr.sin_port = htons(port);
+        n = bind(so, (struct sockaddr*)&addr, addr_len);
+        if (n == 0) break;
+    }
+    close(so);
+
+    if (n != 0) {
+        perror("bind");
+        free(ret);
+        return(NULL);
+    }
+
+    snprintf(ret, rlen, "%s://%s:%d", protocol, tmpip, port);
+    return(ret);
+}
 /*
  * end of helper/utility functions.
  */
@@ -292,7 +427,7 @@ struct gs {
     /* note: MPI rank stored in global "myrank" */
     int size;                /* world size (from MPI) */
     char *hgproto;           /* hg protocol to use */
-    char *hgsubnet;          /* subnet to use (XXX: assumes IP) */
+    const char *hgsubnet;    /* subnet to use (XXX: assumes IP) */
     int baseport;            /* base port number */
     int buftarg_net;         /* batch target for network queues */
     int buftarg_origin;      /* batch target for origin/client local shm q's */
@@ -303,6 +438,7 @@ struct gs {
     int deliverq_max;        /* max# reqs in deliverq before waitq */
     int deliverq_thold;      /* delivery thread wakeup threshold */
     int loop;                /* loop through dsts rather than random sends */
+    char *nxdumpspec;        /* file spec to nexus dump to */
     int minsndr;             /* rank must be >= minsndr to send requests */
     int odelay;              /* delay delivery output this many msec */
     struct timespec odspec;  /* odelay in a timespec for nanosleep(3) */
@@ -318,6 +454,7 @@ struct gs {
     int maxsndr;             /* rank must be <= maxsndr to send requests */
     int timestats;           /* report extra time/usage stats for instance */
     int timeout;             /* alarm timeout */
+    int xsinglehg;           /* use single hg mode */
 
     char tagsuffix[64];      /* tag suffix: ninst-count-mode-limit-run# */
 
@@ -399,21 +536,23 @@ static void usage(const char *msg) {
     if (myrank) goto skip_prints;
 
     if (msg) fprintf(stderr, "%s: %s\n", argv0, msg);
-    fprintf(stderr, "usage: %s [options] mercury-protocol subnet\n", argv0);
+    fprintf(stderr, "usage: %s [options] mercury-protocol [subnet]\n", argv0);
     fprintf(stderr, "\noptions:\n");
     fprintf(stderr, "\t-c count    number of shuffle send ops to perform\n");
     fprintf(stderr, "\t-e          exclude sending to self (skip sends)\n");
     fprintf(stderr, "\t-f rate     do a flush every 'rate' sends\n");
     fprintf(stderr, "\t-l          loop through dsts (no random sends)\n");
+    fprintf(stderr, "\t-N filespec nexus dump to this filespec\n");
     fprintf(stderr, "\t-n minsndr  rank must be >= minsndr to send requests\n");
     fprintf(stderr, "\t-o m        add 'm' msec output delay to delivery\n");
     fprintf(stderr, "\t-p port     base port number\n");
     fprintf(stderr, "\t-q          quiet mode\n");
-    fprintf(stderr, "\t-r n        enable tag suffix with this run number\n");
     fprintf(stderr, "\t-R rank     only do sends to this rank\n");
+    fprintf(stderr, "\t-r n        enable tag suffix with this run number\n");
     fprintf(stderr, "\t-s maxsndr  rank must be <= maxsndr to send requests\n");
     fprintf(stderr, "\t-T          extra time/usage stats for instance\n");
     fprintf(stderr, "\t-t sec      timeout (alarm), in seconds\n");
+    fprintf(stderr, "\t-x          use network hg prog for local reqs\n");
 
     fprintf(stderr, "shuffler queue config:\n");
     fprintf(stderr, "\t-B bytes    batch buf target for network\n");
@@ -507,7 +646,7 @@ int main(int argc, char **argv) {
     g.max_xtra = g.size;
 
     while ((ch = getopt(argc, argv,
-    "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:n:O:o:p:qR:r:S:s:Tt:X:y:Z:z:")) != -1) {
+  "a:B:b:C:c:D:d:E:eF:f:h:I:i:LlM:m:N:n:O:o:p:qR:r:S:s:Tt:X:xy:Z:z:")) != -1) {
         switch (ch) {
             case 'a':
                 g.buftarg_origin = atoi(optarg);
@@ -574,6 +713,9 @@ int main(int argc, char **argv) {
                 g.maxrpcs_origin = atoi(optarg);
                 if (g.maxrpcs_origin < 1) usage("bad maxrpc origin");
                 break;
+            case 'N':
+                g.nxdumpspec = optarg;
+                break;
             case 'n':
                 g.minsndr = atoi(optarg);
                 if (g.minsndr < 0 || g.minsndr >= g.size)
@@ -624,6 +766,9 @@ int main(int argc, char **argv) {
             case 'X':
                 g.max_xtra = atoi(optarg);
                 break;
+            case 'x':
+                g.xsinglehg = 1;
+                break;
             case 'y':
                 g.maxrpcs_relay = atoi(optarg);
                 if (g.maxrpcs_relay < 1) usage("bad maxrpc relay");
@@ -643,11 +788,11 @@ int main(int argc, char **argv) {
     argc -= optind;
     argv += optind;
 
-    if (argc != 2)          /* hgproto and hgsubnet must be provided on cli */
+    if (argc < 1 || argc > 2)
       usage("bad args");
     g.ninst = 1;
     g.hgproto = argv[0];
-    g.hgsubnet = argv[1];
+    g.hgsubnet = (argc == 1) ? "" : argv[1];
     if (g.rflag) {
         snprintf(g.tagsuffix, sizeof(g.tagsuffix), "-%d-%d",
                  g.count, g.rflagval);
@@ -665,6 +810,8 @@ int main(int argc, char **argv) {
         if (g.flushrate)
             printf("\tflushrate  = %d\n", g.flushrate);
         printf("\tloop       = %d\n", g.loop);
+        if (g.nxdumpspec)
+            printf("\tnxdump     = %s\n", g.nxdumpspec);
         printf("\tquiet      = %d\n", g.quiet);
         if (g.rflag)
             printf("\tsuffix     = %s\n", g.tagsuffix);
@@ -674,6 +821,7 @@ int main(int argc, char **argv) {
         printf("\tmaxsndr    = %d\n", g.maxsndr);
         printf("\ttimestats  = %s\n", (g.timestats) ? "on" : "off");
         printf("\ttimeout    = %d\n", g.timeout);
+        printf("\tsinglehg   = %d\n", g.xsinglehg);
         printf("sizes:\n");
         printf("\tbuftarget  = %d / %d / %d (net/origin/relay)\n",
                g.buftarg_net, g.buftarg_origin, g.buftarg_relay);
@@ -768,9 +916,13 @@ void *run_instance(void *arg) {
     struct is *isp = (struct is *)arg;
     int n = isp->n;               /* recover n from isp */
     struct useprobe instuse;
-    int flcnt, lcv, sendto, mylen;
+    int flcnt, lcv, sendto, mylen, nbuflen;
     hg_return_t ret;
     uint32_t *msg, msg_store[3];
+    char *myurl, *nbuf;
+    hg_class_t *cls;
+    hg_context_t *ctx;
+    progressor_handle_t *phand;
 
     useprobe_start(&instuse, USEPROBE_THREAD);
     if (!g.quiet)
@@ -788,11 +940,49 @@ void *run_instance(void *arg) {
         mylen = g.inreqsz;
     }
 
-    isa[n].nxp = nexus_bootstrap(g.hgsubnet, g.hgproto);
+    if (strcmp(g.hgproto, "bmi+tcp") == 0) {  /* bmi+tcp hack required? */
+        int lr, ls;
+        if (mpi_localcfg(MPI_COMM_WORLD, &lr, &ls) < 0) /* HACK! */
+            complain(1, 0, "mpi_localcfg failed?");
+        myurl = mercury_gen_ipurl(g.hgproto, g.hgsubnet, 0, 10000+lr, ls);
+        if (!myurl)
+            complain(1, 0, "mercury_gen_ipurl failed?");
+    } else if (strlen(g.hgsubnet)) {
+        myurl = mercury_gen_ipurl(g.hgproto, g.hgsubnet, 0, 0, 0);
+    } else {
+        myurl = g.hgproto;
+    }
+    cls = HG_Init(myurl, HG_TRUE);
+    if (!cls)
+        complain(1, 0, "HG_Init(%s, TRUE) failed", myurl);
+    if (myurl != g.hgproto)
+        free(myurl);
+    myurl = NULL;
+    ctx = HG_Context_create(cls);
+    if (!ctx)
+        complain(1, 0, "HG_Context_create failed!");
+    phand = mercury_progressor_init(cls, ctx);
+    if (!phand)
+        complain(1, 0, "mercury_progressor_init failed!");
+
+    if (g.xsinglehg)
+        isa[n].nxp = nexus_bootstrap(phand, phand);  /* use phand for local */
+    else
+        isa[n].nxp = nexus_bootstrap(phand, NULL);
     if (!isa[n].nxp)
         complain(1, 0, "%d: nexus_bootstrap failed", myrank);
     if (!g.quiet)
         printf("%d: nexus powered up!\n", myrank);
+
+    if (g.nxdumpspec) {
+        nbuflen = strlen(g.nxdumpspec) + 32;  /* extra room for instance# */
+        nbuf = (char *)malloc(nbuflen);
+        if (!nbuf)
+            complain(1, 0, "%d: nexus_dump buf alloc failed", myrank);
+        snprintf(nbuf, nbuflen, "%s.%d", g.nxdumpspec, n);
+        nexus_dump(isa[n].nxp, nbuf);
+        free(nbuf);
+    }
 
     /* make a funcion name and register it in both HGs */
     snprintf(isa[n].myfun, sizeof(isa[n].myfun), "f%d", n);
@@ -803,6 +993,9 @@ void *run_instance(void *arg) {
                    g.maxrpcs_net, g.buftarg_net, g.deliverq_max,
                    g.deliverq_thold, do_delivery);
     flcnt = 0;
+
+    /* make sure that all ranks are ready to recv before we start sending */
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if (myrank >= g.minsndr && myrank <= g.maxsndr) {   /* are we a sender? */
         for (lcv = 0 ; lcv < g.count ; lcv++) {
@@ -877,6 +1070,8 @@ void *run_instance(void *arg) {
 
     nexus_destroy(isa[n].nxp);
     if (msg != msg_store) free(msg);
+
+    mercury_progressor_freehandle(phand); /* ignore errors */
 
     useprobe_end(&instuse);
     if (g.quiet == 0 || g.size <= 4) {

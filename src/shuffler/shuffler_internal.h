@@ -46,7 +46,7 @@
 
 struct req_parent;                  /* forward decl, see below */
 struct outset;                      /* forward decl, see below */
-struct hgthread;                    /* forward decl, see below */
+struct hgprogress;                  /* forward decl, see below */
 
 /*
  * request: a structure to describe a single write request.
@@ -226,7 +226,7 @@ struct outset {
 
   /* general state */
   shuffler_t shuf;                  /* shuffler that owns us */
-  struct hgthread *myhgt;           /* mercury thread that services us */
+  struct hgprogress *myhgp;         /* mercury progessor that services us */
 
   /* shuffler_send() rpc limit */
   pthread_mutex_t os_rpclimitlock;  /* locks next two items */
@@ -265,22 +265,16 @@ struct flush_op {
 XSIMPLEQ_HEAD(flush_queue, flush_op);
 
 /*
- * hgthread: state for a mercury progress/trigger thread
+ * hgprogress: state for a mercury progress/trigger thread
  */
-struct hgthread {
+struct hgprogress {
   struct shuffler *hgshuf;          /* shuffler that owns us */
-  hg_class_t *mcls;                 /* mercury class */
-  hg_context_t *mctx;               /* mercury context */
+  progressor_handle_t *mphand;      /* mercury progressor handle */
+  hg_class_t *mcls;                 /* mercury class (cached from phand) */
+  hg_context_t *mctx;               /* mercury context (cached from phand) */
   hg_id_t rpcid;                    /* id of this RPC */
-  int nshutdown;                    /* to signal ntask to shutdown */
-  int nrunning;                     /* ntask is valid and running */
-  pthread_t ntask;                  /* network thread */
-
-#ifdef SHUFFLER_COUNT
-  /* stats (only modified/updated by ntask) */
-  int nprogress;                    /* mercury progress fn counter */
-  int ntrigger;                     /* mercury trigger fn counter */
-#endif
+  int nshutdown;                    /* network shutdown in progress? */
+  int nrunning;                     /* network/progessor valid and running? */
 };
 
 /*
@@ -289,15 +283,15 @@ struct hgthread {
 struct shuffler {
   /* general config */
   nexus_ctx_t nxp;                  /* routing table */
-  int single_hgmode;                /* XXX: hack for single_hgmode */
+  int single_hgmode;                /* same hgctx for both local and remote? */
   int grank;                        /* my global rank */
   char *funname;                    /* strdup'd copy of mercury func. name */
   int disablesend;                  /* disable new sends (for shutdown) */
   time_t boottime;                  /* time we started */
 
-  /* mercury threads */
-  struct hgthread hgt_local;        /* local thread (na+sm) */
-  struct hgthread hgt_remote;       /* network thread (bmi+tcp, etc.) */
+  /* mercury progressor linkage */
+  struct hgprogress hgp_local;      /* local progress (na+sm) */
+  struct hgprogress hgp_remote;     /* network progress (bmi+tcp, etc.) */
 
   /* output queues */
   struct outset local_orq;          /* for origin/client na+sm to local procs */
