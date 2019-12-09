@@ -37,12 +37,10 @@ endif ()
 #
 add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         preload_shuffle.cc nn_shuffler.cc nn_shuffler_internal.cc
-        xn_shuffler.cc shuffler/shuffler.cc shuffler/shuf_mlog.cc
-        shuffler/mlog.c shuffler/acnt_wrap.c hstg.cc common.cc
-        pthreadtap.cc)
+        xn_shuffle.cc hstg.cc common.cc pthreadtap.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury mssg
-        deltafs-nexus Threads::Threads ${CMAKE_DL_LIBS})
+        deltafs-nexus deltafs-shuffle Threads::Threads ${CMAKE_DL_LIBS})
 
 if (PRELOAD_CH_PLACEMENT)
     target_link_libraries(deltafs-preload ch-placement)

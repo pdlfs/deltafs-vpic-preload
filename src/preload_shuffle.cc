@@ -43,7 +43,7 @@
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
-#include "xn_shuffler.h"
+#include "xn_shuffle.h"
 
 #include <mercury_config.h>
 #include <pdlfs-common/xxhash.h>
@@ -285,7 +285,7 @@ void shuffle_epoch_pre_start(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
-    xn_shuffler_epoch_start(rep);
+    xn_shuffle_epoch_start(rep);
   } else {
     nn_shuffler_bgwait();
   }
@@ -294,14 +294,14 @@ void shuffle_epoch_pre_start(shuffle_ctx_t* ctx) {
 /*
  * This function is called at the beginning of each epoch but before the epoch
  * really starts and before the final stats for the previous epoch are collected
- * and dumped. Therefore, this is a good time for us to copy xn_shuffler's
+ * and dumped. Therefore, this is a good time for us to copy xn_shuffle's
  * internal stats counters into preload's global mon context.
  */
 void shuffle_epoch_start(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
-    xn_shuffler_epoch_start(rep);
+    xn_shuffle_epoch_start(rep);
     pctx.mctx.nlmr = rep->stat.local.recvs - rep->last_stat.local.recvs;
     pctx.mctx.min_nlmr = pctx.mctx.max_nlmr = pctx.mctx.nlmr;
     pctx.mctx.nlms = rep->stat.local.sends - rep->last_stat.local.sends;
@@ -320,7 +320,7 @@ void shuffle_epoch_start(shuffle_ctx_t* ctx) {
 void shuffle_epoch_end(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffler_epoch_end(static_cast<xn_ctx_t*>(ctx->rep));
+    xn_shuffle_epoch_end(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
     nn_shuffler_flushq(); /* flush rpc queues */
     if (!nnctx.force_sync) {
@@ -411,8 +411,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   }
 
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-                        peer_rank, rank);
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+                       peer_rank, rank);
   } else {
     nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
   }
@@ -452,7 +452,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
-    xn_shuffler_destroy(rep);
+    xn_shuffle_destroy(rep);
     if (ctx->finalize_pause > 0) {
       sleep(ctx->finalize_pause);
     }
@@ -713,8 +713,8 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
-    xn_shuffler_init(rep);
-    world_sz = xn_shuffler_world_size(rep);
+    xn_shuffle_init(rep);
+    world_sz = xn_shuffle_world_size(rep);
     ctx->rep = rep;
   } else {
     nn_shuffler_init(ctx);
@@ -797,7 +797,7 @@ int shuffle_is_rank_receiver(shuffle_ctx_t* ctx, int rank) {
 int shuffle_world_sz(shuffle_ctx* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    return xn_shuffler_world_size(static_cast<xn_ctx_t*>(ctx->rep));
+    return xn_shuffle_world_size(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
     return nn_shuffler_world_size();
   }
@@ -806,7 +806,7 @@ int shuffle_world_sz(shuffle_ctx* ctx) {
 int shuffle_rank(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN) {
-    return xn_shuffler_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
+    return xn_shuffle_my_rank(static_cast<xn_ctx_t*>(ctx->rep));
   } else {
     return nn_shuffler_my_rank();
   }

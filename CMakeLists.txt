@@ -64,6 +64,7 @@ string (REPLACE " " ";" MPI_CXX_COMPILE_FLAGS_LIST "${MPI_CXX_COMPILE_FLAGS}")
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
+find_package (deltafs-shuffle CONFIG REQUIRED)
 find_package (mssg CONFIG REQUIRED)
 
 # libch-placement
