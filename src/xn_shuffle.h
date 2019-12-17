@@ -34,14 +34,14 @@
  */
 
 /*
- * xn_shuffler.h  wrapper implementation for the embedded 3-hop shuffler.
+ * xn_shuffle.h  wrapper implementation for the embedded 3-hop shuffle.
  *
  * A list of all environmental variables used by us:
  *
  *  SHUFFLE_Mercury_proto
  *    Mercury rpc proto for the remote hop
  *  SHUFFLE_Log_file
- *    Log file to store shuffler stats
+ *    Log file to store shuffle stats
  *  SHUFFLE_Remote_senderlimit
  *    Total num of outstanding rpcs for the remote hop
  *  SHUFFLE_Remote_buftarget
@@ -77,9 +77,8 @@
 #include <stddef.h>
 
 #include <deltafs-nexus/deltafs-nexus_api.h>
+#include <deltafs-shuffle/shuffle_api.h>
 #include <mercury_types.h>
-
-#include "shuffler/shuffler.h"
 
 typedef struct xn_stat {
   struct {
@@ -92,40 +91,42 @@ typedef struct xn_stat {
   } remote;
 } xn_stat_t;
 
-/* shuffle context for the multi-hop shuffler */
+/* shuffle context for the multi-hop shuffle */
 typedef struct xn_ctx {
   /* replace all local barriers with global barriers */
   int force_global_barrier;
   xn_stat_t last_stat;
   xn_stat_t stat;
+  progressor_handle_t *nethand;
+  progressor_handle_t *localhand;
   nexus_ctx_t nx; /* nexus handle */
   shuffler_t sh;
   shuffler_t psh; /* priority shuffler for control messages */
 } xn_ctx_t;
 
-/* xn_shuffler_init: init the shuffler or die */
-extern void xn_shuffler_init(xn_ctx_t* ctx);
+/* xn_shuffle_init: init the shuffle or die */
+extern void xn_shuffle_init(xn_ctx_t* ctx);
 
-/* xn_shuffler_world_size: return comm world size */
-extern int xn_shuffler_world_size(xn_ctx_t* ctx);
+/* xn_shuffle_world_size: return comm world size */
+extern int xn_shuffle_world_size(xn_ctx_t* ctx);
 
-/* xn_shuffler_my_rank: return my rank id */
-extern int xn_shuffler_my_rank(xn_ctx_t* ctx);
+/* xn_shuffle_my_rank: return my rank id */
+extern int xn_shuffle_my_rank(xn_ctx_t* ctx);
 
-void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
-                         int epoch, int dst, int src);
+void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+                        int epoch, int dst, int src);
 
-void xn_shuffler_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
                                int epoch, int dst, int src);
 
 /* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */
-extern void xn_shuffler_epoch_end(xn_ctx_t* ctx);
+extern void xn_shuffle_epoch_end(xn_ctx_t* ctx);
 
-/* xn_shuffler_epoch_start: do necessary flush at the beginning of an epoch */
-extern void xn_shuffler_epoch_start(xn_ctx_t* ctx);
+/* xn_shuffle_epoch_start: do necessary flush at the beginning of an epoch */
+extern void xn_shuffle_epoch_start(xn_ctx_t* ctx);
 
-/* xn_shuffler_destroy: shutdown the shuffler */
-extern void xn_shuffler_destroy(xn_ctx_t* ctx);
+/* xn_shuffle_destroy: shutdown the shuffle */
+extern void xn_shuffle_destroy(xn_ctx_t* ctx);
 
 /*
  * Default size of the rpc delivery queue.

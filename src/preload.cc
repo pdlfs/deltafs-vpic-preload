@@ -58,12 +58,15 @@
 #endif
 
 /* default particle format */
-#define DEFAULT_PARTICLE_ID_BYTES 8
+#define DEFAULT_PARTICLE_ID_BYTES 8 /* particle filename length */
 #define DEFAULT_PARTICLE_EXTRA_BYTES 0
-#define DEFAULT_PARTICLE_BYTES 40
+#define DEFAULT_PARTICLE_BYTES 40 /* particle payload */
 #define DEFAULT_PARTICLE_BUFSIZE (2 << 20)
 
-/* default number of million seconds for checking MPI barrier completion */
+/*
+ * default number of million seconds for asynchronous MPI barrier
+ * (MPI_Iallreduce in fact) completion probing (MPI_Test).
+ */
 #define DEFAULT_MPI_WAIT 50
 
 /* mon output */
@@ -1201,8 +1204,8 @@ int MPI_Init(int* argc, char*** argv) {
       }
     }
 
-    if (!pctx.nomon && !pctx.nopapi) {
 #ifdef PRELOAD_HAS_PAPI
+    if (!pctx.nomon && !pctx.nopapi) {
       assert(pctx.papi_events != NULL);
       if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
         if (pctx.my_rank == 0)
@@ -1231,8 +1234,8 @@ int MPI_Init(int* argc, char*** argv) {
           ABORT(PAPI_strerror(rv));
         }
       }
-#endif
     }
+#endif
 
     if (pctx.my_rank == 0) {
       if (pctx.sampling) {
@@ -1976,27 +1979,14 @@ int mkdir(const char* dir, mode_t mode) {
 }
 
 /*
- * opendir
+ * begin an epoch.
  */
-DIR* opendir(const char* dir) {
-  int ignored_exact;
+int opendir_impl(const char* dir) {
   dir_stat_t tmp_dir_stat;
   uint64_t flush_start;
   uint64_t flush_end;
   uint64_t start;
-  DIR* rv;
-
-  int ret = pthread_once(&init_once, preload_init);
-  if (ret) ABORT("pthread_once");
-
-  if (!claim_path(dir, &ignored_exact)) {
-    return nxt.opendir(dir);
-  } else if (!under_plfsdir(dir)) {
-    return NULL; /* not supported */
-  }
-
-  /* return a fake DIR* since we don't actually open */
-  rv = reinterpret_cast<DIR*>(&fake_dirptr);
+  int rv;
 
   /* initialize tmp mon stats */
   if (!pctx.nomon) {
@@ -2037,14 +2027,19 @@ DIR* opendir(const char* dir) {
     }
   }
 
-  /* flush the shuffle layer so all messages are delivered */
+  /*
+   * if shuffle ON, thanks to the barrier above i must have received all data
+   * belong to me from my peers. the next step is to flush shuffle and wait
+   * until it finishes delivering all data it receives. if shuffle has been
+   * pre-flushed previously, this is likely a no-op.
+   */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (num_eps != 0) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
         logf(LOG_INFO, "flushing shuffle receivers ... (rank 0)");
       }
-      shuffle_epoch_start(&pctx.sctx);
+      shuffle_epoch_start(&pctx.sctx); /* shuffle receiver flush */
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
         logf(LOG_INFO, "receiver flushing done %s",
@@ -2053,24 +2048,23 @@ DIR* opendir(const char* dir) {
     }
   }
 
-  /* epoch flush */
+  /*
+   * i'm a receiver. i have received all data belonging to me and i have waited
+   * until shuffle finishes processing all data coming to it. now it's time to
+   * flush writes.
+   */
   if (num_eps != 0 && pctx.recv_comm != MPI_COMM_NULL) {
     /*
-     * unable to perform epoch flush at closedir() time because we are
-     * likely to progress faster than some peers, causing
-     * an epoch to be flushed prematurely and confusing
-     * deltafs.
-     *
-     * could be removed when deltafs supports auto epoch flush though.
-     *
-     * epoch flush may also be triggered by an unexpected
-     * write from a remote peer.
-     *
+     * the reason write flush is deferred from as early as closedir()
+     * time until now is that i am likely to progress faster than
+     * other peers at closedir() time and may not have
+     * received all data belonging to me.
      */
     if (IS_BYPASS_WRITE(pctx.mode)) {
       /* noop */
 
-    } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+    } else if (IS_BYPASS_DELTAFS_NAMESPACE(
+                   pctx.mode)) { /* direct plfsdir mode */
       if (pctx.plfshdl != NULL) {
         if (pctx.my_rank == 0) {
           flush_start = now_micros();
@@ -2110,8 +2104,8 @@ DIR* opendir(const char* dir) {
 
   if (num_eps != 0) {
     /*
-     * delay dumping mon stats collected from the previous epoch
-     * until the beginning of the next epoch, which allows us
+     * we delay dumping mon stats collected from the previous epoch
+     * until the beginning of the next epoch. this allows us
      * to get mostly up-to-date stats on the background
      * compaction work.
      */
@@ -2167,8 +2161,8 @@ DIR* opendir(const char* dir) {
     pctx.last_dir_stat = tmp_dir_stat;
     /* take a snapshot of sys usage */
     pctx.last_sys_usage_snaptime = now_micros();
-    ret = getrusage(RUSAGE_SELF, &pctx.last_sys_usage);
-    if (ret) ABORT("getrusage");
+    rv = getrusage(RUSAGE_SELF, &pctx.last_sys_usage);
+    if (rv) ABORT("getrusage");
   }
 
 #ifdef PRELOAD_HAS_PAPI
@@ -2176,11 +2170,11 @@ DIR* opendir(const char* dir) {
     if (pctx.my_rank == 0) {
       logf(LOG_INFO, "starting papi ... (rank 0)");
     }
-    if ((ret = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
-      ABORT(PAPI_strerror(ret));
+    if ((rv = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
+      ABORT(PAPI_strerror(rv));
     }
-    if ((ret = PAPI_start(pctx.papi_set)) != PAPI_OK) {
-      ABORT(PAPI_strerror(ret));
+    if ((rv = PAPI_start(pctx.papi_set)) != PAPI_OK) {
+      ABORT(PAPI_strerror(rv));
     }
     if (pctx.my_rank == 0) {
       logf(LOG_INFO, "papi on");
@@ -2188,33 +2182,62 @@ DIR* opendir(const char* dir) {
   }
 #endif
 
+  /* mon status resets and epoch increments must go before the barrier */
+  if (pctx.paranoid_post_barrier) {
+    /*
+     * this ensures that all data and mon status updates made
+     * for the next epoch will go to that epoch.
+     */
+    PRELOAD_Barrier(MPI_COMM_WORLD);
+  }
+
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "dumping particles ... (rank 0)");
   }
 
-  /* restart paranoid checking status */
+  /*
+   * restart paranoid checking status. this is sender-local status
+   * so no need for any barrier synchronization.
+   */
   pctx.fnames->clear();
+
+  return 0;
+}
+
+/*
+ * opendir
+ */
+DIR* opendir(const char* dir) {
+  int ignored_exact;
+  DIR* rv;
+
+  int ret = pthread_once(&init_once, preload_init);
+  if (ret) ABORT("pthread_once");
+
+  if (!claim_path(dir, &ignored_exact)) {
+    return nxt.opendir(dir);
+  } else if (!under_plfsdir(dir)) {
+    return NULL; /* not supported */
+  }
+
+  /* return a fake DIR* since we don't actually open */
+  rv = reinterpret_cast<DIR*>(&fake_dirptr);
+
+  opendir_impl(dir);
 
   return rv;
 }
 
 /*
- * closedir
+ * close an epoch.
  */
-int closedir(DIR* dirp) {
+int closedir_impl(DIR* dirp) {
   uint64_t tmp_usage_snaptime;
   struct rusage tmp_usage;
   uint64_t flush_start;
   uint64_t flush_end;
   double cpu;
   int rv;
-
-  rv = pthread_once(&init_once, preload_init);
-  if (rv) ABORT("pthread_once");
-
-  if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
-    return nxt.closedir(dirp);
-  }
 
   if (pctx.my_rank == 0) logf(LOG_INFO, "dumping done!!!");
 
@@ -2226,13 +2249,16 @@ int closedir(DIR* dirp) {
     pctx.fnames->clear();
   }
 
-  /* flush the rpc buffer and drain all on-going rpcs */
+  /*
+   * if shuffle is ON, flush all sender buffers and wait until all data
+   * reaches its destinations (or its destination representatives).
+   */
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
       logf(LOG_INFO, "flushing shuffle senders ... (rank 0)");
     }
-    shuffle_epoch_end(&pctx.sctx);
+    shuffle_epoch_end(&pctx.sctx); /* shuffle sender flush */
     if (pctx.my_rank == 0) {
       flush_end = now_micros();
       logf(LOG_INFO, "sender flushing done %s",
@@ -2240,16 +2266,27 @@ int closedir(DIR* dirp) {
     }
   }
 
-  /* this ensures we have received all peer messages */
+  /*
+   * i'm a receiver (or a representative of a set of receivers). the barrier
+   * below ensures that i have received all data belong to me (and the peers i
+   * represent). the barrier below is required if bg pause is ON. the barrier
+   * below is rather useless if shuffle is OFF.
+   */
   if (pctx.paranoid_pre_barrier ||
       (!IS_BYPASS_SHUFFLE(pctx.mode) && pctx.bgpause)) {
     PRELOAD_Barrier(MPI_COMM_WORLD);
+    /*
+     * i'm a receiver (or a representative of a set of receivers). thanks to the
+     * barrier above i have received all data belong to me (and the peers i
+     * represent). the next step is to forward data to its real destinations,
+     * and to wait until shuffle finishes delivering all data it receivers.
+     */
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
         logf(LOG_INFO, "pre-flushing shuffle receivers ... (rank 0)");
       }
-      shuffle_epoch_pre_start(&pctx.sctx);
+      shuffle_epoch_pre_start(&pctx.sctx); /* shuffle receiver pre-flush */
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
         logf(LOG_INFO, "receiver pre-flushing done %s",
@@ -2258,7 +2295,12 @@ int closedir(DIR* dirp) {
     }
   }
 
-  /* epoch pre-flush */
+  /*
+   * pre-flush writes so less work is needed at the next opendir(). if the
+   * barrier above is ON, i must have received all data belong to me and have
+   * waited until shuffle finishes processing all data coming to it. in such
+   * cases, all data will be flushed for background compaction at this step.
+   */
   if (pctx.pre_flushing && pctx.recv_comm != MPI_COMM_NULL) {
     if (IS_BYPASS_WRITE(pctx.mode)) {
       /* noop */
@@ -2383,6 +2425,24 @@ int closedir(DIR* dirp) {
       print_meminfo();
     }
   }
+
+  return 0;
+}
+
+/*
+ * closedir
+ */
+int closedir(DIR* dirp) {
+  int rv;
+
+  rv = pthread_once(&init_once, preload_init);
+  if (rv) ABORT("pthread_once");
+
+  if (dirp != reinterpret_cast<DIR*>(&fake_dirptr)) {
+    return nxt.closedir(dirp);
+  }
+
+  closedir_impl(dirp);
 
   return 0;
 }

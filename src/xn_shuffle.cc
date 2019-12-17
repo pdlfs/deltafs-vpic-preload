@@ -39,7 +39,7 @@
 #include "common.h"
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
-#include "xn_shuffler.h"
+#include "xn_shuffle.h"
 
 /* xn_local_barrier: perform a barrier across all node-local ranks. */
 void xn_local_barrier(xn_ctx_t* ctx) {
@@ -63,11 +63,10 @@ void xn_local_barrier(xn_ctx_t* ctx) {
  * out and their replies received. At the end of this function, however, we
  * still have no idea if we have received all remote requests.
  */
-void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
+void xn_shuffle_epoch_end(xn_ctx_t* ctx) {
   hg_return_t hret;
   assert(ctx != NULL && ctx->sh != NULL);
-
-  hret = shuffler_flush_originqs(ctx->sh);
+  hret = shuffle_flush_originqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local origin queues", hret);
   }
@@ -79,8 +78,7 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
 
 
   xn_local_barrier(ctx);
-
-  hret = shuffler_flush_remoteqs(ctx->sh);
+  hret = shuffle_flush_remoteqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush remote queues", hret);
   }
@@ -98,13 +96,13 @@ void xn_shuffler_epoch_end(xn_ctx_t* ctx) {
  * epoch have now been received by us. What we need to do is another collective
  * local flush to forward them to their final destinations.
  */
-void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
+void xn_shuffle_epoch_start(xn_ctx_t* ctx) {
   hg_return_t hret;
   hg_uint64_t tmpori;
   hg_uint64_t tmprl;
   assert(ctx != NULL && ctx->sh != NULL);
 
-  hret = shuffler_flush_relayqs(ctx->sh);
+  hret = shuffle_flush_relayqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local relay queues", hret);
   }
@@ -116,11 +114,11 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
 
   xn_local_barrier(ctx);
   ctx->last_stat = ctx->stat;
-  shuffler_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
+  shuffle_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
   ctx->stat.local.sends = tmpori + tmprl;
-  shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
 
-  hret = shuffler_flush_delivery(ctx->sh);
+  shuffle_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
+  hret = shuffle_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush delivery", hret);
   }
@@ -131,8 +129,8 @@ void xn_shuffler_epoch_start(xn_ctx_t* ctx) {
   // }
 }
 
-static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
-                                uint32_t buf_sz) {
+static void xn_shuffle_deliver(int src, int dst, uint32_t type, void* buf,
+                               uint32_t buf_sz) {
   int rv;
 
   rv = shuffle_handle(NULL, static_cast<char*>(buf), buf_sz, -1, src, dst);
@@ -142,11 +140,11 @@ static void xn_shuffler_deliver(int src, int dst, uint32_t type, void* buf,
   }
 }
 
-void xn_shuffler_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
-                         int epoch, int dst, int src) {
+void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+                        int epoch, int dst, int src) {
   hg_return_t hret;
   assert(ctx->sh != NULL);
-  hret = shuffler_send(ctx->sh, dst, 0, buf, buf_sz);
+  hret = shuffle_enqueue(ctx->sh, dst, 0, buf, buf_sz);
 
   if (hret != HG_SUCCESS) {
     RPC_FAILED("plfsdir shuffler send failed", hret);
@@ -157,24 +155,17 @@ void xn_shuffler_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
                                int epoch, int dst, int src) {
   hg_return_t hret;
   assert(ctx->psh != NULL);
-  hret = shuffler_send(ctx->psh, dst, 0, buf, buf_sz);
+  hret = shuffle_send(ctx->psh, dst, 0, buf, buf_sz);
 
   if (hret != HG_SUCCESS) {
     RPC_FAILED("plfsdir shuffler priority send failed", hret);
   }
 }
 
-void xn_shuffler_init(xn_ctx_t* ctx) {
-  int deliverq_min;
-  int deliverq_max;
-  int lrmaxrpc;
-  int lrbuftarget;
-  int lomaxrpc;
-  int lobuftarget;
-  int lsenderlimit;
-  int rmaxrpc;
-  int rbuftarget;
-  int rsenderlimit;
+void xn_shuffle_init(xn_ctx_t* ctx) {
+  hg_class_t *hgcls;
+  hg_context_t *hgctx;
+  struct shuffle_opts so;
   const char* logfile;
   const char* env;
   char uri[100];
@@ -182,10 +173,51 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   assert(ctx != NULL);
 
-  shuffle_prepare_uri(uri);
-  ctx->nx = nexus_bootstrap_uri(uri);
+  shuffle_opts_init(&so);
+  shuffle_prepare_uri(uri);     /* uri is an 'out', XXX: uri fixed sized */
+  hgcls = HG_Init(uri, HG_TRUE);
+  if (!hgcls) {
+    ABORT("xn_shuffle_init:HG_Init net");
+  }
+  hgctx = HG_Context_create(hgcls);
+  if (!hgctx) {
+    ABORT("xn_shuffle_init:HG_Context_create net");
+  }
+  ctx->nethand = mercury_progressor_init(hgcls, hgctx);
+  if (!ctx->nethand) {
+    ABORT("xn_shuffle_init:progressor_init net");
+  }
+  ctx->localhand = NULL;    /* NULL means create a new na+sm */
+
+  /*
+   * these NEXUS vars migrated here when we added progressor, but
+   * we keep the name for backward compat.
+   */
+  if (is_envset("NEXUS_BYPASS_LOCAL")) {
+
+    /* use remote for all local comm. */
+    ctx->localhand = ctx->nethand;
+
+  } else if ((env = maybe_getenv("NEXUS_ALT_LOCAL")) != NULL) {
+
+    /* use an alternate local mercury */
+    hgcls = HG_Init(env, HG_TRUE);
+    if (!hgcls) {
+      ABORT("xn_shuffle_init:HG_Init alt-local");
+    }
+    hgctx = HG_Context_create(hgcls);
+    if (!hgctx) {
+      ABORT("xn_shuffle_init:HG_Context_create alt-local");
+    }
+    ctx->localhand = mercury_progressor_init(hgcls, hgctx);
+    if (!ctx->localhand) {
+      ABORT("xn_shuffle_init:progressor_init alt-local");
+    }
+  }
+
+  ctx->nx = nexus_bootstrap(ctx->nethand, ctx->localhand);
   if (ctx->nx == NULL) {
-    ABORT("nexus_bootstrap_uri");
+    ABORT("nexus_bootstrap");
   }
   if (pctx.paranoid_checks) {
     if (nexus_global_size(ctx->nx) != pctx.comm_sz ||
@@ -196,115 +228,112 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
 
   env = maybe_getenv("SHUFFLE_Local_senderlimit");
   if (env == NULL) {
-    lsenderlimit = 0;
+    so.localsenderlimit = 0;
   } else {
-    lsenderlimit = atoi(env);
-    if (lsenderlimit < 0) {
-      lsenderlimit = 0;
+    so.localsenderlimit = atoi(env);
+    if (so.localsenderlimit < 0) {
+      so.localsenderlimit = 0;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Remote_senderlimit");
   if (env == NULL) {
-    rsenderlimit = 0;
+    so.remotesenderlimit = 0;
   } else {
-    rsenderlimit = atoi(env);
-    if (rsenderlimit < 0) {
-      rsenderlimit = 0;
+    so.remotesenderlimit = atoi(env);
+    if (so.remotesenderlimit < 0) {
+      so.remotesenderlimit = 0;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Relay_maxrpc");
   if (env == NULL) {
-    lrmaxrpc = DEFAULT_OUTSTANDING_RPC;
+    so.lrmaxrpc = DEFAULT_OUTSTANDING_RPC;
   } else {
-    lrmaxrpc = atoi(env);
-    if (lrmaxrpc <= 0) {
-      lrmaxrpc = 0;
+    so.lrmaxrpc = atoi(env);
+    if (so.lrmaxrpc <= 0) {
+      so.lrmaxrpc = 0;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Local_maxrpc");
   if (env == NULL) {
-    lomaxrpc = DEFAULT_OUTSTANDING_RPC;
+    so.lomaxrpc = DEFAULT_OUTSTANDING_RPC;
   } else {
-    lomaxrpc = atoi(env);
-    if (lomaxrpc <= 0) {
-      lomaxrpc = 1;
+    so.lomaxrpc = atoi(env);
+    if (so.lomaxrpc <= 0) {
+      so.lomaxrpc = 1;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Remote_maxrpc");
   if (env == NULL) {
-    rmaxrpc = DEFAULT_OUTSTANDING_RPC;
+    so.rmaxrpc = DEFAULT_OUTSTANDING_RPC;
   } else {
-    rmaxrpc = atoi(env);
-    if (rmaxrpc <= 0) {
-      rmaxrpc = 1;
+    so.rmaxrpc = atoi(env);
+    if (so.rmaxrpc <= 0) {
+      so.rmaxrpc = 1;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Relay_buftarget");
   if (env == NULL) {
-    lrbuftarget = DEFAULT_BUFFER_PER_QUEUE;
+    so.lrbuftarget = DEFAULT_BUFFER_PER_QUEUE;
   } else {
-    lrbuftarget = atoi(env);
-    if (lrbuftarget < 24) {
-      lrbuftarget = 24;
+    so.lrbuftarget = atoi(env);
+    if (so.lrbuftarget < 24) {
+      so.lrbuftarget = 24;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Local_buftarget");
   if (env == NULL) {
-    lobuftarget = DEFAULT_BUFFER_PER_QUEUE;
+    so.lobuftarget = DEFAULT_BUFFER_PER_QUEUE;
   } else {
-    lobuftarget = atoi(env);
-    if (lobuftarget < 24) {
-      lobuftarget = 24;
+    so.lobuftarget = atoi(env);
+    if (so.lobuftarget < 24) {
+      so.lobuftarget = 24;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Remote_buftarget");
   if (env == NULL) {
-    rbuftarget = DEFAULT_BUFFER_PER_QUEUE;
+    so.rbuftarget = DEFAULT_BUFFER_PER_QUEUE;
   } else {
-    rbuftarget = atoi(env);
-    if (rbuftarget < 24) {
-      rbuftarget = 24;
+    so.rbuftarget = atoi(env);
+    if (so.rbuftarget < 24) {
+      so.rbuftarget = 24;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Dq_min");
   if (env == NULL) {
-    deliverq_min = 0;
+    so.deliverq_threshold = 0;
   } else {
-    deliverq_min = atoi(env);
-    if (deliverq_min < 0) {
-      deliverq_min = 0;
+    so.deliverq_threshold = atoi(env);
+    if (so.deliverq_threshold < 0) {
+      so.deliverq_threshold = 0;
     }
   }
 
   env = maybe_getenv("SHUFFLE_Dq_max");
   if (env == NULL) {
-    deliverq_max = DEFAULT_DELIVER_MAX;
+    so.deliverq_max = DEFAULT_DELIVER_MAX;
   } else {
-    deliverq_max = atoi(env);
-    if (deliverq_max <= 0) {
-      deliverq_max = -1;
+    so.deliverq_max = atoi(env);
+    if (so.deliverq_max <= 0) {
+      so.deliverq_max = -1;
     }
   }
 
   logfile = maybe_getenv("SHUFFLE_Log_file");
 #define DEF_CFGLOG_ARGS(log) -1, "INFO", "WARN", NULL, NULL, log, 1, 0, 0, 0
   if (logfile != NULL && logfile[0] != 0 && strcmp(logfile, "/") != 0) {
-    shuffler_cfglog(DEF_CFGLOG_ARGS(logfile));
+    shuffle_cfglog(DEF_CFGLOG_ARGS(logfile));
   }
 
-  ctx->sh = shuffler_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
-                          lsenderlimit, rsenderlimit, lomaxrpc, lobuftarget,
-                          lrmaxrpc, lrbuftarget, rmaxrpc, rbuftarget,
-                          deliverq_max, deliverq_min, xn_shuffler_deliver,
-                          true);
+  ctx->sh = shuffle_init(ctx->nx, const_cast<char*>("shuffle_rpc_write"),
+                          xn_shuffle_deliver, &so);
 
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
@@ -312,8 +341,9 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
     logf(LOG_INFO,
          "3-HOP confs: sndlim(l/r)=%d/%d, maxrpc(lo/lr/r)=%d/%d/%d, "
          "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
-         lsenderlimit, rsenderlimit, lomaxrpc, lrmaxrpc, rmaxrpc, lobuftarget,
-         lrbuftarget, rbuftarget, deliverq_min, deliverq_max);
+         so.localsenderlimit, so.remotesenderlimit, so.lomaxrpc, so.lrmaxrpc,
+         so.rmaxrpc, so.lobuftarget, so.lrbuftarget, so.rbuftarget,
+         so.deliverq_threshold, so.deliverq_max);
     if (logfile != NULL && logfile[0] != 0 && strcmp(logfile, "/") != 0) {
       fputs(">>> LOGGING is ON, will log to ...\n --> ", stderr);
       fputs(logfile, stderr);
@@ -357,7 +387,7 @@ void xn_shuffler_init(xn_ctx_t* ctx) {
   }
 }
 
-int xn_shuffler_world_size(xn_ctx_t* ctx) {
+int xn_shuffle_world_size(xn_ctx_t* ctx) {
   assert(ctx != NULL);
   assert(ctx->nx != NULL);
   int rv = nexus_global_size(ctx->nx);
@@ -365,7 +395,7 @@ int xn_shuffler_world_size(xn_ctx_t* ctx) {
   return rv;
 }
 
-int xn_shuffler_my_rank(xn_ctx_t* ctx) {
+int xn_shuffle_my_rank(xn_ctx_t* ctx) {
   assert(ctx != NULL);
   assert(ctx->nx != NULL);
   int rv = nexus_global_rank(ctx->nx);
@@ -373,20 +403,19 @@ int xn_shuffler_my_rank(xn_ctx_t* ctx) {
   return rv;
 }
 
-void xn_shuffler_destroy(xn_ctx_t* ctx) {
-  fprintf(stderr, "inside xn_shuffler_destroy");
+void xn_shuffle_destroy(xn_ctx_t* ctx) {
   if (ctx != NULL) {
     // shutdown the priorty shuffler first
     if (ctx->sh != NULL) {
 #ifndef NDEBUG
       hg_uint64_t tmpori;
       hg_uint64_t tmprl;
-      shuffler_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
+      shuffle_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
       ctx->stat.local.sends = tmpori + tmprl;
-      shuffler_recv_stats(ctx->sh, &ctx->stat.local.recvs,
+      shuffle_recv_stats(ctx->sh, &ctx->stat.local.recvs,
                           &ctx->stat.remote.recvs);
 #endif
-      shuffler_shutdown(ctx->sh);
+      shuffle_shutdown(ctx->sh);
       ctx->sh = NULL;
     }
 
@@ -399,6 +428,14 @@ void xn_shuffler_destroy(xn_ctx_t* ctx) {
       nexus_destroy(ctx->nx);
       ctx->nx = NULL;
     }
-    fprintf(stderr, "outside xn_shuffler_destroy");
+    if (ctx->localhand && ctx->localhand != ctx->nethand) {
+      /* for NEXUS_ALT_LOCAL case */
+      mercury_progressor_freehandle(ctx->localhand);
+    }
+    ctx->localhand = NULL;
+    if (ctx->nethand) {
+      mercury_progressor_freehandle(ctx->nethand);
+      ctx->nethand = NULL;
+    }
   }
 }

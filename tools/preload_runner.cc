@@ -340,15 +340,15 @@ namespace {
 const unsigned char base64_table[65] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-/* Total #ranks >= 16 million && #particles per rank
- * >= 16 million */
+/* Total #ranks >= 1 million or #particles
+ * per rank >= 256 million */
 #ifdef PRELOAD_EXASCALE_RUNS
 /*
  * Base64 encoding/decoding (RFC1341).
  * ASSUMPTION: PLATFORM IS LITTLE ENDIAN. Lowest memory for least
  * significant bit. Code adapted from Jouni Malinen <j@w1.fi>
  */
-void base64_encoding(char* dst, uint64_t input) { /* 8 bits -> 11 bits */
+void base64_encoding(char* dst, uint64_t input) { /* 8 bytes -> 11 bytes */
   const unsigned char* in = reinterpret_cast<unsigned char*>(&input);
   *dst++ = base64_table[in[0] >> 2];
   *dst++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
@@ -367,7 +367,7 @@ void base64_encoding(char* dst, uint64_t input) { /* 8 bits -> 11 bits */
   *dst = 0;
 }
 #else
-void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
+void base64_encoding(char* dst, uint64_t input) { /* 6 bytes -> 8 bytes */
   const unsigned char* in = reinterpret_cast<unsigned char*>(&input);
   *dst++ = base64_table[in[0] >> 2];
   *dst++ = base64_table[((in[0] & 0x03) << 4) | (in[1] >> 4)];
@@ -395,7 +395,7 @@ static void do_dump() {
 #ifdef PRELOAD_EXASCALE_RUNS
   uint64_t highbits = (static_cast<uint64_t>(myrank) << 32);
 #else
-  uint64_t highbits = (static_cast<uint64_t>(myrank) << 24);
+  uint64_t highbits = (static_cast<uint64_t>(myrank) << 28);
 #endif
   for (int i = 0; i < g.nps; i++) {
     base64_encoding(p.pname + prefix, (highbits | i));

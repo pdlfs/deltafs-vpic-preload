@@ -64,14 +64,21 @@ string (REPLACE " " ";" MPI_CXX_COMPILE_FLAGS_LIST "${MPI_CXX_COMPILE_FLAGS}")
 find_package (mercury CONFIG REQUIRED)
 find_package (deltafs CONFIG REQUIRED)
 find_package (deltafs-nexus CONFIG REQUIRED)
+find_package (deltafs-shuffle CONFIG REQUIRED)
 find_package (mssg CONFIG REQUIRED)
 
-include (xpkg-import)     # just to document, comes with deltafs
-xpkg_import_module (ch-placement REQUIRED ch-placement)
+# libch-placement
+set (PRELOAD_CH_PLACEMENT "OFF" CACHE BOOL "Build with libch-placement")
 
-# If libnuma and libpapi should be linked
-set (PRELOAD_NUMA "ON" CACHE BOOL "If libnuma should be used")
-set (PRELOAD_PAPI "ON" CACHE BOOL "If libpapi should be used")
+if (PRELOAD_CH_PLACEMENT)
+    include (xpkg-import) # comes with deltafs
+    xpkg_import_module (ch-placement REQUIRED ch-placement)
+    add_definitions (-DPRELOAD_HAS_CH_PLACEMENT)
+endif ()
+
+# libnuma and libpapi
+set (PRELOAD_NUMA "ON" CACHE BOOL "Build with libnuma if present")
+set (PRELOAD_PAPI "ON" CACHE BOOL "Build with libpapi if present")
 
 # user hook to build tools
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
