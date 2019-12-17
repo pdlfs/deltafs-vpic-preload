@@ -72,8 +72,8 @@ static int myrank = 0;
 /*
  * Range query arguments. Can be moved to take cmdline params
  */
-static float range_bins[] = {1, 2, 3, 2, 1};
-static int num_bins = 5;
+static float range_bins[] = {1, 2, 3, 3, 3, 4, 6, 8, 6, 4, 3, 3, 3, 2, 1};
+static int num_bins = 15;
 static float range_start = 0;
 static float range_end = 50;
 static rangeutils::WorkloadPattern range_wp =
@@ -427,7 +427,7 @@ static void do_dump() {
 
   // TODO: change to uint64_t if we expect more than 2B particles
   rangeutils::WorkloadGenerator wg(range_bins, num_bins, range_start, range_end,
-                                   g.nps * g.size, range_wp, myrank, g.size);
+                                    g.nps * g.size, range_wp, myrank, g.size);
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
 #ifdef PRELOAD_EXASCALE_RUNS
@@ -449,6 +449,7 @@ static void do_dump() {
                "[Ret %d] Ran out of particles earlier than expected", ret);
     p_energy = p_energy_base + myrank;
     p_energy_base += 2;
+    // fprintf(stderr, "myrank: %d %.1f\n", myrank, p_energy);
     fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
     fclose(file);

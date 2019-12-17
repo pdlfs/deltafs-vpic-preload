@@ -88,7 +88,7 @@ char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) {
 
   for (int item = 0; item < vlen; item++) {
     start_ptr +=
-        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ", v[item]);
+        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.2f, ", v[item]);
   }
 
   return buf;
@@ -435,8 +435,29 @@ void recalculate_local_bins() {
                        pctx.comm_sz, RANGE_NUM_PIVOTS);
   pivot_union(rbvec, unified_bins, unified_bin_counts,
               pctx.rctx.all_pivot_widths, pctx.comm_sz);
+
+  if (pctx.my_rank == 0) {
+    fprintf(stderr, "All pvt R0: %s\n",
+            print_vec(rs_pbin_buf, 1024, pctx.rctx.all_pivots,
+                      pctx.rctx.all_pivots.size()));
+    fprintf(stderr, "All pvw R0: %s\n",
+            print_vec(rs_pbin_buf, 1024, pctx.rctx.all_pivot_widths,
+                      pctx.rctx.all_pivot_widths.size()));
+
+    fprintf(stderr, "Unified pvt R0: %s\n",
+            print_vec(rs_pbin_buf, 1024, unified_bins, unified_bins.size()));
+    fprintf(stderr, "Unified pvc R0: %s\n",
+            print_vec(rs_pbin_buf, 1024, unified_bin_counts,
+                      unified_bin_counts.size()));
+  }
+
   resample_bins_irregular(unified_bins, unified_bin_counts, samples,
                           pctx.comm_sz + 1);
+
+  if (pctx.my_rank == 0) {
+    fprintf(stderr, "Unified samples R0: %s\n",
+            print_vec(rs_pbin_buf, 1024, samples, samples.size()));
+  }
 
 #ifdef RANGE_DEBUG
   for (int i = 0; i < samples.size(); i++) {
@@ -982,6 +1003,9 @@ void take_snapshot(range_ctx_t *rctx) {
   std::vector<particle_mem_t> &oob_left = rctx->oob_buffer_left;
   std::vector<particle_mem_t> &oob_right = rctx->oob_buffer_right;
 
+  int oob_count_left = rctx->oob_count_left;
+  int oob_count_right = rctx->oob_count_right;
+
   std::vector<float> &oob_left_ss = rctx->oob_buffer_left_ss;
   std::vector<float> &oob_right_ss = rctx->oob_buffer_right_ss;
 
@@ -997,7 +1021,7 @@ void take_snapshot(range_ctx_t *rctx) {
   fprintf(stderr, "At Rank %d, Repartitioning OOBs using bin range %.1f-%.1f\n",
           pctx.my_rank, bins_min, bins_max);
 
-  for (int oob_idx = 0; oob_idx < oob_left.size(); oob_idx++) {
+  for (int oob_idx = 0; oob_idx < oob_count_left; oob_idx++) {
     float prop = oob_left[oob_idx].indexed_prop;
 
     if (prop < bins_min) {
@@ -1015,7 +1039,7 @@ void take_snapshot(range_ctx_t *rctx) {
     }
   }
 
-  for (int oob_idx = 0; oob_idx < oob_right.size(); oob_idx++) {
+  for (int oob_idx = 0; oob_idx < oob_count_right; oob_idx++) {
     float prop = oob_right[oob_idx].indexed_prop;
 
     if (prop < bins_min) {
@@ -1025,18 +1049,17 @@ void take_snapshot(range_ctx_t *rctx) {
     } else if (oob_right[oob_idx].indexed_prop > bins_max) {
       oob_right_ss.push_back(prop);
     } else {
-      fprintf(
-          stderr,
-          "Dropping OOBR item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
-          "(%zu %zu)\n",
-          prop, pctx.my_rank, bins_min, bins_max, oob_left_ss.size(),
-          oob_right_ss.size());
+      fprintf(stderr,
+              "Dropping OOBR item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
+              "(%zu %zu)\n",
+              prop, pctx.my_rank, bins_min, bins_max, oob_left_ss.size(),
+              oob_right_ss.size());
     }
   }
 
-  // fprintf(stderr, "Rank %d After SS OOBL: %s\n", pctx.my_rank,
-          // print_vec(rs_pb_buf, 256, oob_left_ss, oob_left_ss.size()));
-  // fprintf(stderr, "Rank %d After SS OOBR: %s\n", pctx.my_rank,
-          // print_vec(rs_pb_buf, 256, oob_right_ss, oob_right_ss.size()));
+  fprintf(stderr, "Rank %d After SS OOBL: %s\n", pctx.my_rank,
+          print_vec(rs_pb_buf, 256, oob_left_ss, oob_left_ss.size()));
+  fprintf(stderr, "Rank %d After SS OOBR: %s\n", pctx.my_rank,
+          print_vec(rs_pb_buf, 256, oob_right_ss, oob_right_ss.size()));
 }
 
