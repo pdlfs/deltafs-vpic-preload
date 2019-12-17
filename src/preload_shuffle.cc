@@ -465,7 +465,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 #ifdef RANGE_DEBUG
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
 #endif
-    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
                         epoch, peer_rank, pctx.my_rank);
   }
 
@@ -497,7 +497,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
 #endif
     // TODO: copy everything
-    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
                         epoch, peer_rank, pctx.my_rank);
   }
 
@@ -514,7 +514,7 @@ void send_all_acks();
 void sigusr1(int foo) {
   fprintf(stderr, "Received SIGUSR at Rank %d\n", pctx.my_rank);
   xn_ctx_t* xctx = static_cast<xn_ctx_t*>(pctx.sctx.rep);
-  shuffler_statedump(xctx->psh, 0);
+  shuffle_statedump(xctx->psh, 0);
   exit(0);
 }
 
@@ -698,7 +698,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   // peer_rank, buf[0], buf[1], buf[2]);
 
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffler_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
                         peer_rank, rank);
     // xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
     // epoch, peer_rank, rank);

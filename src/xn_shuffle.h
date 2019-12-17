@@ -100,8 +100,8 @@ typedef struct xn_ctx {
   progressor_handle_t *nethand;
   progressor_handle_t *localhand;
   nexus_ctx_t nx; /* nexus handle */
-  shuffler_t sh;
-  shuffler_t psh; /* priority shuffler for control messages */
+  shuffle_t sh;
+  shuffle_t psh; /* priority shuffler for control messages */
 } xn_ctx_t;
 
 /* xn_shuffle_init: init the shuffle or die */

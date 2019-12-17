@@ -7,7 +7,7 @@
 #include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_utils.h"
-#include "xn_shuffler.h"
+#include "xn_shuffle.h"
 
 #define fprintf \
   if (1) fprintf
@@ -982,7 +982,7 @@ void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
     fprintf(stderr, "All to all: %d from %d to %d\n", label, my_rank, drank);
 #endif
 
-    xn_shuffler_priority_send(static_cast<xn_ctx_t *>(ctx->rep), buf, buf_sz,
+    xn_shuffle_priority_send(static_cast<xn_ctx_t *>(ctx->rep), buf, buf_sz,
                               num_eps - 1, drank, my_rank);
   }
 
