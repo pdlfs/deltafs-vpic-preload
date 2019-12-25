@@ -465,8 +465,8 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 #ifdef RANGE_DEBUG
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
 #endif
-    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
-                        epoch, peer_rank, pctx.my_rank);
+    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
+                        // epoch, peer_rank, pctx.my_rank);
   }
 
   rctx->oob_count_left = 0;
@@ -497,8 +497,8 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
 #endif
     // TODO: copy everything
-    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
-                        epoch, peer_rank, pctx.my_rank);
+    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
+                        // epoch, peer_rank, pctx.my_rank);
   }
 
   rctx->oob_count_right = 0;

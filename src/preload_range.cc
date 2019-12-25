@@ -28,23 +28,25 @@ void send_all_acks();
 void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx);
 void recalculate_local_bins();
 
-char rs_pb_buf[256];
-char rs_pb_buf2[256];
-char rs_pbin_buf[1024];
+#define PRINTBUF_LEN 16384
+
+char rs_pb_buf[16384];
+char rs_pb_buf2[16384];
+char rs_pbin_buf[16384];
 
 char *print_state(range_state_t state) {
   /* good (in retrospect no) reason not to use switch case here */
 
   if (state == range_state_t::RS_INIT) {
-    snprintf(rs_pb_buf, 256, "RS_INIT");
+    snprintf(rs_pb_buf, PRINTBUF_LEN, "RS_INIT");
   } else if (state == range_state_t::RS_READY) {
-    snprintf(rs_pb_buf, 256, "RS_READY");
+    snprintf(rs_pb_buf, PRINTBUF_LEN, "RS_READY");
   } else if (state == range_state_t::RS_RENEGO) {
-    snprintf(rs_pb_buf, 256, "RS_RENEGO");
+    snprintf(rs_pb_buf, PRINTBUF_LEN, "RS_RENEGO");
   } else if (state == range_state_t::RS_BLOCKED) {
-    snprintf(rs_pb_buf, 256, "RS_BLOCKED");
+    snprintf(rs_pb_buf, PRINTBUF_LEN, "RS_BLOCKED");
   } else if (state == range_state_t::RS_ACK) {
-    snprintf(rs_pb_buf, 256, "RS_ACK");
+    snprintf(rs_pb_buf, PRINTBUF_LEN, "RS_ACK");
   }
 
   return rs_pb_buf;
@@ -54,18 +56,18 @@ char *print_pivots(preload_ctx_t *pctx, range_ctx_t *rctx) {
   char *start = rs_pbin_buf;
   int start_ptr = 0;
 
-  start_ptr += snprintf(&(start[start_ptr]), 1024 - start_ptr,
+  start_ptr += snprintf(&(start[start_ptr]), PRINTBUF_LEN - start_ptr,
                         "RENEG_PIVOTS Rank %d/%d: ", pctx->my_rank,
                         rctx->pvt_round_num.load());
 
   int bin_vec_sz = rctx->rank_bins.size();
 
   for (int i = 0; i < bin_vec_sz; i++) {
-    start_ptr += snprintf(&(start[start_ptr]), 1024 - start_ptr, "%f ",
+    start_ptr += snprintf(&(start[start_ptr]), PRINTBUF_LEN - start_ptr, "%f ",
                           rctx->rank_bins[i]);
   }
 
-  start_ptr += snprintf(&(start[start_ptr]), 1024 - start_ptr, "\n");
+  start_ptr += snprintf(&(start[start_ptr]), PRINTBUF_LEN - start_ptr, "\n");
 
   return rs_pbin_buf;
 }
@@ -185,7 +187,7 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx) {
 
   if (bad_pivots) {
     fprintf(stderr, "Rank %d sending out bad pivots: %s\n", pctx.my_rank,
-            print_vec(rs_pb_buf, 256, rctx->my_pivots, RANGE_NUM_PIVOTS));
+            print_vec(rs_pb_buf, PRINTBUF_LEN, rctx->my_pivots, RANGE_NUM_PIVOTS));
   }
 
   assert(!bad_pivots);
@@ -438,16 +440,16 @@ void recalculate_local_bins() {
 
   if (pctx.my_rank == 0) {
     fprintf(stderr, "All pvt R0: %s\n",
-            print_vec(rs_pbin_buf, 1024, pctx.rctx.all_pivots,
+            print_vec(rs_pbin_buf, PRINTBUF_LEN, pctx.rctx.all_pivots,
                       pctx.rctx.all_pivots.size()));
     fprintf(stderr, "All pvw R0: %s\n",
-            print_vec(rs_pbin_buf, 1024, pctx.rctx.all_pivot_widths,
+            print_vec(rs_pbin_buf, PRINTBUF_LEN, pctx.rctx.all_pivot_widths,
                       pctx.rctx.all_pivot_widths.size()));
 
     fprintf(stderr, "Unified pvt R0: %s\n",
-            print_vec(rs_pbin_buf, 1024, unified_bins, unified_bins.size()));
+            print_vec(rs_pbin_buf, PRINTBUF_LEN, unified_bins, unified_bins.size()));
     fprintf(stderr, "Unified pvc R0: %s\n",
-            print_vec(rs_pbin_buf, 1024, unified_bin_counts,
+            print_vec(rs_pbin_buf, PRINTBUF_LEN, unified_bin_counts,
                       unified_bin_counts.size()));
   }
 
@@ -456,7 +458,7 @@ void recalculate_local_bins() {
 
   if (pctx.my_rank == 0) {
     fprintf(stderr, "Unified samples R0: %s\n",
-            print_vec(rs_pbin_buf, 1024, samples, samples.size()));
+            print_vec(rs_pbin_buf, PRINTBUF_LEN, samples, samples.size()));
   }
 
 #ifdef RANGE_DEBUG
@@ -830,9 +832,9 @@ void get_local_pivots(range_ctx_t *rctx) {
       pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
       // ff[0], ff[1], ff[2], ff[3], ff[4], ff[5], ff[6], ff[7], ff[8],
       // ff.size(),
-      print_vec(rs_pb_buf, 256, ff, ff.size()), ff.size(),
+      print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()), ff.size(),
       // gg[0], gg[1], gg[2], gg[3], gg[4], gg[5], gg[6], gg[7], gg[8], gg[9],
-      print_vec(rs_pb_buf2, 256, gg, gg.size()), gg.size(),
+      print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()), gg.size(),
       // gg.size(),
       (rctx->range_state_prev == range_state_t::RS_INIT) ? "true" : "false");
   /**********************/
@@ -1058,8 +1060,8 @@ void take_snapshot(range_ctx_t *rctx) {
   }
 
   fprintf(stderr, "Rank %d After SS OOBL: %s\n", pctx.my_rank,
-          print_vec(rs_pb_buf, 256, oob_left_ss, oob_left_ss.size()));
+          print_vec(rs_pb_buf, PRINTBUF_LEN, oob_left_ss, oob_left_ss.size()));
   fprintf(stderr, "Rank %d After SS OOBR: %s\n", pctx.my_rank,
-          print_vec(rs_pb_buf, 256, oob_right_ss, oob_right_ss.size()));
+          print_vec(rs_pb_buf, PRINTBUF_LEN, oob_right_ss, oob_right_ss.size()));
 }
 
