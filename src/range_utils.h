@@ -32,3 +32,6 @@ void repartition_bin_counts(std::vector<float>& old_bins,
                             std::vector<float>& old_bin_counts,
                             std::vector<float>& new_bins,
                             std::vector<float>& new_bin_counts);
+
+void assert_monotically_increasing(float *array, int array_sz);
+void assert_monotically_decreasing(float *array, int array_sz);

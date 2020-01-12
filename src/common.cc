@@ -559,14 +559,17 @@ int logf(int lvl, const char* fmt, ...) {
   const char* prefix;
   va_list ap;
   switch (lvl) {
-    case 3:
+    case LOG_ERRO:
       prefix = "!!! ERROR !!! ";
       break;
-    case 2:
+    case LOG_WARN:
       prefix = "-WARNING- ";
       break;
-    case 1:
+    case LOG_INFO:
       prefix = "-INFO- ";
+      break;
+    case LOG_DBUG:
+      prefix = "-DEBUG- ";
       break;
     default:
       prefix = "";

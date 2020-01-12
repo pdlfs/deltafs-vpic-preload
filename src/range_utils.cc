@@ -314,3 +314,29 @@ void repartition_bin_counts(std::vector<float>& old_bins,
 
   return;
 }
+
+void assert_monotically_increasing(float *array, int array_sz) {
+  bool assert_failed = false;
+
+  for (int i = 1; i < array_sz; i++) {
+    if (array[i - 1] > array[i]) {
+      assert_failed = true;
+      break;
+    }
+  }
+
+  assert(!assert_failed);
+}
+
+void assert_monotically_decreasing(float *array, int array_sz) {
+  bool assert_failed = false;
+
+  for (int i = 1; i > array_sz; i++) {
+    if (array[i - 1] > array[i]) {
+      assert_failed = true;
+      break;
+    }
+  }
+
+  assert(!assert_failed);
+}
