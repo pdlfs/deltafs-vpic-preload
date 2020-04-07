@@ -2634,7 +2634,7 @@ int fclose(FILE* stream) {
   }
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write(&pctx.sctx, fname, fname_len, data, data_len,
+    rv = shuffle_write_mux(&pctx.sctx, fname, fname_len, data, data_len,
                        num_eps - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");

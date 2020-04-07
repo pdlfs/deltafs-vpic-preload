@@ -72,8 +72,11 @@ static int myrank = 0;
 /*
  * Range query arguments. Can be moved to take cmdline params
  */
-static float range_bins[] = {1, 2, 3, 3, 3, 4, 6, 8, 6, 4, 3, 3, 3, 2, 1};
-static int num_bins = 15;
+// static float range_bins[] = {1, 2, 3, 3, 3, 4, 6, 8, 6, 4, 3, 3, 3, 2, 1};
+// static int num_bins = 15;
+static float range_bins[] = {1, 2};
+static int num_bins = 2;
+
 static float range_start = 0;
 static float range_end = 50;
 static rangeutils::WorkloadPattern range_wp =
@@ -202,6 +205,8 @@ static struct ps {
  */
 static void run_vpic_app();
 static void do_dump();
+static void do_dump_multiplex();
+static void do_dump_shuffle_skew();
 
 /*
  * main program.
@@ -365,7 +370,8 @@ static void run_vpic_app() {
     if (myrank == 0) printf("\n== VPIC Epoch %d ...\n", epoch + 1);
     int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
-    do_dump();
+    do_dump_multiplex();
+
   }
 }
 
@@ -417,7 +423,12 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 #endif
 }  // namespace
 
+static void do_dump_multiplex() {
+  do_dump_shuffle_skew();
+}
+
 static void do_dump() {
+  do_dump_shuffle_skew();
   FILE* file;
   DIR* dir;
   dir = opendir(g.pdir);
@@ -449,6 +460,60 @@ static void do_dump() {
                "[Ret %d] Ran out of particles earlier than expected", ret);
     p_energy = p_energy_base + myrank;
     p_energy_base += 2;
+    // fprintf(stderr, "myrank: %d %.1f\n", myrank, p_energy);
+    fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
+    fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
+    fclose(file);
+  }
+
+  closedir(dir);
+}
+
+void gen_bins(float *range_bins, int bin_len, int skew_degree) {
+  for (int idx = 0; idx < bin_len; idx++) {
+    range_bins[idx] = 1;
+  }
+
+  return;
+}
+
+static void do_dump_shuffle_skew() {
+  FILE* file;
+  DIR* dir;
+  dir = opendir(g.pdir);
+  if (!dir) {
+    complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
+  }
+
+  float range_bins[g.size];
+  /* generate relative weights for different ranks */
+  gen_bins(range_bins, g.size, 1);
+
+  rangeutils::WorkloadPattern skew_wp =
+      rangeutils::WorkloadPattern::WP_SHUFFLE_SKEW;
+
+  // TODO: change to uint64_t if we expect more than 2B particles
+  rangeutils::WorkloadGenerator wg(range_bins, g.size, range_start, range_end,
+                                    g.nps * g.size, skew_wp, myrank, g.size);
+
+  const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
+#ifdef PRELOAD_EXASCALE_RUNS
+  uint64_t highbits = (static_cast<uint64_t>(myrank) << 32);
+#else
+  uint64_t highbits = (static_cast<uint64_t>(myrank) << 24);
+#endif
+
+  float p_energy;
+  float p_energy_base = 1;
+
+  for (int i = 0; i < g.nps; i++) {
+    base64_encoding(p.pname + prefix, (highbits | i));
+    file = fopen(p.pname, "a");
+    if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
+    int ret = wg.next(p_energy);
+    if (ret)
+      complain(EXIT_FAILURE, 0,
+               "[Ret %d] Ran out of particles earlier than expected", ret);
     // fprintf(stderr, "myrank: %d %.1f\n", myrank, p_energy);
     fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);

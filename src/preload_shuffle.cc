@@ -54,6 +54,7 @@
 
 #include "common.h"
 #include "msgfmt.h"
+#include "shuffle_write_providers.h"
 
 char buf_type_buf[256];
 
@@ -432,6 +433,19 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 }
 }  // namespace
 
+int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
+                  unsigned char fname_len, char* data, unsigned char data_len,
+                  int epoch) {
+  int retval;
+
+  // retval = shuffle_write_mock(ctx, fname, fname_len, data, data_len, epoch);
+  retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
+  // retval = shuffle_write(ctx, fname, fname_len, data, data_len, epoch);
+
+  return retval;
+}
+
+
 /* Only to be used with preprocessed particle_mem_t structs
  * NOT for external use
  */
@@ -524,7 +538,13 @@ void send_all_to_all(shuffle_ctx_t* ctx, char* buf, uint32_t buf_sz,
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
                   unsigned char fname_len, char* data, unsigned char data_len,
                   int epoch) {
-  char buf[255];
+  //mock_reneg();
+  return 0;
+
+#define SHUFFLE_BUF_LEN 255
+#define LBTRIG_HDR_SZ 0
+
+  char buf[SHUFFLE_BUF_LEN + LBTRIG_HDR_SZ];
   int peer_rank = -1;
   int rank;
   int rv;
@@ -698,6 +718,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   // peer_rank, buf[0], buf[1], buf[2]);
 
   if (ctx->type == SHUFFLE_XN) {
+    /* TODO: Also handle flushed OOB packets */
+    int padded_sz = buf_sz + LBTRIG_HDR_SZ;
     xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
                         peer_rank, rank);
     // xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,

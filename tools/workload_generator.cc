@@ -23,6 +23,10 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
       num_ranks(num_ranks) {
   assert(num_bins < MAX_BINS);
 
+  if (wp == WorkloadPattern::WP_SHUFFLE_SKEW) {
+    assert(num_bins == num_ranks);
+  }
+
   rand_seed();
 
   _seq_cur_bin = 0;
@@ -58,6 +62,9 @@ void WorkloadGenerator::adjust_queries() {
       break;
     case WorkloadPattern::WP_RANDOM:
       adjust_queries_random();
+      break;
+    case WorkloadPattern::WP_SHUFFLE_SKEW:
+      adjust_queries_shuffle_skew();
       break;
     case WorkloadPattern::WP_RANK_SEQUENTIAL:
       throw std::invalid_argument("WP_RANK_SEQUENTIAL is not implemented");
@@ -106,6 +113,28 @@ void WorkloadGenerator::adjust_queries_random() {
     assert(bidx >= 0);
   }
   _debug_print_bins("Random After: ");
+}
+
+void WorkloadGenerator::adjust_queries_shuffle_skew() {
+  _debug_print_bins("Shuffle Skew Before: ");
+  int queries_per_rank = queries_total / num_ranks;
+
+  bin_total = 0;
+
+  for (int bidx = 0; bidx < num_bins; bidx++) {
+    bin_total += bin_weights[bidx];
+  }
+
+  for (int bidx = 0; bidx < num_bins; bidx++) {
+    bin_emits_left[bidx] =
+        roundf(bin_weights[bidx] / bin_total * queries_per_rank);
+
+    bin_total -= bin_weights[bidx];
+    queries_per_rank -= bin_emits_left[bidx];
+  }
+
+  assert(queries_per_rank == 0);
+  _debug_print_bins("Shuffle Skew After: ");
 }
 
 void WorkloadGenerator::adjust_queries_rank_sequential() {
@@ -176,13 +205,20 @@ void WorkloadGenerator::adjust_queries_rank_sequential() {
 
 int WorkloadGenerator::next(float &value) {
   if (queries_left == 0) return -1;
+
   switch (wp) {
     case WorkloadPattern::WP_SEQUENTIAL:
       return next_sequential(value);
+      break;
     case WorkloadPattern::WP_RANDOM:
       return next_random(value);
+      break;
+    case WorkloadPattern::WP_SHUFFLE_SKEW:
+      return next_shuffle_skew(value);
+      break;
     case WorkloadPattern::WP_RANK_SEQUENTIAL:
       throw std::invalid_argument("WP_RANK_SEQUENTIAL is not implemented");
+      break;
   }
 }
 
@@ -211,6 +247,20 @@ int WorkloadGenerator::next_random(float &value) {
 
   value = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * bin_width;
   value += bin_starts[bin];
+
+  queries_left--;
+  return 0;
+}
+
+int WorkloadGenerator::next_shuffle_skew(float &value) {
+  int bin = rand() % num_bins;
+
+  do {
+    bin = rand() % num_bins;
+  } while (bin_emits_left[bin] == 0);
+
+  bin_emits_left[bin]--;
+  value = bin;
 
   queries_left--;
   return 0;

@@ -55,8 +55,8 @@
  */
 #pragma once
 
-#include <stddef.h>
 #include <signal.h>
+#include <stddef.h>
 
 typedef struct shuffle_ctx {
   /* internal shuffle impl */
@@ -105,6 +105,18 @@ int shuffle_rank(shuffle_ctx_t* ctx);
 
 /* return the total number of shuffle participant */
 int shuffle_world_sz(shuffle_ctx_t* ctx);
+
+/*
+ * shuffle_write_mux: shuffle a write request through an underlying transport.
+ *
+ * a multiplexer function that may call shuffle_write or one of the utility
+ * shuffles dedveloped for various benchmarks.
+ *
+ * return 0 on success, or EOF or errors.
+ */
+int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
+                      unsigned char fname_len, char* data,
+                      unsigned char data_len, int epoch);
 
 /*
  * shuffle_write: shuffle a write request through an underlying transport.

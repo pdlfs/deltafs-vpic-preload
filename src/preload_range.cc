@@ -26,6 +26,8 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx);
 
 void recalculate_local_bins();
 
+void increment_rnum_and_send_acks();
+
 #define PRINTBUF_LEN 16384
 
 char rs_pb_buf[16384];
@@ -296,8 +298,28 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
     logf(LOG_INFO, "Rank %d ready to update its bins\n", pctx.my_rank);
 #endif
 
+#ifndef RANGE_MOCK_RENEG
+    // TODO: make this available elsewhere
     recalculate_local_bins();
+#endif
+    increment_rnum_and_send_acks();
   }
+}
+
+void increment_rnum_and_send_acks() {
+  {
+    std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
+    pctx.rctx.pvt_round_num++;
+    pctx.rctx.range_state_prev = pctx.rctx.range_state;
+    pctx.rctx.range_state = range_state_t::RS_ACK;
+  }
+
+  if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "Rank %d updated its bins. Sending acks now\n", pctx.my_rank);
+  }
+
+  assert(pctx.rctx.range_state != range_state_t::RS_READY);
+  send_all_acks();
 }
 
 /***** Private functions - not in header file ******/

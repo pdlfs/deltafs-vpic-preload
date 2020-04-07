@@ -23,6 +23,13 @@ enum class WorkloadPattern {
    * assuming number of particles/rank is sufficiently large
    */
   WP_RANDOM,
+  /* All ranks will produce an equal number of particles, but more particles
+   * for one destination than for others. Each particle's indexed attribute
+   * will be the destination it needs to be shuffled to. No lookups or mappings
+   * are necessary. shuffle_write in preload also needs to be correspondingly
+   * modified
+   */
+  WP_SHUFFLE_SKEW,
   /* All ranks produce particles from a non-overlapping partition of the
    * range sequentially
    * TODO: IMPLEMENT THIS
@@ -46,10 +53,12 @@ class WorkloadGenerator {
   void adjust_queries();
   void adjust_queries_sequential();
   void adjust_queries_random();
+  void adjust_queries_shuffle_skew();
   // TODO: test rank_sequential and complete next
   void adjust_queries_rank_sequential();
 
   int next_sequential(float &value);
+  int next_shuffle_skew(float &value);
 
   int _seq_cur_bin;
 
