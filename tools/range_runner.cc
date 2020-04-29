@@ -58,6 +58,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <iostream>
+#include <fstream>
+
 #include <mpi.h>
 
 #include "workload_generator.h"
@@ -205,7 +208,7 @@ static struct ps {
  */
 static void run_vpic_app();
 static void do_dump();
-static void do_dump_multiplex();
+static void do_dump_mux();
 static void do_dump_shuffle_skew();
 
 /*
@@ -370,7 +373,7 @@ static void run_vpic_app() {
     if (myrank == 0) printf("\n== VPIC Epoch %d ...\n", epoch + 1);
     int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
-    do_dump_multiplex();
+    do_dump_mux();
 
   }
 }
@@ -423,12 +426,11 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 #endif
 }  // namespace
 
-static void do_dump_multiplex() {
+static void do_dump_mux() {
   do_dump_shuffle_skew();
 }
 
 static void do_dump() {
-  do_dump_shuffle_skew();
   FILE* file;
   DIR* dir;
   dir = opendir(g.pdir);
@@ -470,8 +472,28 @@ static void do_dump() {
 }
 
 void gen_bins(float *range_bins, int bin_len, int skew_degree) {
+  int n, base_factor, skew_factor;
+
+  std::ifstream my_file;
+  my_file.open("/users/ankushj/range/build-post/bin/run/wp.txt");
+
+  my_file >> n >> base_factor >> skew_factor;
+
+  int ridx_arr[n];
+
+  for (int i = 0; i < n; i++) {
+    my_file >> ridx_arr[i];
+  }
+
+  my_file.close();
+
+  //int ridx_arr[] = {36, 20, 21, 25, 33, 14, 24, 60};
   for (int idx = 0; idx < bin_len; idx++) {
-    range_bins[idx] = 1;
+    range_bins[idx] = base_factor;
+  }
+
+  for (int ridx = 0; ridx < 8; ridx++) {
+    range_bins[ridx_arr[ridx]] = skew_factor;
   }
 
   return;

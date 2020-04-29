@@ -116,7 +116,7 @@ void WorkloadGenerator::adjust_queries_random() {
 }
 
 void WorkloadGenerator::adjust_queries_shuffle_skew() {
-  _debug_print_bins("Shuffle Skew Before: ");
+  // _debug_print_bins("Shuffle Skew Before: ");
   int queries_per_rank = queries_total / num_ranks;
 
   bin_total = 0;
@@ -134,7 +134,7 @@ void WorkloadGenerator::adjust_queries_shuffle_skew() {
   }
 
   assert(queries_per_rank == 0);
-  _debug_print_bins("Shuffle Skew After: ");
+  // _debug_print_bins("Shuffle Skew After: ");
 }
 
 void WorkloadGenerator::adjust_queries_rank_sequential() {

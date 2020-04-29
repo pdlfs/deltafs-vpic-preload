@@ -26,6 +26,12 @@ float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
 int shuffle_write_mock(shuffle_ctx_t* ctx, const char* fname,
                        unsigned char fname_len, char* data,
                        unsigned char data_len, int epoch) {
+#ifndef RANGE_MOCK_RENEG
+
+  logf(LOG_ERRO, "RANGE_MOCK_RENEG flag is not enabled");
+  return 0;
+
+#endif
   mock_reneg();
   return 0;
 }
@@ -44,6 +50,9 @@ int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
   // fprintf(stderr, "shuffle_write_nohash: %f %d\n", prop, dest_rank);
 
   range_ctx_t* rctx = &pctx.rctx;
+
+  // fprintf(stderr, "fname comp: %d %d\n", ctx->fname_len, fname_len);
+  // fprintf(stderr, "data comp: %d %d\n", ctx->data_len, data_len);
 
   assert(ctx == &pctx.sctx);
   assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->fname_len - 1);
