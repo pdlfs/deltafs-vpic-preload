@@ -79,7 +79,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                            int src);
 
 int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
-                              int src);
+                             int src);
+bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items);
 /* END internal declarations */
 
 int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
@@ -306,18 +307,18 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
     if (rctx->my_rank == rctx->root_s1) {
       send_to_all_s1(rctx, buf, buf_sz);
     }
+
+    /* send pivots to s1root now */
+    char pvt_buf[1024];
+
+    pthread_mutex_lock(rctx->data_mutex);
+    int pvt_buf_len = msgfmt_encode_rtp_pivots(pvt_buf, 1024, rctx->round_num,
+                                               1, rctx->my_rank, rctx->data, 1,
+                                               *(rctx->data_len));
+    pthread_mutex_unlock(rctx->data_mutex);
+
+    send_to_rank(rctx, pvt_buf, pvt_buf_len, rctx->root_s1);
   }
-
-  /* send pivots to s1root now */
-  char pvt_buf[1024];
-
-  pthread_mutex_lock(rctx->data_mutex);
-  int pvt_buf_len =
-      msgfmt_encode_rtp_pivots(pvt_buf, 1024, rctx->round_num, 1, rctx->my_rank,
-                               rctx->data, 1, *(rctx->data_len));
-  pthread_mutex_unlock(rctx->data_mutex);
-
-  send_to_rank(rctx, pvt_buf, pvt_buf_len, rctx->root_s1);
 
   return 0;
 }
@@ -346,10 +347,14 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
-  if (num_items == FANOUT_MAX) {
+  fprintf(stderr, "reneg_handle_rtp_pivot: (S%d) %d items at %d\n", stage_num,
+          num_items, rctx->my_rank);
+  if (expected_items_for_stage(rctx, stage_num, num_items)) {
     // Aggregate pivots
     // XXX: pretend new pivots are also in pivots
     char next_buf[1024];
+    fprintf(stderr, "reneg_handle_rtp_pivot: S%d @ %d collected\n", stage_num,
+            rctx->my_rank);
 
     if (stage_num < STAGES_MAX) {
       int next_buf_len = msgfmt_encode_rtp_pivots(
@@ -374,19 +379,32 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 }
 
 int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
-                              int src) {
-  if (rctx->my_rank == rctx->root_s3) {
-    send_to_all_s3(rctx, buf, buf_sz);
+                             int src) {
+  bool should_broadcast = false;
+
+  pthread_mutex_lock(&(rctx->reneg_mutex));
+
+  if (rctx->state_mgr.get_state() != RenegState::RENEG_RECVWAIT) {
+    rctx->state_mgr.update_state(RenegState::RENEG_RECVWAIT);
+    should_broadcast = true;
   }
-  if (rctx->my_rank == rctx->root_s2) {
-    send_to_all_s2(rctx, buf, buf_sz);
-  }
-  if (rctx->my_rank == rctx->root_s1) {
-    send_to_all_s1(rctx, buf, buf_sz);
+
+  pthread_mutex_unlock(&(rctx->reneg_mutex));
+
+  if (should_broadcast) {
+    if (rctx->my_rank == rctx->root_s3) {
+      send_to_all_s3(rctx, buf, buf_sz);
+    }
+    if (rctx->my_rank == rctx->root_s2) {
+      send_to_all_s2(rctx, buf, buf_sz);
+    }
+    if (rctx->my_rank == rctx->root_s1) {
+      send_to_all_s1(rctx, buf, buf_sz);
+    }
   }
 
   fprintf(stderr, "reneg_handle_pivot_bcast: received pivots at %d from %d\n",
-      rctx->my_rank, src);
+          rctx->my_rank, src);
 
   return 0;
 }
@@ -425,6 +443,16 @@ void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
 int reneg_destroy(reneg_ctx_t rctx) {
   pthread_mutex_destroy(&(rctx->reneg_mutex));
   return 0;
+}
+
+bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items) {
+  fprintf(stderr, "expected_items_for_stage: %d %d -> %d %d %d\n", stage, items,
+          rctx->num_peers_s1, rctx->num_peers_s2, rctx->num_peers_s3);
+  if (stage == 1 && rctx->num_peers_s1 == items) return true;
+  if (stage == 2 && rctx->num_peers_s2 == items) return true;
+  if (stage == 3 && rctx->num_peers_s3 == items) return true;
+
+  return false;
 }
 
 /*************** Temporary Functions ********************/

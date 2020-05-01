@@ -1280,9 +1280,9 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   struct reneg_opts ro;
-  ro.fanout_s1 = 4;
-  ro.fanout_s2 = 4;
-  ro.fanout_s3 = 4;
+  ro.fanout_s1 = 2;
+  ro.fanout_s2 = 2;
+  ro.fanout_s3 = 2;
 
   pthread_mutex_init(&(pctx.data_mutex), NULL);
   reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.data, &(pctx.data_len), 20,

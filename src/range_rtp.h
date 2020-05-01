@@ -15,7 +15,7 @@ enum RenegState {
   RENEG_R1SND,
   RENEG_R2SND,
   RENEG_R3SND,
-  RENEG_REVCVWAIT
+  RENEG_RECVWAIT
 };
 
 class RenegStateMgr {
@@ -33,8 +33,8 @@ class RenegStateMgr {
 
 class DataBuffer {
   private:
-    float data_store[STAGES_MAX][FANOUT_MAX][PIVOTS_MAX];
-    int data_len[STAGES_MAX];
+    float data_store[STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
+    int data_len[STAGES_MAX + 1];
 
     int num_pivots;
 
