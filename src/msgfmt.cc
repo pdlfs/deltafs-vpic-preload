@@ -45,7 +45,7 @@ void msgfmt_parse_data(char *buf, int buf_sz, char **fname, int fname_sz,
 
 uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
                                    int my_rank) {
-  assert(((uint32_t) buf_sz) >= MSGFMT_TYPE_SIZE + 2 * sizeof(int));
+  assert(((uint32_t)buf_sz) >= MSGFMT_TYPE_SIZE + 2 * sizeof(int));
 
   fprintf(stderr, "ENCODE reneg begin round num: %d\n", round_no);
   fprintf(stderr, "ENCODE reneg begin RANK: %d\n", my_rank);
@@ -56,7 +56,7 @@ uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
          sizeof(int));
   // memcpy(&buf[1], static_cast<void *>(&my_rank), sizeof(int));
 
-  return MSGFMT_TYPE_SIZE + 2*sizeof(int);
+  return MSGFMT_TYPE_SIZE + 2 * sizeof(int);
 }
 
 void msgfmt_parse_reneg_begin(char *buf, int buf_sz, int *round_no,
@@ -144,10 +144,12 @@ void msgfmt_parse_ack(char *buf, int buf_sz, int *rank, int *round_no) {
   (*rank) = (*rank_ptr);
 
   int *round_no_ptr = reinterpret_cast<int *>(buf + 1 + sizeof(int));
-  (*round_no) =  (*round_no_ptr);
+  (*round_no) = (*round_no_ptr);
 
   return;
 }
+
+unsigned char msgfmt_get_rtp_msgtype(char *buf) { return buf[1]; }
 
 int msgfmt_encode_rtp_begin(char *buf, int buf_sz, int rank, int round_num) {
   buf[0] = MSGFMT_RTP_MAGIC;
@@ -170,10 +172,11 @@ void msgfmt_decode_rtp_begin(char *buf, int buf_sz, int *rank, int *round_num) {
 }
 
 int msgfmt_encode_rtp_pivots(char *buf, int buf_sz, int round_num,
-                              int stage_num, int sender_id, float *pivots,
-                              float pivot_width, int num_pivots) {
+                             int stage_num, int sender_id, float *pivots,
+                             float pivot_width, int num_pivots,
+                             bool bcast) {
   buf[0] = MSGFMT_RTP_MAGIC;
-  buf[1] = MSGFMT_RTP_PIVOT;
+  buf[1] = bcast ? MSGFMT_RTP_PVT_BCAST : MSGFMT_RTP_PIVOT;
 
   char *cursor = buf + 2;
 
@@ -201,10 +204,11 @@ int msgfmt_encode_rtp_pivots(char *buf, int buf_sz, int round_num,
 }
 
 void msgfmt_decode_rtp_pivots(char *buf, int buf_sz, int *round_num,
-                              int *stage_num, int *sender_id, float *pivots,
-                              float *pivot_width, int *num_pivots) {
+                              int *stage_num, int *sender_id, float **pivots,
+                              float *pivot_width, int *num_pivots,
+                              bool bcast) {
   assert(buf[0] == MSGFMT_RTP_MAGIC);
-  assert(buf[1] == MSGFMT_RTP_PIVOT);
+  assert(buf[1] == bcast ? MSGFMT_RTP_PVT_BCAST : MSGFMT_RTP_PIVOT);
 
   char *cursor = buf + 2;
 
@@ -228,7 +232,8 @@ void msgfmt_decode_rtp_pivots(char *buf, int buf_sz, int *round_num,
   *pivot_width = *pivot_width_ptr;
   cursor += sizeof(float);
 
-  memcpy(pivots, cursor, sizeof(float) * (*num_pivots));
+  // memcpy(pivots, cursor, sizeof(float) * (*num_pivots));
+  (*pivots) = reinterpret_cast<float *>(cursor);
 
   return;
 }

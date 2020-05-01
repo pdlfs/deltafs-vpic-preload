@@ -749,6 +749,10 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
+#ifdef DEBUG_INFO
+  fprintf(stderr, "shuffle_handle: received at %d\n", dst);
+#endif
+
   char msg_type = msgfmt_get_msgtype(buf);
   switch (msg_type) {
     case MSGFMT_DATA:
@@ -757,7 +761,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
       // range_handle_reneg_begin(buf, buf_sz);
       // return 0;
     case MSGFMT_RTP_MAGIC:
-      reneg_handle_msg(pctx.rtp_ctx, buf, buf_sz, src);
+      reneg_handle_msg(&(pctx.rtp_ctx), buf, buf_sz, src);
       return 0;
     case MSGFMT_RENEG_PIVOTS:
       range_handle_reneg_pivots(buf, buf_sz, src);

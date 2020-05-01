@@ -161,7 +161,11 @@ typedef struct preload_ctx {
   FILE* trace;
 
   range_ctx_t rctx;
-  reneg_ctx_t rtp_ctx;
+
+  struct reneg_ctx rtp_ctx;
+  float data[40];
+  int data_len;
+  pthread_mutex_t data_mutex;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;

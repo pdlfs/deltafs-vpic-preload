@@ -1279,6 +1279,15 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  struct reneg_opts ro;
+  ro.fanout_s1 = 4;
+  ro.fanout_s2 = 4;
+  ro.fanout_s3 = 4;
+
+  pthread_mutex_init(&(pctx.data_mutex), NULL);
+  reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.data, &(pctx.data_len), 20,
+             &(pctx.data_mutex), ro);
+
   srand(pctx.my_rank);
 
   return rv;
@@ -1355,6 +1364,9 @@ int MPI_Finalize(void) {
   num_files_writ = num_bytes_writ = 0;
   num_files_read = num_bytes_read = 0;
   io_time = 0;
+
+  pthread_mutex_destroy(&(pctx.data_mutex));
+  reneg_destroy(&(pctx.rtp_ctx));
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -2635,7 +2647,7 @@ int fclose(FILE* stream) {
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     rv = shuffle_write_mux(&pctx.sctx, fname, fname_len, data, data_len,
-                       num_eps - 1);
+                           num_eps - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }

@@ -5,6 +5,9 @@
 #include "xn_shuffle.h"
 
 #define FANOUT_MAX 128
+// XXX: This is probably defined elsewhere
+#define PIVOTS_MAX 4
+#define STAGES_MAX 3
 
 enum RenegState {
   RENEG_INIT,
@@ -21,19 +24,28 @@ class RenegStateMgr {
   RenegState prev_state;
 
  public:
-  RenegStateMgr(){
-      current_state = RENEG_INIT;
-      prev_state = RENEG_INIT;
-  }
+  RenegStateMgr();
 
-  RenegState get_state() {
-    return this->current_state;
-  }
+  RenegState get_state();
 
-  RenegState update_state(RenegState new_state) {
-    this->prev_state = this->current_state;
-    this->current_state = new_state;
-  }
+  RenegState update_state(RenegState new_state);
+};
+
+class DataBuffer {
+  private:
+    float data_store[STAGES_MAX][FANOUT_MAX][PIVOTS_MAX];
+    int data_len[STAGES_MAX];
+
+    int num_pivots;
+
+  public:
+    DataBuffer();
+
+    int store_data(int stage, float *data, int dlen);
+
+    int get_num_items(int stage);
+
+    int clear_all_data();
 };
 
 struct reneg_ctx {
@@ -48,9 +60,9 @@ struct reneg_ctx {
    * and write
    */
   /* BEGIN data_mutex */
-  pthread_mutex_t *data_mutex;
-  float *data;
-  int *data_len;
+  pthread_mutex_t *data_mutex = NULL;
+  float *data = NULL;
+  int *data_len = NULL;
   /* END data_mutex */
 
   /* All data below is protected by this mutex - this is also
@@ -61,6 +73,7 @@ struct reneg_ctx {
   pthread_cond_t reneg_cv = PTHREAD_COND_INITIALIZER;
 
   RenegStateMgr state_mgr;
+  DataBuffer data_buffer;
 
   int round_num;
   int my_rank;

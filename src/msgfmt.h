@@ -44,6 +44,7 @@ void msg_abort(int err, const char *msg, const char *func, const char *file,
 #define MSGFMT_RTP_MAGIC 0x57
 #define MSGFMT_RTP_BEGIN 0x01
 #define MSGFMT_RTP_PIVOT 0x02
+#define MSGFMT_RTP_PVT_BCAST 0x03
 
 uint32_t msgfmt_get_data_size(int fname_sz, int data_sz, int extra_data_sz);
 
@@ -76,14 +77,32 @@ void msgfmt_encode_ack(char *buf, int buf_sz, int rank, int round_no);
 
 void msgfmt_parse_ack(char *buf, int buf_sz, int *rank, int *round_no);
 
+unsigned char msgfmt_get_rtp_msgtype(char *buf);
+
 int msgfmt_encode_rtp_begin(char *buf, int buf_sz, int rank, int round_num);
 
 void msgfmt_decode_rtp_begin(char *buf, int buf_sz, int *rank, int *round_num);
 
+/**
+ * @brief
+ *
+ * @param buf
+ * @param buf_sz
+ * @param round_num
+ * @param stage_num 1-indexed, RTP stage [1|2|3]
+ * @param sender_id
+ * @param pivots
+ * @param pivot_width
+ * @param num_pivots
+ *
+ * @return
+ */
 int msgfmt_encode_rtp_pivots(char *buf, int buf_sz, int round_num,
-                              int stage_num, int sender_id, float *pivots,
-                              float pivot_width, int num_pivots);
+                             int stage_num, int sender_id, float *pivots,
+                             float pivot_width, int num_pivots,
+                             bool bcast = false);
 
 void msgfmt_decode_rtp_pivots(char *buf, int buf_sz, int *round_num,
-                              int *stage_num, int *sender_id, float *pivots,
-                              float *pivot_width, int *num_pivots);
+                              int *stage_num, int *sender_id, float **pivots,
+                              float *pivot_width, int *num_pivots,
+                              bool bcast = false);
