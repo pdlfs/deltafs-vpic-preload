@@ -41,6 +41,7 @@
 #include "preload_mon.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
+#include "range_rtp.h"
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
@@ -439,8 +440,9 @@ int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
   int retval;
 
   // retval = shuffle_write_mock(ctx, fname, fname_len, data, data_len, epoch);
-  retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
+  // retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
   // retval = shuffle_write(ctx, fname, fname_len, data, data_len, epoch);
+  retval = shuffle_write_treeneg(ctx, fname, fname_len, data, data_len, epoch);
 
   return retval;
 }
@@ -754,6 +756,9 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
     // case MSGFMT_RENEG_BEGIN:
       // range_handle_reneg_begin(buf, buf_sz);
       // return 0;
+    case MSGFMT_RTP_MAGIC:
+      reneg_handle_msg(pctx.rtp_ctx, buf, buf_sz, src);
+      return 0;
     case MSGFMT_RENEG_PIVOTS:
       range_handle_reneg_pivots(buf, buf_sz, src);
       return 0;

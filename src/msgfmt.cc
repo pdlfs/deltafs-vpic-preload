@@ -148,3 +148,87 @@ void msgfmt_parse_ack(char *buf, int buf_sz, int *rank, int *round_no) {
 
   return;
 }
+
+int msgfmt_encode_rtp_begin(char *buf, int buf_sz, int rank, int round_num) {
+  buf[0] = MSGFMT_RTP_MAGIC;
+  buf[1] = MSGFMT_RTP_BEGIN;
+  memcpy(buf + 2, &rank, sizeof(int));
+  memcpy(buf + 2 + sizeof(int), &round_num, sizeof(int));
+
+  return 2 + 2 * sizeof(int);
+}
+
+void msgfmt_decode_rtp_begin(char *buf, int buf_sz, int *rank, int *round_num) {
+  assert(buf[0] == MSGFMT_RTP_MAGIC);
+  assert(buf[1] == MSGFMT_RTP_BEGIN);
+
+  int *rank_ptr = reinterpret_cast<int *>(buf + 2);
+  *rank = *rank_ptr;
+
+  int *round_ptr = reinterpret_cast<int *>(buf + 2 + sizeof(int));
+  *round_num = *round_ptr;
+}
+
+int msgfmt_encode_rtp_pivots(char *buf, int buf_sz, int round_num,
+                              int stage_num, int sender_id, float *pivots,
+                              float pivot_width, int num_pivots) {
+  buf[0] = MSGFMT_RTP_MAGIC;
+  buf[1] = MSGFMT_RTP_PIVOT;
+
+  char *cursor = buf + 2;
+
+  memcpy(cursor, &round_num, sizeof(int));
+  cursor += sizeof(int);
+
+  memcpy(cursor, &stage_num, sizeof(int));
+  cursor += sizeof(int);
+
+  memcpy(cursor, &sender_id, sizeof(int));
+  cursor += sizeof(int);
+
+  memcpy(cursor, &num_pivots, sizeof(int));
+  cursor += sizeof(int);
+
+  memcpy(cursor, &pivot_width, sizeof(float));
+  cursor += sizeof(float);
+
+  memcpy(cursor, pivots, sizeof(float) * num_pivots);
+  cursor += sizeof(float) * num_pivots;
+
+  assert(cursor - buf < buf_sz);
+
+  return cursor - buf;
+}
+
+void msgfmt_decode_rtp_pivots(char *buf, int buf_sz, int *round_num,
+                              int *stage_num, int *sender_id, float *pivots,
+                              float *pivot_width, int *num_pivots) {
+  assert(buf[0] == MSGFMT_RTP_MAGIC);
+  assert(buf[1] == MSGFMT_RTP_PIVOT);
+
+  char *cursor = buf + 2;
+
+  int *round_ptr = reinterpret_cast<int *>(cursor);
+  *round_num = *round_ptr;
+  cursor += sizeof(int);
+
+  int *stage_ptr = reinterpret_cast<int *>(cursor);
+  *stage_num = *stage_ptr;
+  cursor += sizeof(int);
+
+  int *sender_ptr = reinterpret_cast<int *>(cursor);
+  *sender_id = *sender_ptr;
+  cursor += sizeof(int);
+
+  int *num_pivots_ptr = reinterpret_cast<int *>(cursor);
+  *num_pivots = *num_pivots_ptr;
+  cursor += sizeof(int);
+
+  float *pivot_width_ptr = reinterpret_cast<float *>(cursor);
+  *pivot_width = *pivot_width_ptr;
+  cursor += sizeof(float);
+
+  memcpy(pivots, cursor, sizeof(float) * (*num_pivots));
+
+  return;
+}

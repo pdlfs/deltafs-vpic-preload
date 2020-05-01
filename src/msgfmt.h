@@ -31,7 +31,7 @@
 #define ABORT(msg) msg_abort(errno, msg, __func__, ABORT_FILENAME, __LINE__)
 
 /* abort with an error message: forward decl */
-void msg_abort(int err, const char* msg, const char* func, const char* file,
+void msg_abort(int err, const char *msg, const char *func, const char *file,
                int line);
 
 #define MSGFMT_DATA (unsigned char)0x01
@@ -41,14 +41,18 @@ void msg_abort(int err, const char* msg, const char* func, const char* file,
 
 #define MSGFMT_TYPE_SIZE 1u
 
+#define MSGFMT_RTP_MAGIC 0x57
+#define MSGFMT_RTP_BEGIN 0x01
+#define MSGFMT_RTP_PIVOT 0x02
+
 uint32_t msgfmt_get_data_size(int fname_sz, int data_sz, int extra_data_sz);
 
-uint32_t msgfmt_write_data(char* buf, int buf_sz, const char* fname,
-                           int fname_sz, const char* fdata, int data_sz,
+uint32_t msgfmt_write_data(char *buf, int buf_sz, const char *fname,
+                           int fname_sz, const char *fdata, int data_sz,
                            int extra_data_sz);
 
-void msgfmt_parse_data(char* buf, int buf_sz, char** fname, int fname_sz,
-                       char** fdata, int data_sz);
+void msgfmt_parse_data(char *buf, int buf_sz, char **fname, int fname_sz,
+                       char **fdata, int data_sz);
 
 uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
                                    int my_rank);
@@ -56,7 +60,7 @@ uint32_t msgfmt_encode_reneg_begin(char *buf, int buf_sz, int round_no,
 void msgfmt_parse_reneg_begin(char *buf, int buf_sz, int *round_no,
                               int *my_rank);
 
-unsigned char msgfmt_get_msgtype(char* buf);
+unsigned char msgfmt_get_msgtype(char *buf);
 
 uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots);
 
@@ -71,3 +75,15 @@ void msgfmt_parse_reneg_pivots(char *buf, int buf_sz, int *round_no,
 void msgfmt_encode_ack(char *buf, int buf_sz, int rank, int round_no);
 
 void msgfmt_parse_ack(char *buf, int buf_sz, int *rank, int *round_no);
+
+int msgfmt_encode_rtp_begin(char *buf, int buf_sz, int rank, int round_num);
+
+void msgfmt_decode_rtp_begin(char *buf, int buf_sz, int *rank, int *round_num);
+
+int msgfmt_encode_rtp_pivots(char *buf, int buf_sz, int round_num,
+                              int stage_num, int sender_id, float *pivots,
+                              float pivot_width, int num_pivots);
+
+void msgfmt_decode_rtp_pivots(char *buf, int buf_sz, int *round_num,
+                              int *stage_num, int *sender_id, float *pivots,
+                              float *pivot_width, int *num_pivots);

@@ -90,3 +90,27 @@ int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
   }
   return 0;
 }
+
+int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
+                       unsigned char fname_len, char* data,
+                       unsigned char data_len, int epoch) {
+  struct reneg_ctx rctx;
+
+  struct reneg_opts ro;
+  ro.fanout_s1 = 4;
+  ro.fanout_s2 = 4;
+  ro.fanout_s3 = 4;
+
+  float dt[100];
+  int dlen;
+
+  pthread_mutex_t dm;
+  pthread_mutex_init(&dm, NULL);
+
+  reneg_init(&rctx, ctx, dt, &dlen, 20, &dm, ro);
+  // reneg_init_round(&rctx);
+  // reneg_destroy(&rctx);
+
+  pthread_mutex_destroy(&dm);
+  return 0;
+}

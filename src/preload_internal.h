@@ -46,6 +46,7 @@
 #include "preload_mon.h"
 #include "preload_shuffle.h"
 #include "preload_range.h"
+#include "range_rtp.h"
 
 #include "preload.h"
 
@@ -160,6 +161,7 @@ typedef struct preload_ctx {
   FILE* trace;
 
   range_ctx_t rctx;
+  reneg_ctx_t rtp_ctx;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;
