@@ -1,4 +1,5 @@
 #include "shuffle_write_providers.h"
+#include <time.h>
 
 void mock_reneg();
 float get_indexable_property(const char* data_buf, unsigned int dbuf_sz);
@@ -91,31 +92,36 @@ int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
   return 0;
 }
 
-int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
-                       unsigned char fname_len, char* data,
-                       unsigned char data_len, int epoch) {
-  // struct reneg_ctx rctx;
-
-  // pctx.rtp_ctx = &rctx;
-
-  struct reneg_opts ro;
-  ro.fanout_s1 = 4;
-  ro.fanout_s2 = 4;
-  ro.fanout_s3 = 4;
-
-  // float dt[100];
-  // int dlen;
-
-  // pthread_mutex_t dm;
-  // pthread_mutex_init(&dm, NULL);
-
-  // reneg_init(&rctx, ctx, dt, &dlen, 20, &dm, ro);
-  if (pctx.my_rank == 1) {
-    reneg_init_round(&(pctx.rtp_ctx));
+timespec diff(timespec start, timespec end) {
+  timespec temp;
+  if ((end.tv_nsec - start.tv_nsec) < 0) {
+    temp.tv_sec = end.tv_sec - start.tv_sec - 1;
+    temp.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
+  } else {
+    temp.tv_sec = end.tv_sec - start.tv_sec;
+    temp.tv_nsec = end.tv_nsec - start.tv_nsec;
   }
-  sleep(10);
-  // reneg_destroy(&rctx);
+  return temp;
+}
 
-  // pthread_mutex_destroy(&dm);
+int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
+                          unsigned char fname_len, char* data,
+                          unsigned char data_len, int epoch) {
+  reneg_ctx_t rctx = &(pctx.rtp_ctx);
+
+  if (pctx.my_rank == 1) {
+    rctx->reneg_bench.rec_start();
+    reneg_init_round(rctx);
+    rctx->reneg_bench.rec_finished();
+    fprintf(stderr, "=========== MAIN THREAD AWAKE ==========\n");
+    rctx->reneg_bench.print_stderr();
+  }
+
+  if (pctx.my_rank == 0) {
+    rctx->reneg_bench.print_stderr();
+  }
+
+  sleep(10);
+
   return 0;
 }

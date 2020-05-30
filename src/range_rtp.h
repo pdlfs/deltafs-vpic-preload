@@ -1,5 +1,6 @@
 #pragma once
 
+#include <time.h>
 #include "preload_range.h"
 #include "preload_shuffle.h"
 #include "xn_shuffle.h"
@@ -11,11 +12,13 @@
 
 enum RenegState {
   RENEG_INIT,
-  RENEG_READY,
-  RENEG_R1SND,
+  RENEG_READY,      /* Ready to activate */
+  RENEG_READYBLOCK, /* Ready to activate, just changed to block main */
+  RENEG_R1SND,      /* Has been activated */
   RENEG_R2SND,
   RENEG_R3SND,
-  RENEG_RECVWAIT
+  RENEG_RECVWAIT,
+  RENEG_FINISHED
 };
 
 class RenegStateMgr {
@@ -32,23 +35,86 @@ class RenegStateMgr {
 };
 
 class DataBuffer {
-  private:
-    float data_store[STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
-    int data_len[STAGES_MAX + 1];
+ private:
+  float data_store[STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
+  int data_len[STAGES_MAX + 1];
 
-    int num_pivots;
+  int num_pivots;
 
-  public:
-    DataBuffer();
+ public:
+  DataBuffer();
 
-    int store_data(int stage, float *data, int dlen);
+  int store_data(int stage, float *data, int dlen);
 
-    int get_num_items(int stage);
+  int get_num_items(int stage);
 
-    int clear_all_data();
+  int clear_all_data();
+};
+
+class RenegBench {
+ private:
+  struct timespec round_start;
+  struct timespec activated;
+  struct timespec pvt_bcast;
+  struct timespec round_end;
+
+  bool is_root;
+
+  uint64_t tv_to_us(const struct timespec *tv) {
+    uint64_t t;
+    t = static_cast<uint64_t>(tv->tv_sec) * 1000000;
+    t += tv->tv_nsec / 1000;
+    return t;
+  }
+
+  uint64_t calc_diff_us(const struct timespec *a, const struct timespec *b) {
+    uint64_t a_us = tv_to_us(a);
+    uint64_t b_us = tv_to_us(b);
+
+    return b_us - a_us;
+  }
+
+ public:
+  RenegBench() { is_root = false; }
+
+  void rec_start() { clock_gettime(CLOCK_MONOTONIC, &round_start); }
+
+  void rec_active() { clock_gettime(CLOCK_MONOTONIC, &activated); }
+
+  void rec_pvt_bcast() {
+    is_root = true;
+    clock_gettime(CLOCK_MONOTONIC, &activated);
+  }
+
+  void rec_finished() { clock_gettime(CLOCK_MONOTONIC, &round_end); }
+
+  void print_stderr() {
+    uint64_t start_to_end = calc_diff_us(&round_start, &round_end);
+
+    uint64_t start_to_active = calc_diff_us(&round_start, &activated);
+
+    if (is_root) {
+      uint64_t active_to_pvt = calc_diff_us(&activated, &pvt_bcast);
+      uint64_t pvt_to_end = calc_diff_us(&pvt_bcast, &round_end);
+
+      fprintf(stderr,
+              "[[ BENCHMARK_RTP_ROOT ]] Time taken: "
+              "%lu us/%lu us/%lu us (%lu us)\n",
+              start_to_active, active_to_pvt, pvt_to_end, start_to_end);
+    } else {
+      uint64_t active_to_end = calc_diff_us(&activated, &round_end);
+
+      fprintf(stderr,
+              "[[ BENCHMARK_RTP ]] Time taken: "
+              "%lu us/%lu us (%lu us)\n",
+              start_to_active, active_to_end, start_to_end);
+    }
+  }
 };
 
 struct reneg_ctx {
+  RenegBench reneg_bench;
+
   xn_ctx_t *xn_sctx; /* shuffler to use for data */
   nexus_ctx_t nxp;   /* extracted from sctx */
 
@@ -134,11 +200,11 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
 int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz, int src);
 
 /**
- * @brief 
+ * @brief
  *
  * @param rctx
  *
- * @return 
+ * @return
  */
 int reneg_init_round(reneg_ctx_t rctx);
 

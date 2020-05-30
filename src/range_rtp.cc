@@ -62,7 +62,7 @@ int mock_pivots_init(reneg_ctx_t rctx);
 void send_to_rank(reneg_ctx_t rctx, char *buf, int buf_sz, int drank);
 
 void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
-                 int buf_sz);
+                 int buf_sz, int my_rank = -1);
 #define send_to_all_s1(...) \
   send_to_all(rctx->peers_s1, rctx->num_peers_s1, __VA_ARGS__)
 #define send_to_all_s2(...) \
@@ -208,21 +208,14 @@ int reneg_topology_init(reneg_ctx_t rctx) {
 int reneg_init_round(reneg_ctx_t rctx) {
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  if (rctx->state_mgr.get_state() != RenegState::RENEG_READY) {
-    while (rctx->state_mgr.get_state() != RenegState::RENEG_READY) {
-      pthread_cond_wait(&(rctx->reneg_cv), &(rctx->reneg_mutex));
-    }
-  } else {
-    // broadcast reneg_begin
+  if (rctx->state_mgr.get_state() == RenegState::RENEG_READY) {
+    fprintf(stderr, "reneg_init_round: broacasting... \n");
     broadcast_rtp_begin(rctx);
-    // lock data
-    // snapshot data
-    // unlock data
-    // compute pivots
-    pthread_mutex_lock(rctx->data_mutex);
-    // Construct msgfmt from pivots
-    pthread_mutex_unlock(rctx->data_mutex);
-    // send s1 message to all s1 peers
+    rctx->state_mgr.update_state(RenegState::RENEG_READYBLOCK);
+  }
+
+  while (rctx->state_mgr.get_state() != RenegState::RENEG_FINISHED) {
+    pthread_cond_wait(&(rctx->reneg_cv), &(rctx->reneg_mutex));
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
@@ -236,8 +229,8 @@ int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
     ABORT("panic");
   }
 
-  fprintf(stderr, "reneg_handle_msg: recvd an RTP msg at %d from %d\n",
-          rctx->my_rank, src);
+  // fprintf(stderr, "reneg_handle_msg: recvd an RTP msg at %d from %d\n",
+  // rctx->my_rank, src);
 
   int rv = 0;
   char msg_type = msgfmt_get_rtp_msgtype(buf);
@@ -284,10 +277,12 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  if (rctx->state_mgr.get_state() == RenegState::RENEG_READY) {
-    fprintf(stderr, "reneg_handle_rtp_begin: rank %d activated\n",
-            rctx->my_rank);
+  if (rctx->state_mgr.get_state() == RenegState::RENEG_READY ||
+      rctx->state_mgr.get_state() == RenegState::RENEG_READYBLOCK) {
+    // fprintf(stderr, "reneg_handle_rtp_begin: rank %d activated\n",
+    // rctx->my_rank);
     rctx->state_mgr.update_state(RenegState::RENEG_R1SND);
+    rctx->reneg_bench.rec_active();
     activated_now = true;
   } else if (round_num == rctx->round_num + 1) {
     // TODO: buffer and replay later
@@ -325,8 +320,8 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
 int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                            int src) {
-  fprintf(stderr, "reneg_handle_rtp_pivot: msg at %d from %d\n", rctx->my_rank,
-          src);
+  // fprintf(stderr, "reneg_handle_rtp_pivot: msg at %d from %d\n",
+  // rctx->my_rank, src);
 
   int round_num, stage_num, sender_id, num_pivots;
   float pivot_width;
@@ -337,8 +332,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   assert(num_pivots == PIVOTS_MAX);
 
-  fprintf(stderr, "reneg_handle_rtp_pivot: %.1f %.1f %.1f %.1f\n", pivots[0],
-          pivots[1], pivots[2], pivots[3]);
+  // fprintf(stderr, "reneg_handle_rtp_pivot: %.1f %.1f %.1f %.1f\n", pivots[0],
+  // pivots[1], pivots[2], pivots[3]);
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
@@ -347,8 +342,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
-  fprintf(stderr, "reneg_handle_rtp_pivot: (S%d) %d items at %d\n", stage_num,
-          num_items, rctx->my_rank);
+  fprintf(stderr, "reneg_handle_rtp_pivot: (S%d) %d items at %d from %d\n",
+          stage_num, num_items, rctx->my_rank, src);
   if (expected_items_for_stage(rctx, stage_num, num_items)) {
     // Aggregate pivots
     // XXX: pretend new pivots are also in pivots
@@ -357,6 +352,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
             rctx->my_rank);
 
     if (stage_num < STAGES_MAX) {
+      fprintf(stderr, "reneg_handle_rtp_pivot: choice 1\n");
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, 1024, round_num, stage_num + 1, rctx->my_rank, pivots,
           pivot_width, num_pivots);
@@ -365,7 +361,11 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
       send_to_rank(rctx, next_buf, next_buf_len, new_dest);
     } else {
+      fprintf(stderr, "reneg_handle_rtp_pivot: choice 2 @ %d\n", rctx->root_s3);
+
       assert(rctx->my_rank == rctx->root_s3);
+
+      rctx->reneg_bench.rec_pvt_bcast();
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, 1024, round_num, stage_num + 1, rctx->my_rank, pivots,
@@ -393,25 +393,35 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   if (should_broadcast) {
     if (rctx->my_rank == rctx->root_s3) {
-      send_to_all_s3(rctx, buf, buf_sz);
+      send_to_all_s3(rctx, buf, buf_sz, rctx->my_rank);
     }
     if (rctx->my_rank == rctx->root_s2) {
-      send_to_all_s2(rctx, buf, buf_sz);
+      send_to_all_s2(rctx, buf, buf_sz, rctx->my_rank);
     }
     if (rctx->my_rank == rctx->root_s1) {
-      send_to_all_s1(rctx, buf, buf_sz);
+      send_to_all_s1(rctx, buf, buf_sz, rctx->my_rank);
     }
   }
 
   fprintf(stderr, "reneg_handle_pivot_bcast: received pivots at %d from %d\n",
           rctx->my_rank, src);
 
+  /* Install pivots, reset state, and signal back to the main thread */
+  // XXX: Think about what happens if multiple bcasts are received by the
+  // same rank
+  pthread_mutex_lock(&(rctx->reneg_mutex));
+
+  rctx->state_mgr.update_state(RenegState::RENEG_FINISHED);
+  pthread_cond_signal(&(rctx->reneg_cv));
+
+  pthread_mutex_unlock(&(rctx->reneg_mutex));
+
   return 0;
 }
 
 void broadcast_rtp_begin(reneg_ctx_t rctx) {
   /* XXX: ASSERT reneg_mutex is held */
-  fprintf(stderr, "broadcast_rtp_begin: at rank %d\n", rctx->my_rank);
+  // fprintf(stderr, "broadcast_rtp_begin: at rank %d\n", rctx->my_rank);
   char buf[256];
   int buflen =
       msgfmt_encode_rtp_begin(buf, 256, rctx->my_rank, rctx->round_num);
@@ -423,15 +433,17 @@ void send_to_rank(reneg_ctx_t rctx, char *buf, int buf_sz, int drank) {
 }
 
 void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
-                 int buf_sz) {
-  fprintf(stderr, "send_to_all: %d bytes to %d peers at rank %d\n", buf_sz,
-          num_peers, rctx->my_rank);
+                 int buf_sz, int my_rank) {
+  // fprintf(stderr, "send_to_all: %d bytes to %d peers at rank %d\n", buf_sz,
+  // num_peers, rctx->my_rank);
 
   for (int rank_idx = 0; rank_idx < num_peers; rank_idx++) {
     int drank = peers[rank_idx];
 
-    fprintf(stderr, "send_to_all: sending from %d to %d\n", rctx->my_rank,
-            drank);
+    if (drank == my_rank) continue;
+
+    // fprintf(stderr, "send_to_all: sending from %d to %d\n", rctx->my_rank,
+            // drank);
 
     xn_shuffle_priority_send(rctx->xn_sctx, buf, buf_sz, 0, drank,
                              rctx->my_rank);
@@ -446,8 +458,6 @@ int reneg_destroy(reneg_ctx_t rctx) {
 }
 
 bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items) {
-  fprintf(stderr, "expected_items_for_stage: %d %d -> %d %d %d\n", stage, items,
-          rctx->num_peers_s1, rctx->num_peers_s2, rctx->num_peers_s3);
   if (stage == 1 && rctx->num_peers_s1 == items) return true;
   if (stage == 2 && rctx->num_peers_s2 == items) return true;
   if (stage == 3 && rctx->num_peers_s3 == items) return true;
@@ -462,7 +472,7 @@ int mock_pivots_init(reneg_ctx_t rctx) {
     return -1;
   }
 
-  fprintf(stderr, "mock_pivots_init: mutex %p\n", rctx->data_mutex);
+  // fprintf(stderr, "mock_pivots_init: mutex %p\n", rctx->data_mutex);
 
   assert(rctx->data_mutex != NULL);
   assert(rctx->data != NULL);
