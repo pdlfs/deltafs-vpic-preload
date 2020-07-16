@@ -440,9 +440,9 @@ int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
   int retval;
 
   // retval = shuffle_write_mock(ctx, fname, fname_len, data, data_len, epoch);
-  // retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
+  retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
   // retval = shuffle_write(ctx, fname, fname_len, data, data_len, epoch);
-  retval = shuffle_write_treeneg(ctx, fname, fname_len, data, data_len, epoch);
+  // retval = shuffle_write_treeneg(ctx, fname, fname_len, data, data_len, epoch);
 
   return retval;
 }

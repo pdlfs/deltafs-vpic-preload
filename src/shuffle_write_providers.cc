@@ -48,7 +48,7 @@ int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
   int peer_rank = int(prop);
   int rank = shuffle_rank(ctx);
   int rv;
-  // fprintf(stderr, "shuffle_write_nohash: %f %d\n", prop, dest_rank);
+  // fprintf(stderr, "shuffle_write_nohash: %f %d\n", prop, peer_rank);
 
   range_ctx_t* rctx = &pctx.rctx;
 

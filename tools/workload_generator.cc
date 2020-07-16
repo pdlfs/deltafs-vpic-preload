@@ -11,7 +11,7 @@ static void rand_seed() {
 
 WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
                                      float range_start, float range_end,
-                                     int num_queries, WorkloadPattern wp,
+                                     int64_t num_queries, WorkloadPattern wp,
                                      int my_rank, int num_ranks)
     : num_bins(num_bins),
       range_start(range_start),
@@ -117,7 +117,7 @@ void WorkloadGenerator::adjust_queries_random() {
 
 void WorkloadGenerator::adjust_queries_shuffle_skew() {
   // _debug_print_bins("Shuffle Skew Before: ");
-  int queries_per_rank = queries_total / num_ranks;
+  int64_t queries_per_rank = queries_total / num_ranks;
 
   bin_total = 0;
 
@@ -267,10 +267,15 @@ int WorkloadGenerator::next_shuffle_skew(float &value) {
 }
 
 void WorkloadGenerator::_debug_print_bins(const char *leadstr) {
-  fprintf(stderr, "%s", leadstr);
+  char buf[4096];
+
+  int off = 0;
+  off += snprintf(buf, 4096, "%s", leadstr);
+
   for (int i = 0; i < num_bins; i++) {
-    fprintf(stderr, "%d ", bin_emits_left[i]);
+    off += snprintf(buf + off, 4096 - off, "%ld ", bin_emits_left[i]);
   }
-  fprintf(stderr, "\n");
+
+  fprintf(stderr, "%s\n", buf);
 }
 }  // namespace rangeutils

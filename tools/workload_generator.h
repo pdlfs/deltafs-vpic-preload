@@ -40,10 +40,12 @@ enum class WorkloadPattern {
 class WorkloadGenerator {
  public:
   WorkloadGenerator(float bins[], int num_bins, float range_start,
-                    float range_end, int num_queries, WorkloadPattern wp,
+                    float range_end, int64_t num_queries, WorkloadPattern wp,
                     int my_rank, int num_ranks);
 
   int next(float &value);
+
+  void _debug_print_bins(const char *leadstr);
 
  private:
 
@@ -74,16 +76,14 @@ class WorkloadGenerator {
   float bin_starts[MAX_BINS];
   float bin_total;
 
-  int bin_emits_left[MAX_BINS];
+  int64_t bin_emits_left[MAX_BINS];
 
-  const int queries_total;
-  int queries_left;
+  const int64_t queries_total;
+  int64_t queries_left;
 
   const int num_bins;
   float bin_width;
 
   WorkloadPattern wp;
-
-  void _debug_print_bins(const char *leadstr);
 };
 }  // namespace rangeutils

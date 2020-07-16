@@ -22,6 +22,9 @@ set (CMAKE_CXX_STANDARD 11)
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
         "${CMAKE_CURRENT_SOURCE_DIR}/src/papi-try/cmake")
 
+set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/cmake")
+
 # link shared lib with full rpath
 set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
@@ -79,6 +82,7 @@ endif ()
 # libnuma and libpapi
 set (PRELOAD_NUMA "ON" CACHE BOOL "Build with libnuma if present")
 set (PRELOAD_PAPI "ON" CACHE BOOL "Build with libpapi if present")
+set (PRELOAD_BLKID "ON" CACHE BOOL "Build with libblkid if present")
 
 # user hook to build tools
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")

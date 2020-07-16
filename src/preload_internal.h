@@ -44,6 +44,7 @@
 
 #include "common.h"
 #include "preload_mon.h"
+#include "preload_perfstats.h"
 #include "preload_shuffle.h"
 #include "preload_range.h"
 #include "range_rtp.h"
@@ -160,6 +161,7 @@ typedef struct preload_ctx {
 
   FILE* trace;
 
+  perfstats_ctx_t perf_ctx;
   range_ctx_t rctx;
 
   struct reneg_ctx rtp_ctx;

@@ -1202,6 +1202,14 @@ int MPI_Init(int* argc, char*** argv) {
         logf(LOG_INFO, "in-mem epoch mon stats %d bytes",
              int(sizeof(mon_ctx_t)));
       }
+
+      /* Timeseries perf collection - functionality may overlap
+       * with other monitoring functions */
+      int rv = perfstats_init(&(pctx.perf_ctx), pctx.my_rank, dirpath,
+          pctx.local_root);
+      if (rv) {
+        ABORT("perfstats_init");
+      }
     }
 
 #ifdef PRELOAD_HAS_PAPI
@@ -1917,6 +1925,14 @@ int MPI_Finalize(void) {
   /* release the receiver communicator */
   if (pctx.recv_comm != MPI_COMM_NULL && pctx.recv_comm != MPI_COMM_WORLD) {
     MPI_Comm_free(&pctx.recv_comm);
+  }
+
+  /* destroy time series monitor */
+  if (!pctx.nomon) {
+    int rv = perfstats_destroy(&(pctx.perf_ctx));
+    if (rv) {
+      ABORT("perfstats_destroy");
+    }
   }
 
   /* !!! OK !!! */
@@ -2831,6 +2847,8 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   char buf[12];
   int rv;
 
+  pctx.perf_ctx.prop_bytes_written += data_len;
+
   if (epoch == -1) {
     epoch = num_eps - 1;
   }
@@ -2862,6 +2880,9 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
       }
     }
   }
+  const float* prop = reinterpret_cast<const float*>(data);
+
+  // fprintf(stderr, "native_write, rank %d: %d, %d\n", pctx.my_rank, data[0], data_len);
 
   rv = 0;
 

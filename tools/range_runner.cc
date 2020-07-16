@@ -492,7 +492,7 @@ void gen_bins(float *range_bins, int bin_len, int skew_degree) {
     range_bins[idx] = base_factor;
   }
 
-  for (int ridx = 0; ridx < 8; ridx++) {
+  for (int ridx = 0; ridx < n; ridx++) {
     range_bins[ridx_arr[ridx]] = skew_factor;
   }
 
@@ -514,9 +514,10 @@ static void do_dump_shuffle_skew() {
   rangeutils::WorkloadPattern skew_wp =
       rangeutils::WorkloadPattern::WP_SHUFFLE_SKEW;
 
+  int64_t num_queries = (int64_t) g.nps * (int64_t) g.size;
   // TODO: change to uint64_t if we expect more than 2B particles
   rangeutils::WorkloadGenerator wg(range_bins, g.size, range_start, range_end,
-                                    g.nps * g.size, skew_wp, myrank, g.size);
+                                    num_queries, skew_wp, myrank, g.size);
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
 #ifdef PRELOAD_EXASCALE_RUNS

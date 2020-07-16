@@ -32,13 +32,20 @@ if (PRELOAD_NUMA)
     endif ()
 endif ()
 
+if (PRELOAD_BLKID)
+  find_package (BLKID)
+  if (BLKID_FOUND)
+    add_definitions (-DPRELOAD_HAS_BLKID)
+  endif()
+endif()
+
 #
 # create the library target
 #
 add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         preload_shuffle.cc shuffle_write_providers.cc msgfmt.cc nn_shuffler.cc 
         nn_shuffler_internal.cc xn_shuffle.cc hstg.cc common.cc pthreadtap.cc 
-        preload_range.cc range_rtp.cc range_utils.cc)
+        preload_range.cc range_rtp.cc range_utils.cc preload_perfstats.cc)
 
 target_link_libraries (deltafs-preload deltafs mercury mssg
         deltafs-nexus deltafs-shuffle Threads::Threads ${CMAKE_DL_LIBS})
@@ -56,6 +63,12 @@ endif ()
 if (PRELOAD_NUMA)
     if (NUMA_FOUND)
         target_link_libraries(deltafs-preload numa)
+    endif ()
+endif ()
+
+if (PRELOAD_BLKID)
+  if (BLKID_FOUND)
+        target_link_libraries(deltafs-preload blkid)
     endif ()
 endif ()
 
