@@ -8,6 +8,8 @@
 #define FANOUT_MAX 128
 // XXX: This is probably defined elsewhere
 #define PIVOTS_MAX 4
+
+/* This is not configurable. RTP is designed for 3 stages */
 #define STAGES_MAX 3
 
 enum RenegState {
@@ -34,8 +36,18 @@ class RenegStateMgr {
   RenegState update_state(RenegState new_state);
 };
 
+/**
+ * @brief Buffer for an RTP instance to store pivots for different stages
+ * Most ranks will not need a Stage 2 or a Stage 3, but this allocation is
+ * simpler.
+ */
 class DataBuffer {
  private:
+  /* This simple storage format has 512KB of theoretical
+   * footprint. (4 * 128 * 256 * 4B). But no overhead will
+   * be incurred for ranks that aren't actually using those
+   * stages. (Virtual Memory ftw)
+   */
   float data_store[STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
   int data_len[STAGES_MAX + 1];
 
@@ -51,6 +63,9 @@ class DataBuffer {
   int clear_all_data();
 };
 
+/**
+ * @brief Benchmarking utility.
+ */
 class RenegBench {
  private:
   struct timespec round_start;
@@ -60,56 +75,18 @@ class RenegBench {
 
   bool is_root;
 
-  uint64_t tv_to_us(const struct timespec *tv) {
-    uint64_t t;
-    t = static_cast<uint64_t>(tv->tv_sec) * 1000000;
-    t += tv->tv_nsec / 1000;
-    return t;
-  }
-
-  uint64_t calc_diff_us(const struct timespec *a, const struct timespec *b) {
-    uint64_t a_us = tv_to_us(a);
-    uint64_t b_us = tv_to_us(b);
-
-    return b_us - a_us;
-  }
-
  public:
-  RenegBench() { is_root = false; }
+  RenegBench();
 
-  void rec_start() { clock_gettime(CLOCK_MONOTONIC, &round_start); }
+  void rec_start();
 
-  void rec_active() { clock_gettime(CLOCK_MONOTONIC, &activated); }
+  void rec_active();
 
-  void rec_pvt_bcast() {
-    is_root = true;
-    clock_gettime(CLOCK_MONOTONIC, &activated);
-  }
+  void rec_pvt_bcast();
 
-  void rec_finished() { clock_gettime(CLOCK_MONOTONIC, &round_end); }
+  void rec_finished();
 
-  void print_stderr() {
-    uint64_t start_to_end = calc_diff_us(&round_start, &round_end);
-
-    uint64_t start_to_active = calc_diff_us(&round_start, &activated);
-
-    if (is_root) {
-      uint64_t active_to_pvt = calc_diff_us(&activated, &pvt_bcast);
-      uint64_t pvt_to_end = calc_diff_us(&pvt_bcast, &round_end);
-
-      fprintf(stderr,
-              "[[ BENCHMARK_RTP_ROOT ]] Time taken: "
-              "%lu us/%lu us/%lu us (%lu us)\n",
-              start_to_active, active_to_pvt, pvt_to_end, start_to_end);
-    } else {
-      uint64_t active_to_end = calc_diff_us(&activated, &round_end);
-
-      fprintf(stderr,
-              "[[ BENCHMARK_RTP ]] Time taken: "
-              "%lu us/%lu us (%lu us)\n",
-              start_to_active, active_to_end, start_to_end);
-    }
-  }
+  void print_stderr();
 };
 
 struct reneg_ctx {

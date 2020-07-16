@@ -1,60 +1,18 @@
 #include "range_rtp.h"
 #include "msgfmt.h"
 
-/* BEGIN utility classes */
-RenegStateMgr::RenegStateMgr() {
-  current_state = RENEG_INIT;
-  prev_state = RENEG_INIT;
-}
-
-RenegState RenegStateMgr::get_state() { return this->current_state; }
-
-RenegState RenegStateMgr::update_state(RenegState new_state) {
-  this->prev_state = this->current_state;
-  this->current_state = new_state;
-}
-
-DataBuffer::DataBuffer() {
-  memset(data_len, 0, sizeof(data_len));
-  // XXX: revisit
-  this->num_pivots = PIVOTS_MAX;
-}
-
-int DataBuffer::store_data(int stage, float *data, int dlen) {
-  if (stage < 1 || stage > 3) {
-    return -1;
-  }
-
-  if (data_len[stage] >= FANOUT_MAX) {
-    return -2;
-  }
-
-  if (dlen != num_pivots) {
-    return -3;
-  }
-
-  int idx = data_len[stage];
-  memcpy(data_store[stage][idx], data, dlen * sizeof(float));
-  data_len[stage]++;
-
-  return 0;
-}
-
-int DataBuffer::get_num_items(int stage) {
-  if (stage < 1 || stage > STAGES_MAX) {
-    return -1;
-  }
-
-  return data_len[stage];
-}
-
-int DataBuffer::clear_all_data() {
-  memset(data_len, 0, sizeof(data_len));
-  return 0;
-}
-/* END utility classes */
-
 /* BEGIN internal declarations */
+
+/**
+ * @brief Initialize our peers_s1/s2/s3 (if applicable), and root_sx's
+ * Only nodes that are a part of stage 2 have a root_s2, same for s1
+ * This consults with Nexus to get our rank.
+ * XXX: TODO: Ensure that Stage 1 is all local/shared memory nodes.
+ *
+ * @param rctx The RTP context
+ *
+ * @return 0 or errno
+ */
 int reneg_topology_init(reneg_ctx_t rctx);
 
 int mock_pivots_init(reneg_ctx_t rctx);
@@ -443,7 +401,7 @@ void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
     if (drank == my_rank) continue;
 
     // fprintf(stderr, "send_to_all: sending from %d to %d\n", rctx->my_rank,
-            // drank);
+    // drank);
 
     xn_shuffle_priority_send(rctx->xn_sctx, buf, buf_sz, 0, drank,
                              rctx->my_rank);
