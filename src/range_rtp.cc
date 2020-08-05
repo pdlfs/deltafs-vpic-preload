@@ -28,7 +28,14 @@ void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
 #define send_to_all_s3(...) \
   send_to_all(rctx->peers_s3, rctx->num_peers_s3, __VA_ARGS__)
 
+/**
+ * @brief Directly send rtp_begin to tree root for dissemination
+ *
+ * @param rctx
+ */
 void broadcast_rtp_begin(reneg_ctx_t rctx);
+
+void replay_rtp_begin(reneg_ctx_t rctx);
 
 int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                            int src);
@@ -44,41 +51,49 @@ bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items);
 int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
                int *data_len, int data_max, pthread_mutex_t *data_mutex,
                struct reneg_opts ro) {
-  // (*rctx_ptr) = (struct reneg_ctx *) malloc(sizeof(struct reneg_ctx));
-  // reneg_ctx_t rctx = *rctx_ptr;
+  xn_ctx_t *xn_sctx = NULL;
+  int rv = 0;
 
-  if (rctx->state_mgr.get_state() != RenegState::RENEG_INIT) {
-    fprintf(stderr, "reneg_init: can initialize only in init stage\n");
-    return -1;
+  pthread_mutex_lock(&(rctx->reneg_mutex));
+
+  if (rctx->state_mgr.get_state() != RenegState::INIT) {
+    logf(LOG_DBUG, "reneg_init: can initialize only in init stage\n");
+    rv = -1;
+    goto cleanup;
   }
 
   if (sctx->type != SHUFFLE_XN) {
-    fprintf(stderr, "Only 3-hop is supported by the RTP protocol\n");
-    return -1;
+    logf(LOG_DBUG, "Only 3-hop is supported by the RTP protocol\n");
+    rv = -1;
+    goto cleanup;
   }
 
   if (data_max < RANGE_NUM_PIVOTS) {
-    fprintf(stderr,
-            "reneg_init: data array should be at least RANGE_NUM_PIVOTS\n");
-    return -1;
+    logf(LOG_DBUG,
+         "reneg_init: data array should be at least RANGE_NUM_PIVOTS\n");
+    rv = -1;
+    goto cleanup;
   }
 
   if (ro.fanout_s1 > FANOUT_MAX) {
-    fprintf(stderr, "fanout_s1 exceeds FANOUT_MAX\n");
-    return -1;
+    logf(LOG_DBUG, "fanout_s1 exceeds FANOUT_MAX\n");
+    rv = -1;
+    goto cleanup;
   }
 
   if (ro.fanout_s2 > FANOUT_MAX) {
-    fprintf(stderr, "fanout_s1 exceeds FANOUT_MAX\n");
-    return -1;
+    logf(LOG_DBUG, "fanout_s2 exceeds FANOUT_MAX\n");
+    rv = -1;
+    goto cleanup;
   }
 
   if (ro.fanout_s3 > FANOUT_MAX) {
-    fprintf(stderr, "fanout_s1 exceeds FANOUT_MAX\n");
-    return -1;
+    logf(LOG_DBUG, "fanout_s3 exceeds FANOUT_MAX\n");
+    rv = -1;
+    goto cleanup;
   }
 
-  xn_ctx_t *xn_sctx = static_cast<xn_ctx_t *>(sctx->rep);
+  xn_sctx = static_cast<xn_ctx_t *>(sctx->rep);
 
   rctx->xn_sctx = xn_sctx;
   rctx->nxp = xn_sctx->nx;
@@ -96,14 +111,16 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
   mock_pivots_init(rctx);
   reneg_topology_init(rctx);
 
-  rctx->state_mgr.update_state(RenegState::RENEG_READY);
+  rctx->state_mgr.update_state(RenegState::READY);
 
-  return 0;
+cleanup:
+  pthread_mutex_unlock(&(rctx->reneg_mutex));
+  return rv;
 }
 
 int reneg_topology_init(reneg_ctx_t rctx) {
-  if (rctx->state_mgr.get_state() != RenegState::RENEG_INIT) {
-    fprintf(stderr, "reneg_topology_init: can initialize only in init stage\n");
+  if (rctx->state_mgr.get_state() != RenegState::INIT) {
+    logf(LOG_DBUG, "reneg_topology_init: can initialize only in init stage\n");
     return -1;
   }
 
@@ -166,13 +183,13 @@ int reneg_topology_init(reneg_ctx_t rctx) {
 int reneg_init_round(reneg_ctx_t rctx) {
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  if (rctx->state_mgr.get_state() == RenegState::RENEG_READY) {
-    fprintf(stderr, "reneg_init_round: broacasting... \n");
+  if (rctx->state_mgr.get_state() == RenegState::READY) {
+    logf(LOG_DBUG, "reneg_init_round: broacasting... \n");
     broadcast_rtp_begin(rctx);
-    rctx->state_mgr.update_state(RenegState::RENEG_READYBLOCK);
+    rctx->state_mgr.update_state(RenegState::READYBLOCK);
   }
 
-  while (rctx->state_mgr.get_state() != RenegState::RENEG_FINISHED) {
+  while (rctx->state_mgr.get_state() != RenegState::READY) {
     pthread_cond_wait(&(rctx->reneg_cv), &(rctx->reneg_mutex));
   }
 
@@ -183,11 +200,11 @@ int reneg_init_round(reneg_ctx_t rctx) {
 int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                      int src) {
   if (rctx == NULL) {
-    fprintf(stderr, "reneg_handle_msg: rctx is null!\n");
+    logf(LOG_DBUG, "reneg_handle_msg: rctx is null!\n");
     ABORT("panic");
   }
 
-  // fprintf(stderr, "reneg_handle_msg: recvd an RTP msg at %d from %d\n",
+  // logf(LOG_DBUG, "reneg_handle_msg: recvd an RTP msg at %d from %d\n",
   // rctx->my_rank, src);
 
   int rv = 0;
@@ -214,8 +231,8 @@ int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 /**
  * @brief Handle an RTP Begin message. When we receive this message, we can
  * be:
- * 1. RENEG_READY - regular case. Their round_num == our round_num
- * 2. Not RENEG_READY - In the middle of a renegotiation.
+ * 1. READY - regular case. Their round_num == our round_num
+ * 2. Not READY - In the middle of a renegotiation.
  * 2a. If their_round_num == our_round_num, ignore
  * 2b. If their round_num == our_round_num + 1, buffer and replay later
  *
@@ -228,6 +245,8 @@ int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
  */
 int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                            int src) {
+  logf(LOG_DBUG, "Received RTP_BEGIN at Rank %d from %d\n", rctx->my_rank, src);
+
   int srank, round_num;
   msgfmt_decode_rtp_begin(buf, buf_sz, &srank, &round_num);
 
@@ -235,22 +254,28 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  if (rctx->state_mgr.get_state() == RenegState::RENEG_READY ||
-      rctx->state_mgr.get_state() == RenegState::RENEG_READYBLOCK) {
-    // fprintf(stderr, "reneg_handle_rtp_begin: rank %d activated\n",
+  if (rctx->state_mgr.get_state() == RenegState::READY ||
+      rctx->state_mgr.get_state() == RenegState::READYBLOCK) {
+    assert(round_num == rctx->round_num);
+    // logf(LOG_DBUG, "reneg_handle_rtp_begin: rank %d activated\n",
     // rctx->my_rank);
-    rctx->state_mgr.update_state(RenegState::RENEG_R1SND);
+    rctx->state_mgr.update_state(RenegState::PVTSND);
     rctx->reneg_bench.rec_active();
     activated_now = true;
   } else if (round_num == rctx->round_num + 1) {
-    // TODO: buffer and replay later
+    rctx->state_mgr.mark_next_round_start(round_num);
   } else if (round_num != rctx->round_num) {
+    /* If round_nums are equal, msg is duplicate and DROP */
     ABORT("reneg_handle_rtp_begin: unexpected round_num recvd");
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
   if (activated_now) {
+    /* Can reuse the same RTP_BEGIN buf. src_rank is anyway sent separately
+     * If we're an S3 root, prioritize Stage 3 sending first, so as to
+     * trigger other leaf broadcasts in parallel
+     * */
     if (rctx->my_rank == rctx->root_s3) {
       send_to_all_s3(rctx, buf, buf_sz);
     }
@@ -276,9 +301,28 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   return 0;
 }
 
+/**
+ * @brief Handle pivots from lower stages
+ *
+ * Will only be invoked by intermediate nodes. Needn't worry about
+ * duplicates, as they'll be resolved at leaf level. Leaves will never send
+ * duplicate pivots to intermediate stages.
+ *
+ * Can't think of any race conditions that need to be handled here. We'll
+ * always have seen RTP_BEGIN by the time we receive pivots. Since we're
+ * the root for those leaves, they can't receive RTP_BEGIN without us sending
+ * it.
+ *
+ * @param rctx
+ * @param buf
+ * @param buf_sz
+ * @param src
+ *
+ * @return
+ */
 int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                            int src) {
-  // fprintf(stderr, "reneg_handle_rtp_pivot: msg at %d from %d\n",
+  // logf(LOG_DBUG, "reneg_handle_rtp_pivot: msg at %d from %d\n",
   // rctx->my_rank, src);
 
   int round_num, stage_num, sender_id, num_pivots;
@@ -290,27 +334,48 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   assert(num_pivots == PIVOTS_MAX);
 
-  // fprintf(stderr, "reneg_handle_rtp_pivot: %.1f %.1f %.1f %.1f\n", pivots[0],
+  // logf(LOG_DBUG, "reneg_handle_rtp_pivot: %.1f %.1f %.1f %.1f\n", pivots[0],
   // pivots[1], pivots[2], pivots[3]);
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  rctx->data_buffer.store_data(stage_num, pivots, num_pivots);
-  int num_items = rctx->data_buffer.get_num_items(stage_num);
+  int stage_pivot_count;
+
+  if (round_num != rctx->round_num) {
+    stage_pivot_count =
+        rctx->data_buffer.store_data(stage_num, pivots, num_pivots, true);
+
+    /* If we're receiving a pivot for a future round, we can never have
+     * received all pivots for a future round, as we also expect one pivot
+     * from ourselves, which can't be received out of turn
+     *
+     * This assumption is important, as it enables us to not have to store
+     * and replay the handler logic for when all items of a future round/stage
+     * have been received
+     */
+    assert(!expected_items_for_stage(rctx, stage_num, stage_pivot_count));
+  } else {
+    stage_pivot_count =
+        rctx->data_buffer.store_data(stage_num, pivots, num_pivots, false);
+  }
+  // int num_items = rctx->data_buffer.get_num_items(stage_num);
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
-  fprintf(stderr, "reneg_handle_rtp_pivot: (S%d) %d items at %d from %d\n",
-          stage_num, num_items, rctx->my_rank, src);
-  if (expected_items_for_stage(rctx, stage_num, num_items)) {
+  logf(LOG_INFO,
+       "reneg_handle_rtp_pivot: S%d at Rank %d, item from %d. Total: %d\n",
+       stage_num, rctx->my_rank, src, stage_pivot_count);
+
+  if (expected_items_for_stage(rctx, stage_num, stage_pivot_count)) {
     // Aggregate pivots
     // XXX: pretend new pivots are also in pivots
     char next_buf[1024];
-    fprintf(stderr, "reneg_handle_rtp_pivot: S%d @ %d collected\n", stage_num,
-            rctx->my_rank);
+    logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
+         stage_num, rctx->my_rank);
 
     if (stage_num < STAGES_MAX) {
-      fprintf(stderr, "reneg_handle_rtp_pivot: choice 1\n");
+      logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 1\n");
+
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, 1024, round_num, stage_num + 1, rctx->my_rank, pivots,
           pivot_width, num_pivots);
@@ -319,7 +384,11 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
       send_to_rank(rctx, next_buf, next_buf_len, new_dest);
     } else {
-      fprintf(stderr, "reneg_handle_rtp_pivot: choice 2 @ %d\n", rctx->root_s3);
+      /* New pivots need to be broadcast from S3. We send them back to
+       * ourself (s3root) so that the broadcast code can be cleanly
+       * contained in reneg_handle_pivot_bcast
+       */
+      logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 2 @ %d\n", rctx->root_s3);
 
       assert(rctx->my_rank == rctx->root_s3);
 
@@ -331,59 +400,96 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
       send_to_rank(rctx, next_buf, next_buf_len, rctx->root_s3);
     }
-  }
+  }  // if
 
   return 0;
 }
 
 int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                              int src) {
-  bool should_broadcast = false;
+  /* You only expect to receive this message once per-round;
+   * TODO: parse the round-num for a FATAL error verification
+   * but no intermediate state change necessary here. Process
+   * the update and then move to READY
+   */
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  if (rctx->state_mgr.get_state() != RenegState::RENEG_RECVWAIT) {
-    rctx->state_mgr.update_state(RenegState::RENEG_RECVWAIT);
-    should_broadcast = true;
+  RenegState rstate = rctx->state_mgr.get_state();
+
+  if (rstate != RenegState::PVTSND) {
+    ABORT("reneg_handle_pivot_bcast: unexpected pivot bcast");
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
-  if (should_broadcast) {
-    if (rctx->my_rank == rctx->root_s3) {
-      send_to_all_s3(rctx, buf, buf_sz, rctx->my_rank);
-    }
-    if (rctx->my_rank == rctx->root_s2) {
-      send_to_all_s2(rctx, buf, buf_sz, rctx->my_rank);
-    }
-    if (rctx->my_rank == rctx->root_s1) {
-      send_to_all_s1(rctx, buf, buf_sz, rctx->my_rank);
-    }
+  /* send_to_all here excludes self; sinne we're passing my_rank to exclude */
+  if (rctx->my_rank == rctx->root_s3) {
+    send_to_all_s3(rctx, buf, buf_sz, rctx->my_rank);
+  }
+  if (rctx->my_rank == rctx->root_s2) {
+    send_to_all_s2(rctx, buf, buf_sz, rctx->my_rank);
+  }
+  if (rctx->my_rank == rctx->root_s1) {
+    send_to_all_s1(rctx, buf, buf_sz, rctx->my_rank);
   }
 
-  fprintf(stderr, "reneg_handle_pivot_bcast: received pivots at %d from %d\n",
-          rctx->my_rank, src);
+  logf(LOG_DBUG, "reneg_handle_pivot_bcast: received pivots at %d from %d\n",
+       rctx->my_rank, src);
+
+  if (rctx->my_rank == 0) {
+    logf(LOG_INFO, "rtp round %d completed at rank 0\n", rctx->round_num);
+  }
 
   /* Install pivots, reset state, and signal back to the main thread */
-  // XXX: Think about what happens if multiple bcasts are received by the
-  // same rank
+  bool replay_rtp_begin_flag = false;
+
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  rctx->state_mgr.update_state(RenegState::RENEG_FINISHED);
-  pthread_cond_signal(&(rctx->reneg_cv));
+  rctx->data_buffer.advance_round();
+  rctx->round_num++;
+
+  if (rctx->state_mgr.get_next_round_start()) {
+    /* Next round has started, keep main thread sleeping and participate */
+    replay_rtp_begin_flag = true;
+    rctx->state_mgr.update_state(RenegState::READYBLOCK);
+  } else {
+    /* Next round has not started yet, okay to wake up main thread */
+    rctx->state_mgr.update_state(RenegState::READY);
+    pthread_cond_signal(&(rctx->reneg_cv));
+  }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
+
+  if (replay_rtp_begin_flag) {
+    /* Send rtp_begin to self, to resume pivot send etc */
+    replay_rtp_begin(rctx);
+  }
 
   return 0;
 }
 
 void broadcast_rtp_begin(reneg_ctx_t rctx) {
   /* XXX: ASSERT reneg_mutex is held */
-  // fprintf(stderr, "broadcast_rtp_begin: at rank %d\n", rctx->my_rank);
+  logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d\n", rctx->my_rank,
+       rctx->root_s1);
+
   char buf[256];
   int buflen =
       msgfmt_encode_rtp_begin(buf, 256, rctx->my_rank, rctx->round_num);
   send_to_rank(rctx, buf, buflen, rctx->root_s1);
+}
+
+void replay_rtp_begin(reneg_ctx_t rctx) {
+  /* XXX: ASSERT reneg_mutex is held */
+  logf(LOG_DBUG, "replay_rtp_begin: at rank %d\n", rctx->my_rank);
+
+  char buf[256];
+
+  // TODO: round_num is correct?
+  int buflen =
+      msgfmt_encode_rtp_begin(buf, 256, rctx->my_rank, rctx->round_num);
+  send_to_rank(rctx, buf, buflen, rctx->my_rank);
 }
 
 void send_to_rank(reneg_ctx_t rctx, char *buf, int buf_sz, int drank) {
@@ -392,16 +498,17 @@ void send_to_rank(reneg_ctx_t rctx, char *buf, int buf_sz, int drank) {
 
 void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
                  int buf_sz, int my_rank) {
-  // fprintf(stderr, "send_to_all: %d bytes to %d peers at rank %d\n", buf_sz,
+  // logf(LOG_DBUG, "send_to_all: %d bytes to %d peers at rank %d\n", buf_sz,
   // num_peers, rctx->my_rank);
 
   for (int rank_idx = 0; rank_idx < num_peers; rank_idx++) {
     int drank = peers[rank_idx];
 
+    /*  Not enabled by default; my_rank is set to -1 unless overridden */
     if (drank == my_rank) continue;
 
-    // fprintf(stderr, "send_to_all: sending from %d to %d\n", rctx->my_rank,
-    // drank);
+    logf(LOG_DBUG, "send_to_all: sending from %d to %d\n", rctx->my_rank,
+         drank);
 
     xn_shuffle_priority_send(rctx->xn_sctx, buf, buf_sz, 0, drank,
                              rctx->my_rank);
@@ -425,12 +532,12 @@ bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items) {
 
 /*************** Temporary Functions ********************/
 int mock_pivots_init(reneg_ctx_t rctx) {
-  if (rctx->state_mgr.get_state() != RenegState::RENEG_INIT) {
-    fprintf(stderr, "mock_pivots_init: can initialize only in init stage\n");
+  if (rctx->state_mgr.get_state() != RenegState::INIT) {
+    logf(LOG_DBUG, "mock_pivots_init: can initialize only in init stage\n");
     return -1;
   }
 
-  // fprintf(stderr, "mock_pivots_init: mutex %p\n", rctx->data_mutex);
+  // logf(LOG_DBUG, "mock_pivots_init: mutex %p\n", rctx->data_mutex);
 
   assert(rctx->data_mutex != NULL);
   assert(rctx->data != NULL);

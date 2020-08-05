@@ -109,19 +109,49 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
                           unsigned char data_len, int epoch) {
   reneg_ctx_t rctx = &(pctx.rtp_ctx);
 
-  if (pctx.my_rank == 1) {
-    rctx->reneg_bench.rec_start();
-    reneg_init_round(rctx);
-    rctx->reneg_bench.rec_finished();
-    fprintf(stderr, "=========== MAIN THREAD AWAKE ==========\n");
-    rctx->reneg_bench.print_stderr();
-  }
+  // if (pctx.my_rank == 1) {
+    // rctx->reneg_bench.rec_start();
+    // reneg_init_round(rctx);
+    // rctx->reneg_bench.rec_finished();
+    // fprintf(stderr, "=========== MAIN THREAD AWAKE ==========\n");
+    // rctx->reneg_bench.print_stderr();
+    // reneg_init_round(rctx);
+  // }
+  reneg_init_round(rctx);
 
-  if (pctx.my_rank == 0) {
-    rctx->reneg_bench.print_stderr();
-  }
+  // if (pctx.my_rank == 0) {
+    // rctx->reneg_bench.print_stderr();
+  // }
 
   sleep(10);
+  /* Enable the snippet below to do some writing after RTP
+   * Right now, run.sh has some issues with plfsdir compaction in this
+   * function handler if BYPASS_Write is disabled, i.e. writes are enabled
+   */
+
+  // assert(ctx == &pctx.sctx);
+  // assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->fname_len - 1);
+  // if (ctx->fname_len != fname_len) ABORT("bad filename len");
+  // if (ctx->data_len != data_len) ABORT("bad data len");
+
+  // unsigned char base_sz = 1 + fname_len + data_len;
+  // unsigned char buf_sz = base_sz + ctx->extra_data_len;
+  // int rank = shuffle_rank(ctx);
+  // int peer_rank = -1;
+  // char buf[255];
+
+  // buf_sz = msgfmt_write_data(buf, SHUFFLE_BUF_LEN, fname, fname_len, data,
+                             // data_len, ctx->extra_data_len);
+
+  // peer_rank = shuffle_target(ctx, buf, buf_sz);
+
+  // if (ctx->type == SHUFFLE_XN) {
+    // int padded_sz = buf_sz;
+    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+                       // peer_rank, rank);
+  // } else {
+    // nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
+  // }
 
   return 0;
 }

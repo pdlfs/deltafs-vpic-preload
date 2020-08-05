@@ -9,18 +9,37 @@
 // XXX: This is probably defined elsewhere
 #define PIVOTS_MAX 4
 
-/* This is not configurable. RTP is designed for 3 stages */
+/* This is not configurable. RTP is designed for 3 stages 
+ * Stage 1 - leaf stage (all shared memory, ideally)
+ * Stage 3 - to final root
+ * */
 #define STAGES_MAX 3
 
+/*
+ * Edge cases:
+ *
+ * You receive RENEG_BEGIN for Round R+1 while you're still on R
+ * - Set a flag to indicate R+1 has begun, and get to it after handling R
+ * - Transition directly
+ *
+ * You receive pivots for R before receiving RENEG_BEGIN for R
+ * - ?
+ *
+ * You receive pivots for R+1 while you're still on R
+ * - Can only happen to higher level nodes
+ * - BUFFER?
+ */  
+
 enum RenegState {
-  RENEG_INIT,
-  RENEG_READY,      /* Ready to activate */
-  RENEG_READYBLOCK, /* Ready to activate, just changed to block main */
-  RENEG_R1SND,      /* Has been activated */
-  RENEG_R2SND,
-  RENEG_R3SND,
-  RENEG_RECVWAIT,
-  RENEG_FINISHED
+  /* Bootstrapping state, no RTP messages can be gracefully handled in this
+   * state, will move to READY once bootstrapping is complete
+   */
+  INIT,
+  /* Ready to either trigger a round locally, or respond to another RTP msg */
+  READY,
+  /* Ready/starting round, but change state to block main thread */
+  READYBLOCK, /* Ready to activate, just changed to block main */
+  PVTSND      /* Has been activated */
 };
 
 class RenegStateMgr {
@@ -28,12 +47,19 @@ class RenegStateMgr {
   RenegState current_state;
   RenegState prev_state;
 
+  int cur_round_num;
+  bool next_round_started;
+
  public:
   RenegStateMgr();
 
   RenegState get_state();
 
   RenegState update_state(RenegState new_state);
+
+  void mark_next_round_start(int round_num);
+
+  bool get_next_round_start();
 };
 
 /**
@@ -43,24 +69,56 @@ class RenegStateMgr {
  */
 class DataBuffer {
  private:
-  /* This simple storage format has 512KB of theoretical
-   * footprint. (4 * 128 * 256 * 4B). But no overhead will
+  /* This simple storage format has 2*512KB of theoretical
+   * footprint. (2* 4 * 128 * 256 * 4B). But no overhead will
    * be incurred for ranks that aren't actually using those
    * stages. (Virtual Memory ftw)
    */
-  float data_store[STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
-  int data_len[STAGES_MAX + 1];
+  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
+  int data_len[2][STAGES_MAX + 1];
 
   int num_pivots;
+  int cur_store_idx;
 
  public:
   DataBuffer();
 
-  int store_data(int stage, float *data, int dlen);
+  /**
+   * @brief Store pivots for the current round
+   *
+   * @param stage
+   * @param data
+   * @param dlen
+   * @param isnext true if data is for the next round, false o/w
+   *
+   * @return errno if < 0, else num_items in store for the stage
+   */
+  int store_data(int stage, float *data, int dlen, bool isnext);
 
-  int get_num_items(int stage);
+  /**
+   * @brief 
+   *
+   * @param stage
+   * @param isnext true if data is for the next round, false o/w
+   *
+   * @return 
+   */
+  int get_num_items(int stage, bool isnext);
 
+  /**
+   * @brief Clear all data for current round, set next round data as cur
+   *
+   * @return errno or 0
+   */
+  int advance_round();
+
+  /**
+   * @brief Clear ALL data (both current round and next). Use with caution.
+   *
+   * @return 
+   */
   int clear_all_data();
+
 };
 
 /**
@@ -150,13 +208,15 @@ typedef struct reneg_ctx *reneg_ctx_t;
 /**
  * @brief
  *
- * @param rctx
- * @param sctx
- * @param data
- * @param data_len
- * @param data_max
- * @param data_mutex
- * @param ro
+ * @param rctx The RTP context
+ * @param sctx The shuffle (3-hop only) context
+ * @param data The array from where to grab, and to update the rank's pivots
+ * This array is shared with the regular shuffle thread, so may only be accessed
+ * under data_mutex.
+ * @param data_len Pointer to the pivot length int
+ * @param data_max Max memory allocated for data
+ * @param data_mutex Mutex that protects all the above
+ * @param ro Config options for RTP
  *
  * @return retcode
  */
@@ -165,12 +225,12 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
                struct reneg_opts ro);
 
 /**
- * @brief
+ * @brief Handler for all RTP messages. Multiplexes to internal handlers.
  *
  * @param rctx
  * @param buf
  * @param buf_sz
- * @param src
+ * @param src The source rank
  *
  * @return
  */

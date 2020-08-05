@@ -427,7 +427,8 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 }  // namespace
 
 static void do_dump_mux() {
-  do_dump_shuffle_skew();
+  // do_dump_shuffle_skew();
+  do_dump();
 }
 
 static void do_dump() {

@@ -53,6 +53,8 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
 
   queries_left = queries_total / num_ranks;
   adjust_queries();
+
+  if (my_rank == 0) this->_debug_print_bins("");
 }
 
 void WorkloadGenerator::adjust_queries() {

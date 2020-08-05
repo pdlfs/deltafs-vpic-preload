@@ -556,6 +556,8 @@ int my_cpu_cores() {
 }
 
 int logf(int lvl, const char* fmt, ...) {
+  if (lvl < LOG_LEVEL) return 0;
+
   const char* prefix;
   va_list ap;
   switch (lvl) {
