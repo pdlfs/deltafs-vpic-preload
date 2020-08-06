@@ -477,7 +477,7 @@ void broadcast_rtp_begin(reneg_ctx_t rctx) {
   char buf[256];
   int buflen =
       msgfmt_encode_rtp_begin(buf, 256, rctx->my_rank, rctx->round_num);
-  send_to_rank(rctx, buf, buflen, rctx->root_s1);
+  send_to_rank(rctx, buf, buflen, rctx->root_s3);
 }
 
 void replay_rtp_begin(reneg_ctx_t rctx) {
