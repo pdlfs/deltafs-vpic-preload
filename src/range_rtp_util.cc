@@ -106,7 +106,10 @@ int DataBuffer::get_num_items(int stage, bool isnext) {
 }
 
 int DataBuffer::advance_round() {
-  this->cur_store_idx = !(this->cur_store_idx);
+  int old_sidx = this->cur_store_idx;
+  memset(data_len[old_sidx], 0, sizeof(data_len[old_sidx]));
+
+  this->cur_store_idx = !old_sidx;
   return 0;
 }
 
