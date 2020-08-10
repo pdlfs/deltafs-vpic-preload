@@ -63,6 +63,14 @@ enum class range_state_t {
 
 enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
 
+typedef struct snapshot_state {
+  std::vector<float> rank_bins;
+  std::vector<float> rank_bin_count;
+  std::vector<float> oob_buffer_left;
+  std::vector<float> oob_buffer_right;
+  float range_min, range_max;
+} snapshot_state_t;
+
 typedef struct range_ctx {
   /* range data structures */
 
@@ -94,11 +102,7 @@ typedef struct range_ctx {
 
   std::mutex snapshot_access_m;
   /* START Shared variables protected by snapshot_acces_m */
-  std::vector<float> rank_bins_ss;
-  std::vector<float> rank_bin_count_ss;
-  std::vector<float> oob_buffer_left_ss;
-  std::vector<float> oob_buffer_right_ss;
-  float range_min_ss, range_max_ss;
+  snapshot_state snapshot;
   /* END Shared variables protected by snapshot_acces_m */
 
   /* OOB buffers are never handled by reneg threads

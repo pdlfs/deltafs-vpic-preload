@@ -820,8 +820,8 @@ int MPI_Init(int* argc, char*** argv) {
   // XXX: revisit this if considering 3-hop etc
   rctx->rank_bins.resize(pctx.comm_sz + 1);
   rctx->rank_bin_count.resize(pctx.comm_sz);
-  rctx->rank_bins_ss.resize(pctx.comm_sz + 1);
-  rctx->rank_bin_count_ss.resize(pctx.comm_sz);
+  rctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
+  rctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
   rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
   rctx->all_pivot_widths.resize(pctx.comm_sz);
 

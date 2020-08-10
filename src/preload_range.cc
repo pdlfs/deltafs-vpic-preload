@@ -572,11 +572,13 @@ bool comp_particle(const particle_mem_t &a, const particle_mem_t &b) {
  * that's currently the case
  * */
 void get_local_pivots(range_ctx_t *rctx) {
-  float range_start = rctx->range_min_ss;
-  float range_end = rctx->range_max_ss;
+  snapshot_state &snap = rctx->snapshot;
 
-  std::vector<float> &oobl = rctx->oob_buffer_left_ss;
-  std::vector<float> &oobr = rctx->oob_buffer_right_ss;
+  float range_start = snap.range_min;
+  float range_end = snap.range_max;
+
+  std::vector<float> &oobl = snap.oob_buffer_left;
+  std::vector<float> &oobr = snap.oob_buffer_right;
 
   const int oobl_sz = oobl.size();
   const int oobr_sz = oobr.size();
@@ -584,8 +586,8 @@ void get_local_pivots(range_ctx_t *rctx) {
   std::sort(oobl.begin(), oobl.begin() + oobl_sz);
   std::sort(oobr.begin(), oobr.begin() + oobr_sz);
 
-  float particle_count = std::accumulate(rctx->rank_bin_count_ss.begin(),
-                                         rctx->rank_bin_count_ss.end(), 0.f);
+  float particle_count = std::accumulate(snap.rank_bin_count.begin(),
+                                         snap.rank_bin_count.end(), 0.f);
 
   int my_rank = pctx.my_rank;
 
@@ -593,8 +595,8 @@ void get_local_pivots(range_ctx_t *rctx) {
     range_start = oobl_sz ? oobl[0] : 0;
     range_end = oobl_sz ? oobl[oobl_sz - 1] : 0;
   } else if (particle_count > 1e-5) {
-    range_start = rctx->range_min_ss;
-    range_end = rctx->range_max_ss;
+    range_start = snap.range_min;
+    range_end = snap.range_max;
   } else {
     /* all pivots need to be zero but algorithm below handles the rest */
     range_start = 0;
@@ -632,8 +634,8 @@ void get_local_pivots(range_ctx_t *rctx) {
   }
 
   /**********************/
-  std::vector<float> &ff = rctx->rank_bin_count_ss;
-  std::vector<float> &gg = rctx->rank_bins_ss;
+  std::vector<float> &ff = snap.rank_bin_count;
+  std::vector<float> &gg = snap.rank_bins;
   fprintf(
       stderr,
       "rank%d get_local_pivots state_dump "
@@ -671,8 +673,8 @@ void get_local_pivots(range_ctx_t *rctx) {
   assert(rctx->range_state == range_state_t::RS_RENEGO);
 
   if (rctx->range_state_prev != range_state_t::RS_INIT)
-    for (int bidx = 0; bidx < rctx->rank_bins_ss.size() - 1; bidx++) {
-      float cur_bin_left = rctx->rank_bin_count_ss[bidx];
+    for (int bidx = 0; bidx < snap.rank_bins.size() - 1; bidx++) {
+      float cur_bin_left = snap.rank_bin_count[bidx];
       float bin_start = rctx->rank_bins[bidx];
       float bin_end = rctx->rank_bins[bidx + 1];
 
@@ -746,14 +748,16 @@ void send_all_to_all(shuffle_ctx_t *ctx, char *buf, uint32_t buf_sz,
 
 /* Needs to be executed under adequate locking */
 void take_snapshot(range_ctx_t *rctx) {
+  snapshot_state &snap = rctx->snapshot;
+
   int num_ranks = rctx->rank_bins.size();
   std::copy(rctx->rank_bins.begin(), rctx->rank_bins.end(),
-            rctx->rank_bins_ss.begin());
+            snap.rank_bins.begin());
   std::copy(rctx->rank_bin_count.begin(), rctx->rank_bin_count.end(),
-            rctx->rank_bin_count_ss.begin());
+            snap.rank_bin_count.begin());
 
-  rctx->range_min_ss = rctx->range_min;
-  rctx->range_max_ss = rctx->range_max;
+  snap.range_min = rctx->range_min;
+  snap.range_max = rctx->range_max;
 
   std::vector<particle_mem_t> &oob_left = rctx->oob_buffer_left;
   std::vector<particle_mem_t> &oob_right = rctx->oob_buffer_right;
@@ -761,17 +765,17 @@ void take_snapshot(range_ctx_t *rctx) {
   int oob_count_left = rctx->oob_count_left;
   int oob_count_right = rctx->oob_count_right;
 
-  std::vector<float> &oob_left_ss = rctx->oob_buffer_left_ss;
-  std::vector<float> &oob_right_ss = rctx->oob_buffer_right_ss;
+  std::vector<float> &snap_oob_left = snap.oob_buffer_left;
+  std::vector<float> &snap_oob_right = snap.oob_buffer_right;
 
-  oob_left_ss.resize(0);
-  oob_right_ss.resize(0);
+  snap_oob_left.resize(0);
+  snap_oob_right.resize(0);
 
-  assert(oob_left_ss.size() == 0);
-  assert(oob_right_ss.size() == 0);
+  assert(snap_oob_left.size() == 0);
+  assert(snap_oob_right.size() == 0);
 
-  float bins_min = rctx->rank_bins_ss[0];
-  float bins_max = rctx->rank_bins_ss[pctx.comm_sz];
+  float bins_min = snap.rank_bins[0];
+  float bins_max = snap.rank_bins[pctx.comm_sz];
 
   logf(LOG_DBUG, "At Rank %d, Repartitioning OOBs using bin range %.1f-%.1f\n",
           pctx.my_rank, bins_min, bins_max);
@@ -780,17 +784,17 @@ void take_snapshot(range_ctx_t *rctx) {
     float prop = oob_left[oob_idx].indexed_prop;
 
     if (prop < bins_min) {
-      oob_left_ss.push_back(prop);
+      snap_oob_left.push_back(prop);
     } else if (rctx->range_state_prev == range_state_t::RS_INIT) {
-      oob_left_ss.push_back(prop);
+      snap_oob_left.push_back(prop);
     } else if (prop > bins_max) {
-      oob_right_ss.push_back(prop);
+      snap_oob_right.push_back(prop);
     } else {
       logf(LOG_DBUG,
               "Dropping OOBL item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
               "(%zu %zu)\n",
-              prop, pctx.my_rank, bins_min, bins_max, oob_left_ss.size(),
-              oob_right_ss.size());
+              prop, pctx.my_rank, bins_min, bins_max, snap_oob_left.size(),
+              snap_oob_right.size());
     }
   }
 
@@ -798,18 +802,17 @@ void take_snapshot(range_ctx_t *rctx) {
     float prop = oob_right[oob_idx].indexed_prop;
 
     if (prop < bins_min) {
-      oob_left_ss.push_back(prop);
+      snap_oob_left.push_back(prop);
     } else if (rctx->range_state_prev == range_state_t::RS_INIT) {
-      oob_left_ss.push_back(prop);
+      snap_oob_left.push_back(prop);
     } else if (oob_right[oob_idx].indexed_prop > bins_max) {
-      oob_right_ss.push_back(prop);
+      snap_oob_right.push_back(prop);
     } else {
       logf(LOG_DBUG,
               "Dropping OOBR item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
               "(%zu %zu)\n",
-              prop, pctx.my_rank, bins_min, bins_max, oob_left_ss.size(),
-              oob_right_ss.size());
+              prop, pctx.my_rank, bins_min, bins_max, snap_oob_left.size(),
+              snap_oob_right.size());
     }
   }
 }
-
