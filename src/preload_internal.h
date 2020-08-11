@@ -162,7 +162,11 @@ typedef struct preload_ctx {
   FILE* trace;
 
   perfstats_ctx_t perf_ctx;
+  /* TODO: clean up pvt common code from this ctx */
   range_ctx_t rctx;
+
+  /* Contains main thread state for range queries */
+  pivot_ctx_t pvt_ctx;
 
   struct reneg_ctx rtp_ctx;
   float data[40];

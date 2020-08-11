@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <mutex>
 #include "common.h"
+#include "range_common.h"
 
 #define MSGFMT_MAX_BUFSIZE 255
 
@@ -12,15 +13,6 @@
 #define ABORT(msg) msg_abort(errno, msg, __func__, ABORT_FILENAME, __LINE__)
 
 #include <vector>
-
-// TODO: make this configurable
-#define RANGE_BUFSZ 1000
-// TODO: Can shorten this by using indirect ptr?
-#define RANGE_MAX_PSZ 255
-#define RANGE_MAX_OOB_THRESHOLD 8
-/* Total  for left + right buffers */
-#define RANGE_TOTAL_OOB_THRESHOLD 2 * RANGE_MAX_OOB_THRESHOLD
-#define RANGE_NUM_PIVOTS 4
 
 #define RANGE_IS_INIT(x) (x->range_state == range_state_t::RS_INIT)
 #define RANGE_IS_READY(x) (x->range_state == range_state_t::RS_READY)
@@ -41,12 +33,6 @@
 void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line);
 
-typedef struct particle_mem {
-  float indexed_prop;       // property for range query
-  char buf[RANGE_MAX_PSZ];  // other data
-  int buf_sz;
-} particle_mem_t;
-
 /* Allowed transitions:
  * INIT -> RENEGO
  * READY -> RENEGO
@@ -62,14 +48,6 @@ enum class range_state_t {
 };
 
 enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
-
-typedef struct snapshot_state {
-  std::vector<float> rank_bins;
-  std::vector<float> rank_bin_count;
-  std::vector<float> oob_buffer_left;
-  std::vector<float> oob_buffer_right;
-  float range_min, range_max;
-} snapshot_state_t;
 
 typedef struct range_ctx {
   /* range data structures */
@@ -140,6 +118,10 @@ typedef struct range_ctx {
 } range_ctx_t;
 
 typedef struct preload_ctx preload_ctx_t;
+
+void range_ctx_init(range_ctx_t *rctx);
+
+void range_ctx_reset(range_ctx_t *rctx);
 
 void range_init_negotiation(preload_ctx_t* pctx);
 

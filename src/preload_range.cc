@@ -30,11 +30,11 @@ void increment_rnum_and_send_acks();
 
 #define PRINTBUF_LEN 16384
 
-char rs_pb_buf[16384];
-char rs_pb_buf2[16384];
-char rs_pbin_buf[16384];
+static char rs_pb_buf[16384];
+static char rs_pb_buf2[16384];
+static char rs_pbin_buf[16384];
 
-char *print_state(range_state_t state) {
+static char *print_state(range_state_t state) {
   switch (state) {
     case range_state_t::RS_INIT:
       snprintf(rs_pb_buf, PRINTBUF_LEN, "RS_INIT");
@@ -59,7 +59,7 @@ char *print_state(range_state_t state) {
   return rs_pb_buf;
 }
 
-char *print_pivots(preload_ctx_t *pctx, range_ctx_t *rctx) {
+static char *print_pivots(preload_ctx_t *pctx, range_ctx_t *rctx) {
   char *start = rs_pbin_buf;
   int start_ptr = 0;
 
@@ -80,7 +80,7 @@ char *print_pivots(preload_ctx_t *pctx, range_ctx_t *rctx) {
   return rs_pbin_buf;
 }
 
-char *print_vec(char *buf, int buf_len, float *v, int vlen) {
+static char *print_vec(char *buf, int buf_len, float *v, int vlen) {
   int start_ptr = 0;
 
   for (int item = 0; item < vlen; item++) {
@@ -93,7 +93,8 @@ char *print_vec(char *buf, int buf_len, float *v, int vlen) {
   return buf;
 }
 
-char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) {
+static char *print_vec(char *buf, int buf_len, std::vector<float> &v,
+                       int vlen) {
   assert(v.size() >= vlen);
 
   int start_ptr = 0;
@@ -106,6 +107,72 @@ char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) {
   }
 
   return buf;
+}
+
+void range_ctx_init(range_ctx_t *rctx) {
+  /* init range structures */
+  // XXX: revisit this if considering 3-hop etc
+  rctx->rank_bins.resize(pctx.comm_sz + 1);
+  rctx->rank_bin_count.resize(pctx.comm_sz);
+  rctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
+  rctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
+  rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
+  rctx->all_pivot_widths.resize(pctx.comm_sz);
+
+  rctx->ranks_acked.resize(pctx.comm_sz);
+  rctx->ranks_acked_next.resize(pctx.comm_sz);
+
+  rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
+  rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
+
+  std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
+  std::fill(rctx->ranks_acked_next.begin(), rctx->ranks_acked_next.end(),
+            false);
+
+  /* Round number is never reset, it keeps monotonically increasing
+   * even through all the epochs */
+  rctx->nneg_round_num = 0;
+
+  rctx->pvt_round_num = 0;
+  rctx->ack_round_num = 0;
+
+  /* Ranks_responded is reset after the end of the previous round
+   * because when the next round starts is ambiguous and either
+   * a RENEG ACK or a RENEG PIVOT can initiate the next round
+   */
+  rctx->ranks_responded = 0;
+
+  rctx->ranks_acked_count = 0;
+  rctx->ranks_acked_count_next = 0;
+
+  rctx->range_state = range_state_t::RS_INIT;
+}
+
+void range_ctx_reset(range_ctx_t *rctx) {
+  /* reset range stats */
+  std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
+
+  assert(range_state_t::RS_RENEGO != pctx.rctx.range_state);
+
+  pctx.rctx.range_state = range_state_t::RS_INIT;
+  std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
+  std::fill(pctx.rctx.rank_bin_count.begin(), pctx.rctx.rank_bin_count.end(),
+            0);
+
+  // pctx.rctx.neg_round_num = 0;
+  pctx.rctx.range_min = 0;
+  pctx.rctx.range_max = 0;
+  pctx.rctx.ts_writes_received = 0;
+  pctx.rctx.ts_writes_shuffled = 0;
+  pctx.rctx.oob_count_left = 0;
+  pctx.rctx.oob_count_right = 0;
+
+  /* XXX: we don't have an explicit flush mechanism before
+   * so this might fail but currently we block fwrites during negotiation
+   * so it should not fail, but we might lose OOB buffered particles until
+   * we implement OOB flushing at the end of an epoch
+   */
+  assert(pctx.rctx.ranks_acked_count == 0);
 }
 
 /* XXX: Make sure concurrent runs with delivery thread
@@ -315,7 +382,8 @@ void increment_rnum_and_send_acks() {
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "Rank %d updated its bins. Sending acks now\n", pctx.my_rank);
+    logf(LOG_INFO, "Rank %d updated its bins. Sending acks now\n",
+         pctx.my_rank);
   }
 
   assert(pctx.rctx.range_state != range_state_t::RS_READY);
@@ -476,7 +544,6 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   /* We may receive an ACK for Round R+1 if ACK's for R are still in flight
    * and some node has moved on to, and negotiated R+1  */
   if (sround_num == round_num + 1) {
-
     if (pctx.rctx.ranks_acked_next[srank]) {
       logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
            pctx.my_rank, srank);
@@ -498,7 +565,6 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
          pctx.rctx.ranks_acked_count_next.load());
 
   } else if (sround_num == round_num) {
-
     if (pctx.rctx.ranks_acked[srank]) {
       logf(LOG_ERRO, "Rank %d rcvd duplicate RENEG ACK from rank %d.",
            pctx.my_rank, srank);
@@ -514,15 +580,12 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
     pctx.rctx.ranks_acked_count++;
 
   } else {
-
     logf(LOG_ERRO, "Unexpected ACK round received at Rank %d\n", pctx.my_rank);
     ABORT("Unexpected ACK");  // paranoid check
-
   }
 
   /* All ACKs have been received */
   if (pctx.rctx.ranks_acked_count == pctx.comm_sz) {
-
     /* Transfer pre-ACKs for R+1 to cur-ACK array */
     std::copy(pctx.rctx.ranks_acked_next.begin(),
               pctx.rctx.ranks_acked_next.end(), pctx.rctx.ranks_acked.begin());
@@ -778,7 +841,7 @@ void take_snapshot(range_ctx_t *rctx) {
   float bins_max = snap.rank_bins[pctx.comm_sz];
 
   logf(LOG_DBUG, "At Rank %d, Repartitioning OOBs using bin range %.1f-%.1f\n",
-          pctx.my_rank, bins_min, bins_max);
+       pctx.my_rank, bins_min, bins_max);
 
   for (int oob_idx = 0; oob_idx < oob_count_left; oob_idx++) {
     float prop = oob_left[oob_idx].indexed_prop;
@@ -791,10 +854,10 @@ void take_snapshot(range_ctx_t *rctx) {
       snap_oob_right.push_back(prop);
     } else {
       logf(LOG_DBUG,
-              "Dropping OOBL item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
-              "(%zu %zu)\n",
-              prop, pctx.my_rank, bins_min, bins_max, snap_oob_left.size(),
-              snap_oob_right.size());
+           "Dropping OOBL item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
+           "(%zu %zu)\n",
+           prop, pctx.my_rank, bins_min, bins_max, snap_oob_left.size(),
+           snap_oob_right.size());
     }
   }
 
@@ -809,10 +872,10 @@ void take_snapshot(range_ctx_t *rctx) {
       snap_oob_right.push_back(prop);
     } else {
       logf(LOG_DBUG,
-              "Dropping OOBR item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
-              "(%zu %zu)\n",
-              prop, pctx.my_rank, bins_min, bins_max, snap_oob_left.size(),
-              snap_oob_right.size());
+           "Dropping OOBR item %.1f for Rank %d from pivot calc (%.1f-%.1f) "
+           "(%zu %zu)\n",
+           prop, pctx.my_rank, bins_min, bins_max, snap_oob_left.size(),
+           snap_oob_right.size());
     }
   }
 }

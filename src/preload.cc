@@ -57,6 +57,8 @@
 #include <papi.h>
 #endif
 
+#include "range_common.h"
+
 /* default particle format */
 #define DEFAULT_PARTICLE_ID_BYTES 8 /* particle filename length */
 #define DEFAULT_PARTICLE_EXTRA_BYTES 0
@@ -814,44 +816,8 @@ int MPI_Init(int* argc, char*** argv) {
     return rv;
   }
 
-  range_ctx_t* rctx = &pctx.rctx;
-
-  /* init range structures */
-  // XXX: revisit this if considering 3-hop etc
-  rctx->rank_bins.resize(pctx.comm_sz + 1);
-  rctx->rank_bin_count.resize(pctx.comm_sz);
-  rctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
-  rctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
-  rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
-  rctx->all_pivot_widths.resize(pctx.comm_sz);
-
-  rctx->ranks_acked.resize(pctx.comm_sz);
-  rctx->ranks_acked_next.resize(pctx.comm_sz);
-
-  rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
-  rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
-
-  std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
-  std::fill(rctx->ranks_acked_next.begin(), rctx->ranks_acked_next.end(),
-            false);
-
-  /* Round number is never reset, it keeps monotonically increasing
-   * even through all the epochs */
-  rctx->nneg_round_num = 0;
-
-  rctx->pvt_round_num = 0;
-  rctx->ack_round_num = 0;
-
-  /* Ranks_responded is reset after the end of the previous round
-   * because when the next round starts is ambiguous and either
-   * a RENEG ACK or a RENEG PIVOT can initiate the next round
-   */
-  rctx->ranks_responded = 0;
-
-  rctx->ranks_acked_count = 0;
-  rctx->ranks_acked_count_next = 0;
-
-  rctx->range_state = range_state_t::RS_INIT;
+  range_ctx_init(&(pctx.rctx));
+  pivot_ctx_init(&(pctx.pvt_ctx));
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
@@ -2143,32 +2109,8 @@ int opendir_impl(const char* dir) {
   /* epoch count is increased before the beginning of each epoch */
   num_eps++; /* must go before the barrier below */
 
-  {
-    /* reset range stats */
-    std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
-
-    assert(range_state_t::RS_RENEGO != pctx.rctx.range_state);
-
-    pctx.rctx.range_state = range_state_t::RS_INIT;
-    std::fill(pctx.rctx.rank_bins.begin(), pctx.rctx.rank_bins.end(), 0);
-    std::fill(pctx.rctx.rank_bin_count.begin(), pctx.rctx.rank_bin_count.end(),
-              0);
-
-    // pctx.rctx.neg_round_num = 0;
-    pctx.rctx.range_min = 0;
-    pctx.rctx.range_max = 0;
-    pctx.rctx.ts_writes_received = 0;
-    pctx.rctx.ts_writes_shuffled = 0;
-    pctx.rctx.oob_count_left = 0;
-    pctx.rctx.oob_count_right = 0;
-
-    /* XXX: we don't have an explicit flush mechanism before
-     * so this might fail but currently we block fwrites during negotiation
-     * so it should not fail, but we might lose OOB buffered particles until
-     * we implement OOB flushing at the end of an epoch
-     */
-    assert(pctx.rctx.ranks_acked_count == 0);
-  }
+  range_ctx_reset(&(pctx.rctx));
+  pivot_ctx_reset(&(pctx.pvt_ctx));
 
   if (pctx.paranoid_post_barrier) {
     /*
