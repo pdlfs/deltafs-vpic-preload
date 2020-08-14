@@ -3,13 +3,12 @@
 #include <time.h>
 #include "preload_range.h"
 #include "preload_shuffle.h"
+#include "range_utils.h"
 #include "xn_shuffle.h"
 
 #define FANOUT_MAX 128
-// XXX: This is probably defined elsewhere
-#define PIVOTS_MAX 4
 
-/* This is not configurable. RTP is designed for 3 stages 
+/* This is not configurable. RTP is designed for 3 stages
  * Stage 1 - leaf stage (all shared memory, ideally)
  * Stage 3 - to final root
  * */
@@ -28,7 +27,7 @@
  * You receive pivots for R+1 while you're still on R
  * - Can only happen to higher level nodes
  * - BUFFER?
- */  
+ */
 
 enum RenegState {
   /* Bootstrapping state, no RTP messages can be gracefully handled in this
@@ -74,10 +73,11 @@ class DataBuffer {
    * be incurred for ranks that aren't actually using those
    * stages. (Virtual Memory ftw)
    */
-  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][PIVOTS_MAX];
+  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][RANGE_MAX_PIVOTS];
+  float data_widths[2][STAGES_MAX + 1][FANOUT_MAX];
   int data_len[2][STAGES_MAX + 1];
 
-  int num_pivots;
+  int num_pivots[STAGES_MAX + 1];
   int cur_store_idx;
 
  public:
@@ -89,19 +89,21 @@ class DataBuffer {
    * @param stage
    * @param data
    * @param dlen
+   * @param pivot_width
    * @param isnext true if data is for the next round, false o/w
    *
    * @return errno if < 0, else num_items in store for the stage
    */
-  int store_data(int stage, float *data, int dlen, bool isnext);
+  int store_data(int stage, float *pivot_data, int dlen, float pivot_width,
+                 bool isnext);
 
   /**
-   * @brief 
+   * @brief
    *
    * @param stage
    * @param isnext true if data is for the next round, false o/w
    *
-   * @return 
+   * @return
    */
   int get_num_items(int stage, bool isnext);
 
@@ -113,12 +115,30 @@ class DataBuffer {
   int advance_round();
 
   /**
-   * @brief Clear ALL data (both current round and next). Use with caution.
+   * @brief A somewhat hacky way to get pivot width arrays withouy copying
+   *
+   * @param stage
    *
    * @return 
    */
-  int clear_all_data();
+  int get_pivot_widths(int stage, std::vector<float>& widths);
 
+  /**
+   * @brief
+   *
+   * @param stage
+   * @param rbvec
+   *
+   * @return
+   */
+  int load_into_rbvec(int stage, std::vector<rb_item_t> &rbvec);
+
+  /**
+   * @brief Clear ALL data (both current round and next). Use with caution.
+   *
+   * @return
+   */
+  int clear_all_data();
 };
 
 /**
@@ -153,18 +173,7 @@ struct reneg_ctx {
   xn_ctx_t *xn_sctx; /* shuffler to use for data */
   nexus_ctx_t nxp;   /* extracted from sctx */
 
-  /* All data in this section is shared with other
-   * threads, and must be accessed undedr this mutex
-   *
-   * The data mutex is shared between the main thread, whihc is
-   * read-only, and the delivery thread, which may both read
-   * and write
-   */
-  /* BEGIN data_mutex */
-  pthread_mutex_t *data_mutex = NULL;
-  float *data = NULL;
-  int *data_len = NULL;
-  /* END data_mutex */
+  pivot_ctx_t *pvt_ctx;
 
   /* All data below is protected by this mutex - this is also
    * shared between the main thread and multiple message handlers.
@@ -180,21 +189,11 @@ struct reneg_ctx {
   int my_rank;
   int num_ranks;
 
-  int fanout_s1;
-  int fanout_s2;
-  int fanout_s3;
-
-  int peers_s1[FANOUT_MAX];
-  int peers_s2[FANOUT_MAX];
-  int peers_s3[FANOUT_MAX];
-
-  int num_peers_s1;
-  int num_peers_s2;
-  int num_peers_s3;
-
-  int root_s1;
-  int root_s2;
-  int root_s3;
+  int fanout[4];
+  int peers[4][FANOUT_MAX];
+  int num_peers[4];
+  int root[4];
+  int pvtcnt[4];
 };
 
 struct reneg_opts {
@@ -210,18 +209,12 @@ typedef struct reneg_ctx *reneg_ctx_t;
  *
  * @param rctx The RTP context
  * @param sctx The shuffle (3-hop only) context
- * @param data The array from where to grab, and to update the rank's pivots
- * This array is shared with the regular shuffle thread, so may only be accessed
- * under data_mutex.
- * @param data_len Pointer to the pivot length int
- * @param data_max Max memory allocated for data
- * @param data_mutex Mutex that protects all the above
+ * @param pvt_ctx The pivot context
  * @param ro Config options for RTP
  *
  * @return retcode
  */
-int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
-               int *data_len, int data_max, pthread_mutex_t *data_mutex,
+int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
                struct reneg_opts ro);
 
 /**

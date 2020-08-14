@@ -7,10 +7,14 @@
 #define RANGE_BUFSZ 1000
 // TODO: Can shorten this by using indirect ptr?
 #define RANGE_MAX_PSZ 255
-#define RANGE_MAX_OOB_THRESHOLD 8
+#define RANGE_MAX_OOB_THRESHOLD 2000
 /* Total  for left + right buffers */
 #define RANGE_TOTAL_OOB_THRESHOLD 2 * RANGE_MAX_OOB_THRESHOLD
+
+// TODO: irrelevant, replace with MAX_PIVOTS
 #define RANGE_NUM_PIVOTS 4
+
+#define RANGE_MAX_PIVOTS 256
 
 
 typedef struct particle_mem {
@@ -68,7 +72,7 @@ typedef struct pivot_ctx {
   int oob_count_left;
   int oob_count_right;
 
-  float my_pivots[RANGE_NUM_PIVOTS];
+  float my_pivots[RANGE_MAX_PIVOTS];
   float pivot_width;
 
   pthread_mutex_t snapshot_access_m = PTHREAD_MUTEX_INITIALIZER;
@@ -78,8 +82,19 @@ typedef struct pivot_ctx {
 int pivot_ctx_init(pivot_ctx *pvt_ctx);
 
 int pivot_ctx_reset(pivot_ctx *pvt_ctx);
+
 /**
  * @brief 
+ *
+ * @param pvt_ctx Calculate pivots from the current pivot_ctx state.
+ * This also modifies OOB buffers (sorts them), but their order shouldn't
+ * be relied upon anyway.
+ *
+ * @return 
+ */
+int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots);
+/**
+ * @brief Take a snapshot of the pivot_ctx state
  *
  * @param pvt_ctx
  *
@@ -88,10 +103,10 @@ int pivot_ctx_reset(pivot_ctx *pvt_ctx);
 int pivot_state_snapshot(pivot_ctx *pvt_ctx);
 
 /**
- * @brief 
+ * @brief Calculate pivot state from snapshot. Exists mostly as legacy
  *
  * @param pvt_ctx
  *
  * @return 
  */
-int pivot_calculate_local(pivot_ctx_t *pvt_ctx);
+int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots);

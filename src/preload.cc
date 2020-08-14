@@ -1258,9 +1258,7 @@ int MPI_Init(int* argc, char*** argv) {
   ro.fanout_s2 = 2;
   ro.fanout_s3 = 2;
 
-  pthread_mutex_init(&(pctx.data_mutex), NULL);
-  reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.data, &(pctx.data_len), 20,
-             &(pctx.data_mutex), ro);
+  reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), &(pctx.pvt_ctx), ro);
 
   srand(pctx.my_rank);
 

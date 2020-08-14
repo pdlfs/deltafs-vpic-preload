@@ -13,6 +13,8 @@ typedef struct rb_item {
   bool is_start;
 } rb_item_t;  // rank-bin item
 
+bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
+
 void load_bins_into_rbvec(std::vector<float>& bins,
                           std::vector<rb_item_t>& rbvec, int num_bins,
                           int num_ranks, int bins_per_rank);
@@ -26,12 +28,13 @@ int get_particle_count(int total_ranks, int total_bins, int par_per_bin);
 
 int resample_bins_irregular(const std::vector<float>& bins,
                             const std::vector<float>& bin_counts,
-                            std::vector<float>& samples, int nsamples);
+                            std::vector<float>& samples, float& sample_width,
+                            int nsamples);
 
 void repartition_bin_counts(std::vector<float>& old_bins,
                             std::vector<float>& old_bin_counts,
                             std::vector<float>& new_bins,
                             std::vector<float>& new_bin_counts);
 
-void assert_monotically_increasing(float *array, int array_sz);
-void assert_monotically_decreasing(float *array, int array_sz);
+void assert_monotically_increasing(float* array, int array_sz);
+void assert_monotically_decreasing(float* array, int array_sz);

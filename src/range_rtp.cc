@@ -22,12 +22,14 @@ void send_to_rank(reneg_ctx_t rctx, char *buf, int buf_sz, int drank);
 void send_to_all(int *peers, int num_peers, reneg_ctx_t rctx, char *buf,
                  int buf_sz, int my_rank = -1);
 #define send_to_all_s1(...) \
-  send_to_all(rctx->peers_s1, rctx->num_peers_s1, __VA_ARGS__)
+  send_to_all(rctx->peers[1], rctx->num_peers[1], __VA_ARGS__)
 #define send_to_all_s2(...) \
-  send_to_all(rctx->peers_s2, rctx->num_peers_s2, __VA_ARGS__)
+  send_to_all(rctx->peers[2], rctx->num_peers[2], __VA_ARGS__)
 #define send_to_all_s3(...) \
-  send_to_all(rctx->peers_s3, rctx->num_peers_s3, __VA_ARGS__)
+  send_to_all(rctx->peers[3], rctx->num_peers[3], __VA_ARGS__)
 
+void compute_aggregate_pivots(reneg_ctx_t rctx, int stage_num,
+                              float *merged_pivots, float &merged_width);
 /**
  * @brief Directly send rtp_begin to tree root for dissemination
  *
@@ -48,8 +50,7 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items);
 /* END internal declarations */
 
-int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
-               int *data_len, int data_max, pthread_mutex_t *data_mutex,
+int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
                struct reneg_opts ro) {
   xn_ctx_t *xn_sctx = NULL;
   int rv = 0;
@@ -64,13 +65,6 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
 
   if (sctx->type != SHUFFLE_XN) {
     logf(LOG_DBUG, "Only 3-hop is supported by the RTP protocol\n");
-    rv = -1;
-    goto cleanup;
-  }
-
-  if (data_max < RANGE_NUM_PIVOTS) {
-    logf(LOG_DBUG,
-         "reneg_init: data array should be at least RANGE_NUM_PIVOTS\n");
     rv = -1;
     goto cleanup;
   }
@@ -98,15 +92,17 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, float *data,
   rctx->xn_sctx = xn_sctx;
   rctx->nxp = xn_sctx->nx;
 
-  rctx->data = data;
-  rctx->data_len = data_len;
-  rctx->data_mutex = data_mutex;
+  rctx->pvt_ctx = pvt_ctx;
 
   rctx->round_num = 0;
 
-  rctx->fanout_s1 = ro.fanout_s1;
-  rctx->fanout_s2 = ro.fanout_s2;
-  rctx->fanout_s3 = ro.fanout_s3;
+  rctx->fanout[1] = ro.fanout_s1;
+  rctx->fanout[2] = ro.fanout_s2;
+  rctx->fanout[3] = ro.fanout_s3;
+
+  rctx->pvtcnt[1] = 32;
+  rctx->pvtcnt[2] = 32;
+  rctx->pvtcnt[3] = 32;
 
   mock_pivots_init(rctx);
   reneg_topology_init(rctx);
@@ -128,50 +124,50 @@ int reneg_topology_init(reneg_ctx_t rctx) {
   grank = nexus_global_rank(rctx->nxp);
   gsz = nexus_global_size(rctx->nxp);
 
-  int s1mask = ~(rctx->fanout_s1 - 1);
-  int s2mask = ~(rctx->fanout_s1 * rctx->fanout_s2 - 1);
-  int s3mask = ~((rctx->fanout_s1 * rctx->fanout_s2 * rctx->fanout_s3) - 1);
+  int s1mask = ~(rctx->fanout[1] - 1);
+  int s2mask = ~(rctx->fanout[1] * rctx->fanout[2] - 1);
+  int s3mask = ~((rctx->fanout[1] * rctx->fanout[2] * rctx->fanout[3]) - 1);
 
   int s1root = grank & s1mask;
-  rctx->root_s1 = s1root;
-  rctx->num_peers_s1 = 0;
+  rctx->root[1] = s1root;
+  rctx->num_peers[1] = 0;
 
-  for (int pidx = 0; pidx < rctx->fanout_s1; pidx++) {
+  for (int pidx = 0; pidx < rctx->fanout[1]; pidx++) {
     int jump = 1;
     int peer = s1root + pidx * jump;
 
     if (peer >= gsz) break;
 
-    rctx->peers_s1[pidx] = peer;
-    rctx->num_peers_s1++;
+    rctx->peers[1][pidx] = peer;
+    rctx->num_peers[1]++;
   }
 
   int s2root = grank & s2mask;
-  rctx->root_s2 = s2root;
-  rctx->num_peers_s2 = 0;
+  rctx->root[2] = s2root;
+  rctx->num_peers[2] = 0;
 
-  for (int pidx = 0; pidx < rctx->fanout_s2; pidx++) {
-    int jump = rctx->fanout_s1;
+  for (int pidx = 0; pidx < rctx->fanout[2]; pidx++) {
+    int jump = rctx->fanout[1];
     int peer = s2root + pidx * jump;
 
     if (peer >= gsz) break;
 
-    rctx->peers_s2[pidx] = peer;
-    rctx->num_peers_s2++;
+    rctx->peers[2][pidx] = peer;
+    rctx->num_peers[2]++;
   }
 
   int s3root = grank & s3mask;
-  rctx->root_s3 = s3root;
-  rctx->num_peers_s3 = 0;
+  rctx->root[3] = s3root;
+  rctx->num_peers[3] = 0;
 
-  for (int pidx = 0; pidx < rctx->fanout_s3; pidx++) {
-    int jump = rctx->fanout_s1 * rctx->fanout_s2;
+  for (int pidx = 0; pidx < rctx->fanout[3]; pidx++) {
+    int jump = rctx->fanout[1] * rctx->fanout[2];
     int peer = s3root + pidx * jump;
 
     if (peer >= gsz) break;
 
-    rctx->peers_s3[pidx] = peer;
-    rctx->num_peers_s3++;
+    rctx->peers[3][pidx] = peer;
+    rctx->num_peers[3]++;
   }
 
   rctx->my_rank = grank;
@@ -276,26 +272,40 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
      * If we're an S3 root, prioritize Stage 3 sending first, so as to
      * trigger other leaf broadcasts in parallel
      * */
-    if (rctx->my_rank == rctx->root_s3) {
+    if (rctx->my_rank == rctx->root[3]) {
       send_to_all_s3(rctx, buf, buf_sz);
     }
-    if (rctx->my_rank == rctx->root_s2) {
+    if (rctx->my_rank == rctx->root[2]) {
       send_to_all_s2(rctx, buf, buf_sz);
     }
-    if (rctx->my_rank == rctx->root_s1) {
+    if (rctx->my_rank == rctx->root[1]) {
       send_to_all_s1(rctx, buf, buf_sz);
     }
 
     /* send pivots to s1root now */
-    char pvt_buf[1024];
+    char pvt_buf[2048];
+    int pvt_buf_len;
 
-    pthread_mutex_lock(rctx->data_mutex);
-    int pvt_buf_len = msgfmt_encode_rtp_pivots(pvt_buf, 1024, rctx->round_num,
-                                               1, rctx->my_rank, rctx->data, 1,
-                                               *(rctx->data_len));
-    pthread_mutex_unlock(rctx->data_mutex);
+    const int stage_idx = 1;
+    pivot_ctx *pvt_ctx = rctx->pvt_ctx;
 
-    send_to_rank(rctx, pvt_buf, pvt_buf_len, rctx->root_s1);
+    pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
+
+    pivot_calculate(pvt_ctx, rctx->pvtcnt[stage_idx]);
+
+    logf(LOG_DBUG, "pvt_calc_local @ R%d: %.1f %.1f %.1f %.1f...\n",
+         rctx->my_rank, pvt_ctx->my_pivots[0], pvt_ctx->my_pivots[1],
+         pvt_ctx->my_pivots[2], pvt_ctx->my_pivots[3]);
+
+    pvt_buf_len = msgfmt_encode_rtp_pivots(
+        pvt_buf, /* buf_sz */ 2048, rctx->round_num, stage_idx, rctx->my_rank,
+        pvt_ctx->my_pivots, pvt_ctx->pivot_width, rctx->pvtcnt[stage_idx]);
+
+    pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
+
+    logf(LOG_DBUG, "sending pivots, count: %d\n", rctx->pvtcnt[stage_idx]);
+
+    send_to_rank(rctx, pvt_buf, pvt_buf_len, rctx->root[1]);
   }
 
   return 0;
@@ -332,8 +342,10 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   msgfmt_decode_rtp_pivots(buf, buf_sz, &round_num, &stage_num, &sender_id,
                            &pivots, &pivot_width, &num_pivots);
 
-  assert(num_pivots == PIVOTS_MAX);
+  assert(num_pivots <= RANGE_MAX_PIVOTS);
 
+  logf(LOG_DBUG, "reneg_handle_rtp_pivot: S%d %d pivots from %d\n", stage_num,
+       num_pivots, sender_id);
   // logf(LOG_DBUG, "reneg_handle_rtp_pivot: %.1f %.1f %.1f %.1f\n", pivots[0],
   // pivots[1], pivots[2], pivots[3]);
 
@@ -342,8 +354,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   int stage_pivot_count;
 
   if (round_num != rctx->round_num) {
-    stage_pivot_count =
-        rctx->data_buffer.store_data(stage_num, pivots, num_pivots, true);
+    stage_pivot_count = rctx->data_buffer.store_data(
+        stage_num, pivots, num_pivots, pivot_width, /* isnextround */ true);
 
     /* If we're receiving a pivot for a future round, we can never have
      * received all pivots for a future round, as we also expect one pivot
@@ -355,8 +367,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
      */
     assert(!expected_items_for_stage(rctx, stage_num, stage_pivot_count));
   } else {
-    stage_pivot_count =
-        rctx->data_buffer.store_data(stage_num, pivots, num_pivots, false);
+    stage_pivot_count = rctx->data_buffer.store_data(
+        stage_num, pivots, num_pivots, pivot_width, /*isnextround */ false);
   }
   // int num_items = rctx->data_buffer.get_num_items(stage_num);
 
@@ -367,9 +379,17 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
        stage_num, rctx->my_rank, src, stage_pivot_count);
 
   if (expected_items_for_stage(rctx, stage_num, stage_pivot_count)) {
+    float merged_pivots[RANGE_MAX_PIVOTS];
+    float merged_width;
+    compute_aggregate_pivots(rctx, stage_num, merged_pivots, merged_width);
+
+    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %.1f %.1f %.1f %.1f ... - %.1f\n",
+         rctx->my_rank, merged_pivots[0], merged_pivots[1], merged_pivots[2],
+         merged_pivots[3], merged_width);
+
     // Aggregate pivots
     // XXX: pretend new pivots are also in pivots
-    char next_buf[1024];
+    char next_buf[2048];
     logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
          stage_num, rctx->my_rank);
 
@@ -377,10 +397,10 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
       logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 1\n");
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
-          next_buf, 1024, round_num, stage_num + 1, rctx->my_rank, pivots,
-          pivot_width, num_pivots);
+          next_buf, 2048, round_num, stage_num + 1, rctx->my_rank,
+          merged_pivots, merged_width, num_pivots);
 
-      int new_dest = stage_num == 1 ? rctx->root_s2 : rctx->root_s3;
+      int new_dest = stage_num == 1 ? rctx->root[2] : rctx->root[3];
 
       send_to_rank(rctx, next_buf, next_buf_len, new_dest);
     } else {
@@ -388,9 +408,9 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
        * ourself (s3root) so that the broadcast code can be cleanly
        * contained in reneg_handle_pivot_bcast
        */
-      logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 2 @ %d\n", rctx->root_s3);
+      logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 2 @ %d\n", rctx->root[3]);
 
-      assert(rctx->my_rank == rctx->root_s3);
+      assert(rctx->my_rank == rctx->root[3]);
 
       rctx->reneg_bench.rec_pvt_bcast();
 
@@ -398,7 +418,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
           next_buf, 1024, round_num, stage_num + 1, rctx->my_rank, pivots,
           pivot_width, num_pivots, true);
 
-      send_to_rank(rctx, next_buf, next_buf_len, rctx->root_s3);
+      send_to_rank(rctx, next_buf, next_buf_len, rctx->root[3]);
     }
   }  // if
 
@@ -424,13 +444,13 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
   /* send_to_all here excludes self; sinne we're passing my_rank to exclude */
-  if (rctx->my_rank == rctx->root_s3) {
+  if (rctx->my_rank == rctx->root[3]) {
     send_to_all_s3(rctx, buf, buf_sz, rctx->my_rank);
   }
-  if (rctx->my_rank == rctx->root_s2) {
+  if (rctx->my_rank == rctx->root[2]) {
     send_to_all_s2(rctx, buf, buf_sz, rctx->my_rank);
   }
-  if (rctx->my_rank == rctx->root_s1) {
+  if (rctx->my_rank == rctx->root[1]) {
     send_to_all_s1(rctx, buf, buf_sz, rctx->my_rank);
   }
 
@@ -472,12 +492,12 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 void broadcast_rtp_begin(reneg_ctx_t rctx) {
   /* XXX: ASSERT reneg_mutex is held */
   logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d\n", rctx->my_rank,
-       rctx->root_s1);
+       rctx->root[1]);
 
   char buf[256];
   int buflen =
       msgfmt_encode_rtp_begin(buf, 256, rctx->my_rank, rctx->round_num);
-  send_to_rank(rctx, buf, buflen, rctx->root_s3);
+  send_to_rank(rctx, buf, buflen, rctx->root[3]);
 }
 
 void replay_rtp_begin(reneg_ctx_t rctx) {
@@ -523,11 +543,35 @@ int reneg_destroy(reneg_ctx_t rctx) {
 }
 
 bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items) {
-  if (stage == 1 && rctx->num_peers_s1 == items) return true;
-  if (stage == 2 && rctx->num_peers_s2 == items) return true;
-  if (stage == 3 && rctx->num_peers_s3 == items) return true;
+  return rctx->num_peers[stage] == items;
+}
 
-  return false;
+void compute_aggregate_pivots(reneg_ctx_t rctx, int stage_num,
+                              float *merged_pivots, float &merged_width) {
+  std::vector<rb_item_t> rbvec;
+
+  std::vector<float> unified_bins;
+  std::vector<float> unified_bin_counts;
+
+  std::vector<float> samples;
+  std::vector<float> sample_counts;
+
+  std::vector<float> pivot_widths;
+
+  float sample_width;
+
+  rctx->data_buffer.load_into_rbvec(stage_num, rbvec);
+
+  rctx->data_buffer.get_pivot_widths(stage_num, pivot_widths);
+  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_widths,
+              rctx->num_peers[stage_num]);
+
+  std::vector<float> merged_pivot_vec;
+  resample_bins_irregular(unified_bins, unified_bin_counts, merged_pivot_vec,
+                          sample_width, rctx->pvtcnt[stage_num]);
+
+  merged_width = sample_width;
+  std::copy(merged_pivot_vec.begin(), merged_pivot_vec.end(), merged_pivots);
 }
 
 /*************** Temporary Functions ********************/
@@ -537,21 +581,20 @@ int mock_pivots_init(reneg_ctx_t rctx) {
     return -1;
   }
 
+  pivot_ctx_t *pvt_ctx = rctx->pvt_ctx;
+
   // logf(LOG_DBUG, "mock_pivots_init: mutex %p\n", rctx->data_mutex);
+  assert(pvt_ctx != NULL);
 
-  assert(rctx->data_mutex != NULL);
-  assert(rctx->data != NULL);
-  assert(rctx->data_len != NULL);
+  pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
 
-  pthread_mutex_lock(rctx->data_mutex);
-
-  for (int pidx = 0; pidx < RANGE_NUM_PIVOTS; pidx++) {
-    rctx->data[pidx] = (pidx + 1) * (pidx + 2);
+  for (int pidx = 0; pidx < rctx->pvtcnt[0]; pidx++) {
+    pvt_ctx->my_pivots[pidx] = (pidx + 1) * (pidx + 2);
   }
 
-  *(rctx->data_len) = RANGE_NUM_PIVOTS;
+  pvt_ctx->pivot_width = 33.5f;
 
-  pthread_mutex_unlock(rctx->data_mutex);
+  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
 
   return 0;
 }

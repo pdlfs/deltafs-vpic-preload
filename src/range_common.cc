@@ -108,6 +108,190 @@ int pivot_ctx_reset(pivot_ctx_t *pvt_ctx) {
   return 0;
 }
 
+/* This function is supposed to produce all zeroes if there are no
+ * particles with the current rank (either pre-shuffled or OOB'ed)
+ * and is supposed to produce valid pivots in every single other
+ * case even if there's only one pivot. XXX: We're not sure whether
+ * that's currently the case
+ * */
+int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
+  // XXX: assert(pivot_access_m) held
+
+  assert(num_pivots <= RANGE_MAX_PIVOTS);
+
+  float range_start = pvt_ctx->range_min;
+  float range_end = pvt_ctx->range_max;
+
+  std::vector<particle_mem_t> &oobl = pvt_ctx->oob_buffer_left;
+  std::vector<particle_mem_t> &oobr = pvt_ctx->oob_buffer_right;
+
+  const int oobl_sz = pvt_ctx->oob_count_left;
+  const int oobr_sz = pvt_ctx->oob_count_right;
+
+  /* We are modifying the original state as well, but sorting does not
+   * affect the correctness of pivot_ctx_t
+   */
+  struct {
+    bool operator()(particle_mem_t &a, particle_mem_t &b) const {
+      return a.indexed_prop < b.indexed_prop;
+    }
+  } oob_cmp;
+  std::sort(oobl.begin(), oobl.begin() + oobl_sz, oob_cmp);
+  std::sort(oobr.begin(), oobr.begin() + oobr_sz, oob_cmp);
+
+  float particle_count = std::accumulate(pvt_ctx->rank_bin_count.begin(),
+                                         pvt_ctx->rank_bin_count.end(), 0.f);
+
+  int my_rank = pctx.my_rank;
+
+  MainThreadState prev_state = pvt_ctx->mts_mgr.get_prev_state();
+  MainThreadState cur_state = pvt_ctx->mts_mgr.get_state();
+
+  if (prev_state == MainThreadState::MT_INIT) {
+    range_start = oobl_sz ? oobl[0].indexed_prop : 0;
+    range_end = oobl_sz ? oobl[oobl_sz - 1].indexed_prop : 0;
+  } else if (particle_count > 1e-5) {
+    range_start = pvt_ctx->range_min;
+    range_end = pvt_ctx->range_max;
+  } else {
+    /* all pivots need to be zero but algorithm below handles the rest */
+    range_start = 0;
+    range_end = 0;
+  }
+
+  /* update the left boundary of the new range */
+  if (oobl_sz > 0) {
+    range_start = oobl[0].indexed_prop;
+    if (particle_count < 1e-5 && oobr_sz == 0) {
+      range_end = oobl[oobl_sz - 1].indexed_prop;
+    }
+  }
+  /* update the right boundary of the new range */
+  if (oobr_sz > 0) {
+    range_end = oobr[oobr_sz - 1].indexed_prop;
+    if (particle_count < 1e-5 && oobl_sz == 0) {
+      range_start = oobr[0].indexed_prop;
+    }
+  }
+
+  assert(range_end >= range_start);
+
+  pvt_ctx->my_pivots[0] = range_start;
+  pvt_ctx->my_pivots[num_pivots - 1] = range_end;
+
+  particle_count += (oobl_sz + oobr_sz);
+
+  int cur_pivot = 1;
+  float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
+
+  if (part_per_pivot < 1e-5) {
+    std::fill(pvt_ctx->my_pivots, pvt_ctx->my_pivots + num_pivots, 0);
+    return 0;
+  }
+
+  /**********************/
+  std::vector<float> &ff = pvt_ctx->rank_bin_count;
+  std::vector<float> &gg = pvt_ctx->rank_bins;
+  fprintf(
+      stderr,
+      "rank%d get_local_pivots state_dump "
+      "oob_count_left: %d, oob_count_right: %d\n"
+      "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
+      "rbc: %s (%zu)\n"
+      "bin: %s (%zu)\n"
+      "prevIsInit: %s\n",
+      pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
+      print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()), ff.size(),
+      print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()), gg.size(),
+      (prev_state == MT_INIT) ? "true" : "false");
+  /**********************/
+
+  float accumulated_ppp = 0;
+  float particles_carried_over = 0;
+
+  int oob_index = 0;
+  while (1) {
+    int part_left = oobl_sz - oob_index;
+    if (part_per_pivot < 1e-5 || part_left < part_per_pivot) {
+      particles_carried_over += part_left;
+      break;
+    }
+
+    accumulated_ppp += part_per_pivot;
+    int cur_part_idx = round(accumulated_ppp);
+    pvt_ctx->my_pivots[cur_pivot] = oobl[cur_part_idx].indexed_prop;
+    cur_pivot++;
+
+    oob_index = cur_part_idx + 1;
+  }
+
+  int bin_idx = 0;
+  assert(cur_state == MainThreadState::MT_BLOCK);
+
+  if (prev_state != MT_INIT) {
+    for (int bidx = 0; bidx < pvt_ctx->rank_bins.size() - 1; bidx++) {
+      float cur_bin_left = pvt_ctx->rank_bin_count[bidx];
+      float bin_start = pvt_ctx->rank_bins[bidx];
+      float bin_end = pvt_ctx->rank_bins[bidx + 1];
+
+      while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
+        float take_from_bin = part_per_pivot - particles_carried_over;
+
+        /* advance bin_start st take_from_bin is removed */
+        float bin_width = bin_end - bin_start;
+        float width_to_remove = take_from_bin / cur_bin_left * bin_width;
+
+        bin_start += width_to_remove;
+        pvt_ctx->my_pivots[cur_pivot] = bin_start;
+
+        cur_pivot++;
+
+        cur_bin_left -= take_from_bin;
+        particles_carried_over = 0;
+      }
+
+      // XXX: Arbitrarily chosen threshold, may cause troubles at
+      // large scales
+      assert(cur_bin_left >= -1e-3);
+
+      particles_carried_over += cur_bin_left;
+    }
+  }
+
+  oob_index = 0;
+  /* XXX: There is a minor bug here, part_left should be computed using
+   * the un-rounded accumulated_ppp, not oob_index
+   */
+
+  while (1) {
+    int part_left = oobr_sz - oob_index;
+    if (part_per_pivot < 1e-5 ||
+        part_left + particles_carried_over < part_per_pivot - 1e-5) {
+      particles_carried_over += part_left;
+      break;
+    }
+
+    float next_idx = oob_index + part_per_pivot - particles_carried_over;
+
+    particles_carried_over = 0;
+
+    int cur_part_idx = round(next_idx);
+    if (cur_part_idx >= oobr_sz) cur_part_idx = oobr_sz - 1;
+
+    pvt_ctx->my_pivots[cur_pivot] = oobr[cur_part_idx].indexed_prop;
+    cur_pivot++;
+    oob_index = cur_part_idx + 1;
+  }
+
+  for (; cur_pivot < num_pivots - 1; cur_pivot++) {
+    pvt_ctx->my_pivots[cur_pivot] = pvt_ctx->my_pivots[num_pivots - 1];
+  }
+
+  pvt_ctx->pivot_width = part_per_pivot;
+
+  return 0;
+}
+
 int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
   // XXX: assert(pivot_access_m) held
   // XXX: assert(snapshot_access_m) held
@@ -185,15 +369,19 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
 
   return 0;
 }
+
+
 /* This function is supposed to produce all zeroes if there are no
  * particles with the current rank (either pre-shuffled or OOB'ed)
  * and is supposed to produce valid pivots in every single other
  * case even if there's only one pivot. XXX: We're not sure whether
  * that's currently the case
  * */
-int pivot_calculate_local(pivot_ctx_t *pvt_ctx) {
+int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   // XXX: assert(pivot_access_m) held
   // XXX: assert(snapshot_access_m) held
+
+  assert(num_pivots <= RANGE_MAX_PIVOTS);
 
   snapshot_state &snap = pvt_ctx->snapshot;
 
@@ -214,7 +402,6 @@ int pivot_calculate_local(pivot_ctx_t *pvt_ctx) {
 
   int my_rank = pctx.my_rank;
 
-  // if (rctx->range_state_prev == range_state_t::RS_INIT) {
   MainThreadState prev_state = pvt_ctx->mts_mgr.get_prev_state();
   MainThreadState cur_state = pvt_ctx->mts_mgr.get_state();
 
@@ -248,15 +435,15 @@ int pivot_calculate_local(pivot_ctx_t *pvt_ctx) {
   assert(range_end >= range_start);
 
   pvt_ctx->my_pivots[0] = range_start;
-  pvt_ctx->my_pivots[RANGE_NUM_PIVOTS - 1] = range_end;
+  pvt_ctx->my_pivots[num_pivots - 1] = range_end;
 
   particle_count += (oobl_sz + oobr_sz);
 
   int cur_pivot = 1;
-  float part_per_pivot = particle_count * 1.0 / (RANGE_NUM_PIVOTS - 1);
+  float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
 
   if (part_per_pivot < 1e-5) {
-    std::fill(pvt_ctx->my_pivots, pvt_ctx->my_pivots + RANGE_NUM_PIVOTS, 0);
+    std::fill(pvt_ctx->my_pivots, pvt_ctx->my_pivots + num_pivots, 0);
     return 0;
   }
 
@@ -297,10 +484,8 @@ int pivot_calculate_local(pivot_ctx_t *pvt_ctx) {
   }
 
   int bin_idx = 0;
-  // assert(rctx->range_state == range_state_t::RS_RENEGO);
   assert(cur_state == MainThreadState::MT_BLOCK);
 
-  // if (rctx->range_state_prev != range_state_t::RS_INIT) {
   if (prev_state != MT_INIT) {
     for (int bidx = 0; bidx < snap.rank_bins.size() - 1; bidx++) {
       float cur_bin_left = snap.rank_bin_count[bidx];
@@ -356,8 +541,8 @@ int pivot_calculate_local(pivot_ctx_t *pvt_ctx) {
     oob_index = cur_part_idx + 1;
   }
 
-  for (; cur_pivot < RANGE_NUM_PIVOTS - 1; cur_pivot++) {
-    pvt_ctx->my_pivots[cur_pivot] = pvt_ctx->my_pivots[RANGE_NUM_PIVOTS - 1];
+  for (; cur_pivot < num_pivots - 1; cur_pivot++) {
+    pvt_ctx->my_pivots[cur_pivot] = pvt_ctx->my_pivots[num_pivots - 1];
   }
 
   pvt_ctx->pivot_width = part_per_pivot;

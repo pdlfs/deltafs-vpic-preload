@@ -406,6 +406,8 @@ void recalculate_local_bins() {
   std::vector<float> samples;
   std::vector<float> sample_counts;
 
+  float sample_width;
+
   load_bins_into_rbvec(pctx.rctx.all_pivots, rbvec, pctx.rctx.all_pivots.size(),
                        pctx.comm_sz, RANGE_NUM_PIVOTS);
   pivot_union(rbvec, unified_bins, unified_bin_counts,
@@ -428,7 +430,7 @@ void recalculate_local_bins() {
   }
 
   resample_bins_irregular(unified_bins, unified_bin_counts, samples,
-                          pctx.comm_sz + 1);
+                          sample_width, pctx.comm_sz + 1);
 
   if (pctx.my_rank == 0) {
     fprintf(stderr, "Unified samples R0: %s\n",

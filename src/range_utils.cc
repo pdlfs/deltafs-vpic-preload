@@ -167,7 +167,8 @@ int get_particle_count(int total_ranks, int total_bins, int par_per_bin) {
 
 int resample_bins_irregular(const std::vector<float>& bins,
                             const std::vector<float>& bin_counts,
-                            std::vector<float>& samples, int nsamples) {
+                            std::vector<float>& samples, float& sample_width,
+                            int nsamples) {
   const int bins_size = bins.size();
   const int bin_counts_size = bin_counts.size();
 
@@ -181,6 +182,7 @@ int resample_bins_irregular(const std::vector<float>& bins,
       std::accumulate(bin_counts.begin(), bin_counts.end(), 0.0f);
 
   const float part_per_rbin = nparticles * 1.0 / (nsamples - 1);
+  sample_width = part_per_rbin;
 
   int sidx = 1;
 
@@ -315,7 +317,7 @@ void repartition_bin_counts(std::vector<float>& old_bins,
   return;
 }
 
-void assert_monotically_increasing(float *array, int array_sz) {
+void assert_monotically_increasing(float* array, int array_sz) {
   bool assert_failed = false;
 
   for (int i = 1; i < array_sz; i++) {
@@ -328,7 +330,7 @@ void assert_monotically_increasing(float *array, int array_sz) {
   assert(!assert_failed);
 }
 
-void assert_monotically_decreasing(float *array, int array_sz) {
+void assert_monotically_decreasing(float* array, int array_sz) {
   bool assert_failed = false;
 
   for (int i = 1; i > array_sz; i++) {
