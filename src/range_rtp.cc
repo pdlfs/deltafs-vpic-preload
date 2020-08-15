@@ -381,24 +381,24 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   if (expected_items_for_stage(rctx, stage_num, stage_pivot_count)) {
     float merged_pivots[RANGE_MAX_PIVOTS];
     float merged_width;
+
     compute_aggregate_pivots(rctx, stage_num, merged_pivots, merged_width);
 
     logf(LOG_DBUG, "compute_aggr_pvts: R%d - %.1f %.1f %.1f %.1f ... - %.1f\n",
          rctx->my_rank, merged_pivots[0], merged_pivots[1], merged_pivots[2],
          merged_pivots[3], merged_width);
 
-    // Aggregate pivots
-    // XXX: pretend new pivots are also in pivots
-    char next_buf[2048];
     logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
          stage_num, rctx->my_rank);
+
+    char next_buf[2048];
 
     if (stage_num < STAGES_MAX) {
       logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 1\n");
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, 2048, round_num, stage_num + 1, rctx->my_rank,
-          merged_pivots, merged_width, num_pivots);
+          merged_pivots, merged_width, num_pivots, /* bcast */ false);
 
       int new_dest = stage_num == 1 ? rctx->root[2] : rctx->root[3];
 
@@ -415,8 +415,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
       rctx->reneg_bench.rec_pvt_bcast();
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
-          next_buf, 1024, round_num, stage_num + 1, rctx->my_rank, pivots,
-          pivot_width, num_pivots, true);
+          next_buf, 2048, round_num, stage_num + 1, rctx->my_rank,
+          merged_pivots, merged_width, num_pivots, /* bcast */ true);
 
       send_to_rank(rctx, next_buf, next_buf_len, rctx->root[3]);
     }
@@ -454,11 +454,24 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
     send_to_all_s1(rctx, buf, buf_sz, rctx->my_rank);
   }
 
+  int round_num, stage_num, sender_id, num_pivots;
+  float pivot_width;
+  float *pivots;
+
+  msgfmt_decode_rtp_pivots(buf, buf_sz, &round_num, &stage_num, &sender_id,
+                           &pivots, &pivot_width, &num_pivots, true);
+
   logf(LOG_DBUG, "reneg_handle_pivot_bcast: received pivots at %d from %d\n",
        rctx->my_rank, src);
 
   if (rctx->my_rank == 0) {
-    logf(LOG_INFO, "rtp round %d completed at rank 0\n", rctx->round_num);
+    logf(LOG_DBUG,
+         "reneg_handle_pivot_bcast: pivots @ %d: %.1f %.1f %.1f %.1f ... "
+         "(%.1f)\n",
+         rctx->my_rank, pivots[0], pivots[1], pivots[2], pivots[3],
+         pivot_width);
+
+    logf(LOG_INFO, "-- rtp round %d completed at rank 0 --\n", rctx->round_num);
   }
 
   /* Install pivots, reset state, and signal back to the main thread */
