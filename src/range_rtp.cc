@@ -177,6 +177,10 @@ int reneg_topology_init(reneg_ctx_t rctx) {
 }
 
 int reneg_init_round(reneg_ctx_t rctx) {
+  pivot_ctx_t *pvt_ctx = rctx->pvt_ctx;
+
+  /* ALWAYS BLOCK MAIN THREAD MUTEX FIRST */
+  pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   if (rctx->state_mgr.get_state() == RenegState::READY) {
@@ -185,11 +189,13 @@ int reneg_init_round(reneg_ctx_t rctx) {
     rctx->state_mgr.update_state(RenegState::READYBLOCK);
   }
 
+  pthread_mutex_unlock(&(rctx->reneg_mutex));
+
   while (rctx->state_mgr.get_state() != RenegState::READY) {
-    pthread_cond_wait(&(rctx->reneg_cv), &(rctx->reneg_mutex));
+    pthread_cond_wait(&(pvt_ctx->pivot_update_cv), &(pvt_ctx->pivot_access_m));
   }
 
-  pthread_mutex_unlock(&(rctx->reneg_mutex));
+  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
   return 0;
 }
 
@@ -477,6 +483,12 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   /* Install pivots, reset state, and signal back to the main thread */
   bool replay_rtp_begin_flag = false;
 
+  pivot_ctx_t *pvt_ctx = rctx->pvt_ctx;
+
+  /* If next round has already started, replay its messages from buffers.
+   * If not, mark self as READY, and wake up Main Thread
+   */
+  pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   rctx->data_buffer.advance_round();
@@ -487,12 +499,17 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
     replay_rtp_begin_flag = true;
     rctx->state_mgr.update_state(RenegState::READYBLOCK);
   } else {
-    /* Next round has not started yet, okay to wake up main thread */
+    /* Next round has not started yet, we're READY */
     rctx->state_mgr.update_state(RenegState::READY);
-    pthread_cond_signal(&(rctx->reneg_cv));
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
+
+  if (replay_rtp_begin_flag == false) {
+    pthread_cond_signal(&(pvt_ctx->pivot_update_cv));
+  }
+
+  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
 
   if (replay_rtp_begin_flag) {
     /* Send rtp_begin to self, to resume pivot send etc */

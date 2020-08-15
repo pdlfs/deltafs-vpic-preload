@@ -57,6 +57,7 @@ typedef struct pivot_ctx {
   /* The whole structure, except for the snapshot, is protected by
    * this mutex */
   pthread_mutex_t pivot_access_m = PTHREAD_MUTEX_INITIALIZER;
+  pthread_cond_t pivot_update_cv = PTHREAD_COND_INITIALIZER;
 
   MainThreadStateMgr mts_mgr;
 

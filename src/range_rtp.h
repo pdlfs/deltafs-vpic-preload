@@ -180,7 +180,6 @@ struct reneg_ctx {
    * Message handlers will be serialized by the delivery thread
    * so concurrency there is not an issue */
   pthread_mutex_t reneg_mutex = PTHREAD_MUTEX_INITIALIZER;
-  pthread_cond_t reneg_cv = PTHREAD_COND_INITIALIZER;
 
   RenegStateMgr state_mgr;
   DataBuffer data_buffer;
