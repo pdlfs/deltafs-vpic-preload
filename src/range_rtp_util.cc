@@ -69,9 +69,9 @@ bool RenegStateMgr::get_next_round_start() { return this->next_round_started; }
 DataBuffer::DataBuffer() {
   memset(data_len, 0, sizeof(data_len));
   // XXX: revisit
-  this->num_pivots[1] = 32;
-  this->num_pivots[2] = 32;
-  this->num_pivots[3] = 32;
+  this->num_pivots[1] = RANGE_RTP_PVTCNT1;
+  this->num_pivots[2] = RANGE_RTP_PVTCNT2;
+  this->num_pivots[3] = RANGE_RTP_PVTCNT3;
 
   this->cur_store_idx = 0;
 }
@@ -97,9 +97,12 @@ int DataBuffer::store_data(int stage, float *pivot_data, int dlen,
 
   memcpy(data_store[sidx][stage][idx], pivot_data, dlen * sizeof(float));
   data_widths[sidx][stage][idx] = pivot_width;
-  data_len[sidx][stage]++;
+  int new_size = ++data_len[sidx][stage];
+  assert(new_size > 0);
 
-  return data_len[sidx][stage];
+  logf(LOG_INFO, "Rank %d: new store size %d\n", -1, new_size);
+
+  return new_size;
 }
 
 int DataBuffer::get_num_items(int stage, bool isnext) {

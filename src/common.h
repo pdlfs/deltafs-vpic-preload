@@ -76,10 +76,11 @@ uint64_t timeval_to_micros(const struct timeval* tv);
 /* return the memory size (KB) of the calling process */
 long my_maxrss();
 
-#define LOG_ERRO 4
-#define LOG_WARN 3
-#define LOG_INFO 2
-#define LOG_DBUG 1
+#define LOG_ERRO 5
+#define LOG_WARN 4
+#define LOG_INFO 3
+#define LOG_DBUG 2
+#define LOG_DBG2 1
 
 /* levels >= LOG_LEVEL are printed */
 #define LOG_LEVEL 1

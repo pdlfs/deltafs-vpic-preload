@@ -7,14 +7,18 @@
 #define RANGE_BUFSZ 1000
 // TODO: Can shorten this by using indirect ptr?
 #define RANGE_MAX_PSZ 255
-#define RANGE_MAX_OOB_THRESHOLD 2000
+#define RANGE_MAX_OOB_SZ 8
 /* Total  for left + right buffers */
-#define RANGE_TOTAL_OOB_THRESHOLD 2 * RANGE_MAX_OOB_THRESHOLD
+#define RANGE_TOTAL_OOB_SZ 2 * RANGE_MAX_OOB_SZ
 
 // TODO: irrelevant, replace with MAX_PIVOTS
 #define RANGE_NUM_PIVOTS 4
 
 #define RANGE_MAX_PIVOTS 256
+
+#define RANGE_RTP_PVTCNT1 4
+#define RANGE_RTP_PVTCNT2 4
+#define RANGE_RTP_PVTCNT3 4
 
 
 typedef struct particle_mem {
@@ -37,6 +41,8 @@ enum MainThreadState {
   MT_READY,
   MT_BLOCK,
 };
+
+enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
 
 class MainThreadStateMgr {
  private:
@@ -80,9 +86,9 @@ typedef struct pivot_ctx {
   snapshot_state snapshot;
 } pivot_ctx_t;
 
-int pivot_ctx_init(pivot_ctx *pvt_ctx);
+int pivot_ctx_init(pivot_ctx_t *pvt_ctx);
 
-int pivot_ctx_reset(pivot_ctx *pvt_ctx);
+int pivot_ctx_reset(pivot_ctx_t *pvt_ctx);
 
 /**
  * @brief 

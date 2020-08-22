@@ -469,6 +469,8 @@ static void do_dump() {
     fclose(file);
   }
 
+  sleep(10);
+
   closedir(dir);
 }
 

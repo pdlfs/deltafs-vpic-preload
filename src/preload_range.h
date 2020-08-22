@@ -20,11 +20,11 @@
 #define RANGE_IS_BLOCKED(x) (x->range_state == range_state_t::RS_BLOCKED)
 #define RANGE_IS_ACK(x) (x->range_state == range_state_t::RS_ACK)
 
-#define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == RANGE_MAX_OOB_THRESHOLD)
-#define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == RANGE_MAX_OOB_THRESHOLD)
+#define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == RANGE_MAX_OOB_SZ)
+#define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == RANGE_MAX_OOB_SZ)
 
 #define RANGE_OOB_FULL(x) \
-  (x->oob_count_left + x->oob_count_right == RANGE_TOTAL_OOB_THRESHOLD)
+  (x->oob_count_left + x->oob_count_right == RANGE_TOTAL_OOB_SZ)
 
 #define RANGE_BUF_OOB(buf) \
   (buf_type_t::RB_BUF_LEFT == buf) || (buf_type_t::RB_BUF_RIGHT == buf)
@@ -46,8 +46,6 @@ enum class range_state_t {
   RS_ACK,
   RS_BLOCKED, /* don't really need this but verify */
 };
-
-enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
 
 typedef struct range_ctx {
   /* range data structures */

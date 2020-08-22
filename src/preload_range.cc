@@ -122,8 +122,8 @@ void range_ctx_init(range_ctx_t *rctx) {
   rctx->ranks_acked.resize(pctx.comm_sz);
   rctx->ranks_acked_next.resize(pctx.comm_sz);
 
-  rctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
-  rctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
+  rctx->oob_buffer_left.resize(RANGE_MAX_OOB_SZ);
+  rctx->oob_buffer_right.resize(RANGE_MAX_OOB_SZ);
 
   std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
   std::fill(rctx->ranks_acked_next.begin(), rctx->ranks_acked_next.end(),

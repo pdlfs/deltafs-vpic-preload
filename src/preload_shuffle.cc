@@ -442,7 +442,8 @@ int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
   // retval = shuffle_write_mock(ctx, fname, fname_len, data, data_len, epoch);
   // retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
   // retval = shuffle_write(ctx, fname, fname_len, data, data_len, epoch);
-  retval = shuffle_write_treeneg(ctx, fname, fname_len, data, data_len, epoch);
+  // retval = shuffle_write_treeneg(ctx, fname, fname_len, data, data_len, epoch);
+  retval = shuffle_write_range(ctx, fname, fname_len, data, data_len, epoch);
 
   return retval;
 }
@@ -587,7 +588,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
    * threading design
    */
   assert(rctx->oob_count_left + rctx->oob_count_right <
-         RANGE_TOTAL_OOB_THRESHOLD);
+         RANGE_TOTAL_OOB_SZ);
 
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
     logf(LOG_ERRO,

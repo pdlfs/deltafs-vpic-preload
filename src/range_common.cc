@@ -64,6 +64,7 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
              new_state == MainThreadState::MT_READY) {
     // pass
   } else {
+    logf(LOG_ERRO, "update_state @ R%d: %d to %d\n", pctx.my_rank, cur_state, new_state);
     ABORT("MainThreadStateMgr::update_state: unexpected transition");
   }
 
@@ -81,8 +82,8 @@ int pivot_ctx_init(pivot_ctx_t *pvt_ctx) {
   pvt_ctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
   pvt_ctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
 
-  pvt_ctx->oob_buffer_left.resize(RANGE_MAX_OOB_THRESHOLD);
-  pvt_ctx->oob_buffer_right.resize(RANGE_MAX_OOB_THRESHOLD);
+  pvt_ctx->oob_buffer_left.resize(RANGE_MAX_OOB_SZ);
+  pvt_ctx->oob_buffer_right.resize(RANGE_MAX_OOB_SZ);
 
   pthread_mutex_unlock(&(pvt_ctx->snapshot_access_m));
   pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
