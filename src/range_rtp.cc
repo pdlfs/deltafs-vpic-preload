@@ -500,12 +500,12 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   assert(num_pivots == rctx->num_ranks + 1);
 
   pvt_ctx->range_min = pivots[0];
-  pvt_ctx->range_max = pivots[num_pivots];
+  pvt_ctx->range_max = pivots[num_pivots - 1];
 
   std::copy(pivots, pivots + num_pivots, pvt_ctx->rank_bins.begin());
   /* We initialize counts with some base mass, in case another reneg
    * quickly follows, to be able to calculate pivots */
-  std::fill(pvt_ctx->rank_bins.begin(), pvt_ctx->rank_bins.end(), 1);
+  std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 1);
 
   rctx->data_buffer.advance_round();
   rctx->round_num++;
