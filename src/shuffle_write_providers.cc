@@ -88,6 +88,13 @@ int shuffle_data_target(const float& indexed_prop) {
 
   int rank = rank_iter - pctx.pvt_ctx.rank_bins.begin() - 1;
 
+  char print_buf[1024];
+  print_vector(print_buf, 1024, pctx.pvt_ctx.rank_bins);
+  logf(LOG_DBG2,
+       "shuffle_data_target, new, destrank: %d (%.1f)\n"
+       "%s\n",
+       rank, indexed_prop, print_buf);
+
   return rank;
 }
 
@@ -116,10 +123,42 @@ int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
     pvt_ctx->rank_bin_count[peer_rank]++;
 
     // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
-                       // epoch, peer_rank, rank);
+    // epoch, peer_rank, rank);
   }
 
   oob_sz = repl_idx;
+  return rv;
+}
+
+int shuffle_rebalance_oobs(pivot_ctx_t* pvt_ctx,
+                           std::vector<particle_mem_t>& oobl, int& oobl_sz,
+                           std::vector<particle_mem_t>& oobr, int& oobr_sz) {
+  /* assert lockheld */
+  int rv = 0;
+  std::vector<particle_mem_t> oob_pool;
+
+  oob_pool.insert(oob_pool.end(), oobl.begin(), oobl.begin() + oobl_sz);
+  oob_pool.insert(oob_pool.end(), oobr.begin(), oobr.begin() + oobr_sz);
+
+  int oobp_sz = oob_pool.size();
+  int oob_size_orig = oobl_sz + oobr_sz;
+
+  oobl_sz = 0;
+  oobr_sz = 0;
+
+  for (int oidx = 0; oidx < oobp_sz; oidx++) {
+    particle_mem_t& p = oob_pool[oidx];
+
+    if (p.indexed_prop < pvt_ctx->range_min) {
+      oobl[oobl_sz++] = p;
+    } else if (p.indexed_prop > pvt_ctx->range_max) {
+      oobr[oobr_sz++] = p;
+    } else {
+      ABORT("rebalance_oobs: unexpected condition");
+    }
+  }
+
+  assert(oob_size_orig == oobl_sz + oobr_sz);
   return rv;
 }
 
@@ -360,9 +399,12 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
     // TODO: make sure no gotchas here
     reneg_init_round(rctx);
     ::shuffle_flush_oob(ctx, pvt_ctx, pvt_ctx->oob_buffer_left,
-                      pvt_ctx->oob_count_left, epoch);
+                        pvt_ctx->oob_count_left, epoch);
     ::shuffle_flush_oob(ctx, pvt_ctx, pvt_ctx->oob_buffer_right,
-                      pvt_ctx->oob_count_right, epoch);
+                        pvt_ctx->oob_count_right, epoch);
+    ::shuffle_rebalance_oobs(pvt_ctx, pvt_ctx->oob_buffer_left,
+                             pvt_ctx->oob_count_left, pvt_ctx->oob_buffer_right,
+                             pvt_ctx->oob_count_right);
   }
 
   if (!shuffle_now) {
@@ -391,10 +433,10 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   pvt_ctx->rank_bin_count[peer_rank]++;
 
   // if (ctx->type == SHUFFLE_XN) {
-    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-                       // peer_rank, rank);
+  // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+  // peer_rank, rank);
   // } else {
-    // nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
+  // nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
   // }
 
 cleanup:

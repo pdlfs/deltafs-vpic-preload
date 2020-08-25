@@ -16,17 +16,19 @@
 
 #define RANGE_MAX_PIVOTS 256
 
-#define RANGE_RTP_PVTCNT1 4
-#define RANGE_RTP_PVTCNT2 4
-#define RANGE_RTP_PVTCNT3 4
+#define RANGE_RTP_PVTCNT1 8
+#define RANGE_RTP_PVTCNT2 8
+#define RANGE_RTP_PVTCNT3 8
 
+#define RANGE_RTP_FANOUT1 4
+#define RANGE_RTP_FANOUT2 2
+#define RANGE_RTP_FANOUT3 2
 
 typedef struct particle_mem {
   float indexed_prop;       // property for range query
   char buf[RANGE_MAX_PSZ];  // other data
   int buf_sz;
 } particle_mem_t;
-
 
 typedef struct snapshot_state {
   std::vector<float> rank_bins;
@@ -91,13 +93,31 @@ int pivot_ctx_init(pivot_ctx_t *pvt_ctx);
 int pivot_ctx_reset(pivot_ctx_t *pvt_ctx);
 
 /**
- * @brief 
- *
- * @param pvt_ctx Calculate pivots from the current pivot_ctx state.
+ * @brief Calculate pivots from the current pivot_ctx state.
  * This also modifies OOB buffers (sorts them), but their order shouldn't
  * be relied upon anyway.
  *
- * @return 
+ * SAFE version computes "token pivots" in case no mass is there to
+ * actually compute pivots. This ensures that merging calculations
+ * do not fail.
+ *
+ * XXX: a more semantically appropriate fix would be to define addition
+ * and resampling for zero-pivots
+ *
+ * @param pvt_ctx pivot context
+ *
+ * @return
+ */
+int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots);
+
+/**
+ * @brief Calculate pivots from the current pivot_ctx state.
+ * This also modifies OOB buffers (sorts them), but their order shouldn't
+ * be relied upon anyway.
+ *
+ * @param pvt_ctx pivot context
+ *
+ * @return
  */
 int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots);
 /**
@@ -105,7 +125,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots);
  *
  * @param pvt_ctx
  *
- * @return 
+ * @return
  */
 int pivot_state_snapshot(pivot_ctx *pvt_ctx);
 
@@ -114,6 +134,52 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx);
  *
  * @param pvt_ctx
  *
- * @return 
+ * @return
  */
 int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots);
+
+static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
+                               int vlen = -1) {
+  vlen = (vlen == -1) ? v.size() : vlen;
+
+  bool truncated = false;
+
+  if (vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
+  }
+
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%s\n",
+      truncated ? "... " : "");
+  return buf_idx;
+}
+
+static inline int print_vector(char *buf, int buf_sz, float *v,
+                               int vlen) {
+  bool truncated = false;
+
+  if (vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
+  }
+
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%s\n",
+      truncated ? "... " : "");
+  return buf_idx;
+}

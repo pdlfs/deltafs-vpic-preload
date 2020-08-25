@@ -257,11 +257,15 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   pthread_mutex_lock(&(rctx->pvt_ctx->pivot_access_m));
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  if (rctx->state_mgr.get_state() == RenegState::READY ||
-      rctx->state_mgr.get_state() == RenegState::READYBLOCK) {
+  if (round_num < rctx->round_num) {
+    logf(LOG_DBG2,
+         "Stale RENEG_BEGIN received at Rank %d, dropping"
+         "(theirs: %d, ours: %d)\n",
+         rctx->my_rank, round_num, rctx->round_num);
+  } else if (rctx->state_mgr.get_state() == RenegState::READY ||
+             rctx->state_mgr.get_state() == RenegState::READYBLOCK) {
+    /* If we're ready for Round R, no way we can receive R+1 first */
     assert(round_num == rctx->round_num);
-    // logf(LOG_DBUG, "reneg_handle_rtp_begin: rank %d activated\n",
-    // rctx->my_rank);
     rctx->pvt_ctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
     rctx->state_mgr.update_state(RenegState::PVTSND);
     rctx->reneg_bench.rec_active();
@@ -300,7 +304,7 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
     pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
 
-    pivot_calculate(pvt_ctx, rctx->pvtcnt[stage_idx]);
+    pivot_calculate_safe(pvt_ctx, rctx->pvtcnt[stage_idx]);
 
     logf(LOG_DBUG, "pvt_calc_local @ R%d: %.1f %.1f %.1f %.1f...\n",
          rctx->my_rank, pvt_ctx->my_pivots[0], pvt_ctx->my_pivots[1],
@@ -341,9 +345,6 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
  */
 int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                            int src) {
-  // logf(LOG_DBUG, "reneg_handle_rtp_pivot: msg at %d from %d\n",
-  // rctx->my_rank, src);
-
   int round_num, stage_num, sender_id, num_pivots;
   float pivot_width;
   float *pivots;
@@ -357,8 +358,6 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 
   logf(LOG_DBUG, "reneg_handle_rtp_pivot: S%d %d pivots from %d\n", stage_num,
        num_pivots, sender_id);
-  // logf(LOG_DBUG, "reneg_handle_rtp_pivot: %.1f %.1f %.1f %.1f\n", pivots[0],
-  // pivots[1], pivots[2], pivots[3]);
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
@@ -394,9 +393,10 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
     compute_aggregate_pivots(rctx, stage_num, merged_pvtcnt, merged_pivots,
                              merged_width);
 
-    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %.1f %.1f %.1f %.1f ... - %.1f\n",
-         rctx->my_rank, merged_pivots[0], merged_pivots[1], merged_pivots[2],
-         merged_pivots[3], merged_width);
+    char print_buf[1024];
+    print_vector(print_buf, 1024, merged_pivots, merged_pvtcnt);
+    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f\n", rctx->my_rank,
+         print_buf, merged_width);
 
     logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
          stage_num, rctx->my_rank);
@@ -475,11 +475,10 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
        rctx->my_rank, src);
 
   if (rctx->my_rank == 0) {
-    logf(LOG_DBUG,
-         "reneg_handle_pivot_bcast: pivots @ %d: %.1f %.1f %.1f %.1f ... "
-         "(%.1f)\n",
-         rctx->my_rank, pivots[0], pivots[1], pivots[2], pivots[3],
-         pivot_width);
+    char print_buf[1024];
+    print_vector(print_buf, 1024, pivots, num_pivots);
+    logf(LOG_DBUG, "reneg_handle_pivot_bcast: pivots @ %d: %s (%.1f)\n",
+         rctx->my_rank, print_buf, pivot_width);
 
     logf(LOG_INFO, "-- rtp round %d completed at rank 0 --\n", rctx->round_num);
   }
@@ -543,7 +542,7 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
 void broadcast_rtp_begin(reneg_ctx_t rctx) {
   /* XXX: ASSERT reneg_mutex is held */
   logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d\n", rctx->my_rank,
-       rctx->root[1]);
+       rctx->root[3]);
 
   char buf[256];
   int buflen =

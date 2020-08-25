@@ -1,5 +1,5 @@
-#include <algorithm>
 #include <math.h>
+#include <algorithm>
 #include <numeric>
 
 #include "common.h"
@@ -26,7 +26,8 @@ static char *print_vec(char *buf, int buf_len, float *v, int vlen) {
   return buf;
 }
 
-static char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) {
+static char *print_vec(char *buf, int buf_len, std::vector<float> &v,
+                       int vlen) {
   assert(v.size() >= vlen);
 
   int start_ptr = 0;
@@ -41,6 +42,49 @@ static char *print_vec(char *buf, int buf_len, std::vector<float> &v, int vlen) 
   return buf;
 }
 
+namespace {
+bool pmt_comp(const particle_mem_t &a, const particle_mem_t &b) {
+  return a.indexed_prop < b.indexed_prop;
+}
+
+int get_oob_min_max(pivot_ctx_t *pvt_ctx, int &oob_min, int &oob_max) {
+  int rv = 0;
+
+  std::vector<particle_mem_t> &oobl = pvt_ctx->oob_buffer_left;
+  std::vector<particle_mem_t> &oobr = pvt_ctx->oob_buffer_right;
+
+  const int oobl_sz = pvt_ctx->oob_count_left;
+  const int oobr_sz = pvt_ctx->oob_count_right;
+
+  if (oobl_sz + oobr_sz == 0) {
+    oob_min = 0;
+    oob_max = 0;
+    return rv;
+  }
+
+  return rv;
+}
+
+int sanitize_oob(std::vector<particle_mem_t> &oob, int oob_sz,
+                 std::vector<float> &san_oobl, int &san_oobl_sz,
+                 std::vector<float> &san_oobr, int &san_oobr_sz, int range_min,
+                 int range_max) {
+  int rv = 0;
+
+  for (int oidx = 0; oidx < oob_sz; oidx++) {
+    float pval = oob[oidx].indexed_prop;
+    if (pval < range_min) {
+      san_oobl.push_back(pval);
+      san_oobl_sz++;
+    } else if (pval > range_max) {
+      san_oobr.push_back(pval);
+      san_oobr_sz++;
+    }
+  }
+
+  return rv;
+}
+}  // namespace
 
 MainThreadStateMgr::MainThreadStateMgr()
     : current_state{MT_INIT}, prev_state{MT_INIT} {};
@@ -64,7 +108,8 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
              new_state == MainThreadState::MT_READY) {
     // pass
   } else {
-    logf(LOG_ERRO, "update_state @ R%d: %d to %d\n", pctx.my_rank, cur_state, new_state);
+    logf(LOG_ERRO, "update_state @ R%d: %d to %d\n", pctx.my_rank, cur_state,
+         new_state);
     ABORT("MainThreadStateMgr::update_state: unexpected transition");
   }
 
@@ -99,7 +144,6 @@ int pivot_ctx_reset(pivot_ctx_t *pvt_ctx) {
   pctx.rctx.range_min = 0;
   pctx.rctx.range_max = 0;
 
-  std::fill(pvt_ctx->rank_bins.begin(), pvt_ctx->rank_bins.end(), 0);
   std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 0);
 
   pctx.rctx.oob_count_left = 0;
@@ -109,6 +153,20 @@ int pivot_ctx_reset(pivot_ctx_t *pvt_ctx) {
   return 0;
 }
 
+int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots) {
+  int rv = 0;
+
+  pivot_calculate(pvt_ctx, num_pivots);
+
+  if (pvt_ctx->pivot_width > 1e-3) return rv;
+
+  float mass_per_pivot = 1.0f / num_pivots;
+  for (int pidx = 0; pidx <= num_pivots; pidx++) {
+    pvt_ctx->my_pivots[pidx] = mass_per_pivot * pidx;
+  }
+
+  return rv;
+}
 /* This function is supposed to produce all zeroes if there are no
  * particles with the current rank (either pre-shuffled or OOB'ed)
  * and is supposed to produce valid pivots in every single other
@@ -123,25 +181,30 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   float range_start = pvt_ctx->range_min;
   float range_end = pvt_ctx->range_max;
 
-  std::vector<particle_mem_t> &oobl = pvt_ctx->oob_buffer_left;
-  std::vector<particle_mem_t> &oobr = pvt_ctx->oob_buffer_right;
+  std::vector<float> oobl, oobr;
 
-  const int oobl_sz = pvt_ctx->oob_count_left;
-  const int oobr_sz = pvt_ctx->oob_count_right;
+  int oobl_sz = 0, oobr_sz = 0;
+
+  ::sanitize_oob(pvt_ctx->oob_buffer_left, pvt_ctx->oob_count_left, oobl,
+                 oobl_sz, oobr, oobr_sz, range_start, range_end);
+  ::sanitize_oob(pvt_ctx->oob_buffer_right, pvt_ctx->oob_count_right, oobl,
+                 oobl_sz, oobr, oobr_sz, range_start, range_end);
 
   /* We are modifying the original state as well, but sorting does not
    * affect the correctness of pivot_ctx_t
    */
-  struct {
-    bool operator()(particle_mem_t &a, particle_mem_t &b) const {
-      return a.indexed_prop < b.indexed_prop;
-    }
-  } oob_cmp;
-  std::sort(oobl.begin(), oobl.begin() + oobl_sz, oob_cmp);
-  std::sort(oobr.begin(), oobr.begin() + oobr_sz, oob_cmp);
+  std::sort(oobl.begin(), oobl.begin() + oobl_sz);
+  std::sort(oobr.begin(), oobr.begin() + oobr_sz);
 
   float particle_count = std::accumulate(pvt_ctx->rank_bin_count.begin(),
                                          pvt_ctx->rank_bin_count.end(), 0.f);
+
+  float oobl_min = oobl_sz ? oobl[0] : 0;
+  float oobl_max = oobl_sz ? oobl[oobl_sz - 1] : 0;
+  float oobr_min = oobr_sz ? oobr[0] : 0;
+  float oobr_max = oobr_sz ? oobr[oobr_sz - 1] : 0;
+  float oob_min = oobl_min < oobr_min ? oobl_min : oobl_min;
+  float oob_max = oobl_max > oobr_max ? oobl_max : oobr_max;
 
   int my_rank = pctx.my_rank;
 
@@ -149,8 +212,8 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   MainThreadState cur_state = pvt_ctx->mts_mgr.get_state();
 
   if (prev_state == MainThreadState::MT_INIT) {
-    range_start = oobl_sz ? oobl[0].indexed_prop : 0;
-    range_end = oobl_sz ? oobl[oobl_sz - 1].indexed_prop : 0;
+    range_start = oobl_sz ? oobl[0] : 0;
+    range_end = oobl_sz ? oobl[oobl_sz - 1] : 0;
   } else if (particle_count > 1e-5) {
     range_start = pvt_ctx->range_min;
     range_end = pvt_ctx->range_max;
@@ -160,20 +223,14 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
     range_end = 0;
   }
 
-  /* update the left boundary of the new range */
-  if (oobl_sz > 0) {
-    range_start = oobl[0].indexed_prop;
-    if (particle_count < 1e-5 && oobr_sz == 0) {
-      range_end = oobl[oobl_sz - 1].indexed_prop;
-    }
+  if (range_start != 0 && oobl_min != 0) {
+    range_start = (range_start < oob_min) ? range_start : oob_min;
+  } else {
+    /* ignore whichever is zero */
+    range_start = range_start + oob_min;
   }
-  /* update the right boundary of the new range */
-  if (oobr_sz > 0) {
-    range_end = oobr[oobr_sz - 1].indexed_prop;
-    if (particle_count < 1e-5 && oobl_sz == 0) {
-      range_start = oobr[0].indexed_prop;
-    }
-  }
+
+  range_end = (range_end > oob_max) ? range_end : oob_max;
 
   assert(range_end >= range_start);
 
@@ -193,18 +250,17 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   /**********************/
   std::vector<float> &ff = pvt_ctx->rank_bin_count;
   std::vector<float> &gg = pvt_ctx->rank_bins;
-  fprintf(
-      stderr,
-      "rank%d get_local_pivots state_dump "
-      "oob_count_left: %d, oob_count_right: %d\n"
-      "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-      "rbc: %s (%zu)\n"
-      "bin: %s (%zu)\n"
-      "prevIsInit: %s\n",
-      pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
-      print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()), ff.size(),
-      print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()), gg.size(),
-      (prev_state == MT_INIT) ? "true" : "false");
+  fprintf(stderr,
+          "rank%d get_local_pivots state_dump "
+          "oob_count_left: %d, oob_count_right: %d\n"
+          "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
+          "rbc: %s (%zu)\n"
+          "bin: %s (%zu)\n"
+          "prevIsInit: %s\n",
+          pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
+          particle_count, print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()),
+          ff.size(), print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()),
+          gg.size(), (prev_state == MT_INIT) ? "true" : "false");
   /**********************/
 
   float accumulated_ppp = 0;
@@ -220,7 +276,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
 
     accumulated_ppp += part_per_pivot;
     int cur_part_idx = round(accumulated_ppp);
-    pvt_ctx->my_pivots[cur_pivot] = oobl[cur_part_idx].indexed_prop;
+    pvt_ctx->my_pivots[cur_pivot] = oobl[cur_part_idx];
     cur_pivot++;
 
     oob_index = cur_part_idx + 1;
@@ -279,7 +335,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
     int cur_part_idx = round(next_idx);
     if (cur_part_idx >= oobr_sz) cur_part_idx = oobr_sz - 1;
 
-    pvt_ctx->my_pivots[cur_pivot] = oobr[cur_part_idx].indexed_prop;
+    pvt_ctx->my_pivots[cur_pivot] = oobr[cur_part_idx];
     cur_pivot++;
     oob_index = cur_part_idx + 1;
   }
@@ -335,7 +391,7 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
 
     if (prop < bins_min) {
       snap_oob_left.push_back(prop);
-    // } else if (pvt_ctx->range_state_prev == range_state_t::RS_INIT) {
+      // } else if (pvt_ctx->range_state_prev == range_state_t::RS_INIT) {
     } else if (prev_state == MT_INIT) {
       snap_oob_left.push_back(prop);
     } else if (prop > bins_max) {
@@ -354,7 +410,7 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
 
     if (prop < bins_min) {
       snap_oob_left.push_back(prop);
-    // } else if (pvt_ctx->range_state_prev == range_state_t::RS_INIT) {
+      // } else if (pvt_ctx->range_state_prev == range_state_t::RS_INIT) {
     } else if (prev_state == MT_INIT) {
       snap_oob_left.push_back(prop);
     } else if (oob_right[oob_idx].indexed_prop > bins_max) {
@@ -370,7 +426,6 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
 
   return 0;
 }
-
 
 /* This function is supposed to produce all zeroes if there are no
  * particles with the current rank (either pre-shuffled or OOB'ed)
@@ -451,18 +506,17 @@ int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   /**********************/
   std::vector<float> &ff = snap.rank_bin_count;
   std::vector<float> &gg = snap.rank_bins;
-  fprintf(
-      stderr,
-      "rank%d get_local_pivots state_dump "
-      "oob_count_left: %d, oob_count_right: %d\n"
-      "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-      "rbc: %s (%zu)\n"
-      "bin: %s (%zu)\n"
-      "prevIsInit: %s\n",
-      pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end, particle_count,
-      print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()), ff.size(),
-      print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()), gg.size(),
-      (prev_state == MT_INIT) ? "true" : "false");
+  fprintf(stderr,
+          "rank%d get_local_pivots state_dump "
+          "oob_count_left: %d, oob_count_right: %d\n"
+          "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
+          "rbc: %s (%zu)\n"
+          "bin: %s (%zu)\n"
+          "prevIsInit: %s\n",
+          pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
+          particle_count, print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()),
+          ff.size(), print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()),
+          gg.size(), (prev_state == MT_INIT) ? "true" : "false");
   /**********************/
 
   float accumulated_ppp = 0;

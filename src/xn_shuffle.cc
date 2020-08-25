@@ -71,10 +71,10 @@ void xn_shuffle_epoch_end(xn_ctx_t* ctx) {
     RPC_FAILED("fail to flush local origin queues", hret);
   }
 
-  // hret = shuffle_flush_originqs(ctx->psh);
-  // if (hret != HG_SUCCESS) {
-    // RPC_FAILED("fail to flush local priority origin queues", hret);
-  // }
+  hret = shuffle_flush_originqs(ctx->psh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush local priority origin queues", hret);
+  }
 
   xn_local_barrier(ctx);
   hret = shuffle_flush_remoteqs(ctx->sh);
@@ -82,10 +82,10 @@ void xn_shuffle_epoch_end(xn_ctx_t* ctx) {
     RPC_FAILED("fail to flush remote queues", hret);
   }
 
-  // hret = shuffle_flush_remoteqs(ctx->psh);
-  // if (hret != HG_SUCCESS) {
-    // RPC_FAILED("fail to flush remote priority queues", hret);
-  // }
+  hret = shuffle_flush_remoteqs(ctx->psh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush remote priority queues", hret);
+  }
 }
 
 /*

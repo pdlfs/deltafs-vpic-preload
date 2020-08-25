@@ -1254,9 +1254,9 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   struct reneg_opts ro;
-  ro.fanout_s1 = 2;
-  ro.fanout_s2 = 2;
-  ro.fanout_s3 = 2;
+  ro.fanout_s1 = RANGE_RTP_FANOUT1;
+  ro.fanout_s2 = RANGE_RTP_FANOUT2;
+  ro.fanout_s3 = RANGE_RTP_FANOUT3;
 
   reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), &(pctx.pvt_ctx), ro);
 
