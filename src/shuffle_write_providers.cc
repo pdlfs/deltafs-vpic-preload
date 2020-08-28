@@ -362,6 +362,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
 
+  pvt_ctx->last_reneg_counter++;
+
   buf_type_t dest_buf = compute_oob_buf(pvt_ctx, indexed_prop);
 
   bool shuffle_now = (dest_buf == buf_type_t::RB_NO_BUF);
@@ -391,6 +393,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   bool reneg_and_block =
       (!shuffle_now && OOB_EITHER_FULL(pvt_ctx)) || RENEG_ONGOING(pvt_ctx);
+
+  if (pvt_ctx->last_reneg_counter == 15000) reneg_and_block = true;
 
   if (reneg_and_block) {
     /* Conditions 2 and 3:

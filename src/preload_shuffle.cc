@@ -41,7 +41,7 @@
 #include "preload_mon.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
-#include "range_rtp.h"
+#include "rtp/rtp.h"
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
@@ -408,7 +408,7 @@ float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
   return prop[0];
 }
 
-int shuffle_data_target(const float& indexed_prop) {
+int shuffle_data_target2(const float& indexed_prop) {
   auto rank_iter = std::lower_bound(pctx.rctx.rank_bins.begin(),
                                     pctx.rctx.rank_bins.end(), indexed_prop);
 
@@ -467,11 +467,11 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
       // ABORT("panic");
       continue;  // drop this particle
     }
-    int peer_rank = shuffle_data_target(p.indexed_prop);
+    int peer_rank = shuffle_data_target2(p.indexed_prop);
 
     if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
       logf(LOG_ERRO,
-           "Invalid shuffle_data_target for particle %.1f at %d: %d!\n",
+           "Invalid shuffle_data_target2 for particle %.1f at %d: %d!\n",
            p.indexed_prop, pctx.my_rank, peer_rank);
       logf(LOG_ERRO, "INVALID %f\n",
            p.indexed_prop - rctx->rank_bins[pctx.comm_sz]);
@@ -503,7 +503,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
       // ABORT("panic");
       continue;  // drop this particle
     }
-    int peer_rank = shuffle_data_target(p.indexed_prop);
+    int peer_rank = shuffle_data_target2(p.indexed_prop);
     rctx->rank_bin_count[peer_rank]++;
 
     if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
@@ -690,7 +690,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   }
 
   if (buf_type == buf_type_t::RB_NO_BUF) {
-    peer_rank = shuffle_data_target(indexed_property);
+    peer_rank = shuffle_data_target2(indexed_property);
     rctx->rank_bin_count[peer_rank]++;
 #ifdef RANGE_DEBUG
     fprintf(stderr, "Current particle %f to %d\n", indexed_property, peer_rank);

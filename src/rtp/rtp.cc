@@ -1,5 +1,8 @@
-#include "range_rtp.h"
+#include "preload_internal.h"
+#include "rtp/rtp.h"
 #include "msgfmt.h"
+
+extern preload_ctx_t pctx;
 
 /* BEGIN internal declarations */
 
@@ -494,6 +497,8 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
+  perfstats_log_reneg(&(pctx.perf_ctx), pvt_ctx, rctx);
+
   logf(LOG_DBG2, "Broadcast pivot count: %d, expected %d\n", num_pivots,
        rctx->num_ranks + 1);
   assert(num_pivots == rctx->num_ranks + 1);
@@ -501,10 +506,12 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   pvt_ctx->range_min = pivots[0];
   pvt_ctx->range_max = pivots[num_pivots - 1];
 
+  pvt_ctx->last_reneg_counter = 0;
+
   std::copy(pivots, pivots + num_pivots, pvt_ctx->rank_bins.begin());
   /* We initialize counts with some base mass, in case another reneg
    * quickly follows, to be able to calculate pivots */
-  std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 1);
+  std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 0);
 
   rctx->data_buffer.advance_round();
   rctx->round_num++;

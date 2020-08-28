@@ -7,6 +7,8 @@
 #include <time.h>
 
 #include "common.h"
+#include "range_common.h"
+#include "rtp/rtp.h"
 
 #define PERFSTATS_MEM_SIZE 512
 #define PERFSTATS_CAPTURE_FREQ 10
@@ -86,3 +88,15 @@ int perfstats_init(perfstats_ctx_t *pctx, int my_rank, const char *dir_path,
  * @return
  */
 int perfstats_destroy(perfstats_ctx_t *pctx);
+
+/**
+ * @brief
+ *
+ * @param pctx
+ * @param pvt_ctx
+ * @param rctx
+ *
+ * @return
+ */
+int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
+                        reneg_ctx_t rctx);

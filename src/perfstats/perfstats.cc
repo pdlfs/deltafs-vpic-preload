@@ -7,7 +7,7 @@
 #include <blkid/blkid.h>
 #endif
 
-#include "preload_perfstats.h"
+#include "perfstats/perfstats.h"
 
 static int stat_counter;
 
@@ -60,10 +60,10 @@ int get_stats(const char *sysfs_path, bd_stats_t &bds) {
   }
 
   int num_scanned =
-      fscanf(sys_fp, "%lu %lu %lu %lu %lu %lu %lu %lu %u %u %u", 
-          &bds.rd_ios, &bds.rd_merges, &bds.rd_secs, &bds.rd_ticks, 
-          &bds.wr_ios, &bds.wr_merges, &bds.wr_secs, &bds.wr_ticks, 
-          &bds.in_flight, &bds.io_ticks, &bds.time_queue);
+      fscanf(sys_fp, "%lu %lu %lu %lu %lu %lu %lu %lu %u %u %u", &bds.rd_ios,
+             &bds.rd_merges, &bds.rd_secs, &bds.rd_ticks, &bds.wr_ios,
+             &bds.wr_merges, &bds.wr_secs, &bds.wr_ticks, &bds.in_flight,
+             &bds.io_ticks, &bds.time_queue);
 
   fclose(sys_fp);
 
@@ -125,8 +125,8 @@ int perfstats_init(perfstats_ctx_t *pctx, int my_rank, const char *dir_path,
          "BLKID enabled but failed to initialize. Continuing anyway.\n");
   } else {
     if (pctx->my_rank == 0) {
-      logf(LOG_INFO, "[Perfstats] Local_root matched to sysfs: %s\n",
-          pctx->sysfs_path);
+      logf(LOG_INFO, "[Perfstats] Local_root matched to sysfs: %s\n"
+          "Logging at %s\n", pctx->sysfs_path, pctx->stats_fpath);
     }
 
     bd_stats_t bds_test;
@@ -212,7 +212,7 @@ int perfstats_generate_header(perfstats_ctx_t *pctx) {
   if (pctx->sysfs_enabled) {
     header_str = "Timestamp (ms),Logical Bytes Written,Disk Sectors Written\n";
   } else {
-      header_str = "Timestamp (ms),Logical Bytes Written\n";
+    header_str = "Timestamp (ms),Logical Bytes Written\n";
   }
 
   fwrite(header_str, strlen(header_str), 1, pctx->output_file);
@@ -228,10 +228,11 @@ int perfstats_serialize_stat(perfstats_ctx_t *pctx, perfstats_stats_t &stat,
       (stat.stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
 
   if (pctx->sysfs_enabled) {
-    rv = snprintf(buf, buf_len, "%lld,%lld,%lld\n", 
-        time_delta_ms, stat.bytes_written, stat.secs_written);
+    rv = snprintf(buf, buf_len, "%lld,%lld,%lld\n", time_delta_ms,
+                  stat.bytes_written, stat.secs_written);
   } else {
-    rv = snprintf(buf, buf_len, "%lld,%lld\n", time_delta_ms, stat.bytes_written);
+    rv = snprintf(buf, buf_len, "%lld,%lld\n", time_delta_ms,
+                  stat.bytes_written);
   }
 
   return rv;
@@ -247,5 +248,29 @@ int perfstats_flush(perfstats_ctx_t *pctx) {
     int nbytes = perfstats_serialize_stat(pctx, pctx->stats[sidx], buf, 1024);
     fwrite(buf, nbytes, 1, pctx->output_file);
   }
+
+  return 0;
+}
+
+int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
+                        reneg_ctx_t rctx) {
+  int buf_sz = 1024, buf_idx = 0;
+  char buf[buf_sz];
+
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx,
+                      "RENEG %d@%d: ", rctx->my_rank, rctx->round_num);
+
+  std::vector<float>& counts = pvt_ctx->rank_bin_count;
+  buf_idx +=
+      print_vector(buf + buf_idx, buf_sz - buf_idx, counts, counts.size(),
+                   /* truncate */ false);
+
+  logf(LOG_DBG2, "[Perfstats] %s\n", buf);
+
+  pthread_mutex_lock(&(pctx->worker_mutex));
+  fwrite(buf, buf_idx, 1, pctx->output_file);
+  pthread_mutex_unlock(&(pctx->worker_mutex));
+
+  return 0;
 }
 /* END Internal Definitions */

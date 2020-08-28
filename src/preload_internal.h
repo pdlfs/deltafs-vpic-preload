@@ -44,10 +44,10 @@
 
 #include "common.h"
 #include "preload_mon.h"
-#include "preload_perfstats.h"
+#include "perfstats/perfstats.h"
 #include "preload_shuffle.h"
 #include "preload_range.h"
-#include "range_rtp.h"
+#include "rtp/rtp.h"
 
 #include "preload.h"
 

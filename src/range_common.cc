@@ -158,9 +158,14 @@ int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots) {
 
   pivot_calculate(pvt_ctx, num_pivots);
 
+  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f\n", 
+      pctx.my_rank, pvt_ctx->pivot_width);
+
   if (pvt_ctx->pivot_width > 1e-3) return rv;
 
   float mass_per_pivot = 1.0f / num_pivots;
+  pvt_ctx->pivot_width = mass_per_pivot;
+
   for (int pidx = 0; pidx <= num_pivots; pidx++) {
     pvt_ctx->my_pivots[pidx] = mass_per_pivot * pidx;
   }
@@ -179,6 +184,20 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   assert(num_pivots <= RANGE_MAX_PIVOTS);
 
   float range_start = pvt_ctx->range_min;
+  // [> update the left boundary of the new range <]
+  // if (oobl_sz > 0) {
+  // range_start = oobl[0].indexed_prop;
+  // if (particle_count < 1e-5 && oobr_sz == 0) {
+  // range_end = oobl[oobl_sz - 1].indexed_prop;
+  // }
+  // }
+  // [> update the right boundary of the new range <]
+  // if (oobr_sz > 0) {
+  // range_end = oobr[oobr_sz - 1].indexed_prop;
+  // if (particle_count < 1e-5 && oobl_sz == 0) {
+  // range_start = oobr[0].indexed_prop;
+  // }
+  // }
   float range_end = pvt_ctx->range_max;
 
   std::vector<float> oobl, oobr;
@@ -244,6 +263,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
 
   if (part_per_pivot < 1e-5) {
     std::fill(pvt_ctx->my_pivots, pvt_ctx->my_pivots + num_pivots, 0);
+    pvt_ctx->pivot_width = 0;
     return 0;
   }
 

@@ -186,7 +186,7 @@ float get_indexable_property(const char* data_buf, unsigned int dbuf_sz);
 /*
  * shuffle_data_target: get shuffle target from indexed prop
  */
-int shuffle_data_target(const float& indexed_prop);
+int shuffle_data_target2(const float& indexed_prop);
 
 /*
  * shuffle_target: return the shuffle destination for a given req.

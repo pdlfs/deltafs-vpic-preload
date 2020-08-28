@@ -210,6 +210,7 @@ static void run_vpic_app();
 static void do_dump();
 static void do_dump_mux();
 static void do_dump_shuffle_skew();
+static void do_dump_from_trace();
 
 /*
  * main program.
@@ -428,7 +429,8 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 
 static void do_dump_mux() {
   // do_dump_shuffle_skew();
-  do_dump();
+  do_dump_from_trace();
+  // do_dump();
 }
 
 static void do_dump() {
@@ -547,4 +549,49 @@ static void do_dump_shuffle_skew() {
   }
 
   closedir(dir);
+}
+
+static void do_dump_from_trace() {
+  FILE* file;
+  DIR* dir;
+  dir = opendir(g.pdir);
+  if (!dir) {
+    complain(EXIT_FAILURE, 0, "!opendir errno=%d", errno);
+  }
+
+  // TODO: change to uint64_t if we expect more than 2B particles
+  // rangeutils::WorkloadGenerator wg(range_bins, num_bins, range_start, range_end,
+                                    // g.nps * g.size, range_wp, myrank, g.size);
+
+  char fpath[255];
+  snprintf(fpath, 255, "/users/ankushj/T.1900/eparticle.1900.%d", myrank);
+  FILE *trace_file = fopen(fpath, "r");
+
+  const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
+#ifdef PRELOAD_EXASCALE_RUNS
+  uint64_t highbits = (static_cast<uint64_t>(myrank) << 32);
+#else
+  uint64_t highbits = (static_cast<uint64_t>(myrank) << 24);
+#endif
+
+  float p_energy;
+  float p_energy_base = 1;
+
+  for (int i = 0; i < g.nps; i++) {
+    base64_encoding(p.pname + prefix, (highbits | i));
+    file = fopen(p.pname, "a");
+    if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
+
+    fread(static_cast<void*>(&p_energy), 1, sizeof(float), trace_file);
+    // fprintf(stderr, "myrank: %d %.1f\n", myrank, p_energy);
+    //
+    fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
+    fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
+    fclose(file);
+  }
+
+  sleep(10);
+
+  closedir(dir);
+  fclose(trace_file);
 }

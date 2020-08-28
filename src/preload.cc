@@ -2822,8 +2822,6 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   }
   const float* prop = reinterpret_cast<const float*>(data);
 
-  // fprintf(stderr, "native_write, rank %d: %d, %d\n", pctx.my_rank, data[0], data_len);
-
   rv = 0;
 
   if (IS_BYPASS_WRITE(pctx.mode)) {

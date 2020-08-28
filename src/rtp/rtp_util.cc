@@ -1,6 +1,6 @@
 #include <algorithm>
 
-#include "range_rtp.h"
+#include "rtp/rtp.h"
 
 static uint64_t tv_to_us(const struct timespec *tv) {
   uint64_t t;
@@ -90,6 +90,8 @@ int DataBuffer::store_data(int stage, float *pivot_data, int dlen,
   }
 
   if (dlen != num_pivots[stage]) {
+    logf(LOG_ERRO, "[DataBuffer] Expected %d, got %d\n", num_pivots[stage],
+         dlen);
     return -3;
   }
 
@@ -129,7 +131,7 @@ int DataBuffer::clear_all_data() {
   return 0;
 }
 
-int DataBuffer::get_pivot_widths(int stage, std::vector<float>& widths) {
+int DataBuffer::get_pivot_widths(int stage, std::vector<float> &widths) {
   int sidx = this->cur_store_idx;
   int item_count = data_len[sidx][stage];
   widths.resize(item_count);

@@ -7,7 +7,7 @@
 #define RANGE_BUFSZ 1000
 // TODO: Can shorten this by using indirect ptr?
 #define RANGE_MAX_PSZ 255
-#define RANGE_MAX_OOB_SZ 8
+#define RANGE_MAX_OOB_SZ 100
 /* Total  for left + right buffers */
 #define RANGE_TOTAL_OOB_SZ 2 * RANGE_MAX_OOB_SZ
 
@@ -21,7 +21,7 @@
 #define RANGE_RTP_PVTCNT3 8
 
 #define RANGE_RTP_FANOUT1 4
-#define RANGE_RTP_FANOUT2 2
+#define RANGE_RTP_FANOUT2 4
 #define RANGE_RTP_FANOUT3 2
 
 typedef struct particle_mem {
@@ -86,6 +86,8 @@ typedef struct pivot_ctx {
 
   pthread_mutex_t snapshot_access_m = PTHREAD_MUTEX_INITIALIZER;
   snapshot_state snapshot;
+
+  int last_reneg_counter = 0;
 } pivot_ctx_t;
 
 int pivot_ctx_init(pivot_ctx_t *pvt_ctx);
@@ -138,13 +140,37 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx);
  */
 int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots);
 
-static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
-                               int vlen = -1) {
+static inline int print_vector(char *buf, int buf_sz, std::vector<int> &v,
+                               int vlen = -1, bool truncate = true) {
   vlen = (vlen == -1) ? v.size() : vlen;
 
   bool truncated = false;
 
-  if (vlen > 16) {
+  if (truncate && vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%d ", v[vidx]);
+  }
+
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%s\n",
+      truncated ? "... " : "");
+  return buf_idx;
+}
+
+static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
+                               int vlen = -1, bool truncate = true) {
+  vlen = (vlen == -1) ? v.size() : vlen;
+
+  bool truncated = false;
+
+  if (truncate && vlen > 16) {
     vlen = 16;
     truncated = true;
   }
