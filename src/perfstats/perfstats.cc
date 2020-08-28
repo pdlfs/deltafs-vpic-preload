@@ -75,8 +75,11 @@ int get_stats(const char *sysfs_path, bd_stats_t &bds) {
   return 0;
 }
 
+#ifdef PRELOAD_HAS_BLKID
+
 int init_blkid_stats(const char *write_path, char *sysfs_path) {
   struct stat s;
+  int rv = 0;
 
   if (lstat(write_path, &s)) {
     printf("Unable to stat\n");
@@ -90,10 +93,12 @@ int init_blkid_stats(const char *write_path, char *sysfs_path) {
     return -1;
   }
 
-  int rv = get_sysfs_path_for_bd(dev_name, sysfs_path, PATH_MAX);
+  rv = get_sysfs_path_for_bd(dev_name, sysfs_path, PATH_MAX);
 
   return rv;
 }
+
+#endif
 
 int perfstats_init(perfstats_ctx_t *pctx, int my_rank, const char *dir_path,
                    const char *local_root) {
@@ -198,12 +203,13 @@ int perfstats_log_once(perfstats_ctx_t *pctx, struct perfstats_stats &stats) {
   clock_gettime(CLOCK_MONOTONIC, &(stats.stat_time));
 
   stats.bytes_written = pctx->prop_bytes_written;
+  stats.secs_written = -1;
 
-  if (pctx->sysfs_enabled) {
-    bd_stats_t bd_stats;
-    int rv = get_stats(pctx->sysfs_path, bd_stats);
-    stats.secs_written = bd_stats.wr_secs;
-  }
+#ifdef PRELOAD_HAS_BLKID
+  bd_stats_t bd_stats;
+  int rv = get_stats(pctx->sysfs_path, bd_stats);
+  stats.secs_written = bd_stats.wr_secs;
+#endif
 }
 
 int perfstats_generate_header(perfstats_ctx_t *pctx) {
