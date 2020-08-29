@@ -262,7 +262,7 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
                           unsigned char fname_len, char* data,
                           unsigned char data_len, int epoch) {
   pivot_ctx* pvt_ctx = &(pctx.pvt_ctx);
-  reneg_ctx_t rctx = &(pctx.rtp_ctx);
+  pdlfs::reneg_ctx_t rctx = &(pctx.rtp_ctx);
 
   for (int i = 0; i < 1000; i++) {
     float rand_value = (rand() % 16738) / 167.38;
@@ -336,7 +336,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
                         unsigned char fname_len, char* data,
                         unsigned char data_len, int epoch) {
   pivot_ctx_t* pvt_ctx = &(pctx.pvt_ctx);
-  reneg_ctx_t rctx = &(pctx.rtp_ctx);
+  pdlfs::reneg_ctx_t rctx = &(pctx.rtp_ctx);
 
   char buf[255];
   int peer_rank = -1;

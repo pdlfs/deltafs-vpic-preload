@@ -11,14 +11,6 @@
 
 #define RANGE_DEBUG_T 1
 
-/* return true if a is smaller - we prioritize smaller bin_val
- * and for same bin_val, we prioritize ending items (is_start == false)
- * first */
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
-  return (a.bin_val < b.bin_val) ||
-         ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
-}
-
 extern preload_ctx_t pctx;
 
 void load_bins_into_rbvec(std::vector<float>& bins,

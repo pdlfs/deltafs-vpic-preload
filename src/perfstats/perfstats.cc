@@ -9,9 +9,9 @@
 
 #include "perfstats/perfstats.h"
 
-static int stat_counter;
+namespace pdlfs {
 
-/* BEGIN Internal Declarations */
+/* Internal Declarations */
 int get_sysfs_path_for_bd(const char *dev_name, char *sys_path_buf,
                           int sys_path_buf_len);
 
@@ -25,7 +25,6 @@ int perfstats_serialize_stat(perfstats_ctx_t *pctx, perfstats_stats_t &stat,
                              char *buf, int buf_len);
 
 int perfstats_flush(perfstats_ctx_t *pctx);
-/* END Internal Declarations */
 
 int get_sysfs_path_for_bd(const char *dev_name, char *sys_path_buf,
                           int sys_path_buf_len) {
@@ -93,7 +92,7 @@ int init_blkid_stats(const char *write_path, char *sysfs_path) {
     return -1;
   }
 
-  rv = get_sysfs_path_for_bd(dev_name, sysfs_path, PATH_MAX);
+  rv = ::get_sysfs_path_for_bd(dev_name, sysfs_path, PATH_MAX);
 
   return rv;
 }
@@ -171,7 +170,8 @@ void *perfstats_worker(void *arg) {
   perfstats_ctx_t *pctx = static_cast<perfstats_ctx_t *>(arg);
 
   while (true) {
-    pthread_mutex_lock(&(pctx->worker_mutex));
+    pctx->worker_mtx.Lock();
+
     if (pctx->shutdown) {
       if (pctx->my_rank == 0) {
         logf(LOG_INFO, "perfstats_worker: shutting down");
@@ -192,7 +192,7 @@ void *perfstats_worker(void *arg) {
     perfstats_log_once(pctx, pctx->stats[pctx->stats_idx]);
     pctx->stats_idx++;
 
-    pthread_mutex_unlock(&(pctx->worker_mutex));
+    pctx->worker_mtx.Unlock();
     usleep(1e6 / PERFSTATS_CAPTURE_FREQ);
   }
 
@@ -210,6 +210,8 @@ int perfstats_log_once(perfstats_ctx_t *pctx, struct perfstats_stats &stats) {
   int rv = get_stats(pctx->sysfs_path, bd_stats);
   stats.secs_written = bd_stats.wr_secs;
 #endif
+
+  return 0;
 }
 
 int perfstats_generate_header(perfstats_ctx_t *pctx) {
@@ -222,6 +224,8 @@ int perfstats_generate_header(perfstats_ctx_t *pctx) {
   }
 
   fwrite(header_str, strlen(header_str), 1, pctx->output_file);
+
+  return 0;
 }
 
 int perfstats_serialize_stat(perfstats_ctx_t *pctx, perfstats_stats_t &stat,
@@ -231,7 +235,7 @@ int perfstats_serialize_stat(perfstats_ctx_t *pctx, perfstats_stats_t &stat,
 
   long long time_delta_ms =
       (stat.stat_time.tv_sec - pctx->start_time.tv_sec) * 1e3 +
-      (stat.stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
+          (stat.stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
 
   if (pctx->sysfs_enabled) {
     rv = snprintf(buf, buf_len, "%lld,%lld,%lld\n", time_delta_ms,
@@ -245,7 +249,8 @@ int perfstats_serialize_stat(perfstats_ctx_t *pctx, perfstats_stats_t &stat,
 }
 
 int perfstats_flush(perfstats_ctx_t *pctx) {
-  /* lock->assertheld */
+  pctx->worker_mtx.AssertHeld();
+
   int ntoflush = pctx->stats_idx;
   assert(ntoflush <= PERFSTATS_MEM_SIZE);
 
@@ -266,17 +271,18 @@ int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
   buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx,
                       "RENEG %d@%d: ", rctx->my_rank, rctx->round_num);
 
-  std::vector<float>& counts = pvt_ctx->rank_bin_count;
+  std::vector<float> &counts = pvt_ctx->rank_bin_count;
   buf_idx +=
       print_vector(buf + buf_idx, buf_sz - buf_idx, counts, counts.size(),
-                   /* truncate */ false);
+          /* truncate */ false);
 
   logf(LOG_DBG2, "[Perfstats] %s\n", buf);
 
-  pthread_mutex_lock(&(pctx->worker_mutex));
+  pctx->worker_mtx.Lock();
   fwrite(buf, buf_idx, 1, pctx->output_file);
-  pthread_mutex_unlock(&(pctx->worker_mutex));
+  pctx->worker_mtx.Unlock();
 
   return 0;
 }
+} // namespace pdlfs
 /* END Internal Definitions */

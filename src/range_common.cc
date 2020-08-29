@@ -42,6 +42,15 @@ static char *print_vec(char *buf, int buf_len, std::vector<float> &v,
   return buf;
 }
 
+/* return true if a is smaller - we prioritize smaller bin_val
+ * and for same bin_val, we prioritize ending items (is_start == false)
+ * first */
+bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
+  return (a.bin_val < b.bin_val) ||
+      ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
+}
+
+
 namespace {
 bool pmt_comp(const particle_mem_t &a, const particle_mem_t &b) {
   return a.indexed_prop < b.indexed_prop;
@@ -67,8 +76,8 @@ int get_oob_min_max(pivot_ctx_t *pvt_ctx, int &oob_min, int &oob_max) {
 
 int sanitize_oob(std::vector<particle_mem_t> &oob, int oob_sz,
                  std::vector<float> &san_oobl, int &san_oobl_sz,
-                 std::vector<float> &san_oobr, int &san_oobr_sz, int range_min,
-                 int range_max) {
+                 std::vector<float> &san_oobr, int &san_oobr_sz, float range_min,
+                 float range_max) {
   int rv = 0;
 
   for (int oidx = 0; oidx < oob_sz; oidx++) {
@@ -184,20 +193,6 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   assert(num_pivots <= RANGE_MAX_PIVOTS);
 
   float range_start = pvt_ctx->range_min;
-  // [> update the left boundary of the new range <]
-  // if (oobl_sz > 0) {
-  // range_start = oobl[0].indexed_prop;
-  // if (particle_count < 1e-5 && oobr_sz == 0) {
-  // range_end = oobl[oobl_sz - 1].indexed_prop;
-  // }
-  // }
-  // [> update the right boundary of the new range <]
-  // if (oobr_sz > 0) {
-  // range_end = oobr[oobr_sz - 1].indexed_prop;
-  // if (particle_count < 1e-5 && oobl_sz == 0) {
-  // range_start = oobr[0].indexed_prop;
-  // }
-  // }
   float range_end = pvt_ctx->range_max;
 
   std::vector<float> oobl, oobr;
@@ -222,7 +217,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   float oobl_max = oobl_sz ? oobl[oobl_sz - 1] : 0;
   float oobr_min = oobr_sz ? oobr[0] : 0;
   float oobr_max = oobr_sz ? oobr[oobr_sz - 1] : 0;
-  float oob_min = oobl_min < oobr_min ? oobl_min : oobl_min;
+  float oob_min = oobl_min < oobr_min ? oobl_min : oobr_min;
   float oob_max = oobl_max > oobr_max ? oobl_max : oobr_max;
 
   int my_rank = pctx.my_rank;
@@ -397,8 +392,8 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
   snap_oob_left.resize(0);
   snap_oob_right.resize(0);
 
-  assert(snap_oob_left.size() == 0);
-  assert(snap_oob_right.size() == 0);
+  assert(snap_oob_left.empty());
+  assert(snap_oob_right.empty());
 
   float bins_min = snap.rank_bins[0];
   float bins_max = snap.rank_bins[pctx.comm_sz];
@@ -411,7 +406,6 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
 
     if (prop < bins_min) {
       snap_oob_left.push_back(prop);
-      // } else if (pvt_ctx->range_state_prev == range_state_t::RS_INIT) {
     } else if (prev_state == MT_INIT) {
       snap_oob_left.push_back(prop);
     } else if (prop > bins_max) {

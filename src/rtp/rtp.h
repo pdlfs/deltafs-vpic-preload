@@ -1,18 +1,14 @@
 #pragma once
 
 #include <time.h>
+#include "data_buffer.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_utils.h"
+#include "rtp/rtp_internal.h"
+#include "rtp_state_mgr.h"
 #include "xn_shuffle.h"
 
-#define FANOUT_MAX 128
-
-/* This is not configurable. RTP is designed for 3 stages
- * Stage 1 - leaf stage (all shared memory, ideally)
- * Stage 3 - to final root
- * */
-#define STAGES_MAX 3
 
 /*
  * Edge cases:
@@ -29,117 +25,12 @@
  * - BUFFER?
  */
 
-enum RenegState {
-  /* Bootstrapping state, no RTP messages can be gracefully handled in this
-   * state, will move to READY once bootstrapping is complete
-   */
-  INIT,
-  /* Ready to either trigger a round locally, or respond to another RTP msg */
-  READY,
-  /* Ready/starting round, but change state to block main thread */
-  READYBLOCK, /* Ready to activate, just changed to block main */
-  PVTSND      /* Has been activated */
-};
-
-class RenegStateMgr {
- private:
-  RenegState current_state;
-  RenegState prev_state;
-
-  int cur_round_num;
-  bool next_round_started;
-
- public:
-  RenegStateMgr();
-
-  RenegState get_state();
-
-  RenegState update_state(RenegState new_state);
-
-  void mark_next_round_start(int round_num);
-
-  bool get_next_round_start();
-};
-
+namespace pdlfs {
 /**
  * @brief Buffer for an RTP instance to store pivots for different stages
  * Most ranks will not need a Stage 2 or a Stage 3, but this allocation is
  * simpler.
  */
-class DataBuffer {
- private:
-  /* This simple storage format has 2*512KB of theoretical
-   * footprint. (2* 4 * 128 * 256 * 4B). But no overhead will
-   * be incurred for ranks that aren't actually using those
-   * stages. (Virtual Memory ftw)
-   */
-  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][RANGE_MAX_PIVOTS];
-  float data_widths[2][STAGES_MAX + 1][FANOUT_MAX];
-  int data_len[2][STAGES_MAX + 1];
-
-  int num_pivots[STAGES_MAX + 1];
-  int cur_store_idx;
-
- public:
-  DataBuffer();
-
-  /**
-   * @brief Store pivots for the current round
-   *
-   * @param stage
-   * @param data
-   * @param dlen
-   * @param pivot_width
-   * @param isnext true if data is for the next round, false o/w
-   *
-   * @return errno if < 0, else num_items in store for the stage
-   */
-  int store_data(int stage, float *pivot_data, int dlen, float pivot_width,
-                 bool isnext);
-
-  /**
-   * @brief
-   *
-   * @param stage
-   * @param isnext true if data is for the next round, false o/w
-   *
-   * @return
-   */
-  int get_num_items(int stage, bool isnext);
-
-  /**
-   * @brief Clear all data for current round, set next round data as cur
-   *
-   * @return errno or 0
-   */
-  int advance_round();
-
-  /**
-   * @brief A somewhat hacky way to get pivot width arrays withouy copying
-   *
-   * @param stage
-   *
-   * @return 
-   */
-  int get_pivot_widths(int stage, std::vector<float>& widths);
-
-  /**
-   * @brief
-   *
-   * @param stage
-   * @param rbvec
-   *
-   * @return
-   */
-  int load_into_rbvec(int stage, std::vector<rb_item_t> &rbvec);
-
-  /**
-   * @brief Clear ALL data (both current round and next). Use with caution.
-   *
-   * @return
-   */
-  int clear_all_data();
-};
 
 /**
  * @brief Benchmarking utility.
@@ -181,7 +72,7 @@ struct reneg_ctx {
    * so concurrency there is not an issue */
   pthread_mutex_t reneg_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-  RenegStateMgr state_mgr;
+  RtpStateMgr state_mgr;
   DataBuffer data_buffer;
 
   int round_num;
@@ -245,3 +136,5 @@ int reneg_init_round(reneg_ctx_t rctx);
  * @return retcode
  */
 int reneg_destroy(reneg_ctx_t rctx);
+
+} // namespace pdlfs

@@ -3,17 +3,10 @@
 #include <numeric>
 #include <vector>
 
+#include "range_common.h"
+
 #define RANGE_PARANOID_CHECKS 1
 #define RANGE_EPSILON 1e-5
-
-typedef struct rb_item {
-  int rank;
-  float bin_val;
-  float bin_other;
-  bool is_start;
-} rb_item_t;  // rank-bin item
-
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
 
 void load_bins_into_rbvec(std::vector<float>& bins,
                           std::vector<rb_item_t>& rbvec, int num_bins,

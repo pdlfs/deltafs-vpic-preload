@@ -4,8 +4,9 @@
 
 extern preload_ctx_t pctx;
 
-/* BEGIN internal declarations */
+namespace pdlfs {
 
+/* BEGIN internal declarations */
 /**
  * @brief Initialize our peers_s1/s2/s3 (if applicable), and root_sx's
  * Only nodes that are a part of stage 2 have a root_s2, same for s1
@@ -52,6 +53,7 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
                              int src);
 bool expected_items_for_stage(reneg_ctx_t rctx, int stage, int items);
 /* END internal declarations */
+
 
 int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
                struct reneg_opts ro) {
@@ -112,7 +114,7 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
 
   rctx->state_mgr.update_state(RenegState::READY);
 
-cleanup:
+  cleanup:
   pthread_mutex_unlock(&(rctx->reneg_mutex));
   return rv;
 }
@@ -215,17 +217,13 @@ int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
   char msg_type = msgfmt_get_rtp_msgtype(buf);
 
   switch (msg_type) {
-    case MSGFMT_RTP_BEGIN:
-      rv = reneg_handle_rtp_begin(rctx, buf, buf_sz, src);
+    case MSGFMT_RTP_BEGIN:rv = reneg_handle_rtp_begin(rctx, buf, buf_sz, src);
       break;
-    case MSGFMT_RTP_PIVOT:
-      rv = reneg_handle_rtp_pivot(rctx, buf, buf_sz, src);
+    case MSGFMT_RTP_PIVOT:rv = reneg_handle_rtp_pivot(rctx, buf, buf_sz, src);
       break;
-    case MSGFMT_RTP_PVT_BCAST:
-      rv = reneg_handle_pivot_bcast(rctx, buf, buf_sz, src);
+    case MSGFMT_RTP_PVT_BCAST:rv = reneg_handle_pivot_bcast(rctx, buf, buf_sz, src);
       break;
-    default:
-      ABORT("reneg_handle_msg: unknown msg_type");
+    default:ABORT("reneg_handle_msg: unknown msg_type");
       break;
   }
 
@@ -266,7 +264,7 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char *buf, unsigned int buf_sz,
          "(theirs: %d, ours: %d)\n",
          rctx->my_rank, round_num, rctx->round_num);
   } else if (rctx->state_mgr.get_state() == RenegState::READY ||
-             rctx->state_mgr.get_state() == RenegState::READYBLOCK) {
+      rctx->state_mgr.get_state() == RenegState::READYBLOCK) {
     /* If we're ready for Round R, no way we can receive R+1 first */
     assert(round_num == rctx->round_num);
     rctx->pvt_ctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
@@ -659,3 +657,4 @@ int mock_pivots_init(reneg_ctx_t rctx) {
 
   return 0;
 }
+} // namespace pdlfs

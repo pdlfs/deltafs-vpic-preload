@@ -524,6 +524,8 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
   fprintf(stderr, "Returning from flush-rank %d (%d/%d)\n", pctx.my_rank,
           rctx->oob_count_left, rctx->oob_count_right);
 #endif
+
+  return 0;
 }
 
 void send_all_acks();

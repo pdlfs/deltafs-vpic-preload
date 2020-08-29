@@ -13,6 +13,8 @@
 # from a normal library config...
 #
 
+set(CMAKE_CXX_STANDARD 11)
+
 # configure/load in standard modules we plan to use
 set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set (THREADS_PREFER_PTHREAD_FLAG TRUE)
@@ -46,7 +48,7 @@ add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
         preload_shuffle.cc shuffle_write_providers.cc msgfmt.cc nn_shuffler.cc 
         nn_shuffler_internal.cc xn_shuffle.cc hstg.cc common.cc pthreadtap.cc 
         preload_range.cc range_common.cc rtp/rtp.cc rtp/rtp_util.cc 
-        range_utils.cc perfstats/perfstats.cc)
+        range_utils.cc perfstats/perfstats.cc rtp/data_buffer.cc rtp/rtp_state_mgr.cc)
 
 target_include_directories(deltafs-preload PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

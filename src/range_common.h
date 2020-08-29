@@ -24,6 +24,15 @@
 #define RANGE_RTP_FANOUT2 4
 #define RANGE_RTP_FANOUT3 2
 
+typedef struct rb_item {
+  int rank;
+  float bin_val;
+  float bin_other;
+  bool is_start;
+} rb_item_t;  // rank-bin item
+
+bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
+
 typedef struct particle_mem {
   float indexed_prop;       // property for range query
   char buf[RANGE_MAX_PSZ];  // other data
@@ -76,7 +85,7 @@ typedef struct pivot_ctx {
 
   std::vector<particle_mem_t> oob_buffer_left;
   std::vector<particle_mem_t> oob_buffer_right;
-  /* OOB buffers are preallocated to MAX to avoid resize calls
+  /* OOB buffers are pre-allocated to MAX to avoid resize calls
    * thus we use counters to track actual size */
   int oob_count_left;
   int oob_count_right;

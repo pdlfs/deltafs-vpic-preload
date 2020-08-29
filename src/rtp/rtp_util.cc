@@ -2,6 +2,8 @@
 
 #include "rtp/rtp.h"
 
+namespace pdlfs {
+
 static uint64_t tv_to_us(const struct timespec *tv) {
   uint64_t t;
   t = static_cast<uint64_t>(tv->tv_sec) * 1000000;
@@ -15,152 +17,6 @@ static uint64_t calc_diff_us(const struct timespec *a,
   uint64_t b_us = tv_to_us(b);
 
   return b_us - a_us;
-}
-
-RenegStateMgr::RenegStateMgr()
-    : current_state{INIT},
-      prev_state{INIT},
-      next_round_started{false},
-      cur_round_num{0} {}
-
-RenegState RenegStateMgr::get_state() { return this->current_state; }
-
-RenegState RenegStateMgr::update_state(RenegState new_state) {
-  RenegState cur_state = this->current_state;
-
-  if (cur_state == RenegState::INIT && new_state == RenegState::READY) {
-    // pass
-  } else if (cur_state == RenegState::READY &&
-             new_state == RenegState::READYBLOCK) {
-    // pass
-  } else if (cur_state == RenegState::READY &&
-             new_state == RenegState::PVTSND) {
-    // pass
-  } else if (cur_state == RenegState::READYBLOCK &&
-             new_state == RenegState::PVTSND) {
-    // pass
-  } else if (cur_state == RenegState::PVTSND &&
-             new_state == RenegState::READY) {
-    /* READY or READYBLOCK represent state machine entering the next state */
-    this->next_round_started = false;
-    this->cur_round_num++;
-  } else if (cur_state == RenegState::PVTSND &&
-             new_state == RenegState::READYBLOCK) {
-    this->next_round_started = false;
-    this->cur_round_num++;
-  } else {
-    ABORT("RenegStateMgr::update_state: unexpected transition");
-  }
-
-  this->prev_state = this->current_state;
-  this->current_state = new_state;
-}
-
-void RenegStateMgr::mark_next_round_start(int round_num) {
-  if (round_num != this->cur_round_num + 1) {
-    ABORT("RenegStateMgr::mark_next_round_start: wrong round_num");
-  }
-
-  this->next_round_started = true;
-}
-
-bool RenegStateMgr::get_next_round_start() { return this->next_round_started; }
-
-DataBuffer::DataBuffer() {
-  memset(data_len, 0, sizeof(data_len));
-  // XXX: revisit
-  this->num_pivots[1] = RANGE_RTP_PVTCNT1;
-  this->num_pivots[2] = RANGE_RTP_PVTCNT2;
-  this->num_pivots[3] = RANGE_RTP_PVTCNT3;
-
-  this->cur_store_idx = 0;
-}
-
-int DataBuffer::store_data(int stage, float *pivot_data, int dlen,
-                           float pivot_width, bool isnext) {
-  int sidx = this->cur_store_idx;
-  if (isnext) sidx = !sidx;
-
-  if (stage < 1 || stage > 3) {
-    return -1;
-  }
-
-  if (data_len[sidx][stage] >= FANOUT_MAX) {
-    return -2;
-  }
-
-  if (dlen != num_pivots[stage]) {
-    logf(LOG_ERRO, "[DataBuffer] Expected %d, got %d\n", num_pivots[stage],
-         dlen);
-    return -3;
-  }
-
-  int idx = data_len[sidx][stage];
-
-  memcpy(data_store[sidx][stage][idx], pivot_data, dlen * sizeof(float));
-  data_widths[sidx][stage][idx] = pivot_width;
-  int new_size = ++data_len[sidx][stage];
-  assert(new_size > 0);
-
-  logf(LOG_INFO, "Rank %d: new store size %d\n", -1, new_size);
-
-  return new_size;
-}
-
-int DataBuffer::get_num_items(int stage, bool isnext) {
-  if (stage < 1 || stage > STAGES_MAX) {
-    return -1;
-  }
-
-  int sidx = this->cur_store_idx;
-  if (isnext) sidx = !sidx;
-
-  return data_len[sidx][stage];
-}
-
-int DataBuffer::advance_round() {
-  int old_sidx = this->cur_store_idx;
-  memset(data_len[old_sidx], 0, sizeof(data_len[old_sidx]));
-
-  this->cur_store_idx = !old_sidx;
-  return 0;
-}
-
-int DataBuffer::clear_all_data() {
-  memset(data_len, 0, sizeof(data_len));
-  return 0;
-}
-
-int DataBuffer::get_pivot_widths(int stage, std::vector<float> &widths) {
-  int sidx = this->cur_store_idx;
-  int item_count = data_len[sidx][stage];
-  widths.resize(item_count);
-  std::copy(data_widths[sidx][stage], data_widths[sidx][stage] + item_count,
-            widths.begin());
-  return 0;
-}
-
-int DataBuffer::load_into_rbvec(int stage, std::vector<rb_item_t> &rbvec) {
-  int sidx = this->cur_store_idx;
-
-  int num_ranks = data_len[sidx][stage];
-  int bins_per_rank = num_pivots[stage];
-
-  for (int rank = 0; rank < num_ranks; rank++) {
-    for (int bidx = 0; bidx < bins_per_rank - 1; bidx++) {
-      float bin_start = data_store[sidx][stage][rank][bidx];
-      float bin_end = data_store[sidx][stage][rank][bidx + 1];
-
-      if (bin_start == bin_end) continue;
-
-      rbvec.push_back({rank, bin_start, bin_end, true});
-      rbvec.push_back({rank, bin_end, bin_start, false});
-    }
-  }
-
-  std::sort(rbvec.begin(), rbvec.end(), rb_item_lt);
-
-  return 0;
 }
 
 RenegBench::RenegBench() : is_root{false} {}
@@ -198,3 +54,4 @@ void RenegBench::print_stderr() {
             start_to_active, active_to_end, start_to_end);
   }
 }
+} // namespace

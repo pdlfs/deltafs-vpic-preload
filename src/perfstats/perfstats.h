@@ -7,12 +7,14 @@
 #include <time.h>
 
 #include "common.h"
+#include "pdlfs-common/mutexlock.h"
 #include "range_common.h"
 #include "rtp/rtp.h"
 
 #define PERFSTATS_MEM_SIZE 512
 #define PERFSTATS_CAPTURE_FREQ 10
 
+namespace pdlfs {
 typedef struct bd_stats {
   long unsigned rd_ios;
   long unsigned rd_merges;
@@ -49,7 +51,8 @@ typedef struct perfstats_ctx {
 
   char stats_fpath[PATH_MAX];
 
-  pthread_mutex_t worker_mutex = PTHREAD_MUTEX_INITIALIZER;
+//  pthread_mutex_t worker_mutex = PTHREAD_MUTEX_INITIALIZER;
+  port::Mutex worker_mtx;
 
   long long prop_bytes_written = 0;
 
@@ -100,3 +103,4 @@ int perfstats_destroy(perfstats_ctx_t *pctx);
  */
 int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
                         reneg_ctx_t rctx);
+} // namespace pdlfs
