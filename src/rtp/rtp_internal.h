@@ -1,3 +1,5 @@
+#pragma once
+
 #define FANOUT_MAX 128
 
 /* This is not configurable. RTP is designed for 3 stages

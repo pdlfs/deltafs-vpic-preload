@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdio.h>
 #include <pthread.h>
 #include <vector>
 //
@@ -15,14 +16,6 @@
 #define RANGE_NUM_PIVOTS 4
 
 #define RANGE_MAX_PIVOTS 256
-
-#define RANGE_RTP_PVTCNT1 8
-#define RANGE_RTP_PVTCNT2 8
-#define RANGE_RTP_PVTCNT3 8
-
-#define RANGE_RTP_FANOUT1 4
-#define RANGE_RTP_FANOUT2 4
-#define RANGE_RTP_FANOUT3 2
 
 typedef struct rb_item {
   int rank;

@@ -2787,7 +2787,7 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   char buf[12];
   int rv;
 
-  pctx.perf_ctx.prop_bytes_written += data_len;
+  pctx.perf_ctx.stat_hooks.bytes_written += data_len;
 
   if (epoch == -1) {
     epoch = num_eps - 1;

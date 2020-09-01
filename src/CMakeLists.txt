@@ -16,45 +16,49 @@
 set(CMAKE_CXX_STANDARD 11)
 
 # configure/load in standard modules we plan to use
-set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
-set (THREADS_PREFER_PTHREAD_FLAG TRUE)
-find_package (Threads REQUIRED)
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
 
 if (PRELOAD_PAPI)
-    find_package (PAPI MODULE)
+    find_package(PAPI MODULE)
     if (PAPI_FOUND)
-        add_definitions (-DPRELOAD_HAS_PAPI)
+        add_definitions(-DPRELOAD_HAS_PAPI)
     endif ()
 endif ()
 
 if (PRELOAD_NUMA)
-    find_package (NUMA MODULE)
+    find_package(NUMA MODULE)
     if (NUMA_FOUND)
-        add_definitions (-DPRELOAD_HAS_NUMA)
+        add_definitions(-DPRELOAD_HAS_NUMA)
     endif ()
 endif ()
-
-if (PRELOAD_BLKID)
-  find_package (BLKID)
-  if (BLKID_FOUND)
-    add_definitions (-DPRELOAD_HAS_BLKID)
-  endif()
-endif()
 
 #
 # create the library target
 #
-add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
-        preload_shuffle.cc shuffle_write_providers.cc msgfmt.cc nn_shuffler.cc 
-        nn_shuffler_internal.cc xn_shuffle.cc hstg.cc common.cc pthreadtap.cc 
-        preload_range.cc range_common.cc rtp/rtp.cc rtp/rtp_util.cc 
-        range_utils.cc perfstats/perfstats.cc rtp/data_buffer.cc rtp/rtp_state_mgr.cc)
+set(PRELOAD_SOURCES preload.cc preload_internal.cc preload_mon.cc
+        preload_shuffle.cc shuffle_write_providers.cc msgfmt.cc nn_shuffler.cc
+        nn_shuffler_internal.cc xn_shuffle.cc hstg.cc common.cc pthreadtap.cc
+        preload_range.cc range_common.cc rtp/rtp.cc rtp/rtp_util.cc
+        range_utils.cc perfstats/perfstats.cc rtp/data_buffer.cc
+        rtp/rtp_state_mgr.cc perfstats/stat.cc)
+
+if (PRELOAD_BLKID)
+    find_package(BLKID)
+    if (BLKID_FOUND)
+        add_definitions(-DPRELOAD_HAS_BLKID)
+        set(PRELOAD_SOURCES ${PRELOAD_SOURCES} perfstats/stat_blkid.cc)
+    endif ()
+endif ()
+
+add_library(deltafs-preload ${PRELOAD_SOURCES})
 
 target_include_directories(deltafs-preload PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        )
 
-target_link_libraries (deltafs-preload deltafs mercury mssg
+target_link_libraries(deltafs-preload deltafs mercury mssg
         deltafs-nexus deltafs-shuffle Threads::Threads ${CMAKE_DL_LIBS})
 
 if (PRELOAD_CH_PLACEMENT)
@@ -74,7 +78,7 @@ if (PRELOAD_NUMA)
 endif ()
 
 if (PRELOAD_BLKID)
-  if (BLKID_FOUND)
+    if (BLKID_FOUND)
         target_link_libraries(deltafs-preload blkid)
     endif ()
 endif ()
@@ -88,14 +92,14 @@ foreach (tgt deltafs-preload)
     # mpich on ub14 gives a leading space that we need to trim off
     foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
         if (NOT ${lcv} STREQUAL "")
-            target_compile_options (${tgt}
+            target_compile_options(${tgt}
                     PUBLIC $<BUILD_INTERFACE:${lcv}>)
         endif ()
     endforeach ()
 
     # XXX: have to do this one dir at a time
     foreach (lcv ${MPI_CXX_INCLUDE_PATH})
-        target_include_directories (${tgt}
+        target_include_directories(${tgt}
                 PUBLIC $<BUILD_INTERFACE:${lcv}>)
     endforeach ()
 
@@ -103,7 +107,7 @@ foreach (tgt deltafs-preload)
         target_link_libraries(${tgt} $<BUILD_INTERFACE:${lcv}>)
     endforeach ()
 
-    set_property (TARGET ${tgt} APPEND PROPERTY LINK_FLAGS
+    set_property(TARGET ${tgt} APPEND PROPERTY LINK_FLAGS
             ${MPI_CXX_LINK_FLAGS})
 
 endforeach ()
@@ -113,5 +117,5 @@ endforeach ()
 #
 
 # "make install" rules...
-install (TARGETS deltafs-preload
+install(TARGETS deltafs-preload
         ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)
