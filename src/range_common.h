@@ -1,7 +1,9 @@
 #pragma once
 
-#include <stdio.h>
 #include <pthread.h>
+#include <stdint.h>
+#include <stdio.h>
+
 #include <vector>
 //
 // TODO: make this configurable
@@ -24,7 +26,7 @@ typedef struct rb_item {
   bool is_start;
 } rb_item_t;  // rank-bin item
 
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
+bool rb_item_lt(const rb_item_t &a, const rb_item_t &b);
 
 typedef struct particle_mem {
   float indexed_prop;       // property for range query
@@ -72,7 +74,9 @@ typedef struct pivot_ctx {
   MainThreadStateMgr mts_mgr;
 
   std::vector<float> rank_bins;
+  /* both of these should be ints, TODO: change count to int and validate */
   std::vector<float> rank_bin_count;
+  std::vector<uint64_t> rank_bin_count_aggr;
   float range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
@@ -84,6 +88,7 @@ typedef struct pivot_ctx {
   int oob_count_right;
 
   float my_pivots[RANGE_MAX_PIVOTS];
+  int my_pivot_count;
   float pivot_width;
 
   pthread_mutex_t snapshot_access_m = PTHREAD_MUTEX_INITIALIZER;
@@ -142,6 +147,30 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx);
  */
 int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots);
 
+static inline int print_vector(char *buf, int buf_sz, std::vector<uint64_t> &v,
+                               int vlen = -1, bool truncate = true) {
+  vlen = (vlen == -1) ? v.size() : vlen;
+
+  bool truncated = false;
+
+  if (truncate && vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%lu ", v[vidx]);
+  }
+
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
+  return buf_idx;
+}
+
 static inline int print_vector(char *buf, int buf_sz, std::vector<int> &v,
                                int vlen = -1, bool truncate = true) {
   vlen = (vlen == -1) ? v.size() : vlen;
@@ -161,8 +190,8 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<int> &v,
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%d ", v[vidx]);
   }
 
-  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%s\n",
-      truncated ? "... " : "");
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
   return buf_idx;
 }
 
@@ -185,16 +214,38 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
   }
 
-  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%s\n",
-      truncated ? "... " : "");
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
   return buf_idx;
 }
 
-static inline int print_vector(char *buf, int buf_sz, float *v,
-                               int vlen) {
+static inline int print_vector(char *buf, int buf_sz, uint64_t *v, int vlen,
+                               bool truncate = true) {
   bool truncated = false;
 
-  if (vlen > 16) {
+  if (truncate && vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%lu ", v[vidx]);
+  }
+
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
+  return buf_idx;
+}
+
+static inline int print_vector(char *buf, int buf_sz, float *v, int vlen,
+                               bool truncate = true) {
+  bool truncated = false;
+
+  if (truncate && vlen > 16) {
     vlen = 16;
     truncated = true;
   }
@@ -207,7 +258,7 @@ static inline int print_vector(char *buf, int buf_sz, float *v,
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
   }
 
-  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%s\n",
-      truncated ? "... " : "");
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
   return buf_idx;
 }

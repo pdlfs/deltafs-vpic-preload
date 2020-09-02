@@ -1,5 +1,7 @@
 #include "perfstats/perfstats.h"
 
+#include <math.h>
+#include <mpi.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -10,6 +12,38 @@
 #ifdef PRELOAD_HAS_BLKID
 #include "perfstats/stat_blkid.h"
 #endif
+namespace {
+uint64_t get_timestamp(pdlfs::perfstats_ctx_t *pctx) {
+  struct timespec stat_time;
+  clock_gettime(CLOCK_MONOTONIC, &(stat_time));
+
+  uint64_t time_delta_ms = (stat_time.tv_sec - pctx->start_time.tv_sec) * 1e3 +
+      (stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
+
+  return time_delta_ms;
+}
+float get_norm_std(uint64_t * arr, size_t sz) {
+  double norm_arr[sz];
+
+  uint64_t sum_x = 0;
+  for (size_t i = 0; i < sz; i++) {
+    sum_x += arr[i];
+  }
+
+  double arr_mean = sum_x * 1.0 / sz;
+  double norm_x2 = 0, norm_x = 0;
+  for (size_t i = 0; i < sz; i++) {
+    double norm_val = arr[i] / arr_mean;
+    norm_x += norm_val;
+    norm_x2 += (norm_val * norm_val);
+  }
+
+  double var = (norm_x2 - norm_x) / sz;
+  double std = sqrt(var);
+
+  return std;
+}
+}
 
 namespace pdlfs {
 
@@ -121,18 +155,14 @@ int perfstats_log_stat(perfstats_ctx_t *pctx, Stat &s) {
 int perfstats_log_once(perfstats_ctx_t *pctx) {
   pctx->worker_mtx.AssertHeld();
 
-  struct timespec stat_time;
-  clock_gettime(CLOCK_MONOTONIC, &(stat_time));
+  uint64_t timestamp = ::get_timestamp(pctx);
+  perfstats_log_hooks(pctx, timestamp);
 
-  uint64_t time_delta_ms = (stat_time.tv_sec - pctx->start_time.tv_sec) * 1e3 +
-                           (stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
-
-  perfstats_log_hooks(pctx, time_delta_ms);
   /* construct with random parameters; TODO: add better constructor */
   Stat s(StatType::V_INT, "");
 
   for (uint32_t sidx = 0; sidx < pctx->all_loggers_.size(); sidx++) {
-    pctx->all_loggers_[sidx]->LogOnce(time_delta_ms, s);
+    pctx->all_loggers_[sidx]->LogOnce(timestamp, s);
     perfstats_log_stat(pctx, s);
   }
 
@@ -140,7 +170,7 @@ int perfstats_log_once(perfstats_ctx_t *pctx) {
 }
 
 int perfstats_generate_header(perfstats_ctx_t *pctx) {
-  const char *header_str = "Timestamp (ms),Stat Type, Stat Value";
+  const char *header_str = "Timestamp (ms),Stat Type, Stat Value\n";
   fwrite(header_str, strlen(header_str), 1, pctx->output_file);
   return 0;
 }
@@ -169,14 +199,13 @@ int perfstats_log_hooks(perfstats_ctx_t *pctx, uint64_t timestamp) {
 
 int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
                         reneg_ctx_t rctx) {
-  struct timespec stat_time;
-  clock_gettime(CLOCK_MONOTONIC, &(stat_time));
+  uint64_t timestamp = ::get_timestamp(pctx);
 
-  uint64_t time_delta_ms = (stat_time.tv_sec - pctx->start_time.tv_sec) * 1e3 +
-                           (stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
+  const char *const kRenegMassLabel = "RENEG_COUNTS";
+  Stat massStat(StatType::V_STR, kRenegMassLabel);
 
-  const char* const kRenegLabel = "RENEG_BEGIN";
-  Stat s(StatType::V_STR, kRenegLabel);
+  const char *const kRenegPivotsLabel = "RENEG_PIVOTS";
+  Stat pivotStat(StatType::V_STR, kRenegPivotsLabel);
 
   int buf_sz = STAT_BUF_MAX, buf_idx = 0;
   char buf[buf_sz];
@@ -189,15 +218,55 @@ int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
       print_vector(buf + buf_idx, buf_sz - buf_idx, counts, counts.size(),
                    /* truncate */ false);
 
-  logf(LOG_DBG2, "[Perfstats] %s\n", buf);
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOBs (%d %d)",
+                      pvt_ctx->oob_count_left, pvt_ctx->oob_count_right);
 
-  s.SetValue(time_delta_ms, buf);
+  massStat.SetValue(timestamp, buf);
+
+  print_vector(buf, buf_sz, pvt_ctx->my_pivots, pvt_ctx->my_pivot_count,
+               /* truncate */ false);
+  pivotStat.SetValue(timestamp, buf);
 
   pctx->worker_mtx.Lock();
-  perfstats_log_stat(pctx, s);
+  perfstats_log_stat(pctx, massStat);
+  perfstats_log_stat(pctx, pivotStat);
   pctx->worker_mtx.Unlock();
 
   return 0;
+}
+
+int perfstats_log_aggr_bin_count(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx, int my_rank) {
+  int rv = 0;
+  std::vector<uint64_t> &cnt_vec = pvt_ctx->rank_bin_count_aggr;
+  size_t bin_sz = cnt_vec.size();
+  uint64_t send_buf[bin_sz], recv_buf[bin_sz];
+
+  std::copy(cnt_vec.begin(), cnt_vec.end(), send_buf);
+  MPI_Reduce(send_buf, recv_buf, bin_sz, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
+             MPI_COMM_WORLD);
+
+  if (my_rank != 0) return rv;
+
+  size_t buf_sz = STAT_BUF_MAX;
+  char buf[buf_sz];
+  const char* const kAggrCountLabel = "RENEG_AGGR_BINCNT";
+  Stat aggr_count(StatType::V_STR, kAggrCountLabel);
+
+  print_vector(buf, buf_sz, recv_buf, bin_sz, false);
+
+  uint64_t timestamp = get_timestamp(pctx);
+  aggr_count.SetValue(timestamp, buf);
+
+  const char* const kAggrStdLabel = "RENEG_AGGR_STD";
+  Stat aggr_std(StatType::V_FLOAT, kAggrStdLabel);
+  aggr_std.SetValue(timestamp, get_norm_std(recv_buf, bin_sz));
+
+  pctx->worker_mtx.Lock();
+  perfstats_log_stat(pctx, aggr_count);
+  perfstats_log_stat(pctx, aggr_std);
+  pctx->worker_mtx.Unlock();
+
+  return rv;
 }
 }  // namespace pdlfs
 /* END Internal Definitions */

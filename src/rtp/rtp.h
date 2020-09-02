@@ -14,10 +14,6 @@
 #define RANGE_RTP_PVTCNT2 8
 #define RANGE_RTP_PVTCNT3 8
 
-#define RANGE_RTP_FANOUT1 2
-#define RANGE_RTP_FANOUT2 2
-#define RANGE_RTP_FANOUT3 2
-
 /*
  * Edge cases:
  *

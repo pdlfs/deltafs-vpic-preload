@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <limits.h>
+#include <mpi.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <time.h>
@@ -53,10 +54,10 @@ typedef struct perfstats_ctx {
    */
   bool sysfs_enabled = false;
 
-//#ifdef PRELOAD_HAS_BLKID
-//  char sysfs_path_[PATH_MAX];
-//  bd_stats_t prev_bd_stats;
-//#endif
+  //#ifdef PRELOAD_HAS_BLKID
+  //  char sysfs_path_[PATH_MAX];
+  //  bd_stats_t prev_bd_stats;
+  //#endif
 
 } perfstats_ctx_t;
 
@@ -93,4 +94,15 @@ int perfstats_destroy(perfstats_ctx_t *pctx);
  */
 int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
                         reneg_ctx_t rctx);
-} // namespace pdlfs
+
+/**
+ * @brief
+ *
+ * @param pctx
+ * @param pvt_ctx
+ * @param my_rank
+ * @return
+ */
+int perfstats_log_aggr_bin_count(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
+                                 int my_rank);
+}  // namespace pdlfs

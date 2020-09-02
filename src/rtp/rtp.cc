@@ -4,6 +4,47 @@
 
 extern preload_ctx_t pctx;
 
+namespace {
+inline int cube(int x) { return x*x*x; }
+
+inline int square(int x) { return x*x; }
+
+int compute_fanout(int world_sz, int *fo_arr) {
+  int rv = 0;
+
+  /* Init fanout of the tree for each stage */
+  if (world_sz % 4) {
+    ABORT("RTP world size must be a multiple of 4");
+  }
+
+  int wsz_remain = world_sz;
+
+  int fo_tmp = 1;
+  while(cube(fo_tmp + 1) < world_sz) {
+    fo_tmp++;
+    if (wsz_remain % fo_tmp == 0) {
+      fo_arr[3] = fo_tmp;
+    }
+  }
+  assert (fo_arr[3] >= 2);
+  wsz_remain = world_sz / fo_arr[3];
+  fo_tmp = 1;
+
+  while(square(fo_tmp + 1) < world_sz) {
+    fo_tmp++;
+    if (wsz_remain % fo_tmp == 0) {
+      fo_arr[2] = fo_tmp;
+    }
+  }
+
+  fo_arr[1] = world_sz / (fo_arr[2] * fo_arr[3]);
+
+  logf(LOG_DBUG, "RTP Fanout: %d/%d/%d\n", fo_arr[1], fo_arr[2], fo_arr[3]);
+
+  return rv;
+}
+}
+
 namespace pdlfs {
 
 /* BEGIN internal declarations */
@@ -101,10 +142,6 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
 
   rctx->round_num = 0;
 
-  rctx->fanout[1] = ro.fanout_s1;
-  rctx->fanout[2] = ro.fanout_s2;
-  rctx->fanout[3] = ro.fanout_s3;
-
   rctx->pvtcnt[1] = RANGE_RTP_PVTCNT1;
   rctx->pvtcnt[2] = RANGE_RTP_PVTCNT2;
   rctx->pvtcnt[3] = RANGE_RTP_PVTCNT3;
@@ -129,6 +166,9 @@ int reneg_topology_init(reneg_ctx_t rctx) {
   grank = nexus_global_rank(rctx->nxp);
   gsz = nexus_global_size(rctx->nxp);
 
+  compute_fanout(gsz, rctx->fanout);
+
+  /* Init peers for each stage */
   int s1mask = ~(rctx->fanout[1] - 1);
   int s2mask = ~(rctx->fanout[1] * rctx->fanout[2] - 1);
   int s3mask = ~((rctx->fanout[1] * rctx->fanout[2] * rctx->fanout[3]) - 1);

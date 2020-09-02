@@ -564,7 +564,8 @@ static void do_dump_from_trace() {
                                     // g.nps * g.size, range_wp, myrank, g.size);
 
   char fpath[255];
-  snprintf(fpath, 255, "/users/ankushj/T.1900/eparticle.1900.%d", myrank);
+//  snprintf(fpath, 255, "/users/ankushj/T.1900/eparticle.1900.%d", myrank);
+  snprintf(fpath, 255, "/Users/schwifty/Repos/workloads/data/T.100/eparticle.100.%d", myrank);
   FILE *trace_file = fopen(fpath, "r");
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);

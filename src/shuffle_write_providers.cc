@@ -7,7 +7,6 @@
 #include <time.h>
 
 void mock_reneg();
-float get_indexable_property(const char* data_buf, unsigned int dbuf_sz);
 
 void mock_reneg() {
   range_ctx_t* rctx = &pctx.rctx;
@@ -121,6 +120,7 @@ int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
     }
 
     pvt_ctx->rank_bin_count[peer_rank]++;
+    pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
     // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
     // epoch, peer_rank, rank);
@@ -435,6 +435,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   }
 
   pvt_ctx->rank_bin_count[peer_rank]++;
+  pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
   // if (ctx->type == SHUFFLE_XN) {
   // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,

@@ -1253,10 +1253,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  /* TODO: make useful or remove */
   struct pdlfs::reneg_opts ro;
-  ro.fanout_s1 = RANGE_RTP_FANOUT1;
-  ro.fanout_s2 = RANGE_RTP_FANOUT2;
-  ro.fanout_s3 = RANGE_RTP_FANOUT3;
 
   reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), &(pctx.pvt_ctx), ro);
 
@@ -1893,6 +1891,7 @@ int MPI_Finalize(void) {
 
   /* destroy time series monitor */
   if (!pctx.nomon) {
+    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), &(pctx.pvt_ctx), pctx.my_rank);
     int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
     if (rv) {
       ABORT("perfstats_destroy");

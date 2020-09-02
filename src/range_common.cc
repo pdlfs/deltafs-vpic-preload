@@ -1,10 +1,12 @@
+#include "range_common.h"
+
 #include <math.h>
+
 #include <algorithm>
 #include <numeric>
 
 #include "common.h"
 #include "preload_internal.h"
-#include "range_common.h"
 
 /**** FOR DEBUGGING ****/
 #define PRINTBUF_LEN 16384
@@ -45,11 +47,10 @@ static char *print_vec(char *buf, int buf_len, std::vector<float> &v,
 /* return true if a is smaller - we prioritize smaller bin_val
  * and for same bin_val, we prioritize ending items (is_start == false)
  * first */
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
+bool rb_item_lt(const rb_item_t &a, const rb_item_t &b) {
   return (a.bin_val < b.bin_val) ||
-      ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
+         ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
 }
-
 
 namespace {
 bool pmt_comp(const particle_mem_t &a, const particle_mem_t &b) {
@@ -76,8 +77,8 @@ int get_oob_min_max(pivot_ctx_t *pvt_ctx, int &oob_min, int &oob_max) {
 
 int sanitize_oob(std::vector<particle_mem_t> &oob, int oob_sz,
                  std::vector<float> &san_oobl, int &san_oobl_sz,
-                 std::vector<float> &san_oobr, int &san_oobr_sz, float range_min,
-                 float range_max) {
+                 std::vector<float> &san_oobr, int &san_oobr_sz,
+                 float range_min, float range_max) {
   int rv = 0;
 
   for (int oidx = 0; oidx < oob_sz; oidx++) {
@@ -132,6 +133,7 @@ int pivot_ctx_init(pivot_ctx_t *pvt_ctx) {
 
   pvt_ctx->rank_bins.resize(pctx.comm_sz + 1);
   pvt_ctx->rank_bin_count.resize(pctx.comm_sz);
+  pvt_ctx->rank_bin_count_aggr.resize(pctx.comm_sz);
 
   pvt_ctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
   pvt_ctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
@@ -154,6 +156,8 @@ int pivot_ctx_reset(pivot_ctx_t *pvt_ctx) {
   pctx.rctx.range_max = 0;
 
   std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 0);
+  std::fill(pvt_ctx->rank_bin_count_aggr.begin(),
+            pvt_ctx->rank_bin_count_aggr.end(), 0);
 
   pctx.rctx.oob_count_left = 0;
   pctx.rctx.oob_count_right = 0;
@@ -167,8 +171,8 @@ int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots) {
 
   pivot_calculate(pvt_ctx, num_pivots);
 
-  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f\n", 
-      pctx.my_rank, pvt_ctx->pivot_width);
+  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f\n", pctx.my_rank,
+       pvt_ctx->pivot_width);
 
   if (pvt_ctx->pivot_width > 1e-3) return rv;
 
@@ -191,6 +195,8 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   // XXX: assert(pivot_access_m) held
 
   assert(num_pivots <= RANGE_MAX_PIVOTS);
+
+  pvt_ctx->my_pivot_count = num_pivots;
 
   float range_start = pvt_ctx->range_min;
   float range_end = pvt_ctx->range_max;
