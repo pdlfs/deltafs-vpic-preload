@@ -970,6 +970,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  pctx.mock_backend = new pdlfs::MockBackend(1024 * 1024, 40);
+
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {
       logf(LOG_INFO, "particle id: %d bytes, data: %d (+ %d) bytes",
@@ -1156,6 +1158,12 @@ int MPI_Init(int* argc, char*** argv) {
       snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d", dirpath,
                pctx.my_rank);
 
+      char mock_manifest_path[255];
+      snprintf(mock_manifest_path, 255, "%s/vpic-manifest.%d", dirpath,
+               pctx.my_rank);
+
+      pctx.mock_backend->SetDumpPath(mock_manifest_path);
+
       /* ignore error since directory may exist */
       nxt.mkdir(dirpath, 0777);
 
@@ -1172,7 +1180,7 @@ int MPI_Init(int* argc, char*** argv) {
       /* Timeseries perf collection - functionality may overlap
        * with other monitoring functions */
       int rv = pdlfs::perfstats_init(&(pctx.perf_ctx), pctx.my_rank, dirpath,
-          pctx.local_root);
+                                     pctx.local_root);
       if (rv) {
         ABORT("perfstats_init");
       }
@@ -1335,6 +1343,8 @@ int MPI_Finalize(void) {
   num_files_read = num_bytes_read = 0;
   io_time = 0;
 
+  pctx.mock_backend->Finish();
+  delete pctx.mock_backend;
   pthread_mutex_destroy(&(pctx.data_mutex));
   reneg_destroy(&(pctx.rtp_ctx));
 
@@ -1891,7 +1901,8 @@ int MPI_Finalize(void) {
 
   /* destroy time series monitor */
   if (!pctx.nomon) {
-    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), &(pctx.pvt_ctx), pctx.my_rank);
+    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), &(pctx.pvt_ctx),
+                                        pctx.my_rank);
     int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
     if (rv) {
       ABORT("perfstats_destroy");
@@ -2787,6 +2798,7 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   int rv;
 
   pctx.perf_ctx.stat_hooks.bytes_written += data_len;
+  pctx.mock_backend->Write(data);
 
   if (epoch == -1) {
     epoch = num_eps - 1;

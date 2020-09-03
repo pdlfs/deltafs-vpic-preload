@@ -35,25 +35,24 @@
 
 #pragma once
 
+#include <deltafs/deltafs_api.h>
 #include <mpi.h>
 #include <pthread.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 
-#include <deltafs/deltafs_api.h>
-
-#include "common.h"
-#include "preload_mon.h"
-#include "perfstats/perfstats.h"
-#include "preload_shuffle.h"
-#include "preload_range.h"
-#include "rtp/rtp.h"
-
-#include "preload.h"
-
 #include <map>
 #include <set>
 #include <vector>
+
+#include "common.h"
+#include "mock_backend.h"
+#include "perfstats/perfstats.h"
+#include "preload.h"
+#include "preload_mon.h"
+#include "preload_range.h"
+#include "preload_shuffle.h"
+#include "rtp/rtp.h"
 
 /*
  * preload context:
@@ -172,6 +171,8 @@ typedef struct preload_ctx {
   float data[40];
   int data_len;
   pthread_mutex_t data_mutex;
+
+  pdlfs::MockBackend* mock_backend;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;

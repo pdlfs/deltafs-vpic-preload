@@ -20,7 +20,7 @@ int compute_fanout(int world_sz, int *fo_arr) {
   int wsz_remain = world_sz;
 
   int fo_tmp = 1;
-  while(cube(fo_tmp + 1) < world_sz) {
+  while(cube(fo_tmp + 1) <= world_sz) {
     fo_tmp++;
     if (wsz_remain % fo_tmp == 0) {
       fo_arr[3] = fo_tmp;
@@ -30,7 +30,7 @@ int compute_fanout(int world_sz, int *fo_arr) {
   wsz_remain = world_sz / fo_arr[3];
   fo_tmp = 1;
 
-  while(square(fo_tmp + 1) < world_sz) {
+  while(square(fo_tmp + 1) <= world_sz) {
     fo_tmp++;
     if (wsz_remain % fo_tmp == 0) {
       fo_arr[2] = fo_tmp;

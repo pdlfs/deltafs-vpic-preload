@@ -752,13 +752,11 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
-#ifdef DEBUG_INFO
-  fprintf(stderr, "shuffle_handle: received at %d\n", dst);
-#endif
-
   char msg_type = msgfmt_get_msgtype(buf);
   switch (msg_type) {
     case MSGFMT_DATA:
+      fprintf(stderr, "shuffle_handle: received data at %d\n", dst);
+
       break;
     // case MSGFMT_RENEG_BEGIN:
       // range_handle_reneg_begin(buf, buf_sz);

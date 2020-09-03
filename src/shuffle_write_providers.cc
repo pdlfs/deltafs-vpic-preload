@@ -1,4 +1,5 @@
 #include "shuffle_write_providers.h"
+
 #include <pdlfs-common/xxhash.h>
 #ifdef PRELOAD_HAS_CH_PLACEMENT
 #include <ch-placement.h>
@@ -122,8 +123,8 @@ int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
     pvt_ctx->rank_bin_count[peer_rank]++;
     pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
-    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
-    // epoch, peer_rank, rank);
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
+                       epoch, peer_rank, rank);
   }
 
   oob_sz = repl_idx;
@@ -383,13 +384,13 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
    * 4. Shuffle, if shuffle_now is true
    */
 
-#define OOB_LEFT_FULL(pvt_ctx) (pvt_ctx->oob_count_left == RANGE_MAX_OOB_SZ)
-#define OOB_RIGHT_FULL(pvt_ctx) (pvt_ctx->oob_count_right == RANGE_MAX_OOB_SZ)
+#define OOB_LEFT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_left == RANGE_MAX_OOB_SZ)
+#define OOB_RIGHT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_right == RANGE_MAX_OOB_SZ)
 #define OOB_EITHER_FULL(pvt_ctx) \
   (OOB_LEFT_FULL(pvt_ctx) || OOB_RIGHT_FULL(pvt_ctx))
 
 #define RENEG_ONGOING(pvt_ctx) \
-  (pvt_ctx->mts_mgr.get_state() == MainThreadState::MT_BLOCK)
+  ((pvt_ctx)->mts_mgr.get_state() == MainThreadState::MT_BLOCK)
 
   bool reneg_and_block =
       (!shuffle_now && OOB_EITHER_FULL(pvt_ctx)) || RENEG_ONGOING(pvt_ctx);
@@ -437,12 +438,12 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   pvt_ctx->rank_bin_count[peer_rank]++;
   pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
-  // if (ctx->type == SHUFFLE_XN) {
-  // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-  // peer_rank, rank);
-  // } else {
-  // nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
-  // }
+  if (ctx->type == SHUFFLE_XN) {
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+                       peer_rank, rank);
+  } else {
+    nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
+  }
 
 cleanup:
   pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
