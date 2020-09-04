@@ -17,6 +17,7 @@
 cmake_minimum_required (VERSION 3.1)
 project (deltafs-preload C CXX)
 set (CMAKE_CXX_STANDARD 11)
+enable_testing ()
 
 # add our cmake module directory to the path
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
@@ -88,6 +89,7 @@ set (PRELOAD_BLKID "ON" CACHE BOOL "Build with libblkid if present")
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
 
 add_subdirectory (src)
+add_subdirectory (tests)
 if (BUILD_TOOLS)
     add_subdirectory (tools)
 endif ()
