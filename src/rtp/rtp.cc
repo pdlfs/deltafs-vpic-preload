@@ -6,6 +6,25 @@
 extern preload_ctx_t pctx;
 
 namespace {
+
+/* Hash function, from
+ * https://stackoverflow.com/questions/8317508/hash-function-for-a-string
+ */
+#define A 54059 /* a prime */
+#define B 76963 /* another prime */
+#define C 86969 /* yet another prime */
+#define FIRSTH 37 /* also prime */
+
+uint32_t hash_str(const char* data, int slen)
+{
+  uint32_t h = FIRSTH;
+  for (int sidx = 0; sidx < slen; sidx++) {
+    char s = data[sidx];
+    h = (h * A) ^ (s * B);
+  }
+  return h % C;
+}
+
 inline int cube(int x) { return x * x * x; }
 
 inline int square(int x) { return x * x; }
@@ -366,7 +385,7 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
     pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
 
     logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u\n",
-         pvt_buf_len, hash_str(pvt_buf, pvt_buf_len));
+         pctx.my_rank, pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
 
     logf(LOG_DBUG, "sending pivots, count: %d\n", pvtcnt);
 
@@ -402,7 +421,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
   float* pivots;
 
   logf(LOG_DBG2, "reneg_handle_rtp_pivot: bufsz: %u, bufhash, %u\n",
-       buf_sz, hash_str(buf, buf_sz));
+       buf_sz, ::hash_str(buf, buf_sz));
   
   msgfmt_decode_rtp_pivots(buf, buf_sz, &round_num, &stage_num, &sender_id,
                            &pivots, &pivot_width, &num_pivots);
