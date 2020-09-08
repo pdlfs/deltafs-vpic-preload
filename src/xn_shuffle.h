@@ -113,10 +113,10 @@ extern int xn_shuffle_world_size(xn_ctx_t* ctx);
 /* xn_shuffle_my_rank: return my rank id */
 extern int xn_shuffle_my_rank(xn_ctx_t* ctx);
 
-void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
                         int epoch, int dst, int src);
 
-void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
                                int epoch, int dst, int src);
 
 /* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */

@@ -139,7 +139,7 @@ static void xn_shuffle_deliver(int src, int dst, uint32_t type, void* buf,
   }
 }
 
-void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
                         int epoch, int dst, int src) {
   hg_return_t hret;
   assert(ctx->sh != NULL);
@@ -150,7 +150,7 @@ void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
   }
 }
 
-void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
+void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
                                int epoch, int dst, int src) {
   hg_return_t hret;
   assert(ctx->psh != NULL);
