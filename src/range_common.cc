@@ -262,6 +262,11 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
   int cur_pivot = 1;
   float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
 
+  if (part_per_pivot < 1) {
+    logf(LOG_WARN,
+         "pivot_calculate: ppp < 1, calculation may not proceed correctly\n");
+  }
+
   if (part_per_pivot < 1e-5) {
     std::fill(pvt_ctx->my_pivots, pvt_ctx->my_pivots + num_pivots, 0);
     pvt_ctx->pivot_width = 0;
@@ -286,21 +291,25 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
 
   float accumulated_ppp = 0;
   float particles_carried_over = 0;
+  /* Pivot calculation for OOBL and OOBR is similar, except OOBL will not
+   * consume any "particles_carried_over"
+   */
 
-  int oob_index = 0;
+  float oob_idx = 0;
   while (1) {
-    int part_left = oobl_sz - oob_index;
+    float part_left = oobl_sz - oob_idx;
     if (part_per_pivot < 1e-5 || part_left < part_per_pivot) {
       particles_carried_over += part_left;
       break;
     }
 
     accumulated_ppp += part_per_pivot;
+
     int cur_part_idx = round(accumulated_ppp);
     pvt_ctx->my_pivots[cur_pivot] = oobl[cur_part_idx];
     cur_pivot++;
 
-    oob_index = cur_part_idx + 1;
+    oob_idx = accumulated_ppp;
   }
 
   int bin_idx = 0;
@@ -336,20 +345,23 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
     }
   }
 
-  oob_index = 0;
+  fprintf(stderr, "cur_pivot: %d, pco: %0.3f\n", cur_pivot,
+          particles_carried_over);
+
+  oob_idx = 0;
   /* XXX: There is a minor bug here, part_left should be computed using
    * the un-rounded accumulated_ppp, not oob_index
    */
 
   while (1) {
-    int part_left = oobr_sz - oob_index;
+    float part_left = oobr_sz - oob_idx;
     if (part_per_pivot < 1e-5 ||
         part_left + particles_carried_over < part_per_pivot - 1e-5) {
       particles_carried_over += part_left;
       break;
     }
 
-    float next_idx = oob_index + part_per_pivot - particles_carried_over;
+    float next_idx = oob_idx + part_per_pivot - particles_carried_over;
 
     particles_carried_over = 0;
 
@@ -358,7 +370,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
 
     pvt_ctx->my_pivots[cur_pivot] = oobr[cur_part_idx];
     cur_pivot++;
-    oob_index = cur_part_idx + 1;
+    oob_idx = next_idx;
   }
 
   for (; cur_pivot < num_pivots - 1; cur_pivot++) {
