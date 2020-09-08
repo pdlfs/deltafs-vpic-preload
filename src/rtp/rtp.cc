@@ -408,6 +408,11 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
   logf(LOG_DBUG, "reneg_handle_rtp_pivot: S%d %d pivots from %d\n", stage_num,
        num_pivots, sender_id);
 
+  if (num_pivots >= 4) {
+    logf(LOG_DBG2, "reneg_handle_rtp_pivot: %.2f %.2f %.2f %.2f ...\n",
+        pivots[0], pivots[1], pivots[2], pivots[3]);
+  }
+
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   int stage_pivot_count = 0;
