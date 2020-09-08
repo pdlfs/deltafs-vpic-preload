@@ -365,6 +365,9 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
     pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
 
+    logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u\n",
+         pvt_buf_len, hash_str(pvt_buf, pvt_buf_len));
+
     logf(LOG_DBUG, "sending pivots, count: %d\n", pvtcnt);
 
     send_to_rank(rctx, pvt_buf, pvt_buf_len, rctx->root[1]);
@@ -398,6 +401,9 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
   float pivot_width;
   float* pivots;
 
+  logf(LOG_DBG2, "reneg_handle_rtp_pivot: bufsz: %u, bufhash, %u\n",
+       buf_sz, hash_str(buf, buf_sz));
+  
   msgfmt_decode_rtp_pivots(buf, buf_sz, &round_num, &stage_num, &sender_id,
                            &pivots, &pivot_width, &num_pivots);
   int merged_pvtcnt =
