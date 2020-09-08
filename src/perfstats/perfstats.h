@@ -33,7 +33,7 @@ typedef struct perfstats_ctx {
   /* All timestamps are relative to this time */
   int my_rank;
   struct timespec start_time;
-  FILE *output_file;
+  FILE* output_file;
 
   pthread_t stats_thread;
   bool shutdown;
@@ -43,7 +43,7 @@ typedef struct perfstats_ctx {
   port::Mutex worker_mtx;
   stat_hooks_t stat_hooks;
   std::vector<Stat> buffered_stats_;
-  std::vector<StatLogger *> all_loggers_;
+  std::vector<StatLogger*> all_loggers_;
 
   int statbuf_idx = 0;
 
@@ -71,8 +71,8 @@ typedef struct perfstats_ctx {
  *
  * @return
  */
-int perfstats_init(perfstats_ctx_t *pctx, int my_rank, const char *dir_path,
-                   const char *local_root);
+int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
+                   const char* local_root);
 
 /**
  * @brief
@@ -81,7 +81,7 @@ int perfstats_init(perfstats_ctx_t *pctx, int my_rank, const char *dir_path,
  *
  * @return
  */
-int perfstats_destroy(perfstats_ctx_t *pctx);
+int perfstats_destroy(perfstats_ctx_t* pctx);
 
 /**
  * @brief
@@ -92,7 +92,7 @@ int perfstats_destroy(perfstats_ctx_t *pctx);
  *
  * @return
  */
-int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
+int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
                         reneg_ctx_t rctx);
 
 /**
@@ -103,6 +103,17 @@ int perfstats_log_reneg(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
  * @param my_rank
  * @return
  */
-int perfstats_log_aggr_bin_count(perfstats_ctx_t *pctx, pivot_ctx_t *pvt_ctx,
+int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
                                  int my_rank);
+
+/**
+ * @brief
+ *
+ * @param pctx
+ * @param pivots
+ * @param num_pivots
+ * @return
+ */
+int perfstats_log_mypivots(perfstats_ctx_t* pctx, float* pivots,
+                           int num_pivots);
 }  // namespace pdlfs

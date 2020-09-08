@@ -163,7 +163,7 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<uint64_t> &v,
   for (int vidx = 0; vidx < vlen; vidx++) {
     if (buf_idx >= buf_sz) return buf_idx;
 
-    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%lu ", v[vidx]);
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%llu ", v[vidx]);
   }
 
   buf_idx +=
@@ -233,7 +233,7 @@ static inline int print_vector(char *buf, int buf_sz, uint64_t *v, int vlen,
   for (int vidx = 0; vidx < vlen; vidx++) {
     if (buf_idx >= buf_sz) return buf_idx;
 
-    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%lu ", v[vidx]);
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%llu ", v[vidx]);
   }
 
   buf_idx +=
