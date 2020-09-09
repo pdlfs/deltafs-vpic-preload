@@ -4,10 +4,11 @@
 namespace pdlfs {
 DataBuffer::DataBuffer() {
   memset(data_len, 0, sizeof(data_len));
-  // XXX: revisit
+  /* num_pivots[1] is irrelevant, as stage 1 doesn't buffer
+   * and merge pivots. TODO: errorcheck and remove  */
   this->num_pivots[1] = RANGE_RTP_PVTCNT1;
-  this->num_pivots[2] = RANGE_RTP_PVTCNT2;
-  this->num_pivots[3] = RANGE_RTP_PVTCNT3;
+  this->num_pivots[2] = RANGE_RTP_PVTCNT1;
+  this->num_pivots[3] = RANGE_RTP_PVTCNT2;
 
   this->cur_store_idx = 0;
 }

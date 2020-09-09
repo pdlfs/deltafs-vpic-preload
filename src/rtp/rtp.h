@@ -10,9 +10,11 @@
 #include "xn_shuffle.h"
 
 
-#define RANGE_RTP_PVTCNT1 8
-#define RANGE_RTP_PVTCNT2 8
-#define RANGE_RTP_PVTCNT3 8
+#define RANGE_RTP_PVTCNT1 64
+#define RANGE_RTP_PVTCNT2 64
+
+/* TODO: final pivots are fixed anyway, so remove */
+#define RANGE_RTP_PVTCNT3 256
 
 /*
  * Edge cases:

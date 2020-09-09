@@ -474,8 +474,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
     char print_buf[1024];
     print_vector(print_buf, 1024, merged_pivots, merged_pvtcnt);
-    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f\n", rctx->my_rank,
-         print_buf, merged_width);
+    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)\n", rctx->my_rank,
+         print_buf, merged_width, merged_pvtcnt);
 
     logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
          stage_num, rctx->my_rank);
@@ -487,7 +487,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, 2048, round_num, stage_num + 1, rctx->my_rank,
-          merged_pivots, merged_width, num_pivots, /* bcast */ false);
+          merged_pivots, merged_width, merged_pvtcnt, /* bcast */ false);
 
       int new_dest = stage_num == 1 ? rctx->root[2] : rctx->root[3];
 
