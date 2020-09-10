@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define STAT_BUF_MAX 1024
 
@@ -12,16 +12,16 @@ class Stat {
  private:
   uint64_t timestamp_;
   StatType stat_type_;
-  const char *stat_label_;
+  char stat_label_[STAT_BUF_MAX];
   union {
     float v_float_;
     int v_int_;
     uint64_t v_uint64_;
     char v_str_[STAT_BUF_MAX];
   };
+
  public:
-  Stat(const StatType stat_type, const char *stat_label)
-      : stat_type_(stat_type), stat_label_(stat_label) {}
+  Stat(const StatType stat_type, const char* stat_label);
 
   int SetType(const StatType stat_type, const char* label);
 
@@ -33,12 +33,12 @@ class Stat {
 
   int SetValue(uint64_t timestamp, const char* value);
 
-  int Serialize(FILE *output_file);
+  int Serialize(FILE* output_file);
 };
 
 class StatLogger {
  public:
-  virtual int LogOnce(uint64_t timestamp, Stat &s) = 0;
+  virtual int LogOnce(uint64_t timestamp, Stat& s) = 0;
   virtual ~StatLogger() {}
 };
-}
+}  // namespace pdlfs

@@ -5,10 +5,18 @@
 #include <string.h>
 
 namespace pdlfs {
-int Stat::SetType(const StatType stat_type, const char *label) {
+Stat::Stat(const StatType stat_type, const char* stat_label)
+    : stat_type_(stat_type) {
+  strncpy(stat_label_, stat_label, STAT_BUF_MAX);
+  stat_label_[STAT_BUF_MAX - 1] = '\0';
+}
+
+int Stat::SetType(const StatType stat_type, const char* label) {
   int rv = 0;
   stat_type_ = stat_type;
-  stat_label_ = label;
+
+  strncpy(stat_label_, label, STAT_BUF_MAX);
+  stat_label_[STAT_BUF_MAX - 1] = '\0';
   return rv;
 }
 
@@ -48,7 +56,7 @@ int Stat::SetValue(uint64_t timestamp, uint64_t value) {
   return rv;
 }
 
-int Stat::SetValue(uint64_t timestamp, const char *value) {
+int Stat::SetValue(uint64_t timestamp, const char* value) {
   int rv = 0;
   if (stat_type_ != StatType::V_STR) {
     rv = -1;
@@ -57,10 +65,12 @@ int Stat::SetValue(uint64_t timestamp, const char *value) {
 
   timestamp_ = timestamp;
   strncpy(v_str_, value, STAT_BUF_MAX);
+  v_str_[STAT_BUF_MAX - 1] = '\0';
+
   return rv;
 }
 
-int Stat::Serialize(FILE *output_file) {
+int Stat::Serialize(FILE* output_file) {
   int rv = 0;
 
   switch (stat_type_) {

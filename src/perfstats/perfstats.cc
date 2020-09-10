@@ -279,7 +279,7 @@ int perfstats_log_mypivots(perfstats_ctx_t* pctx, float* pivots,
   print_vector(buf, buf_sz, pivots, num_pivots, false);
 
   const char* const kMyPivotLabel = "RENEG_PIVOTS";
-  uint timestamp = get_timestamp(pctx);
+  uint64_t timestamp = get_timestamp(pctx);
   Stat pivot_stat(StatType::V_STR, kMyPivotLabel);
   pivot_stat.SetValue(timestamp, buf);
 
@@ -289,5 +289,20 @@ int perfstats_log_mypivots(perfstats_ctx_t* pctx, float* pivots,
 
   return rv;
 }
+
+int perfstats_log_eventstr(perfstats_ctx_t* pctx, const char* event_label,
+                           const char* event_desc) {
+  int rv = 0;
+
+  uint64_t timestamp = get_timestamp(pctx);
+
+  Stat str_stat(StatType::V_STR, event_label);
+  str_stat.SetValue(timestamp, event_desc);
+
+  pctx->worker_mtx.Lock();
+  perfstats_log_stat(pctx, str_stat);
+  pctx->worker_mtx.Unlock();
+  return rv;
+}
 }  // namespace pdlfs
-/* END Internal Definitions */
+   /* END Internal Definitions */
