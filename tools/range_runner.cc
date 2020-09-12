@@ -43,8 +43,10 @@
  * rest preload code, or compile and link it without the preload
  * code but use LD_PRELOAD at runtime to intercept io calls.
  */
+#include <dirent.h>
 #include <errno.h>
 #include <getopt.h>
+#include <mpi.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -52,16 +54,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <iostream>
 #include <fstream>
-
-#include <mpi.h>
+#include <iostream>
 
 #include "workload_generator.h"
 
@@ -375,7 +373,6 @@ static void run_vpic_app() {
     int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
     do_dump_mux();
-
   }
 }
 
@@ -443,7 +440,7 @@ static void do_dump() {
 
   // TODO: change to uint64_t if we expect more than 2B particles
   rangeutils::WorkloadGenerator wg(range_bins, num_bins, range_start, range_end,
-                                    g.nps * g.size, range_wp, myrank, g.size);
+                                   g.nps * g.size, range_wp, myrank, g.size);
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
 #ifdef PRELOAD_EXASCALE_RUNS
@@ -476,7 +473,7 @@ static void do_dump() {
   closedir(dir);
 }
 
-void gen_bins(float *range_bins, int bin_len, int skew_degree) {
+void gen_bins(float* range_bins, int bin_len, int skew_degree) {
   int n, base_factor, skew_factor;
 
   std::ifstream my_file;
@@ -492,7 +489,7 @@ void gen_bins(float *range_bins, int bin_len, int skew_degree) {
 
   my_file.close();
 
-  //int ridx_arr[] = {36, 20, 21, 25, 33, 14, 24, 60};
+  // int ridx_arr[] = {36, 20, 21, 25, 33, 14, 24, 60};
   for (int idx = 0; idx < bin_len; idx++) {
     range_bins[idx] = base_factor;
   }
@@ -519,10 +516,10 @@ static void do_dump_shuffle_skew() {
   rangeutils::WorkloadPattern skew_wp =
       rangeutils::WorkloadPattern::WP_SHUFFLE_SKEW;
 
-  int64_t num_queries = (int64_t) g.nps * (int64_t) g.size;
+  int64_t num_queries = (int64_t)g.nps * (int64_t)g.size;
   // TODO: change to uint64_t if we expect more than 2B particles
   rangeutils::WorkloadGenerator wg(range_bins, g.size, range_start, range_end,
-                                    num_queries, skew_wp, myrank, g.size);
+                                   num_queries, skew_wp, myrank, g.size);
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
 #ifdef PRELOAD_EXASCALE_RUNS
@@ -560,13 +557,23 @@ static void do_dump_from_trace() {
   }
 
   // TODO: change to uint64_t if we expect more than 2B particles
-  // rangeutils::WorkloadGenerator wg(range_bins, num_bins, range_start, range_end,
-                                    // g.nps * g.size, range_wp, myrank, g.size);
+  // rangeutils::WorkloadGenerator wg(range_bins, num_bins, range_start,
+  // range_end, g.nps * g.size, range_wp, myrank, g.size);
 
   char fpath[255];
-//  snprintf(fpath, 255, "/users/ankushj/T.1900/eparticle.1900.%d", myrank);
-  snprintf(fpath, 255, "/Users/schwifty/Repos/workloads/data/T.100/eparticle.100.%d", myrank);
-  FILE *trace_file = fopen(fpath, "r");
+  int timestep = 800;
+  // snprintf(fpath, 255, "/users/ankushj/T.2850/eparticle.2850.%d", myrank);
+  const char* homedir_path = "/users/ankushj/T.%d/eparticle.%d.%d";
+  const char* panfs_path =
+      "/panfs/probescratch/TableFS/test-aj-512/forcefree-tracing-master-512/"
+      "particle.compressed/T.%d/eparticle.%d.%d";
+
+  snprintf(
+      fpath, 255, panfs_path, timestep, timestep, myrank);
+
+  fprintf(stderr, "Reading from trace: %s\n", fpath);
+  // snprintf(fpath, 255, "/users/ankush/T.100/eparticle.100.%d", myrank);
+  FILE* trace_file = fopen(fpath, "r");
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
 #ifdef PRELOAD_EXASCALE_RUNS

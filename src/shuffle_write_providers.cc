@@ -157,6 +157,9 @@ int shuffle_rebalance_oobs(pivot_ctx_t* pvt_ctx,
     } else {
       ABORT("rebalance_oobs: unexpected condition");
     }
+
+    assert(oobl_sz <= RANGE_MAX_OOB_SZ);
+    assert(oobr_sz <= RANGE_MAX_OOB_SZ);
   }
 
   assert(oob_size_orig == oobl_sz + oobr_sz);
@@ -395,7 +398,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   bool reneg_and_block =
       (!shuffle_now && OOB_EITHER_FULL(pvt_ctx)) || RENEG_ONGOING(pvt_ctx);
 
-  if (pvt_ctx->last_reneg_counter == 15000) reneg_and_block = true;
+  if (pvt_ctx->last_reneg_counter == 45000) reneg_and_block = true;
 
   if (reneg_and_block) {
     /* Conditions 2 and 3:

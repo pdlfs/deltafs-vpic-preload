@@ -1,7 +1,11 @@
 #include "rtp/rtp.h"
 
 #include "msgfmt.h"
+#include "perfstats/perfstats.h"
 #include "preload_internal.h"
+
+#define PERFLOG(a, b) \
+  perfstats_log_eventstr(&(pctx.perf_ctx), a, b)
 
 extern preload_ctx_t pctx;
 
@@ -169,6 +173,7 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
   reneg_topology_init(rctx);
 
   rctx->state_mgr.update_state(RenegState::READY);
+  PERFLOG("RENEG_RTP", "RENEG_READY");
 
 cleanup:
   pthread_mutex_unlock(&(rctx->reneg_mutex));
@@ -248,7 +253,7 @@ int reneg_init_round(reneg_ctx_t rctx) {
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   if (rctx->state_mgr.get_state() == RenegState::READY) {
-    logf(LOG_DBUG, "reneg_init_round: broacasting... \n");
+    PERFLOG("RENEG_RTP", "BCAST_BEGIN");
     broadcast_rtp_begin(rctx);
     rctx->state_mgr.update_state(RenegState::READYBLOCK);
   }
@@ -277,12 +282,15 @@ int reneg_handle_msg(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
   switch (msg_type) {
     case MSGFMT_RTP_BEGIN:
+      PERFLOG("RENEG_RTP", "RECV_BEGIN");
       rv = reneg_handle_rtp_begin(rctx, buf, buf_sz, src);
       break;
     case MSGFMT_RTP_PIVOT:
+      PERFLOG("RENEG_RTP", "RECV_PIVOTS");
       rv = reneg_handle_rtp_pivot(rctx, buf, buf_sz, src);
       break;
     case MSGFMT_RTP_PVT_BCAST:
+      PERFLOG("RENEG_RTP", "RECV_BCAST");
       rv = reneg_handle_pivot_bcast(rctx, buf, buf_sz, src);
       break;
     default:
@@ -388,6 +396,8 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
          pctx.my_rank, pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
 
     logf(LOG_DBUG, "sending pivots, count: %d\n", pvtcnt);
+
+    PERFLOG("RENEG_RTP", "PVT_SEND");
 
     send_to_rank(rctx, pvt_buf, pvt_buf_len, rctx->root[1]);
   }

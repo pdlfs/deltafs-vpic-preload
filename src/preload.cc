@@ -1268,6 +1268,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   srand(pctx.my_rank);
 
+  PRELOAD_Barrier(MPI_COMM_WORLD);
   return rv;
 }
 

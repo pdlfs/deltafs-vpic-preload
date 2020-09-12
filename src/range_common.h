@@ -10,7 +10,7 @@
 #define RANGE_BUFSZ 1000
 // TODO: Can shorten this by using indirect ptr?
 #define RANGE_MAX_PSZ 255
-#define RANGE_MAX_OOB_SZ 100
+#define RANGE_MAX_OOB_SZ 250
 /* Total  for left + right buffers */
 #define RANGE_TOTAL_OOB_SZ 2 * RANGE_MAX_OOB_SZ
 
@@ -161,9 +161,9 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<uint64_t> &v,
   int buf_idx = 0;
 
   for (int vidx = 0; vidx < vlen; vidx++) {
-    if (buf_idx >= buf_sz) return buf_idx;
+    if (buf_idx >= buf_sz - 32) return buf_idx;
 
-    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%llu ", v[vidx]);
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%lu ", v[vidx]);
   }
 
   buf_idx +=
@@ -185,7 +185,7 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<int> &v,
   int buf_idx = 0;
 
   for (int vidx = 0; vidx < vlen; vidx++) {
-    if (buf_idx >= buf_sz) return buf_idx;
+    if (buf_idx >= buf_sz - 32) return buf_idx;
 
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%d ", v[vidx]);
   }
@@ -209,7 +209,7 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
   int buf_idx = 0;
 
   for (int vidx = 0; vidx < vlen; vidx++) {
-    if (buf_idx >= buf_sz) return buf_idx;
+    if (buf_idx >= buf_sz - 32) return buf_idx;
 
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
   }
@@ -231,9 +231,9 @@ static inline int print_vector(char *buf, int buf_sz, uint64_t *v, int vlen,
   int buf_idx = 0;
 
   for (int vidx = 0; vidx < vlen; vidx++) {
-    if (buf_idx >= buf_sz) return buf_idx;
+    if (buf_idx >= buf_sz - 32) return buf_idx;
 
-    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%llu ", v[vidx]);
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%lu ", v[vidx]);
   }
 
   buf_idx +=
@@ -253,7 +253,7 @@ static inline int print_vector(char *buf, int buf_sz, float *v, int vlen,
   int buf_idx = 0;
 
   for (int vidx = 0; vidx < vlen; vidx++) {
-    if (buf_idx >= buf_sz) return buf_idx;
+    if (buf_idx >= buf_sz - 32) return buf_idx;
 
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
   }

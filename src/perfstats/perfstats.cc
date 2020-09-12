@@ -129,6 +129,12 @@ void* perfstats_worker(void* arg) {
       }
 
       perfstats_flush(pctx);
+
+      if (pctx->my_rank == 0) {
+        logf(LOG_INFO, "perfstats_worker: done");
+      }
+
+      pctx->worker_mtx.Unlock();
       break;
     }
 
