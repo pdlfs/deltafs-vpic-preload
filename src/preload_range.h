@@ -20,8 +20,8 @@
 #define RANGE_IS_BLOCKED(x) (x->range_state == range_state_t::RS_BLOCKED)
 #define RANGE_IS_ACK(x) (x->range_state == range_state_t::RS_ACK)
 
-#define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == RANGE_MAX_OOB_SZ)
-#define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == RANGE_MAX_OOB_SZ)
+#define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == pdlfs::kMaxOobSize)
+#define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == pdlfs::kMaxOobSize)
 
 #define RANGE_OOB_FULL(x) \
   (x->oob_count_left + x->oob_count_right == RANGE_TOTAL_OOB_SZ)
@@ -83,12 +83,12 @@ typedef struct range_ctx {
 
   /* OOB buffers are never handled by reneg threads
    * and therefore don't need a lock */
-  std::vector<particle_mem_t> oob_buffer_left;
+  std::vector<pdlfs::particle_mem_t> oob_buffer_left;
   /* OOB buffers are preallocated to MAX to avoid resize calls
    * thus we use counters to track actual size */
   int oob_count_left;
 
-  std::vector<particle_mem_t> oob_buffer_right;
+  std::vector<pdlfs::particle_mem_t> oob_buffer_right;
   int oob_count_right;
 
   /* "infinitely" extensible queue for when you don't know what
@@ -96,9 +96,9 @@ typedef struct range_ctx {
    * at some point the rank will come to its senses and flush this
    * queue (read: finish negotiation or flush fixed queues)
    */
-  std::vector<particle_mem_t> contingency_queue;
+  std::vector<pdlfs::particle_mem_t> contingency_queue;
 
-  float my_pivots[RANGE_NUM_PIVOTS];
+  float my_pivots[pdlfs::kMaxPivots];
   float pivot_width;
 
   /* Store pivots from all ranks during a negotiation */

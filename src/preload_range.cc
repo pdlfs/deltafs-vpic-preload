@@ -116,14 +116,14 @@ void range_ctx_init(range_ctx_t *rctx) {
   rctx->rank_bin_count.resize(pctx.comm_sz);
   rctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
   rctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
-  rctx->all_pivots.resize(pctx.comm_sz * RANGE_NUM_PIVOTS);
+  rctx->all_pivots.resize(pctx.comm_sz * pdlfs::kMaxPivots);
   rctx->all_pivot_widths.resize(pctx.comm_sz);
 
   rctx->ranks_acked.resize(pctx.comm_sz);
   rctx->ranks_acked_next.resize(pctx.comm_sz);
 
-  rctx->oob_buffer_left.resize(RANGE_MAX_OOB_SZ);
-  rctx->oob_buffer_right.resize(RANGE_MAX_OOB_SZ);
+  rctx->oob_buffer_left.resize(pdlfs::kMaxOobSize);
+  rctx->oob_buffer_right.resize(pdlfs::kMaxOobSize);
 
   std::fill(rctx->ranks_acked.begin(), rctx->ranks_acked.end(), false);
   std::fill(rctx->ranks_acked_next.begin(), rctx->ranks_acked_next.end(),
@@ -226,15 +226,15 @@ void range_collect_and_send_pivots(range_ctx_t *rctx, shuffle_ctx_t *sctx) {
   get_local_pivots(rctx);
 
 #ifdef RANGE_PARANOID_CHECKS
-  assert_monotically_increasing(rctx->my_pivots, RANGE_NUM_PIVOTS);
+  assert_monotically_increasing(rctx->my_pivots, pdlfs::kMaxPivots);
 #endif
 
-  uint32_t msg_sz = msgfmt_nbytes_reneg_pivots(RANGE_NUM_PIVOTS);
+  uint32_t msg_sz = msgfmt_nbytes_reneg_pivots(pdlfs::kMaxPivots);
 
   char pivot_msg[msg_sz];
   msgfmt_encode_reneg_pivots(pivot_msg, msg_sz, rctx->pvt_round_num.load(),
                              rctx->my_pivots, rctx->pivot_width,
-                             RANGE_NUM_PIVOTS);
+                             pdlfs::kMaxPivots);
 
   /* send to all including self */
   send_all_to_all(sctx, pivot_msg, msg_sz, pctx.my_rank, pctx.comm_sz, true, 1);
@@ -325,7 +325,7 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
          pctx.my_rank, src_rank, pivots[0], pivots[1], pivots[2], pivots[3]);
 #endif
 
-    int our_offset = src_rank * RANGE_NUM_PIVOTS;
+    int our_offset = src_rank * pdlfs::kMaxPivots;
     std::copy(pivots, pivots + num_pivots,
               pctx.rctx.all_pivots.begin() + our_offset);
     pctx.rctx.all_pivot_widths[src_rank] = pivot_width;
@@ -409,7 +409,7 @@ void recalculate_local_bins() {
   float sample_width;
 
   load_bins_into_rbvec(pctx.rctx.all_pivots, rbvec, pctx.rctx.all_pivots.size(),
-                       pctx.comm_sz, RANGE_NUM_PIVOTS);
+                       pctx.comm_sz, pdlfs::kMaxPivots);
   pivot_union(rbvec, unified_bins, unified_bin_counts,
               pctx.rctx.all_pivot_widths, pctx.comm_sz);
 
@@ -626,7 +626,7 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   return;
 }
 
-bool comp_particle(const particle_mem_t &a, const particle_mem_t &b) {
+bool comp_particle(const pdlfs::particle_mem_t &a, const pdlfs::particle_mem_t &b) {
   return a.indexed_prop < b.indexed_prop;
 }
 
@@ -686,15 +686,15 @@ void get_local_pivots(range_ctx_t *rctx) {
   assert(range_end >= range_start);
 
   rctx->my_pivots[0] = range_start;
-  rctx->my_pivots[RANGE_NUM_PIVOTS - 1] = range_end;
+  rctx->my_pivots[pdlfs::kMaxPivots - 1] = range_end;
 
   particle_count += (oobl_sz + oobr_sz);
 
   int cur_pivot = 1;
-  float part_per_pivot = particle_count * 1.0 / (RANGE_NUM_PIVOTS - 1);
+  float part_per_pivot = particle_count * 1.0 / (pdlfs::kMaxPivots - 1);
 
   if (part_per_pivot < 1e-5) {
-    std::fill(rctx->my_pivots, rctx->my_pivots + RANGE_NUM_PIVOTS, 0);
+    std::fill(rctx->my_pivots, rctx->my_pivots + pdlfs::kMaxPivots, 0);
     return;
   }
 
@@ -791,8 +791,8 @@ void get_local_pivots(range_ctx_t *rctx) {
     oob_index = cur_part_idx + 1;
   }
 
-  for (; cur_pivot < RANGE_NUM_PIVOTS - 1; cur_pivot++) {
-    rctx->my_pivots[cur_pivot] = rctx->my_pivots[RANGE_NUM_PIVOTS - 1];
+  for (; cur_pivot < pdlfs::kMaxPivots - 1; cur_pivot++) {
+    rctx->my_pivots[cur_pivot] = rctx->my_pivots[pdlfs::kMaxPivots - 1];
   }
 
   rctx->pivot_width = part_per_pivot;
@@ -824,8 +824,8 @@ void take_snapshot(range_ctx_t *rctx) {
   snap.range_min = rctx->range_min;
   snap.range_max = rctx->range_max;
 
-  std::vector<particle_mem_t> &oob_left = rctx->oob_buffer_left;
-  std::vector<particle_mem_t> &oob_right = rctx->oob_buffer_right;
+  std::vector<pdlfs::particle_mem_t> &oob_left = rctx->oob_buffer_left;
+  std::vector<pdlfs::particle_mem_t> &oob_right = rctx->oob_buffer_right;
 
   int oob_count_left = rctx->oob_count_left;
   int oob_count_right = rctx->oob_count_right;

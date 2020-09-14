@@ -5,19 +5,9 @@
 #include <stdio.h>
 
 #include <vector>
-//
-// TODO: make this configurable
-#define RANGE_BUFSZ 1000
-// TODO: Can shorten this by using indirect ptr?
-#define RANGE_MAX_PSZ 255
-#define RANGE_MAX_OOB_SZ 250
-/* Total  for left + right buffers */
-#define RANGE_TOTAL_OOB_SZ 2 * RANGE_MAX_OOB_SZ
 
-// TODO: irrelevant, replace with MAX_PIVOTS
-#define RANGE_NUM_PIVOTS 4
-
-#define RANGE_MAX_PIVOTS 256
+#include "range_constants.h"
+#include "oob_buffer.h"
 
 typedef struct rb_item {
   int rank;
@@ -27,12 +17,6 @@ typedef struct rb_item {
 } rb_item_t;  // rank-bin item
 
 bool rb_item_lt(const rb_item_t &a, const rb_item_t &b);
-
-typedef struct particle_mem {
-  float indexed_prop;       // property for range query
-  char buf[RANGE_MAX_PSZ];  // other data
-  int buf_sz;
-} particle_mem_t;
 
 typedef struct snapshot_state {
   std::vector<float> rank_bins;
@@ -80,14 +64,15 @@ typedef struct pivot_ctx {
   float range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
-  std::vector<particle_mem_t> oob_buffer_left;
-  std::vector<particle_mem_t> oob_buffer_right;
+  std::vector<pdlfs::particle_mem_t> oob_buffer_left;
+  std::vector<pdlfs::particle_mem_t> oob_buffer_right;
+  pdlfs::OobBuffer oob_buffer;
   /* OOB buffers are pre-allocated to MAX to avoid resize calls
    * thus we use counters to track actual size */
   int oob_count_left;
   int oob_count_right;
 
-  float my_pivots[RANGE_MAX_PIVOTS];
+  float my_pivots[pdlfs::kMaxPivots];
   int my_pivot_count;
   float pivot_width;
 
@@ -128,7 +113,7 @@ int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots);
  *
  * @return
  */
-int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots);
+int pivot_calculate(pivot_ctx_t *pvt_ctx, const size_t num_pivots);
 /**
  * @brief Take a snapshot of the pivot_ctx state
  *
@@ -145,7 +130,7 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx);
  *
  * @return
  */
-int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots);
+int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const size_t num_pivots);
 
 static inline int print_vector(char *buf, int buf_sz, std::vector<uint64_t> &v,
                                int vlen = -1, bool truncate = true) {

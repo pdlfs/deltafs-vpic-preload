@@ -53,15 +53,15 @@ bool rb_item_lt(const rb_item_t &a, const rb_item_t &b) {
 }
 
 namespace {
-bool pmt_comp(const particle_mem_t &a, const particle_mem_t &b) {
+bool pmt_comp(const pdlfs::particle_mem_t &a, const pdlfs::particle_mem_t &b) {
   return a.indexed_prop < b.indexed_prop;
 }
 
 int get_oob_min_max(pivot_ctx_t *pvt_ctx, int &oob_min, int &oob_max) {
   int rv = 0;
 
-  std::vector<particle_mem_t> &oobl = pvt_ctx->oob_buffer_left;
-  std::vector<particle_mem_t> &oobr = pvt_ctx->oob_buffer_right;
+  std::vector<pdlfs::particle_mem_t> &oobl = pvt_ctx->oob_buffer_left;
+  std::vector<pdlfs::particle_mem_t> &oobr = pvt_ctx->oob_buffer_right;
 
   const int oobl_sz = pvt_ctx->oob_count_left;
   const int oobr_sz = pvt_ctx->oob_count_right;
@@ -75,7 +75,7 @@ int get_oob_min_max(pivot_ctx_t *pvt_ctx, int &oob_min, int &oob_max) {
   return rv;
 }
 
-int sanitize_oob(std::vector<particle_mem_t> &oob, int oob_sz,
+int sanitize_oob(std::vector<pdlfs::particle_mem_t> &oob, int oob_sz,
                  std::vector<float> &san_oobl, int &san_oobl_sz,
                  std::vector<float> &san_oobr, int &san_oobr_sz,
                  float range_min, float range_max) {
@@ -125,6 +125,8 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
 
   this->prev_state = this->current_state;
   this->current_state = new_state;
+
+  return this->prev_state;
 }
 
 int pivot_ctx_init(pivot_ctx_t *pvt_ctx) {
@@ -138,8 +140,8 @@ int pivot_ctx_init(pivot_ctx_t *pvt_ctx) {
   pvt_ctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
   pvt_ctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
 
-  pvt_ctx->oob_buffer_left.resize(RANGE_MAX_OOB_SZ);
-  pvt_ctx->oob_buffer_right.resize(RANGE_MAX_OOB_SZ);
+  pvt_ctx->oob_buffer_left.resize(pdlfs::kMaxOobSize);
+  pvt_ctx->oob_buffer_right.resize(pdlfs::kMaxOobSize);
 
   pthread_mutex_unlock(&(pvt_ctx->snapshot_access_m));
   pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
@@ -191,10 +193,10 @@ int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots) {
  * case even if there's only one pivot. XXX: We're not sure whether
  * that's currently the case
  * */
-int pivot_calculate(pivot_ctx_t *pvt_ctx, const int num_pivots) {
+int pivot_calculate(pivot_ctx_t *pvt_ctx, const size_t num_pivots) {
   // XXX: assert(pivot_access_m) held
 
-  assert(num_pivots <= RANGE_MAX_PIVOTS);
+  assert(num_pivots <= pdlfs::kMaxPivots);
 
   pvt_ctx->my_pivot_count = num_pivots;
 
@@ -398,8 +400,8 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
   snap.range_min = pvt_ctx->range_min;
   snap.range_max = pvt_ctx->range_max;
 
-  std::vector<particle_mem_t> &oob_left = pvt_ctx->oob_buffer_left;
-  std::vector<particle_mem_t> &oob_right = pvt_ctx->oob_buffer_right;
+  std::vector<pdlfs::particle_mem_t> &oob_left = pvt_ctx->oob_buffer_left;
+  std::vector<pdlfs::particle_mem_t> &oob_right = pvt_ctx->oob_buffer_right;
 
   int oob_count_left = pvt_ctx->oob_count_left;
   int oob_count_right = pvt_ctx->oob_count_right;
@@ -465,11 +467,11 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx) {
  * case even if there's only one pivot. XXX: We're not sure whether
  * that's currently the case
  * */
-int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const int num_pivots) {
+int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const size_t num_pivots) {
   // XXX: assert(pivot_access_m) held
   // XXX: assert(snapshot_access_m) held
 
-  assert(num_pivots <= RANGE_MAX_PIVOTS);
+  assert(num_pivots <= pdlfs::kMaxPivots);
 
   snapshot_state &snap = pvt_ctx->snapshot;
 

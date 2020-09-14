@@ -456,7 +456,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
   logf(LOG_INFO, "Initiating OOB flush at rank %d\n", pctx.my_rank);
   int oob_count_left = rctx->oob_count_left;
   for (int oidx = oob_count_left - 1; oidx >= 0; oidx--) {
-    particle_mem_t& p = rctx->oob_buffer_left[oidx];
+    pdlfs::particle_mem_t& p = rctx->oob_buffer_left[oidx];
     fprintf(stderr, "Flushing particle with energy %.1f\n", p.indexed_prop);
     if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
       // should never happen since we flush after a reneg
@@ -490,7 +490,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 
   int oob_count_right = rctx->oob_count_right;
   for (int oidx = oob_count_right - 1; oidx >= 0; oidx--) {
-    particle_mem_t& p = rctx->oob_buffer_right[oidx];
+    pdlfs::particle_mem_t& p = rctx->oob_buffer_right[oidx];
 #ifdef RANGE_DEBUG
     fprintf(stderr, "Rank %d, flushing particle with energy %.1f\n",
             pctx.my_rank, p.indexed_prop);
@@ -590,7 +590,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
    * threading design
    */
   assert(rctx->oob_count_left + rctx->oob_count_right <
-         RANGE_TOTAL_OOB_SZ);
+         pdlfs::kMaxOobSize * 2);
 
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
     logf(LOG_ERRO,
@@ -623,7 +623,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     // fprintf(stderr, "Writing to idx %d of oob_left\n", rctx->oob_count_left);
     rctx->oob_buffer_left[rctx->oob_count_left].indexed_prop = indexed_property;
     buf_sz = msgfmt_write_data(rctx->oob_buffer_left[rctx->oob_count_left].buf,
-                               RANGE_MAX_PSZ, fname, fname_len, data, data_len,
+                               pdlfs::kMaxPartSize, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
     rctx->oob_buffer_left[rctx->oob_count_left].buf_sz = buf_sz;
     rctx->oob_count_left++;
@@ -633,7 +633,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop =
         indexed_property;
     buf_sz = msgfmt_write_data(
-        rctx->oob_buffer_right[rctx->oob_count_right].buf, RANGE_MAX_PSZ, fname,
+        rctx->oob_buffer_right[rctx->oob_count_right].buf, pdlfs::kMaxPartSize, fname,
         fname_len, data, data_len, ctx->extra_data_len);
     rctx->oob_buffer_right[rctx->oob_count_right].buf_sz = buf_sz;
 

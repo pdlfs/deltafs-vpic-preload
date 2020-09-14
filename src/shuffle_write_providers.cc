@@ -55,18 +55,18 @@ int store_item_in_oob(pivot_ctx_t* pvt_ctx, buf_type_t& buf_type,
                       char* data, int data_len, int extra_data_len) {
   /* Assert lockheld */
   if (buf_type == buf_type_t::RB_BUF_LEFT) {
-    particle_mem_t& p = pvt_ctx->oob_buffer_left[pvt_ctx->oob_count_left];
+    pdlfs::particle_mem_t& p = pvt_ctx->oob_buffer_left[pvt_ctx->oob_count_left];
 
     p.indexed_prop = indexed_prop;
-    int buf_sz = msgfmt_write_data(p.buf, RANGE_MAX_PSZ, fname, fname_len, data,
+    int buf_sz = msgfmt_write_data(p.buf, pdlfs::kMaxPartSize, fname, fname_len, data,
                                    data_len, extra_data_len);
     p.buf_sz = buf_sz;
     pvt_ctx->oob_count_left++;
   } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
-    particle_mem_t& p = pvt_ctx->oob_buffer_right[pvt_ctx->oob_count_right];
+    pdlfs::particle_mem_t& p = pvt_ctx->oob_buffer_right[pvt_ctx->oob_count_right];
     p.indexed_prop = indexed_prop;
 
-    int buf_sz = msgfmt_write_data(p.buf, RANGE_MAX_PSZ, fname, fname_len, data,
+    int buf_sz = msgfmt_write_data(p.buf, pdlfs::kMaxPartSize, fname, fname_len, data,
                                    data_len, extra_data_len);
     p.buf_sz = buf_sz;
     pvt_ctx->oob_count_right++;
@@ -99,7 +99,7 @@ int shuffle_data_target(const float& indexed_prop) {
 }
 
 int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
-                      std::vector<particle_mem_t>& oob, int& oob_sz,
+                      std::vector<pdlfs::particle_mem_t>& oob, int& oob_sz,
                       int epoch) {
   /* assert lockheld */
   int rv = 0;
@@ -107,7 +107,7 @@ int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
   int rank = shuffle_rank(sctx);
 
   for (int oidx = 0; oidx < oob_sz; oidx++) {
-    particle_mem_t& p = oob[oidx];
+    pdlfs::particle_mem_t& p = oob[oidx];
 
     if (p.indexed_prop < pvt_ctx->range_min ||
         p.indexed_prop > pvt_ctx->range_max) {
@@ -132,11 +132,11 @@ int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
 }
 
 int shuffle_rebalance_oobs(pivot_ctx_t* pvt_ctx,
-                           std::vector<particle_mem_t>& oobl, int& oobl_sz,
-                           std::vector<particle_mem_t>& oobr, int& oobr_sz) {
+                           std::vector<pdlfs::particle_mem_t>& oobl, int& oobl_sz,
+                           std::vector<pdlfs::particle_mem_t>& oobr, int& oobr_sz) {
   /* assert lockheld */
   int rv = 0;
-  std::vector<particle_mem_t> oob_pool;
+  std::vector<pdlfs::particle_mem_t> oob_pool;
 
   oob_pool.insert(oob_pool.end(), oobl.begin(), oobl.begin() + oobl_sz);
   oob_pool.insert(oob_pool.end(), oobr.begin(), oobr.begin() + oobr_sz);
@@ -148,7 +148,7 @@ int shuffle_rebalance_oobs(pivot_ctx_t* pvt_ctx,
   oobr_sz = 0;
 
   for (int oidx = 0; oidx < oobp_sz; oidx++) {
-    particle_mem_t& p = oob_pool[oidx];
+    pdlfs::particle_mem_t& p = oob_pool[oidx];
 
     if (p.indexed_prop < pvt_ctx->range_min) {
       oobl[oobl_sz++] = p;
@@ -158,8 +158,8 @@ int shuffle_rebalance_oobs(pivot_ctx_t* pvt_ctx,
       ABORT("rebalance_oobs: unexpected condition");
     }
 
-    assert(oobl_sz <= RANGE_MAX_OOB_SZ);
-    assert(oobr_sz <= RANGE_MAX_OOB_SZ);
+    assert(oobl_sz <= pdlfs::kMaxOobSize);
+    assert(oobr_sz <= pdlfs::kMaxOobSize);
   }
 
   assert(oob_size_orig == oobl_sz + oobr_sz);
@@ -270,7 +270,7 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
 
   for (int i = 0; i < 1000; i++) {
     float rand_value = (rand() % 16738) / 167.38;
-    particle_mem_t p;
+    pdlfs::particle_mem_t p;
     p.indexed_prop = rand_value;
     p.buf_sz = 0;
     pvt_ctx->oob_buffer_left[pvt_ctx->oob_count_left] = p;
@@ -387,8 +387,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
    * 4. Shuffle, if shuffle_now is true
    */
 
-#define OOB_LEFT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_left == RANGE_MAX_OOB_SZ)
-#define OOB_RIGHT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_right == RANGE_MAX_OOB_SZ)
+#define OOB_LEFT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_left == pdlfs::kMaxOobSize)
+#define OOB_RIGHT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_right == pdlfs::kMaxOobSize)
 #define OOB_EITHER_FULL(pvt_ctx) \
   (OOB_LEFT_FULL(pvt_ctx) || OOB_RIGHT_FULL(pvt_ctx))
 

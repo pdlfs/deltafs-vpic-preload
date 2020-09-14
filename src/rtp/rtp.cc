@@ -438,7 +438,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
   int merged_pvtcnt =
       (stage_num >= 3) ? (rctx->num_ranks + 1) : rctx->pvtcnt[stage_num];
 
-  assert(num_pivots <= RANGE_MAX_PIVOTS);
+  assert(num_pivots <= kMaxPivots);
 
   logf(LOG_DBUG, "reneg_handle_rtp_pivot: S%d %d pivots from %d\n", stage_num,
        num_pivots, sender_id);
@@ -476,7 +476,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
        stage_num, rctx->my_rank, src, stage_pivot_count);
 
   if (expected_items_for_stage(rctx, stage_num, stage_pivot_count)) {
-    float merged_pivots[RANGE_MAX_PIVOTS];
+    float merged_pivots[kMaxPivots];
     float merged_width;
 
     compute_aggregate_pivots(rctx, stage_num, merged_pvtcnt, merged_pivots,

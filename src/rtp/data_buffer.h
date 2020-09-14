@@ -10,7 +10,7 @@ class DataBuffer {
    * be incurred for ranks that aren't actually using those
    * stages. (Virtual Memory ftw)
    */
-  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][RANGE_MAX_PIVOTS];
+  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][kMaxPivots];
   float data_widths[2][STAGES_MAX + 1][FANOUT_MAX];
   int data_len[2][STAGES_MAX + 1];
 
