@@ -6,8 +6,8 @@
 
 #include <vector>
 
-#include "range_constants.h"
 #include "oob_buffer.h"
+#include "range_constants.h"
 
 typedef struct rb_item {
   int rank;
@@ -16,7 +16,7 @@ typedef struct rb_item {
   bool is_start;
 } rb_item_t;  // rank-bin item
 
-bool rb_item_lt(const rb_item_t &a, const rb_item_t &b);
+bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
 
 typedef struct snapshot_state {
   std::vector<float> rank_bins;
@@ -32,7 +32,14 @@ enum MainThreadState {
   MT_BLOCK,
 };
 
-enum class buf_type_t { RB_NO_BUF, RB_BUF_LEFT, RB_BUF_RIGHT, RB_UNDECIDED };
+/* TODO: remove BUF_LEFT and BUF_WRITE, after naive impl is ported */
+enum class buf_type_t {
+  RB_NO_BUF,
+  RB_BUF_OOB,
+  RB_UNDECIDED,
+  RB_BUF_LEFT,
+  RB_BUF_RIGHT
+};
 
 class MainThreadStateMgr {
  private:
@@ -64,13 +71,7 @@ typedef struct pivot_ctx {
   float range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
-  std::vector<pdlfs::particle_mem_t> oob_buffer_left;
-  std::vector<pdlfs::particle_mem_t> oob_buffer_right;
   pdlfs::OobBuffer oob_buffer;
-  /* OOB buffers are pre-allocated to MAX to avoid resize calls
-   * thus we use counters to track actual size */
-  int oob_count_left;
-  int oob_count_right;
 
   float my_pivots[pdlfs::kMaxPivots];
   int my_pivot_count;
@@ -82,9 +83,9 @@ typedef struct pivot_ctx {
   int last_reneg_counter = 0;
 } pivot_ctx_t;
 
-int pivot_ctx_init(pivot_ctx_t *pvt_ctx);
+int pivot_ctx_init(pivot_ctx_t* pvt_ctx);
 
-int pivot_ctx_reset(pivot_ctx_t *pvt_ctx);
+int pivot_ctx_reset(pivot_ctx_t* pvt_ctx);
 
 /**
  * @brief Calculate pivots from the current pivot_ctx state.
@@ -102,7 +103,7 @@ int pivot_ctx_reset(pivot_ctx_t *pvt_ctx);
  *
  * @return
  */
-int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots);
+int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const int num_pivots);
 
 /**
  * @brief Calculate pivots from the current pivot_ctx state.
@@ -113,7 +114,7 @@ int pivot_calculate_safe(pivot_ctx_t *pvt_ctx, const int num_pivots);
  *
  * @return
  */
-int pivot_calculate(pivot_ctx_t *pvt_ctx, const size_t num_pivots);
+int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots);
 /**
  * @brief Take a snapshot of the pivot_ctx state
  *
@@ -121,7 +122,7 @@ int pivot_calculate(pivot_ctx_t *pvt_ctx, const size_t num_pivots);
  *
  * @return
  */
-int pivot_state_snapshot(pivot_ctx *pvt_ctx);
+int pivot_state_snapshot(pivot_ctx* pvt_ctx);
 
 /**
  * @brief Calculate pivot state from snapshot. Exists mostly as legacy
@@ -130,10 +131,23 @@ int pivot_state_snapshot(pivot_ctx *pvt_ctx);
  *
  * @return
  */
-int pivot_calculate_from_snapshot(pivot_ctx_t *pvt_ctx, const size_t num_pivots);
+int pivot_calculate_from_snapshot(pivot_ctx_t* pvt_ctx,
+                                  const size_t num_pivots);
 
-static inline int print_vector(char *buf, int buf_sz, std::vector<uint64_t> &v,
-                               int vlen = -1, bool truncate = true) {
+/**
+ * @brief Update pivots after renegotiation. This *does not* manipulate the
+ * state manager. State manager needs to be directly controlled by the
+ * renegotiation provider because of synchronization implications
+ *
+ * @param pvt_ctx
+ * @param pivots
+ * @param num_pivots
+ * @return
+ */
+int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots);
+
+static inline int print_vector(char* buf, int buf_sz, std::vector<uint64_t>& v,
+                               int vlen = 0, bool truncate = true) {
   vlen = (vlen == -1) ? v.size() : vlen;
 
   bool truncated = false;
@@ -156,7 +170,7 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<uint64_t> &v,
   return buf_idx;
 }
 
-static inline int print_vector(char *buf, int buf_sz, std::vector<int> &v,
+static inline int print_vector(char* buf, int buf_sz, std::vector<int>& v,
                                int vlen = -1, bool truncate = true) {
   vlen = (vlen == -1) ? v.size() : vlen;
 
@@ -180,7 +194,7 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<int> &v,
   return buf_idx;
 }
 
-static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
+static inline int print_vector(char* buf, int buf_sz, std::vector<float>& v,
                                int vlen = -1, bool truncate = true) {
   vlen = (vlen == -1) ? v.size() : vlen;
 
@@ -204,7 +218,7 @@ static inline int print_vector(char *buf, int buf_sz, std::vector<float> &v,
   return buf_idx;
 }
 
-static inline int print_vector(char *buf, int buf_sz, uint64_t *v, int vlen,
+static inline int print_vector(char* buf, int buf_sz, uint64_t* v, int vlen,
                                bool truncate = true) {
   bool truncated = false;
 
@@ -226,7 +240,7 @@ static inline int print_vector(char *buf, int buf_sz, uint64_t *v, int vlen,
   return buf_idx;
 }
 
-static inline int print_vector(char *buf, int buf_sz, float *v, int vlen,
+static inline int print_vector(char* buf, int buf_sz, float* v, int vlen,
                                bool truncate = true) {
   bool truncated = false;
 

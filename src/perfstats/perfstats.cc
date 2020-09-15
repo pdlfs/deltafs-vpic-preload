@@ -224,8 +224,8 @@ int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
       print_vector(buf + buf_idx, buf_sz - buf_idx, counts, counts.size(),
                    /* truncate */ false);
 
-  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOBs (%d %d)",
-                      pvt_ctx->oob_count_left, pvt_ctx->oob_count_right);
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOB (%zu)",
+                      pvt_ctx->oob_buffer.Size());
 
   massStat.SetValue(timestamp, buf);
 

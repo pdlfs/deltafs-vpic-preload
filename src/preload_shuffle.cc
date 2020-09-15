@@ -61,11 +61,8 @@ char buf_type_buf[256];
 
 char *print_buf_type(buf_type_t bt) {
   switch (bt) {
-    case buf_type_t::RB_BUF_LEFT:
-      snprintf(buf_type_buf, 256, "RB_BUF_LEFT");
-      break;
-    case buf_type_t::RB_BUF_RIGHT:
-      snprintf(buf_type_buf, 256, "RB_BUF_RIGHT");
+    case buf_type_t::RB_BUF_OOB:
+      snprintf(buf_type_buf, 256, "RB_BUF_OOB");
       break;
     case buf_type_t::RB_NO_BUF:
       snprintf(buf_type_buf, 256, "RB_NO_BUF");

@@ -34,6 +34,12 @@ int OobBuffer::Insert(particle_mem_t& item) {
 
 size_t OobBuffer::Size() const { return buf_.size(); }
 
+bool OobBuffer::IsFull() const {
+  size_t buf_sz = Size();
+  assert(buf_sz <= pdlfs::kMaxOobSize);
+  return buf_.size() == pdlfs::kMaxOobSize;
+}
+
 int OobBuffer::SetRange(float range_min, float range_max) {
   range_min_ = range_min;
   range_max_ = range_max;
@@ -55,6 +61,15 @@ int OobBuffer::GetPartitionedProps(std::vector<float>& left,
 
   std::sort(left.begin(), left.end());
   std::sort(right.begin(), right.end());
+
+  return 0;
+}
+int OobBuffer::Reset() {
+  range_set_ = false;
+  range_min_ = 0;
+  range_max_ = 0;
+
+  buf_.clear();
 
   return 0;
 }
@@ -84,21 +99,17 @@ particle_mem_t& OobFlushIterator::operator*() {
   }
 }
 
-particle_mem_t& OobFlushIterator::operator++() {
-  particle_mem_t& rv = buf_.buf_[flush_idx_];
-
+void OobFlushIterator::operator++(int) {
   if (flush_idx_ < buf_len_) {
     flush_idx_++;
   }
-
-  return rv;
 }
 
-bool OobFlushIterator::operator==(size_t& other) {
+bool OobFlushIterator::operator==(const size_t other) const {
   return (flush_idx_ == other);
 }
 
-bool OobFlushIterator::operator!=(size_t& other) {
+bool OobFlushIterator::operator!=(const size_t other) const {
   return (flush_idx_ != other);
 }
 

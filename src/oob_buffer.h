@@ -34,9 +34,13 @@ class OobBuffer {
 
   size_t Size() const;
 
+  bool IsFull() const;
+
   int SetRange(float range_min, float range_max);
 
   int GetPartitionedProps(std::vector<float>& left, std::vector<float>& right);
+
+  int Reset();
 };
 
 class OobFlushIterator {
@@ -50,9 +54,9 @@ class OobFlushIterator {
   explicit OobFlushIterator(OobBuffer& buf);
   int PreserveCurrent();
   particle_mem_t& operator*();
-  particle_mem_t& operator++();
-  bool operator==(size_t& other);
-  bool operator!=(size_t& other);
+  void operator++(int);
+  bool operator==(size_t other) const;
+  bool operator!=(size_t other) const;
   ~OobFlushIterator();
 };
 

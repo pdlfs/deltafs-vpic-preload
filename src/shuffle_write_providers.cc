@@ -23,58 +23,19 @@ void mock_reneg() {
 }
 
 namespace {
-template <class T>
-bool in_bounds(T val, T lower, T upper) {
-  return (val >= lower && val <= upper);
-}
-
 buf_type_t compute_oob_buf(pivot_ctx_t* pvt_ctx, float indexed_prop) {
   /* Assert pvt_ctx->pvt_access_m.lockheld() */
   MainThreadState state = pvt_ctx->mts_mgr.get_state();
+  pdlfs::OobBuffer& oob_buffer = pvt_ctx->oob_buffer;
   buf_type_t buf_type;
 
-  float range_min = pvt_ctx->range_min;
-  float range_max = pvt_ctx->range_max;
-
-  if (state == MainThreadState::MT_INIT) {
-    buf_type = buf_type_t::RB_BUF_LEFT;
-  } else if (in_bounds(indexed_prop, range_min, range_max)) {
-    buf_type = buf_type_t::RB_NO_BUF;
-  } else if (indexed_prop < range_min) {
-    buf_type = buf_type_t::RB_BUF_LEFT;
+  if (oob_buffer.OutOfBounds(indexed_prop)) {
+    buf_type = buf_type_t::RB_BUF_OOB;
   } else {
-    assert(indexed_prop > range_max);
-    buf_type = buf_type_t::RB_BUF_RIGHT;
+    buf_type = buf_type_t::RB_NO_BUF;
   }
 
   return buf_type;
-}
-
-int store_item_in_oob(pivot_ctx_t* pvt_ctx, buf_type_t& buf_type,
-                      float indexed_prop, const char* fname, int fname_len,
-                      char* data, int data_len, int extra_data_len) {
-  /* Assert lockheld */
-  if (buf_type == buf_type_t::RB_BUF_LEFT) {
-    pdlfs::particle_mem_t& p = pvt_ctx->oob_buffer_left[pvt_ctx->oob_count_left];
-
-    p.indexed_prop = indexed_prop;
-    int buf_sz = msgfmt_write_data(p.buf, pdlfs::kMaxPartSize, fname, fname_len, data,
-                                   data_len, extra_data_len);
-    p.buf_sz = buf_sz;
-    pvt_ctx->oob_count_left++;
-  } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
-    pdlfs::particle_mem_t& p = pvt_ctx->oob_buffer_right[pvt_ctx->oob_count_right];
-    p.indexed_prop = indexed_prop;
-
-    int buf_sz = msgfmt_write_data(p.buf, pdlfs::kMaxPartSize, fname, fname_len, data,
-                                   data_len, extra_data_len);
-    p.buf_sz = buf_sz;
-    pvt_ctx->oob_count_right++;
-  } else {
-    ABORT("unknown buf_type");
-  }
-
-  return 0;
 }
 
 float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
@@ -96,6 +57,38 @@ int shuffle_data_target(const float& indexed_prop) {
        rank, indexed_prop, print_buf);
 
   return rank;
+}
+
+int shuffle_flush_oob(shuffle_ctx_t *sctx, pivot_ctx_t* pvt_ctx, int epoch) {
+  int rv = 0;
+
+  pdlfs::OobBuffer &oob_buffer = pvt_ctx->oob_buffer;
+  pdlfs::OobFlushIterator fi(oob_buffer);
+  int rank = shuffle_rank(sctx);
+
+  while(fi != oob_buffer.Size()) {
+    pdlfs::particle_mem_t &p = *fi;
+    if (oob_buffer.OutOfBounds(p.indexed_prop)) {
+      fi.PreserveCurrent();
+      fi++;
+      continue;
+    }
+
+    int peer_rank = shuffle_data_target(p.indexed_prop);
+    if (peer_rank < -1 || peer_rank >= pctx.comm_sz) {
+      ABORT("shuffle_flush_oob: invalid peer_rank");
+    }
+
+    pvt_ctx->rank_bin_count[peer_rank]++;
+    pvt_ctx->rank_bin_count_aggr[peer_rank]++;
+
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
+                       epoch, peer_rank, rank);
+
+    fi++;
+  }
+
+  return rv;
 }
 
 int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
@@ -128,41 +121,6 @@ int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
   }
 
   oob_sz = repl_idx;
-  return rv;
-}
-
-int shuffle_rebalance_oobs(pivot_ctx_t* pvt_ctx,
-                           std::vector<pdlfs::particle_mem_t>& oobl, int& oobl_sz,
-                           std::vector<pdlfs::particle_mem_t>& oobr, int& oobr_sz) {
-  /* assert lockheld */
-  int rv = 0;
-  std::vector<pdlfs::particle_mem_t> oob_pool;
-
-  oob_pool.insert(oob_pool.end(), oobl.begin(), oobl.begin() + oobl_sz);
-  oob_pool.insert(oob_pool.end(), oobr.begin(), oobr.begin() + oobr_sz);
-
-  int oobp_sz = oob_pool.size();
-  int oob_size_orig = oobl_sz + oobr_sz;
-
-  oobl_sz = 0;
-  oobr_sz = 0;
-
-  for (int oidx = 0; oidx < oobp_sz; oidx++) {
-    pdlfs::particle_mem_t& p = oob_pool[oidx];
-
-    if (p.indexed_prop < pvt_ctx->range_min) {
-      oobl[oobl_sz++] = p;
-    } else if (p.indexed_prop > pvt_ctx->range_max) {
-      oobr[oobr_sz++] = p;
-    } else {
-      ABORT("rebalance_oobs: unexpected condition");
-    }
-
-    assert(oobl_sz <= pdlfs::kMaxOobSize);
-    assert(oobr_sz <= pdlfs::kMaxOobSize);
-  }
-
-  assert(oob_size_orig == oobl_sz + oobr_sz);
   return rv;
 }
 
@@ -273,8 +231,7 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
     pdlfs::particle_mem_t p;
     p.indexed_prop = rand_value;
     p.buf_sz = 0;
-    pvt_ctx->oob_buffer_left[pvt_ctx->oob_count_left] = p;
-    pvt_ctx->oob_count_left++;
+    pvt_ctx->oob_buffer.Insert(p);
   }
 
   // sleep(5);
@@ -342,13 +299,14 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   pivot_ctx_t* pvt_ctx = &(pctx.pvt_ctx);
   pdlfs::reneg_ctx_t rctx = &(pctx.rtp_ctx);
 
-  char buf[255];
+  char buf[pdlfs::kMaxPartSize];
   int peer_rank = -1;
   int rank;
   int rv = 0;
 
   assert(ctx == &pctx.sctx);
-  assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->fname_len - 1);
+  assert(ctx->extra_data_len + ctx->data_len <
+         pdlfs::kMaxPartSize - ctx->fname_len - 1);
   if (ctx->fname_len != fname_len) ABORT("bad filename len");
   if (ctx->data_len != data_len) ABORT("bad data len");
 
@@ -371,13 +329,15 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   buf_type_t dest_buf = compute_oob_buf(pvt_ctx, indexed_prop);
 
   bool shuffle_now = (dest_buf == buf_type_t::RB_NO_BUF);
+
+  pdlfs::particle_mem_t p;
   /* msgfmt-ize the data */
-  if (shuffle_now) {
-    buf_sz = msgfmt_write_data(buf, 255, fname, fname_len, data, data_len,
+  p.buf_sz = msgfmt_write_data(p.buf, 255, fname, fname_len, data, data_len,
                                ctx->extra_data_len);
-  } else {
-    store_item_in_oob(pvt_ctx, dest_buf, indexed_prop, fname, fname_len, data,
-                      data_len, ctx->extra_data_len);
+  p.indexed_prop = indexed_prop;
+
+  if (!shuffle_now) {
+    rv = pvt_ctx->oob_buffer.Insert(p);
   }
 
   /* At this point, we can (one of the following must hold):
@@ -387,18 +347,15 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
    * 4. Shuffle, if shuffle_now is true
    */
 
-#define OOB_LEFT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_left == pdlfs::kMaxOobSize)
-#define OOB_RIGHT_FULL(pvt_ctx) ((pvt_ctx)->oob_count_right == pdlfs::kMaxOobSize)
-#define OOB_EITHER_FULL(pvt_ctx) \
-  (OOB_LEFT_FULL(pvt_ctx) || OOB_RIGHT_FULL(pvt_ctx))
-
 #define RENEG_ONGOING(pvt_ctx) \
   ((pvt_ctx)->mts_mgr.get_state() == MainThreadState::MT_BLOCK)
 
   bool reneg_and_block =
-      (!shuffle_now && OOB_EITHER_FULL(pvt_ctx)) || RENEG_ONGOING(pvt_ctx);
+      (!shuffle_now && pvt_ctx->oob_buffer.IsFull()) || RENEG_ONGOING(pvt_ctx);
 
-  if (pvt_ctx->last_reneg_counter == 45000) reneg_and_block = true;
+  if (pvt_ctx->last_reneg_counter == pdlfs::kRenegInterval) {
+    reneg_and_block = true;
+  }
 
   if (reneg_and_block) {
     /* Conditions 2 and 3:
@@ -406,13 +363,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
      * If active already, this will block anyway */
     // TODO: make sure no gotchas here
     reneg_init_round(rctx);
-    ::shuffle_flush_oob(ctx, pvt_ctx, pvt_ctx->oob_buffer_left,
-                        pvt_ctx->oob_count_left, epoch);
-    ::shuffle_flush_oob(ctx, pvt_ctx, pvt_ctx->oob_buffer_right,
-                        pvt_ctx->oob_count_right, epoch);
-    ::shuffle_rebalance_oobs(pvt_ctx, pvt_ctx->oob_buffer_left,
-                             pvt_ctx->oob_count_left, pvt_ctx->oob_buffer_right,
-                             pvt_ctx->oob_count_right);
+    ::shuffle_flush_oob(ctx, pvt_ctx, epoch);
   }
 
   if (!shuffle_now) {
