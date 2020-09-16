@@ -44,6 +44,31 @@ static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
   return buf;
 }
 
+static bool float_eq(float a, float b) {
+  const float kFloatCompThreshold = 1e-5;
+  return fabs(a - b) < kFloatCompThreshold;
+}
+
+static bool float_gt(float a, float b) {
+  const float kFloatCompThreshold = 1e-5;
+  return a > b + kFloatCompThreshold;
+}
+
+static bool float_gte(float a, float b) {
+  const float kFloatCompThreshold = 1e-5;
+  return a > b - kFloatCompThreshold;
+}
+
+static bool float_lt(float a, float b) {
+  const float kFloatCompThreshold = 1e-5;
+  return a < b - kFloatCompThreshold;
+}
+
+static bool float_lte(float a, float b) {
+  const float kFloatCompThreshold = 1e-5;
+  return a < b + kFloatCompThreshold;
+}
+
 /* return true if a is smaller - we prioritize smaller bin_val
  * and for same bin_val, we prioritize ending items (is_start == false)
  * first */
@@ -77,8 +102,11 @@ int get_range_bounds(pivot_ctx_t* pvt_ctx, std::vector<float>& oobl,
 
   assert(oobl_min <= oobl_max);
   assert(oobr_min <= oobr_max);
-  assert(oobl_min <= oobr_min);
-  assert(oobl_max <= oobr_max);
+
+  if (oobl_sz and oobr_sz) {
+    assert(oobl_min <= oobr_min);
+    assert(oobl_max <= oobr_max);
+  }
 
   MainThreadState prev_state = pvt_ctx->mts_mgr.get_prev_state();
 
@@ -210,7 +238,6 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
 
   pdlfs::OobBuffer& oob = pvt_ctx->oob_buffer;
   pvt_ctx->oob_buffer.GetPartitionedProps(oobl, oobr);
-  pvt_ctx->oob_buffer.GetPartitionedProps(oobl, oobr);
 
   get_range_bounds(pvt_ctx, oobl, oobr, range_start, range_end);
   assert(range_end >= range_start);
@@ -274,6 +301,8 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
     accumulated_ppp += part_per_pivot;
 
     int cur_part_idx = round(accumulated_ppp);
+    if (cur_part_idx >= oobl_sz) break;
+
     pvt_ctx->my_pivots[cur_pivot] = oobl[cur_part_idx];
     cur_pivot++;
 
@@ -324,7 +353,7 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   while (1) {
     float part_left = oobr_sz - oob_idx;
     if (part_per_pivot < 1e-5 ||
-        part_left + particles_carried_over < part_per_pivot - 1e-5) {
+        part_left + particles_carried_over < part_per_pivot + 1e-5) {
       particles_carried_over += part_left;
       break;
     }
@@ -334,11 +363,18 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
     particles_carried_over = 0;
 
     int cur_part_idx = round(next_idx);
-    if (cur_part_idx >= oobr_sz) cur_part_idx = oobr_sz - 1;
+    if (cur_part_idx >= oobr_sz) break;
 
     pvt_ctx->my_pivots[cur_pivot] = oobr[cur_part_idx];
     cur_pivot++;
     oob_idx = next_idx;
+  }
+
+  if (float_gt(particles_carried_over, 0)) {
+    assert(float_eq(particles_carried_over, part_per_pivot));
+    pvt_ctx->my_pivots[cur_pivot++] = range_end;
+  } else {
+    assert(float_eq(particles_carried_over, 0));
   }
 
   for (; cur_pivot < num_pivots - 1; cur_pivot++) {

@@ -4,11 +4,9 @@
 namespace pdlfs {
 DataBuffer::DataBuffer() {
   memset(data_len, 0, sizeof(data_len));
-  /* num_pivots[1] is irrelevant, as stage 1 doesn't buffer
-   * and merge pivots. TODO: errorcheck and remove  */
-  this->num_pivots[1] = RANGE_RTP_PVTCNT1;
-  this->num_pivots[2] = RANGE_RTP_PVTCNT1;
-  this->num_pivots[3] = RANGE_RTP_PVTCNT2;
+
+  this->num_pivots[1] = kRtpPivotsStage1;
+  this->num_pivots[2] = kRtpPivotsStage2;
 
   this->cur_store_idx = 0;
 }
@@ -17,6 +15,9 @@ int DataBuffer::store_data(int stage, float *pivot_data, int dlen,
                            float pivot_width, bool isnext) {
   int sidx = this->cur_store_idx;
   if (isnext) sidx = !sidx;
+
+  /* TODO: debug; remove */
+  assert(stage != 3);
 
   if (stage < 1 || stage > 3) {
     return -1;
@@ -45,6 +46,9 @@ int DataBuffer::store_data(int stage, float *pivot_data, int dlen,
 }
 
 int DataBuffer::get_num_items(int stage, bool isnext) {
+  /* TODO: debug; remove */
+  assert(stage != 3);
+
   if (stage < 1 || stage > STAGES_MAX) {
     return -1;
   }

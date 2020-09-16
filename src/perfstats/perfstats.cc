@@ -12,6 +12,8 @@
 #ifdef PRELOAD_HAS_BLKID
 #include "perfstats/stat_blkid.h"
 #endif
+
+/* Local Definitions */
 namespace {
 uint64_t get_timestamp(pdlfs::perfstats_ctx_t* pctx) {
   struct timespec stat_time;
@@ -58,8 +60,6 @@ int perfstats_log_hooks(perfstats_ctx_t* pctx, uint64_t timestamp);
 
 int perfstats_generate_header(perfstats_ctx_t* pctx);
 
-int perfstats_flush(perfstats_ctx_t* pctx);
-
 int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
                    const char* local_root) {
   assert(pctx != NULL);
@@ -80,8 +80,9 @@ int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
     return rv;
   }
 
+  setvbuf(output_file, NULL, _IOLBF, 0);
+
   pctx->output_file = output_file;
-  pctx->buffered_stats_.reserve(kStatArrSize);
 
   perfstats_generate_header(pctx);
 
@@ -128,8 +129,6 @@ void* perfstats_worker(void* arg) {
         logf(LOG_INFO, "perfstats_worker: shutting down");
       }
 
-      perfstats_flush(pctx);
-
       if (pctx->my_rank == 0) {
         logf(LOG_INFO, "perfstats_worker: done");
       }
@@ -150,11 +149,8 @@ void* perfstats_worker(void* arg) {
 
 int perfstats_log_stat(perfstats_ctx_t* pctx, Stat& s) {
   pctx->worker_mtx.AssertHeld();
+  s.Serialize(pctx->output_file);
 
-  pctx->buffered_stats_.push_back(s);
-  if (pctx->buffered_stats_.size() >= kStatArrSize) {
-    perfstats_flush(pctx);
-  }
   return 0;
 }
 
@@ -178,17 +174,6 @@ int perfstats_log_once(perfstats_ctx_t* pctx) {
 int perfstats_generate_header(perfstats_ctx_t* pctx) {
   const char* header_str = "Timestamp (ms),Stat Type, Stat Value\n";
   fwrite(header_str, strlen(header_str), 1, pctx->output_file);
-  return 0;
-}
-
-int perfstats_flush(perfstats_ctx_t* pctx) {
-  pctx->worker_mtx.AssertHeld();
-
-  for (uint32_t sidx = 0; sidx < pctx->buffered_stats_.size(); sidx++) {
-    pctx->buffered_stats_[sidx].Serialize(pctx->output_file);
-  }
-
-  pctx->buffered_stats_.clear();
   return 0;
 }
 

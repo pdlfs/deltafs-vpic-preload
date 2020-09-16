@@ -13,9 +13,7 @@
 #include "rtp/rtp.h"
 #include "stat.h"
 
-const uint32_t kStatArrSize = 10;
-
-#define PERFSTATS_MEM_SIZE 512
+#define PERFSTATS_MEM_SIZE 1
 #define PERFSTATS_CAPTURE_FREQ 10
 
 namespace pdlfs {
@@ -42,23 +40,7 @@ typedef struct perfstats_ctx {
 
   port::Mutex worker_mtx;
   stat_hooks_t stat_hooks;
-  std::vector<Stat> buffered_stats_;
   std::vector<StatLogger*> all_loggers_;
-
-  int statbuf_idx = 0;
-
-  /*
-   * Sysfs logging is enabled in very limited circumstances:
-   * if libblkid is installed, and the partition containing the write
-   * path supports sysfs block device extended attributes
-   */
-  bool sysfs_enabled = false;
-
-  //#ifdef PRELOAD_HAS_BLKID
-  //  char sysfs_path_[PATH_MAX];
-  //  bd_stats_t prev_bd_stats;
-  //#endif
-
 } perfstats_ctx_t;
 
 /**

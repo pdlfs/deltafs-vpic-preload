@@ -9,13 +9,6 @@
 #include "rtp_state_mgr.h"
 #include "xn_shuffle.h"
 
-
-#define RANGE_RTP_PVTCNT1 64
-#define RANGE_RTP_PVTCNT2 64
-
-/* TODO: final pivots are fixed anyway, so remove */
-#define RANGE_RTP_PVTCNT3 256
-
 /*
  * Edge cases:
  *
@@ -89,13 +82,13 @@ struct reneg_ctx {
   int peers[4][FANOUT_MAX];
   int num_peers[4];
   int root[4];
-  int pvtcnt[4];
+  /* pvtcount only contains fanouts for stages 1 and 2 */
+  int pvtcnt[3];
 };
 
 struct reneg_opts {
   int fanout_s1;
   int fanout_s2;
-  int fanout_s3;
 };
 
 typedef struct reneg_ctx *reneg_ctx_t;

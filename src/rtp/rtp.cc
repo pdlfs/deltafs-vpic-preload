@@ -150,12 +150,6 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
     goto cleanup;
   }
 
-  if (ro.fanout_s3 > FANOUT_MAX) {
-    logf(LOG_DBUG, "fanout_s3 exceeds FANOUT_MAX\n");
-    rv = -1;
-    goto cleanup;
-  }
-
   xn_sctx = static_cast<xn_ctx_t*>(sctx->rep);
 
   rctx->xn_sctx = xn_sctx;
@@ -165,9 +159,8 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
 
   rctx->round_num = 0;
 
-  rctx->pvtcnt[1] = RANGE_RTP_PVTCNT1;
-  rctx->pvtcnt[2] = RANGE_RTP_PVTCNT2;
-  rctx->pvtcnt[3] = RANGE_RTP_PVTCNT3;
+  rctx->pvtcnt[1] = kRtpPivotsStage1;
+  rctx->pvtcnt[2] = kRtpPivotsStage2;
 
   mock_pivots_init(rctx);
   reneg_topology_init(rctx);
