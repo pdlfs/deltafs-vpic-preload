@@ -44,31 +44,6 @@ static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
   return buf;
 }
 
-static bool float_eq(float a, float b) {
-  const float kFloatCompThreshold = 1e-5;
-  return fabs(a - b) < kFloatCompThreshold;
-}
-
-static bool float_gt(float a, float b) {
-  const float kFloatCompThreshold = 1e-5;
-  return a > b + kFloatCompThreshold;
-}
-
-static bool float_gte(float a, float b) {
-  const float kFloatCompThreshold = 1e-5;
-  return a > b - kFloatCompThreshold;
-}
-
-static bool float_lt(float a, float b) {
-  const float kFloatCompThreshold = 1e-5;
-  return a < b - kFloatCompThreshold;
-}
-
-static bool float_lte(float a, float b) {
-  const float kFloatCompThreshold = 1e-5;
-  return a < b + kFloatCompThreshold;
-}
-
 /* return true if a is smaller - we prioritize smaller bin_val
  * and for same bin_val, we prioritize ending items (is_start == false)
  * first */

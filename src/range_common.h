@@ -1,5 +1,6 @@
 #pragma once
 
+#include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -260,4 +261,25 @@ static inline int print_vector(char* buf, int buf_sz, float* v, int vlen,
   buf_idx +=
       snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
   return buf_idx;
+}
+
+static bool float_eq(float a, float b) {
+  return fabs(a - b) < pdlfs::kFloatCompThreshold;
+}
+
+static bool float_gt(float a, float b) {
+  return a > b + pdlfs::kFloatCompThreshold;
+}
+
+static bool float_gte(float a, float b) {
+  return a > b - pdlfs::kFloatCompThreshold;
+}
+
+static bool float_lt(float a, float b) {
+  return a < b - pdlfs::kFloatCompThreshold;
+}
+
+static bool float_lte(float a, float b) {
+  const float kFloatCompThreshold = 1e-5;
+  return a < b + pdlfs::kFloatCompThreshold;
 }
