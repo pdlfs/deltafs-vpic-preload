@@ -1,0 +1,19 @@
+Start testing: Sep 03 18:58 EDT
+----------------------------------------------------------
+1/1 Testing: range_utils-test
+1/1 Test: range_utils-test
+Command: "/mnt/d/deltafs/deltafs-vpic-preload/tests/range_utils-test"
+Directory: /mnt/d/deltafs/deltafs-vpic-preload/tests
+"range_utils-test" start time: Sep 03 18:58 EDT
+Output:
+----------------------------------------------------------
+/mnt/d/deltafs/deltafs-vpic-preload/tests/range_utils-test: error while loading shared libraries: libmchecksum_debug.so.1: cannot open shared object file: No such file or directory
+<end of output>
+Test time =   0.03 sec
+----------------------------------------------------------
+Test Failed.
+"range_utils-test" end time: Sep 03 18:58 EDT
+"range_utils-test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Sep 03 18:58 EDT
