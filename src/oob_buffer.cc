@@ -57,7 +57,7 @@ int OobBuffer::GetPartitionedProps(std::vector<float>& left,
     float prop = it->indexed_prop;
     if ((not range_set_) or (range_set_ and prop < range_min_)) {
       left.push_back(prop);
-    } else {
+    } else if (prop > range_max_) {
       right.push_back(prop);
     }
   }

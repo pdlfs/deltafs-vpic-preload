@@ -138,6 +138,21 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
             buf_sz, epoch, h);
   }
 }
+
+void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
+                         int epoch, int src, int dst) {
+  const float h = ::get_indexable_property(buf, buf_sz);
+
+  if (src != dst || ctx->force_rpc) {
+    fprintf(pctx.trace, "[SH] %u bytes (ep=%d) r%d >> r%d (xx=%08x)\n", buf_sz,
+            epoch, src, dst, h);
+  } else {
+    fprintf(pctx.trace,
+            "[LO] %u bytes (ep=%d) "
+            "(xx=%08x)\n",
+            buf_sz, epoch, h);
+  }
+}
 }  // namespace
 
 int shuffle_write_mock(shuffle_ctx_t* ctx, const char* fname,
@@ -299,7 +314,6 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   pivot_ctx_t* pvt_ctx = &(pctx.pvt_ctx);
   pdlfs::reneg_ctx_t rctx = &(pctx.rtp_ctx);
 
-  char buf[pdlfs::kMaxPartSize];
   int peer_rank = -1;
   int rank;
   int rv = 0;
@@ -315,12 +329,15 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   unsigned char base_sz = 1 + fname_len + data_len;
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
 
-  /* write trace if we are in testing mode */
-  if (pctx.testin && pctx.trace != NULL)
-    shuffle_write_debug(ctx, buf, buf_sz, epoch, rank, peer_rank);
-
   /* Decide whether to buffer or send */
   float indexed_prop = ::get_indexable_property(data, data_len);
+
+  /* Serialize data */
+  pdlfs::particle_mem_t p;
+  p.buf_sz = msgfmt_write_data(p.buf, 255, fname, fname_len, data, data_len,
+                               ctx->extra_data_len);
+  p.indexed_prop = indexed_prop;
+
 
   pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
 
@@ -329,12 +346,6 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   buf_type_t dest_buf = compute_oob_buf(pvt_ctx, indexed_prop);
 
   bool shuffle_now = (dest_buf == buf_type_t::RB_NO_BUF);
-
-  pdlfs::particle_mem_t p;
-  /* msgfmt-ize the data */
-  p.buf_sz = msgfmt_write_data(p.buf, 255, fname, fname_len, data, data_len,
-                               ctx->extra_data_len);
-  p.indexed_prop = indexed_prop;
 
   if (!shuffle_now) {
     rv = pvt_ctx->oob_buffer.Insert(p);
@@ -389,14 +400,19 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
     goto cleanup;
   }
 
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.trace != NULL)
+    shuffle_write_range_debug(ctx, p.buf, p.buf_sz, epoch, rank, peer_rank);
+
+
   pvt_ctx->rank_bin_count[peer_rank]++;
   pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
   if (ctx->type == SHUFFLE_XN) {
-    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz, epoch,
                        peer_rank, rank);
   } else {
-    nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
+    nn_shuffler_enqueue(p.buf, p.buf_sz, epoch, peer_rank, rank);
   }
 
 cleanup:

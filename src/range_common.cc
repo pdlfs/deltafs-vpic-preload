@@ -98,7 +98,7 @@ int get_range_bounds(pivot_ctx_t* pvt_ctx, std::vector<float>& oobl,
     range_start = pvt_ctx->range_min;
   }
 
-  range_end = std::max(oob_max, range_end);
+  range_end = std::max(oob_max, pvt_ctx->range_max);
 
   return rv;
 }
