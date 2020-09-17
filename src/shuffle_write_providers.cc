@@ -144,12 +144,12 @@ void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_
   const float h = ::get_indexable_property(buf, buf_sz);
 
   if (src != dst || ctx->force_rpc) {
-    fprintf(pctx.trace, "[SH] %u bytes (ep=%d) r%d >> r%d (xx=%08x)\n", buf_sz,
+    fprintf(pctx.trace, "[SH] %u bytes (ep=%d) r%d >> r%d (fl=%f)\n", buf_sz,
             epoch, src, dst, h);
   } else {
     fprintf(pctx.trace,
             "[LO] %u bytes (ep=%d) "
-            "(xx=%08x)\n",
+            "(fl=%f)\n",
             buf_sz, epoch, h);
   }
 }
