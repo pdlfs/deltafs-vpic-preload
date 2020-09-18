@@ -84,6 +84,15 @@ int msgfmt_encode_rtp_begin(char *buf, int buf_sz, int rank, int round_num);
 void msgfmt_decode_rtp_begin(char *buf, int buf_sz, int *rank, int *round_num);
 
 /**
+ * @brief buffer space needed for num_pivots
+ *
+ * @param num_pivots
+ *
+ * @return 
+ */
+size_t msgfmt_bufsize_rtp_pivots(int num_pivots);
+
+/**
  * @brief
  *
  * @param buf

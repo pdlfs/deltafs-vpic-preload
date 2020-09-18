@@ -247,6 +247,11 @@ int reneg_init_round(reneg_ctx_t rctx) {
   /* Assert pivot_access_m.lockheld() */
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
+  // if (rctx->round_num == 20) {
+    // fprintf(stderr, "Circuit breaker");
+    // sleep(1000);
+  // }
+
   if (rctx->state_mgr.get_state() == RenegState::READY) {
     PERFLOG("RENEG_RTP", "BCAST_BEGIN");
     broadcast_rtp_begin(rctx);
@@ -474,7 +479,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
        stage_num, rctx->my_rank, src, stage_pivot_count);
 
   if (expected_items_for_stage(rctx, stage_num, stage_pivot_count)) {
-    float merged_pivots[kMaxPivots];
+    float merged_pivots[merged_pvtcnt];
     float merged_width;
 
     compute_aggregate_pivots(rctx, stage_num, merged_pvtcnt, merged_pivots,
@@ -488,13 +493,16 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
     logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
          stage_num, rctx->my_rank);
 
-    char next_buf[2048];
+    size_t next_buf_sz = msgfmt_bufsize_rtp_pivots(merged_pvtcnt);
+    char next_buf[next_buf_sz];
 
     if (stage_num < STAGES_MAX) {
       logf(LOG_DBUG, "reneg_handle_rtp_pivot: choice 1\n");
 
+      // char next_buf[2048];
+
       int next_buf_len = msgfmt_encode_rtp_pivots(
-          next_buf, 2048, round_num, stage_num + 1, rctx->my_rank,
+          next_buf, next_buf_sz, round_num, stage_num + 1, rctx->my_rank,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ false);
 
       int new_dest = stage_num == 1 ? rctx->root[2] : rctx->root[3];
@@ -511,8 +519,9 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
       rctx->reneg_bench.rec_pvt_bcast();
 
+      /* XXX: num_pivots = comm_sz, 2048B IS NOT SUFFICIENT */
       int next_buf_len = msgfmt_encode_rtp_pivots(
-          next_buf, 2048, round_num, stage_num + 1, rctx->my_rank,
+          next_buf, next_buf_sz, round_num, stage_num + 1, rctx->my_rank,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
 
       send_to_rank(rctx, next_buf, next_buf_len, rctx->root[3]);

@@ -345,11 +345,15 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
     oob_idx = next_idx;
   }
 
-  if (float_gt(particles_carried_over, 0)) {
-    assert(float_eq(particles_carried_over, part_per_pivot));
+  if (float_gt(particles_carried_over, 1e-2)) {
+    /* need a relaxed threshold here */
+    // assert(float_eq(particles_carried_over, part_per_pivot));
+    assert(fabs(particles_carried_over - part_per_pivot) < 1e-2);
     pvt_ctx->my_pivots[cur_pivot++] = range_end;
   } else {
-    assert(float_eq(particles_carried_over, 0));
+    // assert(float_eq(particles_carried_over, 0));
+    assert(fabs(particles_carried_over) < 1e-2);
+    pvt_ctx->my_pivots[cur_pivot++] = range_end;
   }
 
   for (; cur_pivot < num_pivots - 1; cur_pivot++) {
@@ -583,8 +587,19 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
   /* Assert LockHeld */
   assert(num_pivots == pctx.comm_sz + 1);
 
-  pvt_ctx->range_min = pivots[0];
-  pvt_ctx->range_max = pivots[num_pivots - 1];
+  float &pvtbeg = pvt_ctx->range_min;
+  float &pvtend = pvt_ctx->range_max;
+
+  float updbeg = pivots[0];
+  float updend = pivots[num_pivots - 1];
+
+  // pvt_ctx->range_min = pivots[0];
+  // pvt_ctx->range_max = pivots[num_pivots - 1];
+  assert(float_lte(updbeg, pvtbeg));
+  assert(float_gte(updend, pvtend));
+  
+  pvtbeg = updbeg;
+  pvtend = updend;
 
   pvt_ctx->last_reneg_counter = 0;
 

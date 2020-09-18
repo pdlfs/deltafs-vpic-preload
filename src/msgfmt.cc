@@ -171,6 +171,18 @@ void msgfmt_decode_rtp_begin(char *buf, int buf_sz, int *rank, int *round_num) {
   *round_num = *round_ptr;
 }
 
+size_t msgfmt_bufsize_rtp_pivots(int num_pivots) {
+  int buf_sz = 0;
+
+  buf_sz += 2;
+  buf_sz += 4 * sizeof(int) + sizeof(float) + sizeof(float) * num_pivots;
+
+  /* for good measure */
+  buf_sz += 2;
+
+  return buf_sz;
+}
+
 int msgfmt_encode_rtp_pivots(char *buf, int buf_sz, int round_num,
                              int stage_num, int sender_id, float *pivots,
                              float pivot_width, int num_pivots,
