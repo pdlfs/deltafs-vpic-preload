@@ -4,9 +4,48 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <iostream>
+
 #include "pdlfs-common/testharness.h"
 #include "pdlfs-common/testutil.h"
 #include "range_common.h"
+
+namespace {
+/* TODO, struct and loop through all */
+typedef struct pivot_state {
+  const int num_ranks;
+  const int oob_data_sz;
+  const float oob_data[1000];
+  const float range_min;
+  const float range_max;
+  const int num_pivots;
+  const float rank_bin_counts[2000];
+  const float rank_bins[2000];
+};
+namespace data_pc4 {
+#include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
+}
+
+namespace data_pc5 {
+#include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
+}
+
+namespace data_pc6 {
+#include "pivot_calc_6_data.cc"  // NOLINT(bugprone-suspicious-include)
+}
+
+template <typename T>
+bool assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
+  for (size_t i = 1; i < seq_sz; i++) {
+    auto a = seq[i];
+    auto b = seq[i - 1];
+    if (verbose) {
+      std::cout << a << " " << b << "\n";
+    }
+    ASSERT_GT(a, b);
+  }
+}
+}  // namespace
 
 namespace pdlfs {
 
@@ -33,7 +72,7 @@ TEST(RangeUtilsTest, PivotCalc) {
 
   int num_pivots = 8;
   pctx.mts_mgr.update_state(MainThreadState::MT_BLOCK);
-  pivot_calculate(&pctx, num_pivots);
+  pivot_calculate_safe(&pctx, num_pivots);
 
   size_t buf_sz = 2048;
   char buf[buf_sz];
@@ -56,10 +95,9 @@ TEST(RangeUtilsTest, PivotCalc2) {
       0.831964, 0.363970, 1.327184, 0.193020, 2.427586, 0.213298,
   };
 
-  const float pivots_ref[] = {
-      0.130448, 0.193020, 0.213298, 0.327600,
-      0.379052, 0.831964, 1.327184, 2.427586,
-  };
+  const float pivots_ref[] = {0.130447999, 0.189264387, 0.19808951,
+                              0.319368005, 0.345785022, 0.365855247,
+                              0.724167525, 2.42758608};
 
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     particle_mem_t p;
@@ -69,7 +107,7 @@ TEST(RangeUtilsTest, PivotCalc2) {
 
   int num_pivots = 8;
   pctx.mts_mgr.update_state(MainThreadState::MT_BLOCK);
-  pivot_calculate(&pctx, num_pivots);
+  pivot_calculate_safe(&pctx, num_pivots);
 
   for (int pvt_idx = 0; pvt_idx < num_pivots; pvt_idx++) {
     float pvt = pctx.my_pivots[pvt_idx];
@@ -119,16 +157,43 @@ TEST(RangeUtilsTest, PivotCalc3) {
 
   float my_pivots[8];
   ::pivot_calculate_safe(&pctx, 8);
+  ::assert_monotonic(pctx.my_pivots, 8);
+}
 
-  for (int p = 0; p < 8; p++) {
-    printf("p: %f\n", pctx.my_pivots[p]);
-    if (p > 1) {
-      float cur = pctx.my_pivots[p];
-      float prev = pctx.my_pivots[p - 1];
-      ASSERT_GT(cur, prev);
-    }
+TEST(RangeUtilsTest, PivotCalc6) {
+  pivot_ctx_t pctx;
+
+  pctx.mts_mgr.update_state(MainThreadState::MT_BLOCK);
+  pctx.mts_mgr.update_state(MainThreadState::MT_READY);
+  pctx.mts_mgr.update_state(MainThreadState::MT_BLOCK);
+
+  pctx.range_min = ::data_pc6::range_min;
+  pctx.range_max = ::data_pc6::range_max;
+
+  for (int i = 0; i < ::data_pc6::oob_data_sz; i++) {
+    particle_mem_t p;
+    p.indexed_prop = ::data_pc6::oob_data[i];
+    pctx.oob_buffer.Insert(p);
   }
-};
+
+  pctx.oob_buffer.SetRange(::data_pc6::range_min, ::data_pc6::range_max);
+
+  int num_ranks = ::data_pc6::num_ranks;
+  int num_pivots = ::data_pc6::num_pivots;
+
+  pctx.rank_bins.resize(num_ranks + 1);
+  pctx.rank_bin_count.resize(num_ranks);
+  std::copy(::data_pc6::rank_bins, ::data_pc6::rank_bins + num_ranks + 1,
+            pctx.rank_bins.begin());
+  std::copy(::data_pc6::rank_bin_counts,
+            ::data_pc6::rank_bin_counts + num_ranks,
+            pctx.rank_bin_count.begin());
+
+  float my_pivots[num_pivots];
+  ::pivot_calculate_safe(&pctx, num_pivots);
+
+  ::assert_monotonic(pctx.my_pivots, num_pivots);
+}
 
 }  // namespace pdlfs
 
