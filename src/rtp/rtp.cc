@@ -4,8 +4,7 @@
 #include "perfstats/perfstats.h"
 #include "preload_internal.h"
 
-#define PERFLOG(a, b) \
-  perfstats_log_eventstr(&(pctx.perf_ctx), a, b)
+#define PERFLOG(a, b) perfstats_log_eventstr(&(pctx.perf_ctx), a, b)
 
 extern preload_ctx_t pctx;
 
@@ -14,13 +13,12 @@ namespace {
 /* Hash function, from
  * https://stackoverflow.com/questions/8317508/hash-function-for-a-string
  */
-#define A 54059 /* a prime */
-#define B 76963 /* another prime */
-#define C 86969 /* yet another prime */
+#define A 54059   /* a prime */
+#define B 76963   /* another prime */
+#define C 86969   /* yet another prime */
 #define FIRSTH 37 /* also prime */
 
-uint32_t hash_str(const char* data, int slen)
-{
+uint32_t hash_str(const char* data, int slen) {
   uint32_t h = FIRSTH;
   for (int sidx = 0; sidx < slen; sidx++) {
     char s = data[sidx];
@@ -32,6 +30,55 @@ uint32_t hash_str(const char* data, int slen)
 inline int cube(int x) { return x * x * x; }
 
 inline int square(int x) { return x * x; }
+
+int compute_fanout_better(int world_sz, int* fo_arr) {
+  int rv = 0;
+
+  /* Init fanout of the tree for each stage */
+  if (world_sz % 4) {
+    ABORT("RTP world size must be a multiple of 4");
+  }
+
+  /* base setup */
+  fo_arr[1] = 1;
+  fo_arr[2] = 1;
+  fo_arr[3] = world_sz;
+
+  int wsz_remain = world_sz;
+  double root = pow(wsz_remain, 1.0 / 3);
+  int f1_cand = (int)root;
+
+  while (f1_cand < wsz_remain) {
+    if (wsz_remain % f1_cand == 0) {
+      fo_arr[1] = f1_cand;
+      wsz_remain /= f1_cand;
+      break;
+    }
+
+    f1_cand++;
+  }
+
+  root = pow(wsz_remain, 1.0 / 2);
+  int f2_cand = (int)root;
+
+  while (f2_cand < wsz_remain) {
+    if (wsz_remain % f2_cand == 0) {
+      fo_arr[2] = f2_cand;
+      wsz_remain /= f2_cand;
+      break;
+    }
+
+    f2_cand++;
+  }
+
+  fo_arr[3] = world_sz / (fo_arr[1] * fo_arr[2]);
+  assert(fo_arr[3] * fo_arr[2] * fo_arr[1] == world_sz);
+
+  if (pctx.my_rank == 0)
+    logf(LOG_INFO, "RTP Fanout: %d/%d/%d\n", fo_arr[1], fo_arr[2], fo_arr[3]);
+
+  return rv;
+}
 
 int compute_fanout(int world_sz, int* fo_arr) {
   int rv = 0;
@@ -63,7 +110,8 @@ int compute_fanout(int world_sz, int* fo_arr) {
 
   fo_arr[1] = world_sz / (fo_arr[2] * fo_arr[3]);
 
-  logf(LOG_DBUG, "RTP Fanout: %d/%d/%d\n", fo_arr[1], fo_arr[2], fo_arr[3]);
+  if (pctx.my_rank == 0)
+    logf(LOG_INFO, "RTP Fanout: %d/%d/%d\n", fo_arr[1], fo_arr[2], fo_arr[3]);
 
   return rv;
 }
@@ -138,14 +186,20 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
     goto cleanup;
   }
 
-  if (ro.fanout_s1 > FANOUT_MAX) {
-    logf(LOG_DBUG, "fanout_s1 exceeds FANOUT_MAX\n");
+  if (ro.pvtcnt[1] > kMaxPivots) {
+    logf(LOG_DBUG, "pvtcnt_s1 exceeds MAX_PIVOTS");
     rv = -1;
     goto cleanup;
   }
 
-  if (ro.fanout_s2 > FANOUT_MAX) {
-    logf(LOG_DBUG, "fanout_s2 exceeds FANOUT_MAX\n");
+  if (ro.pvtcnt[2] > kMaxPivots) {
+    logf(LOG_DBUG, "pvtcnt_s1 exceeds MAX_PIVOTS");
+    rv = -1;
+    goto cleanup;
+  }
+
+  if (ro.pvtcnt[3] > kMaxPivots) {
+    logf(LOG_DBUG, "pvtcnt_s1 exceeds MAX_PIVOTS");
     rv = -1;
     goto cleanup;
   }
@@ -163,6 +217,13 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
   rctx->pvtcnt[1] = kRtpPivotsStage1;
   rctx->pvtcnt[2] = kRtpPivotsStage2;
   rctx->pvtcnt[3] = kRtpPivotsStage3;
+
+  if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "[rtp_init] pivot_count: %d/%d/%d\n", rctx->pvtcnt[1],
+         rctx->pvtcnt[2], rctx->pvtcnt[3]);
+  }
+
+  rctx->data_buffer.update_pivot_count(rctx->pvtcnt);
 
   mock_pivots_init(rctx);
   reneg_topology_init(rctx);
@@ -185,7 +246,7 @@ int reneg_topology_init(reneg_ctx_t rctx) {
   grank = nexus_global_rank(rctx->nxp);
   gsz = nexus_global_size(rctx->nxp);
 
-  compute_fanout(gsz, rctx->fanout);
+  compute_fanout_better(gsz, rctx->fanout);
 
   /* Init peers for each stage */
   int s1mask = ~(rctx->fanout[1] - 1);
@@ -248,8 +309,8 @@ int reneg_init_round(reneg_ctx_t rctx) {
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   // if (rctx->round_num == 20) {
-    // fprintf(stderr, "Circuit breaker");
-    // sleep(1000);
+  // fprintf(stderr, "Circuit breaker");
+  // sleep(1000);
   // }
 
   if (rctx->state_mgr.get_state() == RenegState::READY) {
@@ -430,9 +491,9 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
   float pivot_width;
   float* pivots;
 
-  logf(LOG_DBG2, "reneg_handle_rtp_pivot: bufsz: %u, bufhash, %u\n",
-       buf_sz, ::hash_str(buf, buf_sz));
-  
+  logf(LOG_DBG2, "reneg_handle_rtp_pivot: bufsz: %u, bufhash, %u\n", buf_sz,
+       ::hash_str(buf, buf_sz));
+
   msgfmt_decode_rtp_pivots(buf, buf_sz, &round_num, &stage_num, &sender_id,
                            &pivots, &pivot_width, &num_pivots);
   /* stage_num refers to the stage the pivots were generated at.
@@ -448,7 +509,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
   if (num_pivots >= 4) {
     logf(LOG_DBG2, "reneg_handle_rtp_pivot: %.2f %.2f %.2f %.2f ...\n",
-        pivots[0], pivots[1], pivots[2], pivots[3]);
+         pivots[0], pivots[1], pivots[2], pivots[3]);
   }
 
   pthread_mutex_lock(&(rctx->reneg_mutex));
@@ -487,8 +548,8 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
     char print_buf[1024];
     print_vector(print_buf, 1024, merged_pivots, merged_pvtcnt);
-    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)\n", rctx->my_rank,
-         print_buf, merged_width, merged_pvtcnt);
+    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)\n",
+         rctx->my_rank, print_buf, merged_width, merged_pvtcnt);
 
     logf(LOG_INFO, "reneg_handle_rtp_pivot: S%d at Rank %d, collected\n",
          stage_num, rctx->my_rank);

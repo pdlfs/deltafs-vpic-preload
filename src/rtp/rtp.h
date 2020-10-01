@@ -57,6 +57,10 @@ class RenegBench {
   void print_stderr();
 };
 
+struct reneg_opts {
+  int pvtcnt[4];
+};
+
 struct reneg_ctx {
   RenegBench reneg_bench;
 
@@ -82,13 +86,9 @@ struct reneg_ctx {
   int peers[4][FANOUT_MAX];
   int num_peers[4];
   int root[4];
-  /* pvtcount only contains fanouts for stages 1 and 2 */
-  int pvtcnt[3];
-};
+  int pvtcnt[4];
 
-struct reneg_opts {
-  int fanout_s1;
-  int fanout_s2;
+  struct reneg_opts ro;
 };
 
 typedef struct reneg_ctx *reneg_ctx_t;
