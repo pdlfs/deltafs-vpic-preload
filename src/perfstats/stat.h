@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#define STAT_BUF_MAX 1024
+#define STAT_BUF_MAX 16384
 
 namespace pdlfs {
 enum class StatType { V_FLOAT, V_INT, V_UINT64, V_STR };

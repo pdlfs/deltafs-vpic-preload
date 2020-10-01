@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <mpi.h>
+#include <stdarg.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -294,6 +295,24 @@ int perfstats_log_eventstr(perfstats_ctx_t* pctx, const char* event_label,
   perfstats_log_stat(pctx, str_stat);
   pctx->worker_mtx.Unlock();
   return rv;
+}
+
+int perfstats_printf(perfstats_ctx_t* pctx, int rank, const char* fmt, ...) {
+  int rv = 0;
+  uint64_t timestamp = get_timestamp(pctx);
+
+  pctx->worker_mtx.Lock();
+
+  va_list ap;
+  va_start(ap, fmt);
+  vfprintf(pctx->output_file, fmt, ap);
+  va_end(ap);
+
+  pctx->worker_mtx.Unlock();
+
+  fprintf(stderr, "\n");
+
+  return 0;
 }
 }  // namespace pdlfs
    /* END Internal Definitions */

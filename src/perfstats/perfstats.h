@@ -110,4 +110,15 @@ int perfstats_log_mypivots(perfstats_ctx_t* pctx, float* pivots,
  */
 int perfstats_log_eventstr(perfstats_ctx_t* pctx, const char* event_label,
                            const char* event_desc);
+
+/**
+ * @brief 
+ *
+ * @param pctx
+ * @param fmt
+ * @param ...
+ *
+ * @return 
+ */
+int perfstats_printf(perfstats_ctx_t* pctx, const char* fmt, ...);
 }  // namespace pdlfs
