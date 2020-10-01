@@ -104,7 +104,7 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx);
  *
  * @return
  */
-int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const int num_pivots);
+int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots);
 
 /**
  * @brief Calculate pivots from the current pivot_ctx state.

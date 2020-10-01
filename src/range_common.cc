@@ -44,6 +44,8 @@ static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
   return buf;
 }
 
+static int pivot_calculate_from_oobl(pivot_ctx_t* pvt_ctx, int num_pivots);
+
 /* return true if a is smaller - we prioritize smaller bin_val
  * and for same bin_val, we prioritize ending items (is_start == false)
  * first */
@@ -173,10 +175,23 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx) {
   return 0;
 }
 
-int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const int num_pivots) {
+int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
+  assert(num_pivots <= pdlfs::kMaxPivots);
+
   int rv = 0;
 
-  pivot_calculate(pvt_ctx, num_pivots);
+  const MainThreadState prev_state = pvt_ctx->mts_mgr.get_prev_state();
+  const MainThreadState cur_state = pvt_ctx->mts_mgr.get_state();
+
+  pvt_ctx->pivot_width = 0;
+
+  assert(cur_state == MainThreadState::MT_BLOCK);
+
+  if (prev_state == MainThreadState::MT_INIT) {
+    rv = pivot_calculate_from_oobl(pvt_ctx, num_pivots);
+  } else {
+    rv = pivot_calculate(pvt_ctx, num_pivots);
+  }
 
   logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f\n", pctx.my_rank,
        pvt_ctx->pivot_width);
@@ -188,6 +203,48 @@ int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const int num_pivots) {
 
   for (int pidx = 0; pidx <= num_pivots; pidx++) {
     pvt_ctx->my_pivots[pidx] = mass_per_pivot * pidx;
+  }
+
+  return rv;
+}
+
+int pivot_calculate_from_oobl(pivot_ctx_t* pvt_ctx, int num_pivots) {
+  int rv = 0;
+
+  std::vector<float> oobl, oobr;
+
+  pdlfs::OobBuffer& oob = pvt_ctx->oob_buffer;
+  pvt_ctx->oob_buffer.GetPartitionedProps(oobl, oobr);
+
+  assert(oobr.size() == 0);
+  const int oobl_sz = oobl.size();
+
+  if (oobl_sz < 2) return 0;
+
+  const float range_min = oobl[0];
+  const float range_max = oobl[oobl_sz - 1];
+
+  pvt_ctx->my_pivots[0] = range_min;
+  pvt_ctx->my_pivots[num_pivots - 1] = range_max;
+
+  pvt_ctx->pivot_width = oobl_sz * 1.0 / num_pivots;
+
+  /* for computation purposes, we need to reserve one, so as to always have
+   * two points of interpolation */
+
+  float part_per_pivot = (oobl_sz - 1) * 1.0 / num_pivots;
+
+  for (int pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
+    float oob_idx = part_per_pivot * pvt_idx;
+    int oob_idx_trunc = (int)oob_idx;
+
+    assert(oob_idx_trunc + 1 < oobl_sz);
+
+    float val_a = oobl[oob_idx_trunc];
+    float val_b = oobl[oob_idx_trunc + 1];
+
+    float frac_a = oob_idx - (float)oob_idx_trunc;
+    pvt_ctx->my_pivots[pvt_idx] = frac_a * val_a + (1 - frac_a) * val_b;
   }
 
   return rv;
@@ -205,8 +262,8 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
 
   pvt_ctx->my_pivot_count = num_pivots;
 
-  MainThreadState prev_state = pvt_ctx->mts_mgr.get_prev_state();
-  MainThreadState cur_state = pvt_ctx->mts_mgr.get_state();
+  const float prev_range_begin = pvt_ctx->range_min;
+  const float prev_range_end = pvt_ctx->range_max;
 
   float range_start, range_end;
   std::vector<float> oobl, oobr;
@@ -251,12 +308,11 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
           "oob_count_left: %d, oob_count_right: %d\n"
           "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
           "rbc: %s (%zu)\n"
-          "bin: %s (%zu)\n"
-          "prevIsInit: %s\n",
+          "bin: %s (%zu)\n",
           pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
           particle_count, print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()),
           ff.size(), print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()),
-          gg.size(), (prev_state == MT_INIT) ? "true" : "false");
+          gg.size());
   /**********************/
 
   float accumulated_ppp = 0;
@@ -275,55 +331,57 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
 
     accumulated_ppp += part_per_pivot;
 
-    int cur_part_idx = round(accumulated_ppp);
-    if (cur_part_idx >= oobl_sz) break;
+    float part_idx = accumulated_ppp;
+    int part_idx_trunc = (int)accumulated_ppp;
 
-    pvt_ctx->my_pivots[cur_pivot] = oobl[cur_part_idx];
+    if (part_idx_trunc >= oobl_sz) break;
+
+    float frac_a = part_idx - (float)part_idx_trunc;
+    float val_a = oobl[part_idx_trunc];
+    float val_b = (part_idx_trunc + 1 < oobl_sz) ? oobl[part_idx_trunc + 1]
+                                                 : prev_range_begin;
+    assert(val_b > val_a);
+
+    pvt_ctx->my_pivots[cur_pivot] = frac_a * val_a + (1 - frac_a) * val_b;
     cur_pivot++;
 
     oob_idx = accumulated_ppp;
   }
 
   int bin_idx = 0;
-  assert(cur_state == MainThreadState::MT_BLOCK);
 
-  if (prev_state != MT_INIT) {
-    for (int bidx = 0; bidx < pvt_ctx->rank_bins.size() - 1; bidx++) {
-      float cur_bin_left = pvt_ctx->rank_bin_count[bidx];
-      float bin_start = pvt_ctx->rank_bins[bidx];
-      float bin_end = pvt_ctx->rank_bins[bidx + 1];
+  for (int bidx = 0; bidx < pvt_ctx->rank_bins.size() - 1; bidx++) {
+    float cur_bin_left = pvt_ctx->rank_bin_count[bidx];
+    float bin_start = pvt_ctx->rank_bins[bidx];
+    float bin_end = pvt_ctx->rank_bins[bidx + 1];
 
-      while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
-        float take_from_bin = part_per_pivot - particles_carried_over;
+    while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
+      float take_from_bin = part_per_pivot - particles_carried_over;
 
-        /* advance bin_start st take_from_bin is removed */
-        float bin_width = bin_end - bin_start;
-        float width_to_remove = take_from_bin / cur_bin_left * bin_width;
+      /* advance bin_start st take_from_bin is removed */
+      float bin_width = bin_end - bin_start;
+      float width_to_remove = take_from_bin / cur_bin_left * bin_width;
 
-        bin_start += width_to_remove;
-        pvt_ctx->my_pivots[cur_pivot] = bin_start;
+      bin_start += width_to_remove;
+      pvt_ctx->my_pivots[cur_pivot] = bin_start;
 
-        cur_pivot++;
+      cur_pivot++;
 
-        cur_bin_left -= take_from_bin;
-        particles_carried_over = 0;
-      }
-
-      // XXX: Arbitrarily chosen threshold, may cause troubles at
-      // large scales
-      assert(cur_bin_left >= -1e-3);
-
-      particles_carried_over += cur_bin_left;
+      cur_bin_left -= take_from_bin;
+      particles_carried_over = 0;
     }
+
+    // XXX: Arbitrarily chosen threshold, may cause troubles at
+    // large scales
+    assert(cur_bin_left >= -1e-3);
+
+    particles_carried_over += cur_bin_left;
   }
 
   fprintf(stderr, "cur_pivot: %d, pco: %0.3f\n", cur_pivot,
           particles_carried_over);
 
   oob_idx = 0;
-  /* XXX: There is a minor bug here, part_left should be computed using
-   * the un-rounded accumulated_ppp, not oob_index
-   */
 
   while (1) {
     float part_left = oobr_sz - oob_idx;
@@ -334,32 +392,45 @@ int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
     }
 
     float next_idx = oob_idx + part_per_pivot - particles_carried_over;
-
+    int next_idx_trunc = (int)next_idx;
     particles_carried_over = 0;
 
-    int cur_part_idx = round(next_idx);
-    if (cur_part_idx >= oobr_sz) break;
+    if (next_idx_trunc >= oobr_sz) break;
 
-    pvt_ctx->my_pivots[cur_pivot] = oobr[cur_part_idx];
-    cur_pivot++;
+    /* Current pivot is computed from fractional index weighted average,
+     * we interpolate between current index and next, if next index is out of
+     * bounds, we just interpolate */
+
+    float frac_b = next_idx - next_idx_trunc;
+    assert(frac_b >= 0);
+
+    float val_b = oobr[next_idx_trunc];
+    float val_a;
+
+    if (next_idx_trunc > 0) {
+      val_a = oobr[next_idx_trunc - 1];
+    } else if (next_idx_trunc == 0) {
+      val_a = prev_range_end;
+    } else {
+      assert(false);
+    }
+
+    float next_pivot = (1 - frac_b) * val_a + frac_b * val_b;
+    pvt_ctx->my_pivots[cur_pivot++] = next_pivot;
     oob_idx = next_idx;
   }
 
-  if (float_gt(particles_carried_over, 1e-2)) {
-    /* need a relaxed threshold here */
-    // assert(float_eq(particles_carried_over, part_per_pivot));
-    assert(fabs(particles_carried_over - part_per_pivot) < 1e-2);
-    pvt_ctx->my_pivots[cur_pivot++] = range_end;
+  if (cur_pivot == num_pivots) {
+    assert(fabs(particles_carried_over) < 1e-1);
+  } else if (cur_pivot == num_pivots - 1) {
+    assert(fabs(particles_carried_over) < 1e-1 or
+           fabs(particles_carried_over - part_per_pivot) < 1e-1);
   } else {
-    // assert(float_eq(particles_carried_over, 0));
-    assert(fabs(particles_carried_over) < 1e-2);
-    pvt_ctx->my_pivots[cur_pivot++] = range_end;
+    /* shouldn't happen */
+    assert(false);
   }
 
-  for (; cur_pivot < num_pivots - 1; cur_pivot++) {
-    pvt_ctx->my_pivots[cur_pivot] = pvt_ctx->my_pivots[num_pivots - 1];
-  }
-
+  pvt_ctx->my_pivots[num_pivots - 1] = range_end;
   pvt_ctx->pivot_width = part_per_pivot;
 
   return 0;
@@ -587,8 +658,8 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
   /* Assert LockHeld */
   assert(num_pivots == pctx.comm_sz + 1);
 
-  float &pvtbeg = pvt_ctx->range_min;
-  float &pvtend = pvt_ctx->range_max;
+  float& pvtbeg = pvt_ctx->range_min;
+  float& pvtend = pvt_ctx->range_max;
 
   float updbeg = pivots[0];
   float updend = pivots[num_pivots - 1];
@@ -597,7 +668,7 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
   // pvt_ctx->range_max = pivots[num_pivots - 1];
   assert(float_lte(updbeg, pvtbeg));
   assert(float_gte(updend, pvtend));
-  
+
   pvtbeg = updbeg;
   pvtend = updend;
 
