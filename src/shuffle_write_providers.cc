@@ -91,39 +91,6 @@ int shuffle_flush_oob(shuffle_ctx_t *sctx, pivot_ctx_t* pvt_ctx, int epoch) {
   return rv;
 }
 
-int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
-                      std::vector<pdlfs::particle_mem_t>& oob, int& oob_sz,
-                      int epoch) {
-  /* assert lockheld */
-  int rv = 0;
-  int repl_idx = 0;
-  int rank = shuffle_rank(sctx);
-
-  for (int oidx = 0; oidx < oob_sz; oidx++) {
-    pdlfs::particle_mem_t& p = oob[oidx];
-
-    if (p.indexed_prop < pvt_ctx->range_min ||
-        p.indexed_prop > pvt_ctx->range_max) {
-      oob[repl_idx++] = p;
-      continue;
-    }
-
-    int peer_rank = shuffle_data_target(p.indexed_prop);
-    if (peer_rank < -1 || peer_rank >= pctx.comm_sz) {
-      ABORT("shuffle_flush_oob: invalid peer_rank");
-    }
-
-    pvt_ctx->rank_bin_count[peer_rank]++;
-    pvt_ctx->rank_bin_count_aggr[peer_rank]++;
-
-    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
-                       epoch, peer_rank, rank);
-  }
-
-  oob_sz = repl_idx;
-  return rv;
-}
-
 void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
                          int epoch, int src, int dst) {
   const int h = pdlfs::xxhash32(buf, buf_sz, 0);
@@ -347,6 +314,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   bool shuffle_now = (dest_buf == buf_type_t::RB_NO_BUF);
 
+  // [> XXX <] shuffle_now = true;
+
   if (!shuffle_now) {
     rv = pvt_ctx->oob_buffer.Insert(p);
   }
@@ -368,11 +337,12 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
     reneg_and_block = true;
   }
 
+  // [> XXX <] reneg_and_block = false;
+
   if (reneg_and_block) {
     /* Conditions 2 and 3:
      * This will init a renegotiation and block until complete
      * If active already, this will block anyway */
-    // TODO: make sure no gotchas here
     reneg_init_round(rctx);
     ::shuffle_flush_oob(ctx, pvt_ctx, epoch);
   }
@@ -388,6 +358,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   logf(LOG_DBG2, "Rank %d: shuffling item %f\n", pctx.my_rank, indexed_prop);
 
   peer_rank = ::shuffle_data_target(indexed_prop);
+
+  // [> XXX <] peer_rank = (*reinterpret_cast<int *>(&indexed_prop) ^ 0xc3) % pctx.comm_sz;
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
@@ -408,6 +380,14 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   pvt_ctx->rank_bin_count[peer_rank]++;
   pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
+cleanup:
+  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
+
+  /* Release lock before shuffling, to avoid deadlocks from backpressure */
+  if (!shuffle_now) {
+    return rv;
+  }
+
   if (ctx->type == SHUFFLE_XN) {
     xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz, epoch,
                        peer_rank, rank);
@@ -415,7 +395,5 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
     nn_shuffler_enqueue(p.buf, p.buf_sz, epoch, peer_rank, rank);
   }
 
-cleanup:
-  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
   return rv;
 }
