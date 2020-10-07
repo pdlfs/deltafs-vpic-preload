@@ -191,6 +191,7 @@ int resample_bins_irregular(const std::vector<float>& bins,
       float rbin_cur =
           (rcount_cur / rcount_total) * (rbin_end - rbin_start) + rbin_start;
 
+      assert(sidx < nsamples);
       samples[sidx] = rbin_cur;
       sidx++;
 
