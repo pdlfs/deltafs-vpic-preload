@@ -441,11 +441,8 @@ int reneg_handle_rtp_begin(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
     pivot_calculate_safe(pvt_ctx, pvtcnt);
 
-    logf(LOG_DBUG, "pvt_calc_local @ R%d: %.1f %.1f %.1f %.1f...\n",
-         rctx->my_rank, pvt_ctx->my_pivots[0], pvt_ctx->my_pivots[1],
-         pvt_ctx->my_pivots[2], pvt_ctx->my_pivots[3]);
-
-    perfstats_log_mypivots(&(pctx.perf_ctx), pvt_ctx->my_pivots, pvtcnt);
+    perfstats_log_mypivots(&(pctx.perf_ctx), pvt_ctx->my_pivots, pvtcnt,
+        "RENEG_PIVOTS");
 
     pvt_buf_len = msgfmt_encode_rtp_pivots(
         pvt_buf, /* buf_sz */ 2048, rctx->round_num, stage_idx, rctx->my_rank,
