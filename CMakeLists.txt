@@ -49,8 +49,10 @@ set (CMAKE_PREFIX_PATH "" CACHE STRING "External dependencies path")
 # sanitizer config (XXX: does not probe compiler to see if sanitizer flags
 # are supported... )
 #
-set (as_flags "-fsanitize=address -O1 -fno-omit-frame-pointer")
+set (as_flags
+  "-fsanitize=address -fsanitize=bounds-strict -O1 -fno-omit-frame-pointer")
 set (ts_flags "-fsanitize=thread  -O1 -fno-omit-frame-pointer")
+
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     if (${DEBUG_SANITIZER} STREQUAL "Address")
         set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${as_flags}")
