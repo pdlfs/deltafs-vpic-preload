@@ -195,7 +195,7 @@ int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   if (prev_state == MainThreadState::MT_INIT) {
     rv = pivot_calculate_from_oobl(pvt_ctx, num_pivots);
   } else {
-    rv = pivot_calculate(pvt_ctx, num_pivots);
+    rv = pivot_calculate_from_all(pvt_ctx, num_pivots);
   }
 
   logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f\n", pctx.my_rank,
