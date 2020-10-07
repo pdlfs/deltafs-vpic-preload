@@ -263,16 +263,15 @@ int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
 }
 
 int perfstats_log_mypivots(perfstats_ctx_t* pctx, float* pivots,
-                           int num_pivots) {
+                           int num_pivots, const char *pivot_label) {
   int rv = 0;
 
   size_t buf_sz = STAT_BUF_MAX;
   char buf[buf_sz];
   print_vector(buf, buf_sz, pivots, num_pivots, false);
 
-  const char* const kMyPivotLabel = "RENEG_PIVOTS";
   uint64_t timestamp = get_timestamp(pctx);
-  Stat pivot_stat(StatType::V_STR, kMyPivotLabel);
+  Stat pivot_stat(StatType::V_STR, pivot_label);
   pivot_stat.SetValue(timestamp, buf);
 
   pctx->worker_mtx.Lock();
