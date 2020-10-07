@@ -1,18 +1,21 @@
 #include <algorithm>
+
 #include "rtp.h"
 
 namespace pdlfs {
-DataBuffer::DataBuffer() {
+DataBuffer::DataBuffer(int num_pivots[STAGES_MAX + 1]) {
   memset(data_len, 0, sizeof(data_len));
 
-  this->num_pivots[1] = kRtpPivotsStage1;
-  this->num_pivots[2] = kRtpPivotsStage2;
-  this->num_pivots[3] = kRtpPivotsStage3;
+  for (int sidx = 1; sidx <= STAGES_MAX; sidx++ ){
+    this->num_pivots[sidx] = num_pivots[sidx];
+  }
 
   this->cur_store_idx = 0;
+
+  return;
 }
 
-int DataBuffer::store_data(int stage, float *pivot_data, int dlen,
+int DataBuffer::store_data(int stage, float* pivot_data, int dlen,
                            float pivot_width, bool isnext) {
   int sidx = this->cur_store_idx;
   if (isnext) sidx = !sidx;
@@ -67,7 +70,7 @@ int DataBuffer::clear_all_data() {
   return 0;
 }
 
-int DataBuffer::get_pivot_widths(int stage, std::vector<float> &widths) {
+int DataBuffer::get_pivot_widths(int stage, std::vector<float>& widths) {
   int sidx = this->cur_store_idx;
   int item_count = data_len[sidx][stage];
   widths.resize(item_count);
@@ -76,7 +79,7 @@ int DataBuffer::get_pivot_widths(int stage, std::vector<float> &widths) {
   return 0;
 }
 
-int DataBuffer::load_into_rbvec(int stage, std::vector<rb_item_t> &rbvec) {
+int DataBuffer::load_into_rbvec(int stage, std::vector<rb_item_t>& rbvec) {
   int sidx = this->cur_store_idx;
 
   int num_ranks = data_len[sidx][stage];
@@ -98,4 +101,4 @@ int DataBuffer::load_into_rbvec(int stage, std::vector<rb_item_t> &rbvec) {
 
   return 0;
 }
-} // namespace pdlfs
+}  // namespace pdlfs

@@ -132,8 +132,6 @@ namespace pdlfs {
  */
 int reneg_topology_init(reneg_ctx_t rctx);
 
-int mock_pivots_init(reneg_ctx_t rctx);
-
 void send_to_rank(reneg_ctx_t rctx, char* buf, int buf_sz, int drank);
 
 void send_to_all(int* peers, int num_peers, reneg_ctx_t rctx, char* buf,
@@ -218,14 +216,13 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
   rctx->pvtcnt[2] = kRtpPivotsStage2;
   rctx->pvtcnt[3] = kRtpPivotsStage3;
 
+  rctx->data_buffer = new DataBuffer(rctx->pvtcnt);
+
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "[rtp_init] pivot_count: %d/%d/%d\n", rctx->pvtcnt[1],
          rctx->pvtcnt[2], rctx->pvtcnt[3]);
   }
 
-  rctx->data_buffer.update_pivot_count(rctx->pvtcnt);
-
-  mock_pivots_init(rctx);
   reneg_topology_init(rctx);
 
   rctx->state_mgr.update_state(RenegState::READY);
@@ -514,7 +511,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
   int stage_pivot_count = 0;
 
   if (round_num != rctx->round_num) {
-    stage_pivot_count = rctx->data_buffer.store_data(
+    stage_pivot_count = rctx->data_buffer->store_data(
         stage_num, pivots, num_pivots, pivot_width, /* isnextround */ true);
 
     /* If we're receiving a pivot for a future round, we can never have
@@ -527,7 +524,7 @@ int reneg_handle_rtp_pivot(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
      */
     assert(!expected_items_for_stage(rctx, stage_num, stage_pivot_count));
   } else {
-    stage_pivot_count = rctx->data_buffer.store_data(
+    stage_pivot_count = rctx->data_buffer->store_data(
         stage_num, pivots, num_pivots, pivot_width, /*isnextround */ false);
   }
   pthread_mutex_unlock(&(rctx->reneg_mutex));
@@ -656,7 +653,7 @@ int reneg_handle_pivot_bcast(reneg_ctx_t rctx, char* buf, unsigned int buf_sz,
 
   pivot_update_pivots(pvt_ctx, pivots, num_pivots);
 
-  rctx->data_buffer.advance_round();
+  rctx->data_buffer->advance_round();
   rctx->round_num++;
 
   if (rctx->state_mgr.get_next_round_start()) {
@@ -739,6 +736,11 @@ void send_to_all(int* peers, int num_peers, reneg_ctx_t rctx, char* buf,
 
 int reneg_destroy(reneg_ctx_t rctx) {
   pthread_mutex_destroy(&(rctx->reneg_mutex));
+
+  assert(rctx->data_buffer != nullptr);
+  delete rctx->data_buffer;
+  rctx->data_buffer = nullptr;
+
   return 0;
 }
 
@@ -760,9 +762,9 @@ void compute_aggregate_pivots(reneg_ctx_t rctx, int stage_num, int num_merged,
 
   float sample_width;
 
-  rctx->data_buffer.load_into_rbvec(stage_num, rbvec);
+  rctx->data_buffer->load_into_rbvec(stage_num, rbvec);
 
-  rctx->data_buffer.get_pivot_widths(stage_num, pivot_widths);
+  rctx->data_buffer->get_pivot_widths(stage_num, pivot_widths);
   pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_widths,
               rctx->num_peers[stage_num]);
 
@@ -776,30 +778,5 @@ void compute_aggregate_pivots(reneg_ctx_t rctx, int stage_num, int num_merged,
 
   merged_width = sample_width;
   std::copy(merged_pivot_vec.begin(), merged_pivot_vec.end(), merged_pivots);
-}
-
-/*************** Temporary Functions ********************/
-int mock_pivots_init(reneg_ctx_t rctx) {
-  if (rctx->state_mgr.get_state() != RenegState::INIT) {
-    logf(LOG_DBUG, "mock_pivots_init: can initialize only in init stage\n");
-    return -1;
-  }
-
-  pivot_ctx_t* pvt_ctx = rctx->pvt_ctx;
-
-  // logf(LOG_DBUG, "mock_pivots_init: mutex %p\n", rctx->data_mutex);
-  assert(pvt_ctx != NULL);
-
-  pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
-
-  for (int pidx = 0; pidx < rctx->pvtcnt[0]; pidx++) {
-    pvt_ctx->my_pivots[pidx] = (pidx + 1) * (pidx + 2);
-  }
-
-  pvt_ctx->pivot_width = 33.5f;
-
-  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
-
-  return 0;
 }
 }  // namespace pdlfs

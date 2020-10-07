@@ -76,7 +76,7 @@ struct reneg_ctx {
   pthread_mutex_t reneg_mutex = PTHREAD_MUTEX_INITIALIZER;
 
   RtpStateMgr state_mgr;
-  DataBuffer data_buffer;
+  DataBuffer *data_buffer = nullptr;
 
   int round_num;
   int my_rank;

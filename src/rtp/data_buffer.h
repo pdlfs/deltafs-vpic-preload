@@ -18,7 +18,13 @@ class DataBuffer {
   int cur_store_idx;
 
  public:
-  DataBuffer();
+
+  /**
+   * @brief Constructor
+   *
+   * @param num_pivots Expected pivot_count for each stage
+   */
+  DataBuffer(int num_pivots[STAGES_MAX + 1]);
 
   /**
    * @brief Store pivots for the current round
@@ -31,7 +37,7 @@ class DataBuffer {
    *
    * @return errno if < 0, else num_items in store for the stage
    */
-  int store_data(int stage, float *pivot_data, int dlen, float pivot_width,
+  int store_data(int stage, float* pivot_data, int dlen, float pivot_width,
                  bool isnext);
 
   /**
@@ -58,7 +64,7 @@ class DataBuffer {
    *
    * @return
    */
-  int get_pivot_widths(int stage, std::vector<float> &widths);
+  int get_pivot_widths(int stage, std::vector<float>& widths);
 
   /**
    * @brief
@@ -68,7 +74,7 @@ class DataBuffer {
    *
    * @return
    */
-  int load_into_rbvec(int stage, std::vector<rb_item_t> &rbvec);
+  int load_into_rbvec(int stage, std::vector<rb_item_t>& rbvec);
 
   /**
    * @brief Clear ALL data (both current round and next). Use with caution.
@@ -77,4 +83,4 @@ class DataBuffer {
    */
   int clear_all_data();
 };
-} // namespace pdlfs
+}  // namespace pdlfs
