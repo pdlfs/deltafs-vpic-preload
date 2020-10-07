@@ -527,13 +527,6 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 
 void send_all_acks();
 
-void sigusr1(int foo) {
-  fprintf(stderr, "Received SIGUSR at Rank %d\n", pctx.my_rank);
-  xn_ctx_t* xctx = static_cast<xn_ctx_t*>(pctx.sctx.rep);
-  shuffle_statedump(xctx->psh, 0);
-  exit(0);
-}
-
 void send_all_to_all(shuffle_ctx_t* ctx, char* buf, uint32_t buf_sz,
                      int my_rank, int comm_sz, bool send_to_self);
 
@@ -749,7 +742,11 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
+  if (pctx.testin && pctx.trace != NULL)
+    shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
+
   char msg_type = msgfmt_get_msgtype(buf);
+
   switch (msg_type) {
     case MSGFMT_DATA:
       break;
@@ -779,9 +776,6 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   msgfmt_parse_data(buf, buf_sz, &fname, ctx->fname_len, &fdata, ctx->data_len);
 
   rv = exotic_write(fname, ctx->fname_len, fdata, ctx->data_len, epoch, src);
-
-  if (pctx.testin && pctx.trace != NULL)
-    shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
 
   return rv;
 }
