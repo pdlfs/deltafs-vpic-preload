@@ -4,86 +4,144 @@
 
 #include "mock_backend.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 namespace {
-float get_indexable_property(const char *data_buf) {
-  const float *prop = reinterpret_cast<const float *>(data_buf);
+float get_indexable_property(const char* data_buf) {
+  const float* prop = reinterpret_cast<const float*>(data_buf);
   return prop[0];
 }
+
 }  // namespace
 
 namespace pdlfs {
+
+Bucket::Bucket(const uint32_t max_size) : max_size_(max_size){};
+
+bool Bucket::Inside(float prop) { return expected_.Inside(prop); }
+
+int Bucket::Insert(float prop) {
+  int rv = 0;
+
+  if (num_items_ >= max_size_) return -1;
+
+  observed_.Extend(prop);
+  num_items_++;
+
+  if (not expected_.Inside(prop)) {
+    num_items_oob_++;
+  }
+
+  return 0;
+}
+
+Range Bucket::GetExpectedRange() { return expected_; }
+
+void Bucket::UpdateExpectedRange(Range expected) { expected_ = expected; }
+
+void Bucket::UpdateExpectedRange(float bmin, float bmax) {
+  assert(bmin <= bmax);
+
+  expected_.range_min = bmin;
+  expected_.range_max = bmax;
+}
+
+void Bucket::Reset() {
+  num_items_ = 0;
+  num_items_oob_ = 0;
+  observed_.Reset();
+}
+
+int Bucket::FlushAndReset(pdlfs::PartitionManifest& manifest) {
+  int rv = 0;
+
+  rv = manifest.AddItem(observed_.range_min, observed_.range_max, num_items_,
+                        num_items_oob_);
+  Reset();
+
+  return rv;
+}
 PartitionManifest::PartitionManifest() {}
 
 int PartitionManifest::AddItem(float range_begin, float range_end,
-                               uint32_t part_count) {
+                               uint32_t part_count, uint32_t part_oob) {
   int rv = 0;
-  items_.push_back({range_begin, range_end, part_count});
+  if (part_count == 0) return rv;
+  items_.push_back({range_begin, range_end, part_count, part_oob});
   return rv;
 }
 
-int PartitionManifest::Dump(FILE *out_file) {
+int PartitionManifest::Dump(FILE* out_file) {
   int rv = 0;
 
   for (size_t idx = 0; idx < items_.size(); idx++) {
-    PartitionManifestItem &item = items_[idx];
-    fprintf(out_file, "%.3f %.3f - %u\n", item.part_range_begin,
-            item.part_range_end, item.part_item_count);
+    PartitionManifestItem& item = items_[idx];
+    fprintf(out_file, "%.4f %.4f - %u %u\n", item.part_range_begin,
+            item.part_range_end, item.part_item_count, item.part_item_oob);
   }
   return rv;
 }
 
 MockBackend::MockBackend(uint32_t memtable_size_bytes, uint32_t key_size_bytes)
-    : memtable_size_(memtable_size_bytes), key_size_(key_size_bytes) {
-  items_per_flush_ = memtable_size_ / key_size_;
-}
+    : memtable_size_(memtable_size_bytes),
+      key_size_(key_size_bytes),
+      items_per_flush_(memtable_size_ / key_size_),
+      current_(items_per_flush_),
+      prev_(items_per_flush_) {}
 
-int MockBackend::Write(const char *data) {
+int MockBackend::Write(const char* data) {
   int rv = 0;
 
   float indexed_prop = ::get_indexable_property(data);
+  if (current_.Inside(indexed_prop)) {
+    rv = current_.Insert(indexed_prop);
 
-  if (items_buffered_ == 0) {
-    range_min_ = indexed_prop;
-    range_max_ = indexed_prop;
-  } else if (range_min_ > indexed_prop) {
-    range_min_ = indexed_prop;
-  } else if (range_max_ < indexed_prop) {
-    range_max_ = indexed_prop;
+    if (rv) rv = FlushAndReset(current_);
+  } else {
+    rv = prev_.Insert(indexed_prop);
+
+    if (rv) rv = FlushAndReset(prev_);
   }
 
-  items_buffered_++;
-
-  if (items_buffered_ >= items_per_flush_) rv = FlushAndReset();
   return rv;
 }
 
-int MockBackend::FlushAndReset() {
-  manifest_.AddItem(range_min_, range_max_, items_buffered_);
+int MockBackend::FlushAndReset(Bucket& bucket) {
+  int rv = 0;
 
-  items_buffered_ = 0;
-  range_min_ = 0;
-  range_max_ = 0;
+  rv = bucket.FlushAndReset(manifest_);
 
-  return 0;
+  return rv;
 }
 
-int MockBackend::SetDumpPath(const char *path) {
+int MockBackend::UpdateBounds(const float bound_start, const float bound_end) {
+  /* Strictly, should lock before updating, but this is only for measuring
+   * "pollution" - who cares if it's a couple of counters off */
+  prev_.UpdateExpectedRange(current_.GetExpectedRange());
+  current_.UpdateExpectedRange(bound_start, bound_end);
+
+  FlushAndReset(prev_);
+  FlushAndReset(current_);
+}
+
+int MockBackend::SetDumpPath(const char* path) {
   strncpy(dump_path_, path, 255);
   dump_path_set_ = true;
 }
 
-int MockBackend::Dump(const char *path) {
+int MockBackend::Dump(const char* path) {
   int rv = 0;
-  FILE *out_file = fopen(path, "w+");
+  FILE* out_file = fopen(path, "w+");
   manifest_.Dump(out_file);
   fclose(out_file);
   return rv;
 }
 int MockBackend::Finish() {
-  FlushAndReset();
+  FlushAndReset(prev_);
+  FlushAndReset(current_);
+
   if (dump_path_set_) Dump(dump_path_);
   return 0;
 }
