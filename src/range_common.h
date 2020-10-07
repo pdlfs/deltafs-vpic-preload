@@ -107,35 +107,6 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx);
 int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots);
 
 /**
- * @brief Calculate pivots from the current pivot_ctx state.
- * This also modifies OOB buffers (sorts them), but their order shouldn't
- * be relied upon anyway.
- *
- * @param pvt_ctx pivot context
- *
- * @return
- */
-int pivot_calculate(pivot_ctx_t* pvt_ctx, const size_t num_pivots);
-/**
- * @brief Take a snapshot of the pivot_ctx state
- *
- * @param pvt_ctx
- *
- * @return
- */
-int pivot_state_snapshot(pivot_ctx* pvt_ctx);
-
-/**
- * @brief Calculate pivot state from snapshot. Exists mostly as legacy
- *
- * @param pvt_ctx
- *
- * @return
- */
-int pivot_calculate_from_snapshot(pivot_ctx_t* pvt_ctx,
-                                  const size_t num_pivots);
-
-/**
  * @brief Update pivots after renegotiation. This *does not* manipulate the
  * state manager. State manager needs to be directly controlled by the
  * renegotiation provider because of synchronization implications
@@ -255,7 +226,7 @@ static inline int print_vector(char* buf, int buf_sz, float* v, int vlen,
   for (int vidx = 0; vidx < vlen; vidx++) {
     if (buf_idx >= buf_sz - 32) return buf_idx;
 
-    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.4f ", v[vidx]);
   }
 
   buf_idx +=
