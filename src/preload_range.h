@@ -20,8 +20,8 @@
 #define RANGE_IS_BLOCKED(x) (x->range_state == range_state_t::RS_BLOCKED)
 #define RANGE_IS_ACK(x) (x->range_state == range_state_t::RS_ACK)
 
-#define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == pdlfs::kMaxOobSize)
-#define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == pdlfs::kMaxOobSize)
+#define RANGE_LEFT_OOB_FULL(x) (x->oob_count_left == DEFAULT_OOBSZ)
+#define RANGE_RIGHT_OOB_FULL(x) (x->oob_count_right == DEFAULT_OOBSZ)
 
 #define RANGE_OOB_FULL(x) \
   (x->oob_count_left + x->oob_count_right == RANGE_TOTAL_OOB_SZ)

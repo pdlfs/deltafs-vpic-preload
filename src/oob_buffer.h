@@ -17,6 +17,7 @@ typedef struct particle_mem {
 
 class OobBuffer {
  private:
+  const size_t oob_max_sz_;
   float range_min_;
   float range_max_;
   bool range_set_ = false;
@@ -26,9 +27,9 @@ class OobBuffer {
   friend class OobFlushIterator;
 
  public:
-  OobBuffer();
+  OobBuffer(const size_t oob_max_sz);
 
-  bool OutOfBounds(float prop);
+  bool OutOfBounds(float prop) const;
 
   int Insert(particle_mem_t& item);
 

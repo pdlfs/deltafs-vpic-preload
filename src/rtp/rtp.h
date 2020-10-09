@@ -1,6 +1,7 @@
 #pragma once
 
 #include <time.h>
+
 #include "data_buffer.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
@@ -57,17 +58,13 @@ class RenegBench {
   void print_stderr();
 };
 
-struct reneg_opts {
-  int pvtcnt[4];
-};
-
-struct reneg_ctx {
+struct rtp_ctx {
   RenegBench reneg_bench;
 
-  xn_ctx_t *xn_sctx; /* shuffler to use for data */
+  xn_ctx_t* xn_sctx; /* shuffler to use for data */
   nexus_ctx_t nxp;   /* extracted from sctx */
 
-  pivot_ctx_t *pvt_ctx;
+  pivot_ctx_t* pvt_ctx;
 
   /* All data below is protected by this mutex - this is also
    * shared between the main thread and multiple message handlers.
@@ -76,7 +73,7 @@ struct reneg_ctx {
   pthread_mutex_t reneg_mutex = PTHREAD_MUTEX_INITIALIZER;
 
   RtpStateMgr state_mgr;
-  DataBuffer *data_buffer = nullptr;
+  DataBuffer* data_buffer = nullptr;
 
   int round_num;
   int my_rank;
@@ -87,11 +84,9 @@ struct reneg_ctx {
   int num_peers[4];
   int root[4];
   int pvtcnt[4];
-
-  struct reneg_opts ro;
 };
 
-typedef struct reneg_ctx *reneg_ctx_t;
+typedef struct rtp_ctx* rtp_ctx_t;
 
 /**
  * @brief
@@ -103,8 +98,8 @@ typedef struct reneg_ctx *reneg_ctx_t;
  *
  * @return retcode
  */
-int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
-               struct reneg_opts ro);
+int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
+             reneg_opts* ro);
 
 /**
  * @brief Handler for all RTP messages. Multiplexes to internal handlers.
@@ -116,7 +111,8 @@ int reneg_init(reneg_ctx_t rctx, shuffle_ctx_t *sctx, pivot_ctx_t *pvt_ctx,
  *
  * @return
  */
-int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz, int src);
+int rtp_handle_message(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
+                       int src);
 
 /**
  * @brief
@@ -125,7 +121,7 @@ int reneg_handle_msg(reneg_ctx_t rctx, char *buf, unsigned int buf_sz, int src);
  *
  * @return
  */
-int reneg_init_round(reneg_ctx_t rctx);
+int rtp_init_round(rtp_ctx_t rctx);
 
 /**
  * @brief Destroy
@@ -134,6 +130,6 @@ int reneg_init_round(reneg_ctx_t rctx);
  *
  * @return retcode
  */
-int reneg_destroy(reneg_ctx_t rctx);
+int rtp_destroy(rtp_ctx_t rctx);
 
-} // namespace pdlfs
+}  // namespace pdlfs

@@ -145,19 +145,23 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   return this->prev_state;
 }
 
-int pivot_ctx_init(pivot_ctx_t* pvt_ctx) {
-  pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
-  pthread_mutex_lock(&(pvt_ctx->snapshot_access_m));
+int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro) {
+  (*pvt_ctx) = new pivot_ctx_t();
+  pivot_ctx_t* pvt_ctx_dref = *pvt_ctx;
 
-  pvt_ctx->rank_bins.resize(pctx.comm_sz + 1);
-  pvt_ctx->rank_bin_count.resize(pctx.comm_sz);
-  pvt_ctx->rank_bin_count_aggr.resize(pctx.comm_sz);
+  pthread_mutex_lock(&(pvt_ctx_dref->pivot_access_m));
 
-  pvt_ctx->snapshot.rank_bins.resize(pctx.comm_sz + 1);
-  pvt_ctx->snapshot.rank_bin_count.resize(pctx.comm_sz);
+  if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "pivot_ctx_init: oob_buf_sz: %d\n", ro->oob_buf_sz);
+  }
 
-  pthread_mutex_unlock(&(pvt_ctx->snapshot_access_m));
-  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
+  pvt_ctx_dref->oob_buffer = new pdlfs::OobBuffer(ro->oob_buf_sz);
+
+  pvt_ctx_dref->rank_bins.resize(pctx.comm_sz + 1);
+  pvt_ctx_dref->rank_bin_count.resize(pctx.comm_sz);
+  pvt_ctx_dref->rank_bin_count_aggr.resize(pctx.comm_sz);
+
+  pthread_mutex_unlock(&(pvt_ctx_dref->pivot_access_m));
   return 0;
 }
 
@@ -174,10 +178,24 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx) {
   std::fill(pvt_ctx->rank_bin_count_aggr.begin(),
             pvt_ctx->rank_bin_count_aggr.end(), 0);
 
-  pvt_ctx->oob_buffer.Reset();
+  pvt_ctx->oob_buffer->Reset();
 
   pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
   return 0;
+}
+
+int pivot_ctx_destroy(pivot_ctx_t **pvt_ctx) {
+  int rv = 0;
+
+  assert(*pvt_ctx != nullptr);
+  assert((*pvt_ctx)->oob_buffer != nullptr);
+
+  delete((*pvt_ctx)->oob_buffer);
+  delete *pvt_ctx;
+
+  *pvt_ctx = nullptr;
+
+  return rv;
 }
 
 int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
@@ -218,8 +236,8 @@ int pivot_calculate_from_oobl(pivot_ctx_t* pvt_ctx, int num_pivots) {
 
   std::vector<float> oobl, oobr;
 
-  pdlfs::OobBuffer& oob = pvt_ctx->oob_buffer;
-  pvt_ctx->oob_buffer.GetPartitionedProps(oobl, oobr);
+  pdlfs::OobBuffer* oob = pvt_ctx->oob_buffer;
+  pvt_ctx->oob_buffer->GetPartitionedProps(oobl, oobr);
 
   assert(oobr.size() == 0);
   const int oobl_sz = oobl.size();
@@ -274,8 +292,8 @@ int pivot_calculate_from_all(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   float range_start, range_end;
   std::vector<float> oobl, oobr;
 
-  pdlfs::OobBuffer& oob = pvt_ctx->oob_buffer;
-  pvt_ctx->oob_buffer.GetPartitionedProps(oobl, oobr);
+  pdlfs::OobBuffer* oob = pvt_ctx->oob_buffer;
+  pvt_ctx->oob_buffer->GetPartitionedProps(oobl, oobr);
 
   get_range_bounds(pvt_ctx, oobl, oobr, range_start, range_end);
   assert(range_end >= range_start);
@@ -463,7 +481,7 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
   std::copy(pivots, pivots + num_pivots, pvt_ctx->rank_bins.begin());
   std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 0);
 
-  pvt_ctx->oob_buffer.SetRange(pvt_ctx->range_min, pvt_ctx->range_max);
+  pvt_ctx->oob_buffer->SetRange(pvt_ctx->range_min, pvt_ctx->range_max);
 
   float our_bin_start = pivots[pctx.my_rank];
   float our_bin_end = pivots[pctx.my_rank + 1];

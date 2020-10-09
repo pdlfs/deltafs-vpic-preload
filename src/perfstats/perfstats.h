@@ -75,7 +75,7 @@ int perfstats_destroy(perfstats_ctx_t* pctx);
  * @return
  */
 int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
-                        reneg_ctx_t rctx);
+                        rtp_ctx_t rctx);
 
 /**
  * @brief

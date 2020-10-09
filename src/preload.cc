@@ -135,6 +135,13 @@ static void must_getnextdlsym(void** result, const char* symbol) {
   if (*result == NULL) ABORT(symbol);
 }
 
+/* signal handler to print shuffler info for debug */
+void sigusr1(int foo) {
+  fprintf(stderr, "Received SIGUSR at Rank %d\n", pctx.my_rank);
+  xn_ctx_t* xctx = static_cast<xn_ctx_t*>(pctx.sctx.rep);
+  shuffle_statedump(xctx->sh, 0);
+}
+
 /*
  * preload_init: called via init_once.   if this fails we are sunk, so
  * we'll abort the process....
@@ -429,7 +436,33 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
+  pctx.reneg_opts = new reneg_opts();
+
+#define INIT_PVTCNT(arr, idx)                \
+  tmp = maybe_getenv("RANGE_Pvtcnt_s##idx"); \
+  if (tmp != NULL) {                         \
+    (arr)[(idx)] = atoi(tmp);                \
+    assert(arr[(idx)] > 0);                  \
+  } else {                                   \
+    (arr)[(idx)] = DEFAULT_PVTCNT;           \
+  }
+
+  INIT_PVTCNT(pctx.reneg_opts->rtp_pvtcnt, 1);
+  INIT_PVTCNT(pctx.reneg_opts->rtp_pvtcnt, 2);
+  INIT_PVTCNT(pctx.reneg_opts->rtp_pvtcnt, 3);
+
+#undef INIT_PVTCNT
+
+  tmp = maybe_getenv("RANGE_Oob_size");
+  if (tmp != NULL) {
+    pctx.reneg_opts->oob_buf_sz = atoi(tmp);
+    assert(pctx.reneg_opts->oob_buf_sz > 0);
+  } else {
+    pctx.reneg_opts->oob_buf_sz = DEFAULT_OOBSZ;
+  }
+
   /* additional init can go here or MPI_Init() */
+  signal(SIGUSR1, sigusr1);
 }
 
 /*
@@ -817,7 +850,6 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   range_ctx_init(&(pctx.rctx));
-  pivot_ctx_init(&(pctx.pvt_ctx));
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
@@ -1261,10 +1293,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  /* TODO: make useful or remove */
-  struct pdlfs::reneg_opts ro;
-
-  reneg_init(&(pctx.rtp_ctx), &(pctx.sctx), &(pctx.pvt_ctx), ro);
+  pivot_ctx_init(&(pctx.pvt_ctx), pctx.reneg_opts);
+  rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.pvt_ctx, pctx.reneg_opts);
 
   srand(pctx.my_rank);
 
@@ -1346,8 +1376,13 @@ int MPI_Finalize(void) {
 
   pctx.mock_backend->Finish();
   delete pctx.mock_backend;
+
   pthread_mutex_destroy(&(pctx.data_mutex));
-  reneg_destroy(&(pctx.rtp_ctx));
+  rtp_destroy(&(pctx.rtp_ctx));
+  pivot_ctx_destroy(&(pctx.pvt_ctx));
+
+  delete pctx.reneg_opts;
+  pctx.reneg_opts = nullptr;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -1902,7 +1937,7 @@ int MPI_Finalize(void) {
 
   /* destroy time series monitor */
   if (!pctx.nomon) {
-    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), &(pctx.pvt_ctx),
+    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
                                         pctx.my_rank);
     int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
     if (rv) {
@@ -2119,7 +2154,7 @@ int opendir_impl(const char* dir) {
   num_eps++; /* must go before the barrier below */
 
   range_ctx_reset(&(pctx.rctx));
-  pivot_ctx_reset(&(pctx.pvt_ctx));
+  pivot_ctx_reset(pctx.pvt_ctx);
 
   if (pctx.paranoid_post_barrier) {
     /*
@@ -2799,13 +2834,14 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   int rv;
 
   pctx.perf_ctx.stat_hooks.bytes_written += data_len;
-  pctx.mock_backend->Write(data);
 
   if (epoch == -1) {
     epoch = num_eps - 1;
   }
 
   pthread_mtx_lock(&write_mtx);
+
+  pctx.mock_backend->Write(data);
 
   if (pctx.paranoid_checks) {
     if (fname_len != strlen(fname)) {

@@ -190,7 +190,7 @@ int perfstats_log_hooks(perfstats_ctx_t* pctx, uint64_t timestamp) {
 }
 
 int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
-                        reneg_ctx_t rctx) {
+                        rtp_ctx_t rctx) {
   uint64_t timestamp = ::get_timestamp(pctx);
 
   const char* const kRenegMassLabel = "RENEG_COUNTS";
@@ -211,7 +211,7 @@ int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
                    /* truncate */ false);
 
   buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOB (%zu)",
-                      pvt_ctx->oob_buffer.Size());
+                      pvt_ctx->oob_buffer->Size());
 
   massStat.SetValue(timestamp, buf);
 
@@ -296,7 +296,7 @@ int perfstats_log_eventstr(perfstats_ctx_t* pctx, const char* event_label,
   return rv;
 }
 
-int perfstats_printf(perfstats_ctx_t* pctx, int rank, const char* fmt, ...) {
+int perfstats_printf(perfstats_ctx_t* pctx, const char* fmt, ...) {
   int rv = 0;
   uint64_t timestamp = get_timestamp(pctx);
 

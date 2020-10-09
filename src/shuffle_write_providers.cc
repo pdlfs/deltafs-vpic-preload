@@ -26,10 +26,10 @@ namespace {
 buf_type_t compute_oob_buf(pivot_ctx_t* pvt_ctx, float indexed_prop) {
   /* Assert pvt_ctx->pvt_access_m.lockheld() */
   MainThreadState state = pvt_ctx->mts_mgr.get_state();
-  pdlfs::OobBuffer& oob_buffer = pvt_ctx->oob_buffer;
+  pdlfs::OobBuffer* oob_buffer = pvt_ctx->oob_buffer;
   buf_type_t buf_type;
 
-  if (oob_buffer.OutOfBounds(indexed_prop)) {
+  if (oob_buffer->OutOfBounds(indexed_prop)) {
     buf_type = buf_type_t::RB_BUF_OOB;
   } else {
     buf_type = buf_type_t::RB_NO_BUF;
@@ -44,13 +44,14 @@ float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
 }
 
 int shuffle_data_target(const float& indexed_prop) {
-  auto rank_iter = std::lower_bound(pctx.pvt_ctx.rank_bins.begin(),
-                                    pctx.pvt_ctx.rank_bins.end(), indexed_prop);
+  auto rank_iter =
+      std::lower_bound(pctx.pvt_ctx->rank_bins.begin(),
+                       pctx.pvt_ctx->rank_bins.end(), indexed_prop);
 
-  int rank = rank_iter - pctx.pvt_ctx.rank_bins.begin() - 1;
+  int rank = rank_iter - pctx.pvt_ctx->rank_bins.begin() - 1;
 
   char print_buf[1024];
-  print_vector(print_buf, 1024, pctx.pvt_ctx.rank_bins);
+  print_vector(print_buf, 1024, pctx.pvt_ctx->rank_bins);
   logf(LOG_DBG2,
        "shuffle_data_target, new, destrank: %d (%.1f)\n"
        "%s\n",
@@ -59,16 +60,16 @@ int shuffle_data_target(const float& indexed_prop) {
   return rank;
 }
 
-int shuffle_flush_oob(shuffle_ctx_t *sctx, pivot_ctx_t* pvt_ctx, int epoch) {
+int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx, int epoch) {
   int rv = 0;
 
-  pdlfs::OobBuffer &oob_buffer = pvt_ctx->oob_buffer;
-  pdlfs::OobFlushIterator fi(oob_buffer);
+  pdlfs::OobBuffer* oob_buffer = pvt_ctx->oob_buffer;
+  pdlfs::OobFlushIterator fi(*oob_buffer);
   int rank = shuffle_rank(sctx);
 
-  while(fi != oob_buffer.Size()) {
-    pdlfs::particle_mem_t &p = *fi;
-    if (oob_buffer.OutOfBounds(p.indexed_prop)) {
+  while (fi != oob_buffer->Size()) {
+    pdlfs::particle_mem_t& p = *fi;
+    if (oob_buffer->OutOfBounds(p.indexed_prop)) {
       fi.PreserveCurrent();
       fi++;
       continue;
@@ -106,8 +107,9 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
   }
 }
 
-void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
-                         int epoch, int src, int dst) {
+void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf,
+                               unsigned char buf_sz, int epoch, int src,
+                               int dst) {
   const float h = ::get_indexable_property(buf, buf_sz);
 
   if (src != dst || ctx->force_rpc) {
@@ -205,15 +207,15 @@ timespec diff(timespec start, timespec end) {
 int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
                           unsigned char fname_len, char* data,
                           unsigned char data_len, int epoch) {
-  pivot_ctx* pvt_ctx = &(pctx.pvt_ctx);
-  pdlfs::reneg_ctx_t rctx = &(pctx.rtp_ctx);
+  pivot_ctx* pvt_ctx = pctx.pvt_ctx;
+  pdlfs::rtp_ctx_t rctx = &(pctx.rtp_ctx);
 
   for (int i = 0; i < 1000; i++) {
     float rand_value = (rand() % 16738) / 167.38;
     pdlfs::particle_mem_t p;
     p.indexed_prop = rand_value;
     p.buf_sz = 0;
-    pvt_ctx->oob_buffer.Insert(p);
+    pvt_ctx->oob_buffer->Insert(p);
   }
 
   // sleep(5);
@@ -221,11 +223,11 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
 
   if (pctx.my_rank == 3) {
     // rctx->reneg_bench.rec_start();
-    reneg_init_round(rctx);
+    rtp_init_round(rctx);
     // rctx->reneg_bench.rec_finished();
     // fprintf(stderr, "=========== MAIN THREAD AWAKE ==========\n");
     // rctx->reneg_bench.print_stderr();
-    // reneg_init_round(rctx);
+    // rtp_init_round(rctx);
   }
 
   sleep(10);
@@ -235,7 +237,7 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
   // for (int i = 0; i < 100; i++) {
   // int sleep_time = rand() % 10000;
   // usleep(sleep_time);
-  // reneg_init_round(rctx);
+  // rtp_init_round(rctx);
   // }
 
   // if (pctx.my_rank == 0) {
@@ -278,8 +280,8 @@ int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
 int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
                         unsigned char fname_len, char* data,
                         unsigned char data_len, int epoch) {
-  pivot_ctx_t* pvt_ctx = &(pctx.pvt_ctx);
-  pdlfs::reneg_ctx_t rctx = &(pctx.rtp_ctx);
+  pivot_ctx_t* pvt_ctx = pctx.pvt_ctx;
+  pdlfs::rtp_ctx_t rctx = &(pctx.rtp_ctx);
 
   int peer_rank = -1;
   int rank;
@@ -305,7 +307,6 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
                                ctx->extra_data_len);
   p.indexed_prop = indexed_prop;
 
-
   pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
 
   pvt_ctx->last_reneg_counter++;
@@ -317,7 +318,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   // [> XXX <] shuffle_now = true;
 
   if (!shuffle_now) {
-    rv = pvt_ctx->oob_buffer.Insert(p);
+    rv = pvt_ctx->oob_buffer->Insert(p);
   }
 
   /* At this point, we can (one of the following must hold):
@@ -331,7 +332,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   ((pvt_ctx)->mts_mgr.get_state() == MainThreadState::MT_BLOCK)
 
   bool reneg_and_block =
-      (!shuffle_now && pvt_ctx->oob_buffer.IsFull()) || RENEG_ONGOING(pvt_ctx);
+      (!shuffle_now && pvt_ctx->oob_buffer->IsFull()) || RENEG_ONGOING(pvt_ctx);
 
   if (pvt_ctx->last_reneg_counter == pdlfs::kRenegInterval) {
     reneg_and_block = true;
@@ -343,7 +344,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
     /* Conditions 2 and 3:
      * This will init a renegotiation and block until complete
      * If active already, this will block anyway */
-    reneg_init_round(rctx);
+    rtp_init_round(rctx);
     ::shuffle_flush_oob(ctx, pvt_ctx, epoch);
   }
 
@@ -359,7 +360,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   peer_rank = ::shuffle_data_target(indexed_prop);
 
-  // [> XXX <] peer_rank = (*reinterpret_cast<int *>(&indexed_prop) ^ 0xc3) % pctx.comm_sz;
+  // [> XXX <] peer_rank = (*reinterpret_cast<int *>(&indexed_prop) ^ 0xc3) %
+  // pctx.comm_sz;
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
@@ -375,7 +377,6 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.trace != NULL)
     shuffle_write_range_debug(ctx, p.buf, p.buf_sz, epoch, rank, peer_rank);
-
 
   pvt_ctx->rank_bin_count[peer_rank]++;
   pvt_ctx->rank_bin_count_aggr[peer_rank]++;

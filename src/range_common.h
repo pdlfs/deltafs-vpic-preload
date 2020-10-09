@@ -10,6 +10,11 @@
 #include "oob_buffer.h"
 #include "range_constants.h"
 
+struct reneg_opts {
+  int oob_buf_sz;
+  int rtp_pvtcnt[4];
+};
+
 typedef struct rb_item {
   int rank;
   float bin_val;
@@ -72,21 +77,20 @@ typedef struct pivot_ctx {
   float range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
-  pdlfs::OobBuffer oob_buffer;
+  pdlfs::OobBuffer* oob_buffer;
 
   float my_pivots[pdlfs::kMaxPivots];
   int my_pivot_count;
   float pivot_width;
 
-  pthread_mutex_t snapshot_access_m = PTHREAD_MUTEX_INITIALIZER;
-  snapshot_state snapshot;
-
   int last_reneg_counter = 0;
 } pivot_ctx_t;
 
-int pivot_ctx_init(pivot_ctx_t* pvt_ctx);
+int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro);
 
 int pivot_ctx_reset(pivot_ctx_t* pvt_ctx);
+
+int pivot_ctx_destroy(pivot_ctx_t** pvt_ctx);
 
 /**
  * @brief Calculate pivots from the current pivot_ctx state.

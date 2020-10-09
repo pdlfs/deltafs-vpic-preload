@@ -2,15 +2,18 @@
 // Created by Ankush J on 9/11/20.
 //
 
-#include <assert.h>
-#include <algorithm>
-
 #include "oob_buffer.h"
 
-namespace pdlfs {
-OobBuffer::OobBuffer() { buf_.reserve(kMaxOobSize); }
+#include <assert.h>
 
-bool OobBuffer::OutOfBounds(float prop) {
+#include <algorithm>
+
+namespace pdlfs {
+OobBuffer::OobBuffer(const size_t oob_max_sz) : oob_max_sz_(oob_max_sz) {
+  buf_.reserve(oob_max_sz_);
+}
+
+bool OobBuffer::OutOfBounds(float prop) const {
   if (not range_set_) return true;
 
   return (prop < range_min_ or prop > range_max_);
@@ -26,7 +29,7 @@ int OobBuffer::Insert(particle_mem_t& item) {
     return rv;
   }
 
-  if (buf_.size() >= kMaxOobSize) {
+  if (buf_.size() >= oob_max_sz_) {
     return -1;
   }
 
@@ -39,8 +42,8 @@ size_t OobBuffer::Size() const { return buf_.size(); }
 
 bool OobBuffer::IsFull() const {
   size_t buf_sz = Size();
-  assert(buf_sz <= pdlfs::kMaxOobSize);
-  return buf_.size() == pdlfs::kMaxOobSize;
+  assert(buf_sz <= oob_max_sz_);
+  return buf_.size() == oob_max_sz_;
 }
 
 int OobBuffer::SetRange(float range_min, float range_max) {
