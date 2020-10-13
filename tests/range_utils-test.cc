@@ -13,7 +13,7 @@
 
 namespace {
 template <typename T>
-bool assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
+void assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
   for (size_t i = 1; i < seq_sz; i++) {
     auto a = seq[i];
     auto b = seq[i - 1];

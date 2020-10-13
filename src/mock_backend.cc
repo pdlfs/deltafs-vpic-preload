@@ -126,11 +126,15 @@ int MockBackend::UpdateBounds(const float bound_start, const float bound_end) {
 
   FlushAndReset(prev_);
   FlushAndReset(current_);
+
+  return 0;
 }
 
 int MockBackend::SetDumpPath(const char* path) {
   strncpy(dump_path_, path, 255);
   dump_path_set_ = true;
+
+  return 0;
 }
 
 int MockBackend::Dump(const char* path) {

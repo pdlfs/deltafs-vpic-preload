@@ -3,6 +3,7 @@
 //
 
 #include <cfloat>
+#include <string>
 
 #include "mock_backend.h"
 

@@ -437,7 +437,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
-  pctx.reneg_opts = new reneg_opts();
+  pctx.opts = new reneg_opts();
 
 #define INIT_PVTCNT(arr, idx)                \
   tmp = maybe_getenv("RANGE_Pvtcnt_s##idx"); \
@@ -448,18 +448,18 @@ static void preload_init() {
     (arr)[(idx)] = DEFAULT_PVTCNT;           \
   }
 
-  INIT_PVTCNT(pctx.reneg_opts->rtp_pvtcnt, 1);
-  INIT_PVTCNT(pctx.reneg_opts->rtp_pvtcnt, 2);
-  INIT_PVTCNT(pctx.reneg_opts->rtp_pvtcnt, 3);
+  INIT_PVTCNT(pctx.opts->rtp_pvtcnt, 1);
+  INIT_PVTCNT(pctx.opts->rtp_pvtcnt, 2);
+  INIT_PVTCNT(pctx.opts->rtp_pvtcnt, 3);
 
 #undef INIT_PVTCNT
 
   tmp = maybe_getenv("RANGE_Oob_size");
   if (tmp != NULL) {
-    pctx.reneg_opts->oob_buf_sz = atoi(tmp);
-    assert(pctx.reneg_opts->oob_buf_sz > 0);
+    pctx.opts->oob_buf_sz = atoi(tmp);
+    assert(pctx.opts->oob_buf_sz > 0);
   } else {
-    pctx.reneg_opts->oob_buf_sz = DEFAULT_OOBSZ;
+    pctx.opts->oob_buf_sz = DEFAULT_OOBSZ;
   }
 
   /* additional init can go here or MPI_Init() */
@@ -1294,8 +1294,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  pivot_ctx_init(&(pctx.pvt_ctx), pctx.reneg_opts);
-  rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.pvt_ctx, pctx.reneg_opts);
+  pivot_ctx_init(&(pctx.pvt_ctx), pctx.opts);
+  rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.pvt_ctx, pctx.opts);
 
   srand(pctx.my_rank);
 
@@ -1888,8 +1888,8 @@ int MPI_Finalize(void) {
   rtp_destroy(&(pctx.rtp_ctx));
   pivot_ctx_destroy(&(pctx.pvt_ctx));
 
-  delete pctx.reneg_opts;
-  pctx.reneg_opts = nullptr;
+  delete pctx.opts;
+  pctx.opts = nullptr;
 
   /* extra stats */
   MPI_Reduce(&num_bytes_writ, &sum_bytes_writ, 1, MPI_UNSIGNED_LONG_LONG,

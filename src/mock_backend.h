@@ -20,7 +20,7 @@ struct Range {
 
   Range(const Range& r) : range_min(r.range_min), range_max(r.range_max) {}
 
-  Range& operator=(Range& r) {
+  void operator=(Range& r) {
     range_min = r.range_min;
     range_max = r.range_max;
   }
@@ -32,7 +32,7 @@ struct Range {
 
   bool Inside(float f) { return (f >= range_min && f <= range_max); }
 
-  bool Extend(float f) {
+  void Extend(float f) {
     if (range_min == 0 and range_max == 0) {
       range_min = f;
       range_max = f;

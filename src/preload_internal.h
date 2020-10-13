@@ -167,7 +167,7 @@ typedef struct preload_ctx {
   /* Contains main thread state for range queries */
   pivot_ctx_t* pvt_ctx;
 
-  reneg_opts* reneg_opts;
+  reneg_opts* opts;
   struct pdlfs::rtp_ctx rtp_ctx;
 
   pdlfs::MockBackend* mock_backend;
