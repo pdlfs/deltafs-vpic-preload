@@ -42,6 +42,7 @@
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
+#include <perfstats/manifest_analytics.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -1374,16 +1375,6 @@ int MPI_Finalize(void) {
   num_files_read = num_bytes_read = 0;
   io_time = 0;
 
-  pctx.mock_backend->Finish();
-  delete pctx.mock_backend;
-
-  pthread_mutex_destroy(&(pctx.data_mutex));
-  rtp_destroy(&(pctx.rtp_ctx));
-  pivot_ctx_destroy(&(pctx.pvt_ctx));
-
-  delete pctx.reneg_opts;
-  pctx.reneg_opts = nullptr;
-
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
 
@@ -1893,6 +1884,13 @@ int MPI_Finalize(void) {
     }
   }
 
+  pctx.mock_backend->Finish();
+  rtp_destroy(&(pctx.rtp_ctx));
+  pivot_ctx_destroy(&(pctx.pvt_ctx));
+
+  delete pctx.reneg_opts;
+  pctx.reneg_opts = nullptr;
+
   /* extra stats */
   MPI_Reduce(&num_bytes_writ, &sum_bytes_writ, 1, MPI_UNSIGNED_LONG_LONG,
              MPI_SUM, 0, MPI_COMM_WORLD);
@@ -1910,7 +1908,11 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "final stats...");
-    logf(LOG_INFO, "num renegotiations: %d\n", pctx.rctx.pvt_round_num.load());
+    logf(LOG_INFO, "num renegotiations: %d\n", pctx.rtp_ctx.round_num);
+
+    pdlfs::ManifestAnalytics manifest_analytics(pctx.mock_backend);
+    manifest_analytics.PrintStats();
+
     logf(LOG_INFO, "== dir data compaction");
     logf(LOG_INFO,
          "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
@@ -1923,6 +1925,9 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "       > %.1f per rank",
          double(sum_pthreads) / pctx.comm_sz);
   }
+
+  delete pctx.mock_backend;
+  pctx.mock_backend = nullptr;
 
   /* close testing log file */
   if (pctx.trace != NULL) {

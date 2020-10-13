@@ -12,10 +12,11 @@ namespace pdlfs {
 class ManifestAnalytics {
  public:
   explicit ManifestAnalytics(const char* query_path);
+  explicit ManifestAnalytics(MockBackend* backend);
   void PrintStats();
 
  private:
-  const char* manifest_path_;
+  std::string manifest_path_;
   std::vector<PartitionManifestItem> global_manifest_;
   std::vector<float> query_points_;
   float range_min_ = FLT_MAX;

@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <string>
+
 namespace {
 float get_indexable_property(const char* data_buf) {
   const float* prop = reinterpret_cast<const float*>(data_buf);
@@ -145,4 +147,12 @@ int MockBackend::Finish() {
   if (dump_path_set_) Dump(dump_path_);
   return 0;
 }
+
+std::string MockBackend::GetDumpDir() {
+  assert(dump_path_set_);
+  std::string dump_path(dump_path_);
+  size_t par_idx = dump_path.find_last_of('/');
+  return dump_path.substr(0, par_idx);
+}
+
 }  // namespace pdlfs

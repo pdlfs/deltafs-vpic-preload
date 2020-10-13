@@ -107,6 +107,7 @@ class MockBackend {
   MockBackend(uint32_t memtable_size, uint32_t key_size);
   int UpdateBounds(float bound_start, float bound_end);
   int SetDumpPath(const char* path);
+  std::string GetDumpDir();
   int Write(const char* data);
   int Finish();
 };

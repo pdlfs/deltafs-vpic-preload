@@ -12,6 +12,9 @@ namespace pdlfs {
 ManifestAnalytics::ManifestAnalytics(const char* manifest_path)
     : manifest_path_(manifest_path) {}
 
+ManifestAnalytics::ManifestAnalytics(MockBackend* backend)
+    : manifest_path_(backend->GetDumpDir()) {}
+
 void ManifestAnalytics::PrintStats() {
   if (!stats_computed_) ComputeStats();
 
@@ -33,7 +36,8 @@ int ManifestAnalytics::Read() {
 
   while (true) {
     char rank_path[2048];
-    snprintf(rank_path, 2048, "%s/vpic-manifest.%d", manifest_path_, rank++);
+    snprintf(rank_path, 2048, "%s/vpic-manifest.%d", manifest_path_.c_str(),
+             rank++);
 
     if (stat(rank_path, &stat_buf)) break;
 

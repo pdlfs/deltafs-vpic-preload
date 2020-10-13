@@ -169,7 +169,6 @@ typedef struct preload_ctx {
 
   reneg_opts* reneg_opts;
   struct pdlfs::rtp_ctx rtp_ctx;
-  pthread_mutex_t data_mutex;
 
   pdlfs::MockBackend* mock_backend;
 } preload_ctx_t;
