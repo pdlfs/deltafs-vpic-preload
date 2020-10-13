@@ -8,32 +8,10 @@
 
 #include "pdlfs-common/testharness.h"
 #include "pdlfs-common/testutil.h"
+#include "perfstats/manifest_analytics.h"
 #include "range_common.h"
 
 namespace {
-/* TODO, struct and loop through all */
-typedef struct pivot_state {
-  const int num_ranks;
-  const int oob_data_sz;
-  const float oob_data[1000];
-  const float range_min;
-  const float range_max;
-  const int num_pivots;
-  const float rank_bin_counts[2000];
-  const float rank_bins[2000];
-};
-namespace data_pc4 {
-#include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
-}
-
-namespace data_pc5 {
-#include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
-}
-
-namespace data_pc6 {
-#include "pivot_calc_6_data.cc"  // NOLINT(bugprone-suspicious-include)
-}
-
 template <typename T>
 bool assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
   for (size_t i = 1; i < seq_sz; i++) {
@@ -49,7 +27,53 @@ bool assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
 
 namespace pdlfs {
 
-class RangeUtilsTest {};
+class RangeUtilsTest {
+ public:
+  pivot_ctx_t* pctx;
+  reneg_opts ro;
+
+  RangeUtilsTest() {
+    ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
+    ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
+    ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
+    ro.oob_buf_sz = DEFAULT_OOBSZ;
+
+    pivot_ctx_init(&pctx, &ro);
+
+    pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
+  }
+
+  void AdvancePastInit() {
+    pctx->mts_mgr.update_state(MainThreadState::MT_READY);
+    pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
+  }
+
+  void LoadData(const int num_ranks, const float* oob_data,
+                const int oob_data_sz, const float range_min,
+                const float range_max, const int num_pivots,
+                const float* rank_bin_counts, const float* rank_bins) {
+    pctx->range_min = range_min;
+    pctx->range_max = range_max;
+
+    pctx->oob_buffer->Reset();
+
+    for (int i = 0; i < oob_data_sz; i++) {
+      particle_mem_t p;
+      p.indexed_prop = oob_data[i];
+      pctx->oob_buffer->Insert(p);
+    }
+
+    pctx->oob_buffer->SetRange(range_min, range_max);
+
+    pctx->rank_bins.resize(num_ranks + 1);
+    pctx->rank_bin_count.resize(num_ranks);
+    std::copy(rank_bins, rank_bins + num_ranks + 1, pctx->rank_bins.begin());
+    std::copy(rank_bin_counts, rank_bin_counts + num_ranks,
+              pctx->rank_bin_count.begin());
+  }
+
+  ~RangeUtilsTest() { pivot_ctx_destroy(&pctx); }
+};
 
 TEST(RangeUtilsTest, ParticleCount) {
   ASSERT_EQ(get_particle_count(3, 5, 2), 4);
@@ -59,17 +83,8 @@ TEST(RangeUtilsTest, ParticleCount) {
 
 TEST(RangeUtilsTest, PivotCalc) {
   srand(time(NULL));
-  pivot_ctx_t* pctx;
-
-  reneg_opts ro;
-  ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
-  ro.oob_buf_sz = DEFAULT_OOBSZ;
 
   int oob_count = DEFAULT_OOBSZ;
-
-  pivot_ctx_init(&pctx, &ro);
 
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     float rand_val = rand() * 1.0f / RAND_MAX;
@@ -79,34 +94,16 @@ TEST(RangeUtilsTest, PivotCalc) {
   }
 
   int num_pivots = 8;
-  pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
   pivot_calculate_safe(pctx, num_pivots);
-
-  size_t buf_sz = 2048;
-  char buf[buf_sz];
-  print_vector(buf, buf_sz, pctx->my_pivots, num_pivots, false);
 
   for (int pvt_idx = 1; pvt_idx < num_pivots; pvt_idx++) {
     float a = pctx->my_pivots[pvt_idx];
     float b = pctx->my_pivots[pvt_idx - 1];
-    printf("%d: %f %f %s\n", pvt_idx, a, b, a > b ? "ge" : "le");
     ASSERT_GT(a, b);
   }
-
-  pivot_ctx_destroy(&pctx);
 }
 
 TEST(RangeUtilsTest, PivotCalc2) {
-  pivot_ctx_t* pctx;
-
-  reneg_opts ro;
-  ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
-  ro.oob_buf_sz = DEFAULT_OOBSZ;
-
-  pivot_ctx_init(&pctx, &ro);
-
   int oob_count = 12;
 
   const float data[] = {
@@ -125,7 +122,6 @@ TEST(RangeUtilsTest, PivotCalc2) {
   }
 
   int num_pivots = 8;
-  pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
   pivot_calculate_safe(pctx, num_pivots);
 
   for (int pvt_idx = 0; pvt_idx < num_pivots; pvt_idx++) {
@@ -134,20 +130,10 @@ TEST(RangeUtilsTest, PivotCalc2) {
 
     ASSERT_TRUE(float_eq(pvt, ref));
   }
-
-  pivot_ctx_destroy(&pctx);
 }
 
 TEST(RangeUtilsTest, PivotCalc3) {
-  pivot_ctx_t* pctx;
-
-  reneg_opts ro;
-  ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
-  ro.oob_buf_sz = DEFAULT_OOBSZ;
-
-  pivot_ctx_init(&pctx, &ro);
+  AdvancePastInit();
 
   const float oob_data[] = {
       0.530524611, 2.07151246,  0.129153624, 0.317573667, 0.179045826,
@@ -161,81 +147,43 @@ TEST(RangeUtilsTest, PivotCalc3) {
                              1.4439038,   2.18780971,  4.48976707};
 
   const float rank_bin_counts[] = {11, 10, 10, 6, 1, 3, 2, 1};
-
   const float range_min = 0.011929879, range_max = 4.48976707;
+  const int oob_data_sz = 25;
+  const int num_ranks = 8;
+  const int num_pivots = 8;
 
-  pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
-  pctx->mts_mgr.update_state(MainThreadState::MT_READY);
-  pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
-
-  pctx->range_min = range_min;
-  pctx->range_max = range_max;
-
-  for (int i = 0; i < 25; i++) {
-    particle_mem_t p;
-    p.indexed_prop = oob_data[i];
-    pctx->oob_buffer->Insert(p);
-  }
-
-  pctx->oob_buffer->SetRange(range_min, range_max);
-
-  pctx->rank_bins.resize(9);
-  pctx->rank_bin_count.resize(8);
-  std::copy(rank_bins, rank_bins + 9, pctx->rank_bins.begin());
-  std::copy(rank_bin_counts, rank_bin_counts + 8, pctx->rank_bin_count.begin());
-
-  float my_pivots[8];
+  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
+           rank_bin_counts, rank_bins);
   ::pivot_calculate_safe(pctx, 8);
   ::assert_monotonic(pctx->my_pivots, 8);
+}
 
-  pivot_ctx_destroy(&pctx);
+TEST(RangeUtilsTest, PivotCalc4) {
+#include "pivot_calc_4_data.cc"  // NOLINT(bugprone-suspicious-include)
+  AdvancePastInit();
+  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
+           rank_bin_counts, rank_bins);
+  ::pivot_calculate_safe(pctx, num_pivots);
+  ::assert_monotonic(pctx->my_pivots, num_pivots);
+}
+
+TEST(RangeUtilsTest, PivotCalc5) {
+#include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
+  AdvancePastInit();
+  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
+           rank_bin_counts, rank_bins);
+  ::pivot_calculate_safe(pctx, num_pivots);
+  ::assert_monotonic(pctx->my_pivots, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc6) {
-  pivot_ctx_t* pctx;
-
-  reneg_opts ro;
-  ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
-  ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
-  ro.oob_buf_sz = DEFAULT_OOBSZ;
-
-  pivot_ctx_init(&pctx, &ro);
-
-  pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
-  pctx->mts_mgr.update_state(MainThreadState::MT_READY);
-  pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
-
-  pctx->range_min = ::data_pc6::range_min;
-  pctx->range_max = ::data_pc6::range_max;
-
-  for (int i = 0; i < ::data_pc6::oob_data_sz; i++) {
-    particle_mem_t p;
-    p.indexed_prop = ::data_pc6::oob_data[i];
-    pctx->oob_buffer->Insert(p);
-  }
-
-  pctx->oob_buffer->SetRange(::data_pc6::range_min, ::data_pc6::range_max);
-
-  int num_ranks = ::data_pc6::num_ranks;
-  int num_pivots = ::data_pc6::num_pivots;
-
-  pctx->rank_bins.resize(num_ranks + 1);
-  pctx->rank_bin_count.resize(num_ranks);
-  std::copy(::data_pc6::rank_bins, ::data_pc6::rank_bins + num_ranks + 1,
-            pctx->rank_bins.begin());
-  std::copy(::data_pc6::rank_bin_counts,
-            ::data_pc6::rank_bin_counts + num_ranks,
-            pctx->rank_bin_count.begin());
-
-  float my_pivots[num_pivots];
+#include "pivot_calc_6_data.cc"  // NOLINT(bugprone-suspicious-include)
+  AdvancePastInit();
+  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
+           rank_bin_counts, rank_bins);
   ::pivot_calculate_safe(pctx, num_pivots);
-
   ::assert_monotonic(pctx->my_pivots, num_pivots);
-
-  pivot_ctx_destroy(&pctx);
 }
-
 }  // namespace pdlfs
 
 int main(int argc, char* argv[]) {
