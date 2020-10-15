@@ -219,13 +219,17 @@ int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f\n", pctx.my_rank,
        pvt_ctx->pivot_width);
 
-  if (pvt_ctx->pivot_width > 1e-3) return rv;
+  if (pvt_ctx->pivot_width < 1e-3) {
+    float mass_per_pivot = 1.0f / (num_pivots - 1);
+    pvt_ctx->pivot_width = mass_per_pivot;
 
-  float mass_per_pivot = 1.0f / (num_pivots - 1);
-  pvt_ctx->pivot_width = mass_per_pivot;
+    for (int pidx = 0; pidx < num_pivots; pidx++) {
+      pvt_ctx->my_pivots[pidx] = mass_per_pivot * pidx;
+    }
+  }
 
-  for (int pidx = 0; pidx < num_pivots; pidx++) {
-    pvt_ctx->my_pivots[pidx] = mass_per_pivot * pidx;
+  for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
+    assert(pvt_ctx->my_pivots[pidx] < pvt_ctx->my_pivots[pidx + 1]);
   }
 
   return rv;
@@ -267,7 +271,7 @@ int pivot_calculate_from_oobl(pivot_ctx_t* pvt_ctx, int num_pivots) {
     float val_b = oobl[oob_idx_trunc + 1];
 
     float frac_a = oob_idx - (float)oob_idx_trunc;
-    pvt_ctx->my_pivots[pvt_idx] = frac_a * val_a + (1 - frac_a) * val_b;
+    pvt_ctx->my_pivots[pvt_idx] = (1 - frac_a) * val_a + (frac_a) * val_b;
   }
 
   return rv;
@@ -361,7 +365,7 @@ int pivot_calculate_from_all(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
                                                  : prev_range_begin;
     assert(val_b > val_a);
 
-    pvt_ctx->my_pivots[cur_pivot] = frac_a * val_a + (1 - frac_a) * val_b;
+    pvt_ctx->my_pivots[cur_pivot] = (1 - frac_a) * val_a + (frac_a) * val_b;
     cur_pivot++;
 
     oob_idx = accumulated_ppp;

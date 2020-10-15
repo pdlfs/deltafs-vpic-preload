@@ -48,13 +48,7 @@ class RangeUtilsTest {
     pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
   }
 
-  void LoadData(const int num_ranks, const float* oob_data,
-                const int oob_data_sz, const float range_min,
-                const float range_max, const int num_pivots,
-                const float* rank_bin_counts, const float* rank_bins) {
-    pctx->range_min = range_min;
-    pctx->range_max = range_max;
-
+  void LoadData(const float* oob_data, const int oob_data_sz) {
     pctx->oob_buffer->Reset();
 
     for (int i = 0; i < oob_data_sz; i++) {
@@ -62,6 +56,13 @@ class RangeUtilsTest {
       p.indexed_prop = oob_data[i];
       pctx->oob_buffer->Insert(p);
     }
+  }
+
+  void LoadData(const int num_ranks, const float range_min,
+                const float range_max, const float* rank_bin_counts,
+                const float* rank_bins) {
+    pctx->range_min = range_min;
+    pctx->range_max = range_max;
 
     pctx->oob_buffer->SetRange(range_min, range_max);
 
@@ -111,9 +112,9 @@ TEST(RangeUtilsTest, PivotCalc2) {
       0.831964, 0.363970, 1.327184, 0.193020, 2.427586, 0.213298,
   };
 
-  const float pivots_ref[] = {0.130447999, 0.189264387, 0.19808951,
-                              0.319368005, 0.345785022, 0.365855247,
-                              0.724167525, 2.42758608};
+  const float pivots_ref[] = {0.130447999, 0.186760634, 0.208228499,
+                              0.26997599,  0.345785022, 0.377166778,
+                              0.508574486, 2.42758608};
 
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     particle_mem_t p;
@@ -152,8 +153,8 @@ TEST(RangeUtilsTest, PivotCalc3) {
   const int num_ranks = 8;
   const int num_pivots = 8;
 
-  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
-           rank_bin_counts, rank_bins);
+  LoadData(oob_data, oob_data_sz);
+  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   ::pivot_calculate_safe(pctx, 8);
   ::assert_monotonic(pctx->my_pivots, 8);
 }
@@ -161,8 +162,8 @@ TEST(RangeUtilsTest, PivotCalc3) {
 TEST(RangeUtilsTest, PivotCalc4) {
 #include "pivot_calc_4_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
-  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
-           rank_bin_counts, rank_bins);
+  LoadData(oob_data, oob_data_sz);
+  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   ::pivot_calculate_safe(pctx, num_pivots);
   ::assert_monotonic(pctx->my_pivots, num_pivots);
 }
@@ -170,8 +171,8 @@ TEST(RangeUtilsTest, PivotCalc4) {
 TEST(RangeUtilsTest, PivotCalc5) {
 #include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
-  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
-           rank_bin_counts, rank_bins);
+  LoadData(oob_data, oob_data_sz);
+  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   ::pivot_calculate_safe(pctx, num_pivots);
   ::assert_monotonic(pctx->my_pivots, num_pivots);
 }
@@ -179,11 +180,19 @@ TEST(RangeUtilsTest, PivotCalc5) {
 TEST(RangeUtilsTest, PivotCalc6) {
 #include "pivot_calc_6_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
-  LoadData(num_ranks, oob_data, oob_data_sz, range_min, range_max, num_pivots,
-           rank_bin_counts, rank_bins);
+  LoadData(oob_data, oob_data_sz);
+  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   ::pivot_calculate_safe(pctx, num_pivots);
   ::assert_monotonic(pctx->my_pivots, num_pivots);
 }
+
+TEST(RangeUtilsTest, PivotCalc7) {
+#include "pivot_calc_7_data.cc"  // NOLINT(bugprone-suspicious-include)
+  LoadData(oob_data, oob_data_sz);
+  ::pivot_calculate_safe(pctx, num_pivots);
+  ::assert_monotonic(pctx->my_pivots, num_pivots);
+}
+
 }  // namespace pdlfs
 
 int main(int argc, char* argv[]) {
