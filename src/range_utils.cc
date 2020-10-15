@@ -91,8 +91,13 @@ void pivot_union(std::vector<rb_item_t> rb_items,
 
         float rank_total_range = rank_bin_end[rank] - rank_bin_start[rank];
         float rank_left_range = cur_bin - prev_bp_bin_val;
+
+        assert(rank_left_range >= 0);
+
         float rank_contrib =
             rank_bin_widths[rank] * rank_left_range / rank_total_range;
+
+        assert(rank_contrib >= 0);
 
         cur_bin_count += rank_contrib;
 
@@ -172,6 +177,8 @@ int resample_bins_irregular(const std::vector<float>& bins,
 
   float nparticles =
       std::accumulate(bin_counts.begin(), bin_counts.end(), 0.0f);
+
+  assert(nparticles >= 0);
 
   const float part_per_rbin = nparticles * 1.0 / (nsamples - 1);
   sample_width = part_per_rbin;
