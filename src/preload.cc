@@ -440,7 +440,7 @@ static void preload_init() {
   pctx.opts = new reneg_opts();
 
 #define INIT_PVTCNT(arr, idx)                \
-  tmp = maybe_getenv("RANGE_Pvtcnt_s##idx"); \
+  tmp = maybe_getenv("RANGE_Pvtcnt_s"#idx);  \
   if (tmp != NULL) {                         \
     (arr)[(idx)] = atoi(tmp);                \
     assert(arr[(idx)] > 0);                  \
@@ -1942,8 +1942,9 @@ int MPI_Finalize(void) {
 
   /* destroy time series monitor */
   if (!pctx.nomon) {
-    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
-                                        pctx.my_rank);
+    logf(LOG_WARN, "perfstats aggr stats disabled");
+    // pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
+                                        // pctx.my_rank);
     int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
     if (rv) {
       ABORT("perfstats_destroy");
