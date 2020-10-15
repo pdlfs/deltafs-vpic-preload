@@ -184,13 +184,13 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx) {
   return 0;
 }
 
-int pivot_ctx_destroy(pivot_ctx_t **pvt_ctx) {
+int pivot_ctx_destroy(pivot_ctx_t** pvt_ctx) {
   int rv = 0;
 
   assert(*pvt_ctx != nullptr);
   assert((*pvt_ctx)->oob_buffer != nullptr);
 
-  delete((*pvt_ctx)->oob_buffer);
+  delete ((*pvt_ctx)->oob_buffer);
   delete *pvt_ctx;
 
   *pvt_ctx = nullptr;
@@ -370,16 +370,19 @@ int pivot_calculate_from_all(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   int bin_idx = 0;
 
   for (int bidx = 0; bidx < pvt_ctx->rank_bins.size() - 1; bidx++) {
-    float cur_bin_left = pvt_ctx->rank_bin_count[bidx];
-    float bin_start = pvt_ctx->rank_bins[bidx];
-    float bin_end = pvt_ctx->rank_bins[bidx + 1];
+    const double cur_bin_total = pvt_ctx->rank_bin_count[bidx];
+    double cur_bin_left = pvt_ctx->rank_bin_count[bidx];
+
+    double bin_start = pvt_ctx->rank_bins[bidx];
+    double bin_end = pvt_ctx->rank_bins[bidx + 1];
+    const double bin_width_orig = bin_end - bin_start;
 
     while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
-      float take_from_bin = part_per_pivot - particles_carried_over;
+      double take_from_bin = part_per_pivot - particles_carried_over;
 
       /* advance bin_start st take_from_bin is removed */
-      float bin_width = bin_end - bin_start;
-      float width_to_remove = take_from_bin / cur_bin_left * bin_width;
+      double bin_width_left = bin_end - bin_start;
+      double width_to_remove = take_from_bin / cur_bin_total * bin_width_orig;
 
       bin_start += width_to_remove;
       pvt_ctx->my_pivots[cur_pivot] = bin_start;
