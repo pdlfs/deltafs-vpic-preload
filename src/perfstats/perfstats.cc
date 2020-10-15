@@ -306,10 +306,9 @@ int perfstats_printf(perfstats_ctx_t* pctx, const char* fmt, ...) {
   va_start(ap, fmt);
   vfprintf(pctx->output_file, fmt, ap);
   va_end(ap);
+  fprintf(pctx->output_file, "\n");
 
   pctx->worker_mtx.Unlock();
-
-  fprintf(stderr, "\n");
 
   return 0;
 }
