@@ -252,7 +252,12 @@ int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
 
   const char* const kAggrStdLabel = "RENEG_AGGR_STD";
   Stat aggr_std(StatType::V_FLOAT, kAggrStdLabel);
-  aggr_std.SetValue(timestamp, get_norm_std(recv_buf, bin_sz));
+  float aggr_std_val = get_norm_std(recv_buf, bin_sz);
+  aggr_std.SetValue(timestamp, aggr_std_val);
+
+  if (my_rank == 0) {
+    logf(LOG_INFO, "[perfstats] normalized load stddev: %.3f\n", aggr_std_val);
+  }
 
   pctx->worker_mtx.Lock();
   perfstats_log_stat(pctx, aggr_count);

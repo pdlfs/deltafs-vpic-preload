@@ -572,6 +572,9 @@ int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
           next_buf, next_buf_sz, round_num, stage_num + 1, rctx->my_rank,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
 
+    perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_MASS %f",
+        (merged_pvtcnt - 1) * merged_width);
+
       send_to_rank(rctx, next_buf, next_buf_len, rctx->root[3]);
     }  // if
   }    // if

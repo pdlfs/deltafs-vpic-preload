@@ -1884,6 +1884,17 @@ int MPI_Finalize(void) {
     }
   }
 
+  /* destroy time series monitor */
+  if (!pctx.nomon) {
+    // logf(LOG_WARN, "perfstats aggr stats disabled");
+    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
+                                        pctx.my_rank);
+    int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
+    if (rv) {
+      ABORT("perfstats_destroy");
+    }
+  }
+
   pctx.mock_backend->Finish();
   rtp_destroy(&(pctx.rtp_ctx));
   pivot_ctx_destroy(&(pctx.pvt_ctx));
@@ -1938,17 +1949,6 @@ int MPI_Finalize(void) {
   /* release the receiver communicator */
   if (pctx.recv_comm != MPI_COMM_NULL && pctx.recv_comm != MPI_COMM_WORLD) {
     MPI_Comm_free(&pctx.recv_comm);
-  }
-
-  /* destroy time series monitor */
-  if (!pctx.nomon) {
-    logf(LOG_WARN, "perfstats aggr stats disabled");
-    // pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
-                                        // pctx.my_rank);
-    int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
-    if (rv) {
-      ABORT("perfstats_destroy");
-    }
   }
 
   /* !!! OK !!! */

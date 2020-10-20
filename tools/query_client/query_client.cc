@@ -4,14 +4,25 @@
 
 #include "query_client.h"
 
+#include <assert.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <fcntl.h>
+
 
 #include <algorithm>
 
+void clear() {
+  int fd = open("/proc/sys/vm/drop_caches", O_WRONLY);
+  write(fd, "1", 1);
+  close(fd);
+}
+
 QueryClient::QueryClient(std::string& manifest_path, std::string& data_path)
     : manifest_path_(manifest_path), data_path_(data_path) {
-  data_store = new data_t[2621440];
+  data_store = new data_t[2621400];
   cur_ptr = reinterpret_cast<char*>(data_store);
 }
 
@@ -27,15 +38,19 @@ uint64_t now_us() {
 }
 
 void QueryClient::Run() {
-  for (int num_ssts = 99; num_ssts < 100; num_ssts++) {
+  int items_sst = 26214;
+  assert(sizeof(data_t) == 40u);
+  for (int num_ssts = 1; num_ssts < 100; num_ssts++) {
+    int items_total = items_sst * num_ssts;
+    // clear();
     cur_ptr = reinterpret_cast<char *>(data_store);
     uint64_t time_begin = now_us();
     ReadAllReg(num_ssts);
     uint64_t time_read = now_us();
-    std::sort(data_store, data_store + 2621440, &data_sort);
+    std::sort(data_store, data_store + items_total, &data_sort);
     uint64_t time_end = now_us();
 
-    printf("%d,%llu,%llu,%f\n", num_ssts, (time_end - time_begin) / 1000,
+    printf("%d,%lu,%lu,%f\n", num_ssts, (time_end - time_begin) / 1000,
            (time_read - time_begin) / 1000, data_store[0].f);
   }
 }
@@ -43,7 +58,7 @@ void QueryClient::Run() {
 void QueryClient::ReadAllMmap() {}
 void QueryClient::ReadAllReg(int num_ssts) {
   std::string query_path = "/users/ankushj/runs/query-data";
-  query_path = "/Users/schwifty/Repos/workloads/rundata/query-data";
+  // query_path = "/Users/schwifty/Repos/workloads/rundata/query-data";
 
   struct dirent* de;
   struct stat statbuf;
