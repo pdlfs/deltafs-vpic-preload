@@ -492,7 +492,7 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
 
   float our_bin_start = pivots[pctx.my_rank];
   float our_bin_end = pivots[pctx.my_rank + 1];
-  pctx.mock_backend->UpdateBounds(our_bin_start, our_bin_end);
+  pctx.range_backend->UpdateBounds(our_bin_start, our_bin_end);
 
   return 0;
 }

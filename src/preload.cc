@@ -440,7 +440,7 @@ static void preload_init() {
   pctx.opts = new reneg_opts();
 
 #define INIT_PVTCNT(arr, idx)                \
-  tmp = maybe_getenv("RANGE_Pvtcnt_s"#idx);  \
+  tmp = maybe_getenv("RANGE_Pvtcnt_s" #idx); \
   if (tmp != NULL) {                         \
     (arr)[(idx)] = atoi(tmp);                \
     assert(arr[(idx)] > 0);                  \
@@ -1003,7 +1003,8 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  pctx.mock_backend = new pdlfs::MockBackend(1024 * 1024, 40);
+  pctx.range_backend =
+      new pdlfs::RangeBackend(pctx.my_rank, pctx.local_root, 1023 * 1024, 48);
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {
@@ -1190,12 +1191,6 @@ int MPI_Init(int* argc, char*** argv) {
                static_cast<unsigned>(uid));
       snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d", dirpath,
                pctx.my_rank);
-
-      char mock_manifest_path[255];
-      snprintf(mock_manifest_path, 255, "%s/vpic-manifest.%d", dirpath,
-               pctx.my_rank);
-
-      pctx.mock_backend->SetDumpPath(mock_manifest_path);
 
       /* ignore error since directory may exist */
       nxt.mkdir(dirpath, 0777);
@@ -1895,7 +1890,7 @@ int MPI_Finalize(void) {
     }
   }
 
-  pctx.mock_backend->Finish();
+  pctx.range_backend->Finish();
   rtp_destroy(&(pctx.rtp_ctx));
   pivot_ctx_destroy(&(pctx.pvt_ctx));
 
@@ -1921,7 +1916,7 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "final stats...");
     logf(LOG_INFO, "num renegotiations: %d\n", pctx.rtp_ctx.round_num);
 
-    pdlfs::ManifestAnalytics manifest_analytics(pctx.mock_backend);
+    pdlfs::ManifestAnalytics manifest_analytics(pctx.range_backend);
     manifest_analytics.PrintStats();
 
     logf(LOG_INFO, "== dir data compaction");
@@ -1937,8 +1932,8 @@ int MPI_Finalize(void) {
          double(sum_pthreads) / pctx.comm_sz);
   }
 
-  delete pctx.mock_backend;
-  pctx.mock_backend = nullptr;
+  delete pctx.range_backend;
+  pctx.range_backend = nullptr;
 
   /* close testing log file */
   if (pctx.trace != NULL) {
@@ -2847,7 +2842,7 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
 
   pthread_mtx_lock(&write_mtx);
 
-  pctx.mock_backend->Write(data);
+  pctx.range_backend->Write(fname, fname_len, data, data_len);
 
   if (pctx.paranoid_checks) {
     if (fname_len != strlen(fname)) {

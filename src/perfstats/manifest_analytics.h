@@ -5,7 +5,7 @@
 #include <cfloat>
 #include <string>
 
-#include "mock_backend.h"
+#include "range_backend.h"
 
 #pragma once
 
@@ -13,7 +13,7 @@ namespace pdlfs {
 class ManifestAnalytics {
  public:
   explicit ManifestAnalytics(const char* query_path);
-  explicit ManifestAnalytics(MockBackend* backend);
+  explicit ManifestAnalytics(RangeBackend* backend);
   void PrintStats();
 
  private:

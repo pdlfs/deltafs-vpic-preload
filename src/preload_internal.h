@@ -46,12 +46,12 @@
 #include <vector>
 
 #include "common.h"
-#include "mock_backend.h"
 #include "perfstats/perfstats.h"
 #include "preload.h"
 #include "preload_mon.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
+#include "range_backend.h"
 #include "rtp/rtp.h"
 
 /*
@@ -170,7 +170,7 @@ typedef struct preload_ctx {
   reneg_opts* opts;
   struct pdlfs::rtp_ctx rtp_ctx;
 
-  pdlfs::MockBackend* mock_backend;
+  pdlfs::RangeBackend* range_backend;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;

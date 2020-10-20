@@ -44,20 +44,35 @@ struct Range {
   }
 };
 
+template <size_t BYTES>
+struct BucketItem {
+  char bytes[BYTES];
+};
+
 class Bucket {
  private:
   Range expected_;
   Range observed_;
   const uint32_t max_size_;
+  const uint32_t size_per_item_;
+  const uint32_t max_items_;
   uint32_t num_items_ = 0;
   uint32_t num_items_oob_ = 0;
 
+  char* data_buffer_;
+  size_t data_buffer_idx_ = 0;
+
+  std::string bucket_dir_;
+  const int rank_;
+
  public:
-  Bucket(const uint32_t max_size);
+  Bucket(int rank, const char* bucket_dir, const uint32_t max_size,
+         const uint32_t size_per_item);
 
   bool Inside(float prop);
 
-  int Insert(float prop);
+  int Insert(float prop, const char* fname, int fname_len, const char* data,
+             int data_len);
 
   Range GetExpectedRange();
 
@@ -68,6 +83,8 @@ class Bucket {
   void Reset();
 
   int FlushAndReset(PartitionManifest& manifest);
+
+  ~Bucket();
 };
 
 typedef struct {
@@ -83,13 +100,15 @@ class PartitionManifest {
 
  public:
   PartitionManifest();
-  int AddItem(float range_begin, float range_end, uint32_t part_count,
-              uint32_t part_oob);
-  int Dump(FILE* out_file);
+  size_t AddItem(float range_begin, float range_end, uint32_t part_count,
+                 uint32_t part_oob);
+  int WriteToDisk(FILE* out_file);
 };
 
-class MockBackend {
+class RangeBackend {
  private:
+  const int rank_;
+  std::string dirpath_;
   uint32_t memtable_size_;
   uint32_t key_size_;
   uint32_t items_per_flush_;
@@ -97,19 +116,22 @@ class MockBackend {
   Bucket current_;
   Bucket prev_;
 
+  std::string manifest_path_;
+  std::string manifest_bin_path_;
   PartitionManifest manifest_;
-  char dump_path_[255];
-  bool dump_path_set_ = false;
 
-  int Dump(const char* path);
+  /* XXX: needs to be atomic if writing is multithreaded */
+  uint32_t bucket_idx_ = 0;
+
+  int WriteManifestToDisk(const char* path);
   int FlushAndReset(Bucket& bucket);
 
  public:
-  MockBackend(uint32_t memtable_size, uint32_t key_size);
+  RangeBackend(int rank, const char* dirpath, uint32_t memtable_size,
+               uint32_t key_size);
   int UpdateBounds(float bound_start, float bound_end);
-  int SetDumpPath(const char* path);
-  std::string GetDumpDir();
-  int Write(const char* data);
+  std::string GetManifestDir();
+  int Write(const char* fname, int fname_len, const char* data, int data_len);
   int Finish();
 };
 }  // namespace pdlfs
