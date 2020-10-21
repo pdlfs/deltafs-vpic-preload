@@ -46,7 +46,7 @@ int Bucket::Insert(float prop, const char* fname, int fname_len,
   observed_.Extend(prop);
   memcpy(&data_buffer_[data_buffer_idx_], fname, fname_len);
   memcpy(&data_buffer_[data_buffer_idx_ + fname_len], data, data_len);
-  data_buffer_idx_ += data_len;
+  data_buffer_idx_ += fname_len + data_len;
   num_items_++;
 
   if (not expected_.Inside(prop)) {
@@ -173,7 +173,9 @@ int RangeBackend::UpdateBounds(const float bound_start, const float bound_end) {
   prev_.UpdateExpectedRange(current_.GetExpectedRange());
   current_.UpdateExpectedRange(bound_start, bound_end);
 
-  FlushAndReset(prev_);
+  /* XXX: disabled flushing prev_, assuming that it will reduce bucket count
+   * without significantly affecting overlaps */
+  // FlushAndReset(prev_);
   FlushAndReset(current_);
 
   return 0;
