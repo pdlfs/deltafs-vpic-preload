@@ -22,7 +22,7 @@ void ManifestAnalytics::PrintStats() {
        "[perfstats-analytics] %s SSTs (%s items, OOB: %.2f%%). "
        "Max overlap: %s SSTs (%s items, %.4f%%) \n",
        pretty_num(count_total_).c_str(), pretty_num(mass_total_).c_str(),
-       oob_total_ * 100.0 / mass_total_, pretty_num(count_max_).c_str(),
+       mass_oob_ * 100.0 / mass_total_, pretty_num(count_max_).c_str(),
        pretty_num(mass_max_).c_str(), mass_max_ * 100.0 / mass_total_);
 }
 
@@ -41,33 +41,14 @@ int ManifestAnalytics::Read() {
 
     if (stat(rank_path, &stat_buf)) break;
 
-    ReadManifestFile(rank_path);
+    manifest_.PopulateFromDisk(std::string(rank_path), rank - 1);
   }
+
+  manifest_.GetRange(range_min_, range_max_);
+  manifest_.GetMass(mass_total_, mass_oob_);
+  count_total_ = manifest_.Size();
 
   return rv;
-}
-
-void ManifestAnalytics::ReadManifestFile(const char* mpath) {
-  FILE* f = fopen(mpath, "r");
-
-  float range_start;
-  float range_end;
-  uint32_t size;
-  uint32_t size_oob;
-
-  while (fscanf(f, "%f %f - %d %d\n", &range_start, &range_end, &size,
-                &size_oob) != EOF) {
-    global_manifest_.push_back({range_start, range_end, size, size_oob});
-
-    range_min_ = std::min(range_min_, range_start);
-    range_max_ = std::max(range_max_, range_end);
-
-    count_total_++;
-    mass_total_ += size;
-    oob_total_ += size_oob;
-  }
-
-  fclose(f);
 }
 
 void ManifestAnalytics::GenerateQueryPoints() {
@@ -85,37 +66,19 @@ void ManifestAnalytics::GenerateQueryPoints() {
 }
 
 int ManifestAnalytics::ComputeStats() {
-  if (global_manifest_.empty()) Read();
-  assert(!global_manifest_.empty());
+  if (!manifest_.Size()) Read();
+  assert(manifest_.Size());
   if (query_points_.empty()) GenerateQueryPoints();
   assert(!query_points_.empty());
 
   for (size_t i = 0; i < query_points_.size(); i++) {
-    ComputeStats(query_points_[i]);
+      PartitionManifestMatch match;
+      manifest_.GetOverLappingEntries(query_points_[i], match);
+      count_max_ = std::max(count_max_, (uint64_t)match.items.size());
+      mass_max_ = std::max(mass_max_, match.mass_total);
   }
 
   stats_computed_ = true;
-
-  return 0;
-}
-
-int ManifestAnalytics::ComputeStats(float point) {
-  int32_t count_cur = 0;
-  int32_t mass_cur = 0;
-
-  for (size_t idx = 0; idx < global_manifest_.size(); idx++) {
-    PartitionManifestItem& item = global_manifest_[idx];
-    bool overlap =
-        item.part_range_begin <= point and item.part_range_end >= point;
-
-    if (overlap) {
-      count_cur++;
-      mass_cur += item.part_item_count;
-    }
-  }
-
-  count_max_ = std::max(count_max_, count_cur);
-  mass_max_ = std::max(mass_max_, mass_cur);
 
   return 0;
 }

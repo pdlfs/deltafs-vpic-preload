@@ -22,7 +22,6 @@ float get_indexable_property(const char* data_buf) {
 }  // namespace
 
 namespace pdlfs {
-
 Bucket::Bucket(int rank, const char* bucket_dir, const uint32_t max_size,
                const uint32_t size_per_item)
     : rank_(rank),
@@ -95,13 +94,33 @@ int Bucket::FlushAndReset(pdlfs::PartitionManifest& manifest) {
 
 Bucket::~Bucket() { delete[] data_buffer_; }
 
-PartitionManifest::PartitionManifest() {}
+bool PartitionManifestItem::Overlaps(float point) const {
+  return point >= part_range_begin and point <= part_range_end;
+}
+
+bool PartitionManifestItem::Overlaps(float range_begin, float range_end) const {
+  return Overlaps(range_begin) or Overlaps(range_end) or
+         range_begin < part_range_begin and range_end > part_range_end;
+}
+
+PartitionManifest::PartitionManifest() = default;
 
 size_t PartitionManifest::AddItem(float range_begin, float range_end,
-                                  uint32_t part_count, uint32_t part_oob) {
+                                  uint32_t part_count, uint32_t part_oob,
+                                  int rank) {
   if (part_count == 0) return SIZE_MAX;
+
   size_t item_idx = items_.size();
-  items_.push_back({range_begin, range_end, part_count, part_oob});
+
+  items_.push_back(
+      {range_begin, range_end, part_count, part_oob, (int)item_idx, rank});
+
+  range_min_ = std::min(range_min_, range_begin);
+  range_max_ = std::max(range_max_, range_end);
+
+  mass_total_ += part_count;
+  mass_oob_ += part_oob;
+
   return item_idx;
 }
 
@@ -115,6 +134,70 @@ int PartitionManifest::WriteToDisk(FILE* out_file) {
   }
   return rv;
 }
+
+int PartitionManifest::PopulateFromDisk(const std::string& disk_path,
+                                        int rank) {
+  FILE* f = fopen(disk_path.c_str(), "r");
+  if (!f) return -1;
+
+  float range_begin;
+  float range_end;
+  uint32_t size;
+  uint32_t size_oob;
+
+  size_t count_total = 0;
+  size_t count_returned = 0;
+
+  while (fscanf(f, "%f %f - %d %d\n", &range_begin, &range_end, &size,
+                &size_oob) != EOF) {
+    count_returned = AddItem(range_begin, range_end, size, size_oob, rank);
+    count_total++;
+  }
+
+  fclose(f);
+
+  assert(count_returned == count_total);
+  return (int)count_total;
+}
+
+int PartitionManifest::GetOverLappingEntries(float point,
+                                             PartitionManifestMatch& match) {
+  for (size_t i = 0; i < items_.size(); i++) {
+    if (items_[i].Overlaps(point)) {
+      match.items.push_back(items_[i]);
+      match.mass_total += items_[i].part_item_count;
+      match.mass_oob += items_[i].part_item_oob;
+    }
+  }
+
+  return 0;
+}
+
+int PartitionManifest::GetOverLappingEntries(float range_begin, float range_end,
+                                             PartitionManifestMatch& match) {
+  for (size_t i = 0; i < items_.size(); i++) {
+    if (items_[i].Overlaps(range_begin, range_end)) {
+      match.items.push_back(items_[i]);
+      match.mass_total += items_[i].part_item_count;
+      match.mass_oob += items_[i].part_item_oob;
+    }
+  }
+
+  return 0;
+}
+int PartitionManifest::GetRange(float& range_min, float& range_max) const {
+  range_min = range_min_;
+  range_max = range_max_;
+  return 0;
+}
+
+int PartitionManifest::GetMass(uint64_t& mass_total, uint64_t mass_oob) const {
+  mass_total = mass_total_;
+  mass_oob = mass_oob_;
+  return 0;
+}
+
+size_t PartitionManifest::Size() const { return items_.size(); }
 
 RangeBackend::RangeBackend(int rank, const char* dirpath,
                            uint32_t memtable_size_bytes,
@@ -200,5 +283,4 @@ int RangeBackend::Finish() {
 std::string RangeBackend::GetManifestDir() {
   return manifest_path_.substr(0, manifest_path_.find_last_of('/'));
 }
-
 }  // namespace pdlfs
