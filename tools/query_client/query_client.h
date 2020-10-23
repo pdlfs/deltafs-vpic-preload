@@ -6,23 +6,24 @@
 
 #include <string>
 
-typedef struct {
-  float f;
-  int data[36];
-} data_t;
+#include "range_backend/range_backend.h"
+#include "sortable_buffer.h"
 
+namespace pdlfs {
 class QueryClient {
  public:
   QueryClient(std::string& manifest_path, std::string& data_path);
-  ~QueryClient();
-  void Run();
-  void ReadAllReg(int num_ssts);
-  void ReadAllMmap();
-  void ReadFile(std::string& fpath, off_t size);
+  void RangeQuery(float start, float end);
 
  private:
+  int LoadManifest();
+
   std::string manifest_path_;
   std::string data_path_;
-  data_t* data_store;
-  char* cur_ptr;
+
+  SortableBuffer buf_;
+  PartitionManifest manifest_;
+
+  bool manifest_loaded_ = false;
 };
+};  // namespace pdlfs

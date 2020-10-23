@@ -150,13 +150,14 @@ int PartitionManifest::PopulateFromDisk(const std::string& disk_path,
 
   while (fscanf(f, "%f %f - %d %d\n", &range_begin, &range_end, &size,
                 &size_oob) != EOF) {
-    count_returned = AddItem(range_begin, range_end, size, size_oob, rank);
-    count_total++;
+    if (size) {
+      count_returned = AddItem(range_begin, range_end, size, size_oob, rank);
+      count_total++;
+    }
   }
 
   fclose(f);
 
-  assert(count_returned == count_total);
   return (int)count_total;
 }
 
