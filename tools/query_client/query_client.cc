@@ -62,9 +62,8 @@ void QueryClient::RangeQuery(float start, float end) {
 
   for (size_t i = 0; i < match_obj.items.size(); i++) {
     PartitionManifestItem& item = match_obj.items[i];
-    std::string sst_path = data_path_ + "/bucket." +
-                           std::to_string(item.rank) + "." +
-                           std::to_string(item.bucket_idx);
+    std::string sst_path = data_path_ + "/bucket." + std::to_string(item.rank) +
+                           "." + std::to_string(item.bucket_idx);
 
     buf_.AddFile(sst_path);
   }

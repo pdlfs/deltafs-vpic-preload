@@ -4,7 +4,10 @@
 
 #include "sortable_buffer.h"
 
+#include <assert.h>
 #include <sys/stat.h>
+
+#include <algorithm>
 
 namespace pdlfs {
 SortableBuffer::SortableBuffer()
@@ -43,7 +46,6 @@ void SortableBuffer::Clear() { mem_written_ = 0; }
 
 int SortableBuffer::FindBounds(float range_start, float range_end) {
   size_t buf_items = mem_written_ / item_size_;
-
   SortableItem start_item{range_start};
   SortableItem end_item{range_end};
 
