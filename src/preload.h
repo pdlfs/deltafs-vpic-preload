@@ -230,3 +230,9 @@ extern int preload_write(const char* id, unsigned char id_sz, char* data,
  * Specified as a string.
  */
 #define DEFAULT_LG_PARTS "2"
+
+/*
+ * Default size of indexed type (for CARP)
+ * sizeof(float) or sizeof(double)
+ */
+#define DEFAULT_INDEXED_ATTR_SIZE sizeof(float)

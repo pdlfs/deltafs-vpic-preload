@@ -33,22 +33,21 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "preload_shuffle.h"
+
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ifaddrs.h>
-
-#include "preload_internal.h"
-#include "preload_mon.h"
-#include "preload_range.h"
-#include "preload_shuffle.h"
-#include "rtp/rtp.h"
+#include <mercury_config.h>
+#include <pdlfs-common/xxhash.h>
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
+#include "preload_internal.h"
+#include "preload_mon.h"
+#include "preload_range.h"
+#include "rtp/rtp.h"
 #include "xn_shuffle.h"
-
-#include <mercury_config.h>
-#include <pdlfs-common/xxhash.h>
 #ifdef PRELOAD_HAS_CH_PLACEMENT
 #include <ch-placement.h>
 #endif
@@ -59,7 +58,7 @@
 
 char buf_type_buf[256];
 
-char *print_buf_type(buf_type_t bt) {
+char* print_buf_type(buf_type_t bt) {
   switch (bt) {
     case buf_type_t::RB_BUF_OOB:
       snprintf(buf_type_buf, 256, "RB_BUF_OOB");
@@ -77,8 +76,6 @@ char *print_buf_type(buf_type_t bt) {
 
   return buf_type_buf;
 }
-
-
 
 namespace {
 void shuffle_prepare_sm_uri(char* buf, const char* proto) {
@@ -432,19 +429,19 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 }  // namespace
 
 int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
-                  unsigned char fname_len, char* data, unsigned char data_len,
-                  int epoch) {
+                      unsigned char fname_len, char* data,
+                      unsigned char data_len, int epoch) {
   int retval;
 
   // retval = shuffle_write_mock(ctx, fname, fname_len, data, data_len, epoch);
-  // retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len, epoch);
-  // retval = shuffle_write(ctx, fname, fname_len, data, data_len, epoch);
-  // retval = shuffle_write_treeneg(ctx, fname, fname_len, data, data_len, epoch);
+  // retval = shuffle_write_nohash(ctx, fname, fname_len, data, data_len,
+  // epoch); retval = shuffle_write(ctx, fname, fname_len, data, data_len,
+  // epoch); retval = shuffle_write_treeneg(ctx, fname, fname_len, data,
+  // data_len, epoch);
   retval = shuffle_write_range(ctx, fname, fname_len, data, data_len, epoch);
 
   return retval;
 }
-
 
 /* Only to be used with preprocessed particle_mem_t structs
  * NOT for external use
@@ -480,7 +477,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
     fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
 #endif
     // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
-                        // epoch, peer_rank, pctx.my_rank);
+    // epoch, peer_rank, pctx.my_rank);
   }
 
   rctx->oob_count_left = 0;
@@ -512,7 +509,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 #endif
     // TODO: copy everything
     // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
-                        // epoch, peer_rank, pctx.my_rank);
+    // epoch, peer_rank, pctx.my_rank);
   }
 
   rctx->oob_count_right = 0;
@@ -533,7 +530,7 @@ void send_all_to_all(shuffle_ctx_t* ctx, char* buf, uint32_t buf_sz,
 int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
                   unsigned char fname_len, char* data, unsigned char data_len,
                   int epoch) {
-  //mock_reneg();
+  // mock_reneg();
   return 0;
 
 #define SHUFFLE_BUF_LEN 255
@@ -562,7 +559,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
       static_cast<float>(get_indexable_property(data, data_len));
 
   // fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
-  
+
   std::unique_lock<std::mutex> bin_access_ul(rctx->bin_access_m);
 
   if (!(RANGE_IS_READY(rctx) || RANGE_IS_INIT(rctx))) {
@@ -579,8 +576,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
    * TODO: change this assertion to a wait/lock depending on multi
    * threading design
    */
-  assert(rctx->oob_count_left + rctx->oob_count_right <
-         DEFAULT_OOBSZ * 2);
+  assert(rctx->oob_count_left + rctx->oob_count_right < DEFAULT_OOBSZ * 2);
 
   if (RANGE_LEFT_OOB_FULL(rctx) || RANGE_RIGHT_OOB_FULL(rctx)) {
     logf(LOG_ERRO,
@@ -613,8 +609,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     // fprintf(stderr, "Writing to idx %d of oob_left\n", rctx->oob_count_left);
     rctx->oob_buffer_left[rctx->oob_count_left].indexed_prop = indexed_property;
     buf_sz = msgfmt_write_data(rctx->oob_buffer_left[rctx->oob_count_left].buf,
-                               pdlfs::kMaxPartSize, fname, fname_len, data, data_len,
-                               ctx->extra_data_len);
+                               pdlfs::kMaxPartSize, fname, fname_len, data,
+                               data_len, ctx->extra_data_len);
     rctx->oob_buffer_left[rctx->oob_count_left].buf_sz = buf_sz;
     rctx->oob_count_left++;
   } else if (buf_type == buf_type_t::RB_BUF_RIGHT) {
@@ -623,8 +619,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     rctx->oob_buffer_right[rctx->oob_count_right].indexed_prop =
         indexed_property;
     buf_sz = msgfmt_write_data(
-        rctx->oob_buffer_right[rctx->oob_count_right].buf, pdlfs::kMaxPartSize, fname,
-        fname_len, data, data_len, ctx->extra_data_len);
+        rctx->oob_buffer_right[rctx->oob_count_right].buf, pdlfs::kMaxPartSize,
+        fname, fname_len, data, data_len, ctx->extra_data_len);
     rctx->oob_buffer_right[rctx->oob_count_right].buf_sz = buf_sz;
 
     rctx->oob_count_right++;
@@ -716,7 +712,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
     /* TODO: Also handle flushed OOB packets */
     int padded_sz = buf_sz + LBTRIG_HDR_SZ;
     xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-                        peer_rank, rank);
+                       peer_rank, rank);
     // xn_shuffler_priority_send(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz,
     // epoch, peer_rank, rank);
   } else {
@@ -751,8 +747,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
     case MSGFMT_DATA:
       break;
     // case MSGFMT_RENEG_BEGIN:
-      // range_handle_reneg_begin(buf, buf_sz);
-      // return 0;
+    // range_handle_reneg_begin(buf, buf_sz);
+    // return 0;
     case MSGFMT_RTP_MAGIC:
       rtp_handle_message(&(pctx.rtp_ctx), buf, buf_sz, src);
       return 0;
@@ -966,15 +962,22 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   assert(ctx != NULL);
 
-  ctx->fname_len = TOUCHAR(pctx.particle_id_size);
-  ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
-  if (pctx.sideft) {
-    ctx->data_len = 0;
-  } else if (pctx.sideio) {
-    ctx->data_len = 8;
+  if (pctx.carp_on) {
+    ctx->fname_len = TOUCHAR(pctx.particle_indexed_attr_size);
+    ctx->data_len = TOUCHAR(pctx.particle_id_size + pctx.particle_size);
+    ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
   } else {
-    ctx->data_len = TOUCHAR(pctx.particle_size);
+    ctx->fname_len = TOUCHAR(pctx.particle_id_size);
+    ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
+    if (pctx.sideft) {
+      ctx->data_len = 0;
+    } else if (pctx.sideio) {
+      ctx->data_len = 8;
+    } else {
+      ctx->data_len = TOUCHAR(pctx.particle_size);
+    }
   }
+
   if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
   if (ctx->fname_len == 0) {
@@ -982,8 +985,9 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "shuffle format: K = %u (+ 1) bytes, V = %u bytes",
-         ctx->fname_len, ctx->extra_data_len + ctx->data_len);
+    logf(LOG_INFO, "shuffle format: K = %u (+ 1) bytes, V = %u bytes, CARP: %s",
+         ctx->fname_len, ctx->extra_data_len + ctx->data_len,
+         pctx.carp_on ? "ON" : "OFF");
   }
 
   ctx->receiver_rate = 1;

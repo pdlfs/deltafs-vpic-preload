@@ -271,7 +271,7 @@ int pivot_calculate_from_oobl(pivot_ctx_t* pvt_ctx, int num_pivots) {
     float val_b = oobl[oob_idx_trunc + 1];
 
     float frac_a = oob_idx - (float)oob_idx_trunc;
-    pvt_ctx->my_pivots[pvt_idx] = (1 - frac_a) * val_a + (frac_a) * val_b;
+    pvt_ctx->my_pivots[pvt_idx] = (1 - frac_a) * val_a + (frac_a)*val_b;
   }
 
   return rv;
@@ -365,7 +365,7 @@ int pivot_calculate_from_all(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
                                                  : prev_range_begin;
     assert(val_b > val_a);
 
-    pvt_ctx->my_pivots[cur_pivot] = (1 - frac_a) * val_a + (frac_a) * val_b;
+    pvt_ctx->my_pivots[cur_pivot] = (1 - frac_a) * val_a + (frac_a)*val_b;
     cur_pivot++;
 
     oob_idx = accumulated_ppp;
@@ -489,6 +489,8 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
   std::fill(pvt_ctx->rank_bin_count.begin(), pvt_ctx->rank_bin_count.end(), 0);
 
   pvt_ctx->oob_buffer->SetRange(pvt_ctx->range_min, pvt_ctx->range_max);
+  deltafs_plfsdir_range_update(pctx.plfshdl, pvt_ctx->range_min,
+                               pvt_ctx->range_max);
 
   float our_bin_start = pivots[pctx.my_rank];
   float our_bin_end = pivots[pctx.my_rank + 1];

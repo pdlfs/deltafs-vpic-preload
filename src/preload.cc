@@ -192,6 +192,7 @@ static void preload_init() {
   pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
   pctx.particle_size = DEFAULT_PARTICLE_BYTES;
   pctx.particle_buf_size = DEFAULT_PARTICLE_BUFSIZE;
+  pctx.particle_indexed_attr_size = DEFAULT_INDEXED_ATTR_SIZE;
   pctx.particle_count = 0;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
@@ -208,6 +209,8 @@ static void preload_init() {
   pctx.recv_comm = MPI_COMM_NULL;
   pctx.recv_rank = -1;
   pctx.recv_sz = -1;
+
+  pctx.carp_on = 0;
 
   /* obtain deltafs mount point */
   pctx.deltafs_mntp = maybe_getenv("PRELOAD_Deltafs_mntp");
@@ -353,6 +356,14 @@ static void preload_init() {
     }
   }
 
+  tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_size");
+  if (tmp != NULL) {
+    pctx.particle_indexed_attr_size = atoi(tmp);
+    if (pctx.particle_extra_size < 0) {
+      pctx.particle_extra_size = 0;
+    }
+  }
+
   tmp = maybe_getenv("PRELOAD_Bg_threads");
   if (tmp != NULL) {
     pctx.bgdepth = atoi(tmp);
@@ -436,6 +447,7 @@ static void preload_init() {
     pctx.paranoid_post_barrier = 0;
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
+  if (is_envset("PRELOAD_Enable_CARP")) pctx.carp_on = 1;
 
   pctx.opts = new reneg_opts();
 
@@ -674,9 +686,16 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
 
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
-  dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
-  if (dirc.key_size == NULL) {
-    dirc.key_size = DEFAULT_KEY_SIZE;
+  std::string key_size_indexed_attr =
+      std::to_string(pctx.particle_indexed_attr_size);
+
+  if (pctx.carp_on) {
+    dirc.key_size = key_size_indexed_attr.c_str();
+  } else {
+    dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
+    if (dirc.key_size == NULL) {
+      dirc.key_size = DEFAULT_KEY_SIZE;
+    }
   }
 
   dirc.bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
@@ -708,6 +727,9 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
     if (is_envset("PLFSDIR_Ldb_use_bf"))
       *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY_BF;
     dirc.io_engine = *io_engine;
+    return tmp;
+  } else if (is_envset("PLFSDIR_Use_rangedb")) {
+    *io_engine = DELTAFS_PLFSDIR_RANGEDB;
     return tmp;
   }
 
@@ -2869,7 +2891,6 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
       }
     }
   }
-  const float* prop = reinterpret_cast<const float*>(data);
 
   rv = 0;
 

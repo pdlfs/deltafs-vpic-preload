@@ -39,12 +39,12 @@ int Bucket::Insert(float prop, const char* fname, int fname_len,
                    const char* data, int data_len) {
   int rv = 0;
 
-  assert(fname_len + data_len == size_per_item_);
+  // assert(fname_len + data_len == size_per_item_);
   if (num_items_ >= max_items_) return -1;
 
   observed_.Extend(prop);
-  memcpy(&data_buffer_[data_buffer_idx_], fname, fname_len);
-  memcpy(&data_buffer_[data_buffer_idx_ + fname_len], data, data_len);
+  // memcpy(&data_buffer_[data_buffer_idx_], fname, fname_len);
+  // memcpy(&data_buffer_[data_buffer_idx_ + fname_len], data, data_len);
   data_buffer_idx_ += fname_len + data_len;
   num_items_++;
 
@@ -79,13 +79,13 @@ int Bucket::FlushAndReset(pdlfs::PartitionManifest& manifest) {
   size_t bidx = manifest.AddItem(observed_.range_min, observed_.range_max,
                                  num_items_, num_items_oob_);
 
-  if (bidx < SIZE_MAX) {
-    std::stringstream bucket_path;
-    bucket_path << bucket_dir_ << "/bucket." << rank_ << '.' << bidx;
-    FILE* bfile = fopen(bucket_path.str().c_str(), "wb+");
-    fwrite(data_buffer_, size_per_item_, num_items_, bfile);
-    fclose(bfile);
-  }
+  // if (bidx < SIZE_MAX) {
+    // std::stringstream bucket_path;
+    // bucket_path << bucket_dir_ << "/bucket." << rank_ << '.' << bidx;
+    // FILE* bfile = fopen(bucket_path.str().c_str(), "wb+");
+    // fwrite(data_buffer_, size_per_item_, num_items_, bfile);
+    // fclose(bfile);
+  // }
 
   Reset();
 
@@ -229,7 +229,8 @@ int RangeBackend::Write(const char* fname, int fname_len, const char* data,
                         int data_len) {
   int rv = 0;
 
-  float indexed_prop = ::get_indexable_property(data);
+  // float indexed_prop = ::get_indexable_property(data);
+  float indexed_prop = *reinterpret_cast<const float*>(fname);
   if (current_.Inside(indexed_prop)) {
     rv = current_.Insert(indexed_prop, fname, fname_len, data, data_len);
 

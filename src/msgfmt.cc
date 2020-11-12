@@ -11,7 +11,6 @@ uint32_t msgfmt_write_data(char *buf, int buf_sz, const char *fname,
   uint32_t base_sz = MSGFMT_TYPE_SIZE + fname_sz + 1 + data_sz;
 
   if (base_sz > buf_sz) {
-    fprintf(stderr, "Base size: %u buf size: %u\n", base_sz, buf_sz);
     ABORT("Buffer overflow");
   }
 

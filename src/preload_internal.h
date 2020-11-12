@@ -98,6 +98,8 @@ typedef struct preload_ctx {
   int particle_id_size;
   int particle_count;
 
+  int particle_indexed_attr_size; /* if not indexing by particle ID, for CARP */
+
   /* since some ranks may be sender-only, so we have a dedicated MPI
    * communicator formed specifically for receivers. note that each receiver may
    * be a sender as well. for those sender-only ranks, their receiver
@@ -159,6 +161,8 @@ typedef struct preload_ctx {
   int verbose;       /* verbose mode */
 
   FILE* trace;
+
+  int carp_on; /* true if CARP enabled */
 
   pdlfs::perfstats_ctx_t perf_ctx;
   /* TODO: clean up pvt common code from this ctx */

@@ -290,8 +290,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   assert(ctx == &pctx.sctx);
   assert(ctx->extra_data_len + ctx->data_len <
          pdlfs::kMaxPartSize - ctx->fname_len - 1);
-  if (ctx->fname_len != fname_len) ABORT("bad filename len");
-  if (ctx->data_len != data_len) ABORT("bad data len");
+  // if (ctx->fname_len != fname_len) ABORT("bad filename len");
+  // if (ctx->data_len != data_len) ABORT("bad data len");
 
   rank = shuffle_rank(ctx);
 
@@ -303,8 +303,17 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   /* Serialize data */
   pdlfs::particle_mem_t p;
-  p.buf_sz = msgfmt_write_data(p.buf, 255, fname, fname_len, data, data_len,
-                               ctx->extra_data_len);
+  // p.buf_sz = msgfmt_write_data(p.buf, 255, fname, fname_len, data, data_len,
+  // ctx->extra_data_len);
+
+  char data_reorg[255];
+  memcpy(data_reorg, fname, fname_len);
+  memcpy(data_reorg + fname_len, data, data_len);
+
+  p.buf_sz = msgfmt_write_data(
+      p.buf, 255, reinterpret_cast<char*>(&indexed_prop), sizeof(float),
+      data_reorg, fname_len + data_len, ctx->extra_data_len);
+
   p.indexed_prop = indexed_prop;
 
   pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
