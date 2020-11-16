@@ -15,8 +15,8 @@ DataBuffer::DataBuffer(int num_pivots[STAGES_MAX + 1]) {
   return;
 }
 
-int DataBuffer::store_data(int stage, float* pivot_data, int dlen,
-                           float pivot_width, bool isnext) {
+int DataBuffer::store_data(int stage, double* pivot_data, int dlen,
+                           double pivot_width, bool isnext) {
   int sidx = this->cur_store_idx;
   if (isnext) sidx = !sidx;
 
@@ -70,7 +70,7 @@ int DataBuffer::clear_all_data() {
   return 0;
 }
 
-int DataBuffer::get_pivot_widths(int stage, std::vector<float>& widths) {
+int DataBuffer::get_pivot_widths(int stage, std::vector<double>& widths) {
   int sidx = this->cur_store_idx;
   int item_count = data_len[sidx][stage];
   widths.resize(item_count);

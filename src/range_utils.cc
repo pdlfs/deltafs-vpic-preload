@@ -13,7 +13,7 @@
 
 extern preload_ctx_t pctx;
 
-void load_bins_into_rbvec(std::vector<float>& bins,
+void load_bins_into_rbvec(std::vector<double>& bins,
                           std::vector<rb_item_t>& rbvec, int num_bins,
                           int num_ranks, int bins_per_rank) {
   assert(num_bins == num_ranks * bins_per_rank);
@@ -39,9 +39,9 @@ void load_bins_into_rbvec(std::vector<float>& bins,
 }
 
 void pivot_union(std::vector<rb_item_t> rb_items,
-                 std::vector<float>& unified_bins,
+                 std::vector<double>& unified_bins,
                  std::vector<float>& unified_bin_counts,
-                 std::vector<float>& rank_bin_widths, int num_ranks) {
+                 std::vector<double>& rank_bin_widths, int num_ranks) {
   assert(rb_items.size() >= 2u);
 
   float rank_bin_start[num_ranks];
@@ -162,9 +162,9 @@ int get_particle_count(int total_ranks, int total_bins, int par_per_bin) {
   return (total_bins - total_ranks) * par_per_bin;
 }
 
-int resample_bins_irregular(const std::vector<float>& bins,
+int resample_bins_irregular(const std::vector<double>& bins,
                             const std::vector<float>& bin_counts,
-                            std::vector<float>& samples, float& sample_width,
+                            std::vector<double>& samples, double& sample_width,
                             int nsamples) {
   const int bins_size = bins.size();
   const int bin_counts_size = bin_counts.size();
@@ -180,22 +180,22 @@ int resample_bins_irregular(const std::vector<float>& bins,
 
   assert(nparticles >= 0);
 
-  const float part_per_rbin = nparticles * 1.0 / (nsamples - 1);
+  const double part_per_rbin = nparticles * 1.0 / (nsamples - 1);
   sample_width = part_per_rbin;
 
   int sidx = 1;
 
-  float accumulated = 0;
+  double accumulated = 0;
   for (int rbidx = 0; rbidx < bins_size - 1; rbidx++) {
     float rcount_total = bin_counts[rbidx];
 
-    float rbin_start = bins[rbidx];
-    float rbin_end = bins[rbidx + 1];
+    double rbin_start = bins[rbidx];
+    double rbin_end = bins[rbidx + 1];
     while (accumulated + rcount_total > part_per_rbin - RANGE_EPSILON) {
-      float rcount_cur = part_per_rbin - accumulated;
+      double rcount_cur = part_per_rbin - accumulated;
       accumulated = 0;
 
-      float rbin_cur =
+      double rbin_cur =
           (rcount_cur / rcount_total) * (rbin_end - rbin_start) + rbin_start;
 
       assert(sidx < nsamples);
@@ -231,9 +231,9 @@ int resample_bins_irregular(const std::vector<float>& bins,
   return 0;
 }
 
-void repartition_bin_counts(std::vector<float>& old_bins,
+void repartition_bin_counts(std::vector<double>& old_bins,
                             std::vector<float>& old_bin_counts,
-                            std::vector<float>& new_bins,
+                            std::vector<double>& new_bins,
                             std::vector<float>& new_bin_counts) {
   int ob_sz = old_bins.size() - 1;
   int nb_sz = new_bins.size() - 1;
@@ -255,15 +255,15 @@ void repartition_bin_counts(std::vector<float>& old_bins,
       break;
     }
 
-    float obs = old_bins[oidx];      // old bin start
-    float obe = old_bins[oidx + 1];  // old bin end
-    float obw = obe - obs;           // old bin width
+    double obs = old_bins[oidx];      // old bin start
+    double obe = old_bins[oidx + 1];  // old bin end
+    double obw = obe - obs;           // old bin width
 
     float obc = old_bin_counts[oidx];  // old bin count
 
-    float nbs = new_bins[nidx];      // new bin start
-    float nbe = new_bins[nidx + 1];  // new bin end
-    float nbw = nbe - nbs;           // new bin width
+    double nbs = new_bins[nidx];      // new bin start
+    double nbe = new_bins[nidx + 1];  // new bin end
+    double nbw = nbe - nbs;           // new bin width
 
     if (obe <= nbs) {
       /* no overlap between ob and nb */
@@ -317,7 +317,7 @@ void repartition_bin_counts(std::vector<float>& old_bins,
   return;
 }
 
-void assert_monotically_increasing(float* array, int array_sz) {
+void assert_monotically_increasing(double* array, int array_sz) {
   bool assert_failed = false;
 
   for (int i = 1; i < array_sz; i++) {
@@ -330,7 +330,7 @@ void assert_monotically_increasing(float* array, int array_sz) {
   assert(!assert_failed);
 }
 
-void assert_monotically_decreasing(float* array, int array_sz) {
+void assert_monotically_decreasing(double* array, int array_sz) {
   bool assert_failed = false;
 
   for (int i = 1; i > array_sz; i++) {

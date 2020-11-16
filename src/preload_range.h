@@ -71,7 +71,7 @@ typedef struct range_ctx {
   range_state_t range_state;
   range_state_t range_state_prev;
 
-  std::vector<float> rank_bins;
+  std::vector<double> rank_bins;
   std::vector<float> rank_bin_count;
   float range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
@@ -98,12 +98,12 @@ typedef struct range_ctx {
    */
   std::vector<pdlfs::particle_mem_t> contingency_queue;
 
-  float my_pivots[pdlfs::kMaxPivots];
-  float pivot_width;
+  double my_pivots[pdlfs::kMaxPivots];
+  double pivot_width;
 
   /* Store pivots from all ranks during a negotiation */
-  std::vector<float> all_pivots;
-  std::vector<float> all_pivot_widths;
+  std::vector<double> all_pivots;
+  std::vector<double> all_pivot_widths;
   std::atomic<int> ranks_responded;
 
   std::vector<bool> ranks_acked;

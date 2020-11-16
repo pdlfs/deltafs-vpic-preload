@@ -142,7 +142,7 @@ void send_to_all(int* peers, int num_peers, rtp_ctx_t rctx, char* buf,
   send_to_all(rctx->peers[3], rctx->num_peers[3], __VA_ARGS__)
 
 void compute_aggregate_pivots(rtp_ctx_t rctx, int stage_num, int num_merged,
-                              float* merged_pivots, float& merged_width);
+                              double* merged_pivots, double& merged_width);
 /**
  * @brief Directly send rtp_begin to tree root for dissemination
  *
@@ -475,8 +475,8 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
 int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
                            int src) {
   int round_num, stage_num, sender_id, num_pivots;
-  float pivot_width;
-  float* pivots;
+  double pivot_width;
+  double* pivots;
 
   logf(LOG_DBG2, "rtp_handle_reneg_pivot: bufsz: %u, bufhash, %u\n", buf_sz,
        ::hash_str(buf, buf_sz));
@@ -527,8 +527,8 @@ int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
        stage_num, rctx->my_rank, src, stage_pivot_count);
 
   if (expected_items_for_stage(rctx, stage_num, stage_pivot_count)) {
-    float merged_pivots[merged_pvtcnt];
-    float merged_width;
+    double merged_pivots[merged_pvtcnt];
+    double merged_width;
 
     compute_aggregate_pivots(rctx, stage_num, merged_pvtcnt, merged_pivots,
                              merged_width);
@@ -612,8 +612,8 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
   }
 
   int round_num, stage_num, sender_id, num_pivots;
-  float pivot_width;
-  float* pivots;
+  double pivot_width;
+  double* pivots;
 
   msgfmt_decode_rtp_pivots(buf, buf_sz, &round_num, &stage_num, &sender_id,
                            &pivots, &pivot_width, &num_pivots, true);
@@ -745,18 +745,18 @@ bool expected_items_for_stage(rtp_ctx_t rctx, int stage, int items) {
 }
 
 void compute_aggregate_pivots(rtp_ctx_t rctx, int stage_num, int num_merged,
-                              float* merged_pivots, float& merged_width) {
+                              double* merged_pivots, double& merged_width) {
   std::vector<rb_item_t> rbvec;
 
-  std::vector<float> unified_bins;
+  std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
 
-  std::vector<float> samples;
-  std::vector<float> sample_counts;
+  std::vector<double> samples;
+  std::vector<int> sample_counts;
 
-  std::vector<float> pivot_widths;
+  std::vector<double> pivot_widths;
 
-  float sample_width;
+  double sample_width;
 
   rctx->data_buffer->load_into_rbvec(stage_num, rbvec);
 
@@ -764,7 +764,7 @@ void compute_aggregate_pivots(rtp_ctx_t rctx, int stage_num, int num_merged,
   pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_widths,
               rctx->num_peers[stage_num]);
 
-  std::vector<float> merged_pivot_vec;
+  std::vector<double> merged_pivot_vec;
 
   resample_bins_irregular(unified_bins, unified_bin_counts, merged_pivot_vec,
                           sample_width, num_merged);

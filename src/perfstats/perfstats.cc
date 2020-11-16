@@ -267,7 +267,7 @@ int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
   return rv;
 }
 
-int perfstats_log_mypivots(perfstats_ctx_t* pctx, float* pivots,
+int perfstats_log_mypivots(perfstats_ctx_t* pctx, double* pivots,
                            int num_pivots, const char *pivot_label) {
   int rv = 0;
 

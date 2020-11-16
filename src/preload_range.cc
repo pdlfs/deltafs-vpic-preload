@@ -93,6 +93,22 @@ static char *print_vec(char *buf, int buf_len, float *v, int vlen) {
   return buf;
 }
 
+static char *print_vec(char *buf, int buf_len, std::vector<double> &v,
+                       int vlen) {
+  assert(v.size() >= vlen);
+
+  int start_ptr = 0;
+
+  for (int item = 0; item < vlen; item++) {
+    start_ptr +=
+        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.2f, ", v[item]);
+
+    if (PRINTBUF_LEN - start_ptr < 20) break;
+  }
+
+  return buf;
+}
+
 static char *print_vec(char *buf, int buf_len, std::vector<float> &v,
                        int vlen) {
   assert(v.size() >= vlen);
@@ -248,9 +264,9 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
   assert(msg_type == MSGFMT_RENEG_PIVOTS);
 
   int round_num;
-  float *pivots;
+  double *pivots;
   int num_pivots;
-  float pivot_width;
+  double pivot_width;
   msgfmt_parse_reneg_pivots(buf, buf_sz, &round_num, &pivots, &pivot_width,
                             &num_pivots);
 
@@ -401,12 +417,12 @@ void recalculate_local_bins() {
 #endif
 
   std::vector<rb_item_t> rbvec;
-  std::vector<float> unified_bins;
+  std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
-  std::vector<float> samples;
+  std::vector<double> samples;
   std::vector<float> sample_counts;
 
-  float sample_width;
+  double sample_width;
 
   load_bins_into_rbvec(pctx.rctx.all_pivots, rbvec, pctx.rctx.all_pivots.size(),
                        pctx.comm_sz, pdlfs::kMaxPivots);
@@ -422,8 +438,8 @@ void recalculate_local_bins() {
                       pctx.rctx.all_pivot_widths.size()));
 
     fprintf(stderr, "Unified pvt R0: %s\n",
-            print_vec(rs_pbin_buf, PRINTBUF_LEN, unified_bins,
-                      unified_bins.size()));
+            print_vec(rs_pbin_buf,(int) PRINTBUF_LEN, unified_bins,
+                      (int)unified_bins.size()));
     fprintf(stderr, "Unified pvc R0: %s\n",
             print_vec(rs_pbin_buf, PRINTBUF_LEN, unified_bin_counts,
                       unified_bin_counts.size()));

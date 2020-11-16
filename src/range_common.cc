@@ -72,15 +72,15 @@ int get_range_bounds(pivot_ctx_t* pvt_ctx, std::vector<float>& oobl,
   size_t oobl_sz = oobl.size();
   size_t oobr_sz = oobr.size();
 
-  float oobl_min = oobl_sz ? oobl[0] : 0;
-  float oobr_min = oobr_sz ? oobr[0] : 0;
+  double oobl_min = oobl_sz ? oobl[0] : 0;
+  double oobr_min = oobr_sz ? oobr[0] : 0;
   /* If both OOBs are filled, their minimum, otherwise, the non-zero val */
-  float oob_min =
+  double oob_min =
       (oobl_sz && oobr_sz) ? std::min(oobl_min, oobr_min) : oobl_min + oobr_min;
 
-  float oobl_max = oobl_sz ? oobl[oobl_sz - 1] : 0;
-  float oobr_max = oobr_sz ? oobr[oobr_sz - 1] : 0;
-  float oob_max = std::max(oobl_max, oobr_max);
+  double oobl_max = oobl_sz ? oobl[oobl_sz - 1] : 0;
+  double oobr_max = oobr_sz ? oobr[oobr_sz - 1] : 0;
+  double oob_max = std::max(oobl_max, oobr_max);
 
   assert(oobl_min <= oobl_max);
   assert(oobr_min <= oobr_max);
@@ -462,18 +462,18 @@ int pivot_calculate_from_all(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   return 0;
 }
 
-int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
+int pivot_update_pivots(pivot_ctx_t* pvt_ctx, double* pivots, int num_pivots) {
   /* Assert LockHeld */
   assert(num_pivots == pctx.comm_sz + 1);
 
   perfstats_log_mypivots(&(pctx.perf_ctx), pivots, num_pivots,
                          "RENEG_AGGR_PIVOTS");
 
-  float& pvtbeg = pvt_ctx->range_min;
-  float& pvtend = pvt_ctx->range_max;
+  double& pvtbeg = pvt_ctx->range_min;
+  double& pvtend = pvt_ctx->range_max;
 
-  float updbeg = pivots[0];
-  float updend = pivots[num_pivots - 1];
+  double updbeg = pivots[0];
+  double updend = pivots[num_pivots - 1];
 
   // pvt_ctx->range_min = pivots[0];
   // pvt_ctx->range_max = pivots[num_pivots - 1];
@@ -492,8 +492,8 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots) {
   deltafs_plfsdir_range_update(pctx.plfshdl, pvt_ctx->range_min,
                                pvt_ctx->range_max);
 
-  float our_bin_start = pivots[pctx.my_rank];
-  float our_bin_end = pivots[pctx.my_rank + 1];
+  double our_bin_start = pivots[pctx.my_rank];
+  double our_bin_end = pivots[pctx.my_rank + 1];
   pctx.range_backend->UpdateBounds(our_bin_start, our_bin_end);
 
   return 0;

@@ -17,8 +17,8 @@ struct reneg_opts {
 
 typedef struct rb_item {
   int rank;
-  float bin_val;
-  float bin_other;
+  double bin_val;
+  double bin_other;
   bool is_start;
 } rb_item_t;  // rank-bin item
 
@@ -74,14 +74,14 @@ typedef struct pivot_ctx {
   /* both of these should be ints, TODO: change count to int and validate */
   std::vector<float> rank_bin_count;
   std::vector<uint64_t> rank_bin_count_aggr;
-  float range_min, range_max;
+  double range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
   pdlfs::OobBuffer* oob_buffer;
 
-  float my_pivots[pdlfs::kMaxPivots];
+  double my_pivots[pdlfs::kMaxPivots];
   int my_pivot_count;
-  float pivot_width;
+  double pivot_width;
 
   int last_reneg_counter = 0;
 } pivot_ctx_t;
@@ -120,7 +120,7 @@ int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots);
  * @param num_pivots
  * @return
  */
-int pivot_update_pivots(pivot_ctx_t* pvt_ctx, float* pivots, int num_pivots);
+int pivot_update_pivots(pivot_ctx_t* pvt_ctx, double* pivots, int num_pivots);
 
 static inline int print_vector(char* buf, int buf_sz, std::vector<uint64_t>& v,
                                int vlen = 0, bool truncate = true) {
@@ -186,7 +186,31 @@ static inline int print_vector(char* buf, int buf_sz, std::vector<float>& v,
   for (int vidx = 0; vidx < vlen; vidx++) {
     if (buf_idx >= buf_sz - 32) return buf_idx;
 
-    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1f ", v[vidx]);
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.lf ", v[vidx]);
+  }
+
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
+  return buf_idx;
+}
+
+static inline int print_vector(char* buf, int buf_sz, std::vector<double>& v,
+                               int vlen = -1, bool truncate = true) {
+  vlen = (vlen == -1) ? v.size() : vlen;
+
+  bool truncated = false;
+
+  if (truncate && vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz - 32) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.1lf ", v[vidx]);
   }
 
   buf_idx +=
@@ -231,6 +255,28 @@ static inline int print_vector(char* buf, int buf_sz, float* v, int vlen,
     if (buf_idx >= buf_sz - 32) return buf_idx;
 
     buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.4f ", v[vidx]);
+  }
+
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, "%s", truncated ? "... " : "");
+  return buf_idx;
+}
+
+static inline int print_vector(char* buf, int buf_sz, double* v, int vlen,
+                               bool truncate = true) {
+  bool truncated = false;
+
+  if (truncate && vlen > 16) {
+    vlen = 16;
+    truncated = true;
+  }
+
+  int buf_idx = 0;
+
+  for (int vidx = 0; vidx < vlen; vidx++) {
+    if (buf_idx >= buf_sz - 32) return buf_idx;
+
+    buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "%.4lf ", v[vidx]);
   }
 
   buf_idx +=

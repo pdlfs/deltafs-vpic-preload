@@ -10,15 +10,14 @@ class DataBuffer {
    * be incurred for ranks that aren't actually using those
    * stages. (Virtual Memory ftw)
    */
-  float data_store[2][STAGES_MAX + 1][FANOUT_MAX][kMaxPivots];
-  float data_widths[2][STAGES_MAX + 1][FANOUT_MAX];
+  double data_store[2][STAGES_MAX + 1][FANOUT_MAX][kMaxPivots];
+  double data_widths[2][STAGES_MAX + 1][FANOUT_MAX];
   int data_len[2][STAGES_MAX + 1];
 
   int num_pivots[STAGES_MAX + 1];
   int cur_store_idx;
 
  public:
-
   /**
    * @brief Constructor
    *
@@ -37,7 +36,7 @@ class DataBuffer {
    *
    * @return errno if < 0, else num_items in store for the stage
    */
-  int store_data(int stage, float* pivot_data, int dlen, float pivot_width,
+  int store_data(int stage, double* pivot_data, int dlen, double pivot_width,
                  bool isnext);
 
   /**
@@ -64,7 +63,7 @@ class DataBuffer {
    *
    * @return
    */
-  int get_pivot_widths(int stage, std::vector<float>& widths);
+  int get_pivot_widths(int stage, std::vector<double>& widths);
 
   /**
    * @brief

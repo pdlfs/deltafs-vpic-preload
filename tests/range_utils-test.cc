@@ -193,6 +193,15 @@ TEST(RangeUtilsTest, PivotCalc7) {
   ::assert_monotonic(pctx->my_pivots, num_pivots);
 }
 
+TEST(RangeUtilsTest, PivotCalc8) {
+#include "pivot_calc_8_data.cc"  // NOLINT(bugprone-suspicious-include)
+  AdvancePastInit();
+  LoadData(oob_data, oob_data_sz);
+  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  ::pivot_calculate_safe(pctx, num_pivots);
+  ::assert_monotonic(pctx->my_pivots, num_pivots);
+}
+
 }  // namespace pdlfs
 
 int main(int argc, char* argv[]) {
