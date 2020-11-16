@@ -36,7 +36,7 @@ int DataBuffer::store_data(int stage, double* pivot_data, int dlen,
 
   int idx = data_len[sidx][stage];
 
-  memcpy(data_store[sidx][stage][idx], pivot_data, dlen * sizeof(float));
+  memcpy(data_store[sidx][stage][idx], pivot_data, dlen * sizeof(double));
   data_widths[sidx][stage][idx] = pivot_width;
   int new_size = ++data_len[sidx][stage];
   assert(new_size > 0);
@@ -87,8 +87,8 @@ int DataBuffer::load_into_rbvec(int stage, std::vector<rb_item_t>& rbvec) {
 
   for (int rank = 0; rank < num_ranks; rank++) {
     for (int bidx = 0; bidx < bins_per_rank - 1; bidx++) {
-      float bin_start = data_store[sidx][stage][rank][bidx];
-      float bin_end = data_store[sidx][stage][rank][bidx + 1];
+      double bin_start = data_store[sidx][stage][rank][bidx];
+      double bin_end = data_store[sidx][stage][rank][bidx + 1];
 
       if (bin_start == bin_end) continue;
 

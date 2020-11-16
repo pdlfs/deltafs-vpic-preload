@@ -698,8 +698,6 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
     }
   }
 
-  dirc.key_size = std::to_string(1).c_str();
-
   dirc.bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
   if (dirc.bits_per_key == NULL) {
     dirc.bits_per_key = DEFAULT_BITS_PER_KEY;

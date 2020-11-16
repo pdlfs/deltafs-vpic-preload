@@ -19,15 +19,6 @@ void clear() {
   close(fd);
 }
 
-uint64_t now_us() {
-  struct timespec tv;
-  clock_gettime(CLOCK_MONOTONIC, &tv);
-  uint64_t t;
-  t = static_cast<uint64_t>(tv.tv_sec) * 1000000;
-  t += tv.tv_nsec / 1000;
-  return t;
-}
-
 namespace pdlfs {
 QueryClient::QueryClient(std::string& manifest_path, std::string& data_path)
     : manifest_path_(manifest_path), data_path_(data_path) {}
