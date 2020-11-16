@@ -113,7 +113,8 @@ void msgfmt_parse_reneg_pivots(char* buf, int buf_sz, int* round_no,
   int* num_pivots_ptr = reinterpret_cast<int*>(buf + 1 + sizeof(int));
   (*num_pivots) = (*num_pivots_ptr);
 
-  double* pivot_width_ptr = reinterpret_cast<double*>(buf + 1 + 2 * sizeof(int));
+  double* pivot_width_ptr =
+      reinterpret_cast<double*>(buf + 1 + 2 * sizeof(int));
   (*pivot_width) = (*pivot_width_ptr);
 
   int bytes_reqd = msgfmt_nbytes_reneg_pivots(*num_pivots);
@@ -172,13 +173,14 @@ void msgfmt_decode_rtp_begin(char* buf, int buf_sz, int* rank, int* round_num) {
 }
 
 size_t msgfmt_bufsize_rtp_pivots(int num_pivots) {
-  int buf_sz = 0;
+  size_t buf_sz = 0;
 
-  buf_sz += 2;
-  buf_sz += 4 * sizeof(int) + sizeof(double) + sizeof(double) * num_pivots;
+  buf_sz += 2u;
+  buf_sz +=
+      4u * sizeof(int) + sizeof(double) + sizeof(double) * (size_t)num_pivots;
 
   /* for good measure */
-  buf_sz += 2;
+  buf_sz += 2u;
 
   return buf_sz;
 }
@@ -209,7 +211,7 @@ int msgfmt_encode_rtp_pivots(char* buf, int buf_sz, int round_num,
   memcpy(cursor, pivots, sizeof(double) * num_pivots);
   cursor += sizeof(double) * num_pivots;
 
-  assert(cursor - buf < buf_sz);
+  assert(cursor - buf < (size_t)buf_sz);
 
   return cursor - buf;
 }

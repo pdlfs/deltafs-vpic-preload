@@ -419,9 +419,6 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     }
 
     /* send pivots to s1root now */
-    char pvt_buf[2048];
-    int pvt_buf_len;
-
     const int stage_idx = 1;
     pivot_ctx* pvt_ctx = rctx->pvt_ctx;
 
@@ -429,13 +426,17 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
 
     int pvtcnt = rctx->pvtcnt[stage_idx];
 
+    int pvt_buf_sz = msgfmt_bufsize_rtp_pivots(pvtcnt);
+    char pvt_buf[pvt_buf_sz];
+    int pvt_buf_len;
+
     pivot_calculate_safe(pvt_ctx, pvtcnt);
 
     perfstats_log_mypivots(&(pctx.perf_ctx), pvt_ctx->my_pivots, pvtcnt,
         "RENEG_PIVOTS");
 
     pvt_buf_len = msgfmt_encode_rtp_pivots(
-        pvt_buf, /* buf_sz */ 2048, rctx->round_num, stage_idx, rctx->my_rank,
+        pvt_buf, pvt_buf_sz, rctx->round_num, stage_idx, rctx->my_rank,
         pvt_ctx->my_pivots, pvt_ctx->pivot_width, pvtcnt);
 
     pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
@@ -542,6 +543,7 @@ int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
          stage_num, rctx->my_rank);
 
     size_t next_buf_sz = msgfmt_bufsize_rtp_pivots(merged_pvtcnt);
+    logf(LOG_WARN, "[rtp bufsz] %zu bytes for %d pivots\n", next_buf_sz, merged_pvtcnt);
     char next_buf[next_buf_sz];
 
     if (stage_num < STAGES_MAX) {
