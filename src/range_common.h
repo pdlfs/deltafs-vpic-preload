@@ -60,6 +60,8 @@ class MainThreadStateMgr {
   MainThreadState get_prev_state();
 
   MainThreadState update_state(MainThreadState new_state);
+
+  void reset();
 };
 
 typedef struct pivot_ctx {

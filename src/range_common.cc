@@ -145,6 +145,11 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   return this->prev_state;
 }
 
+void MainThreadStateMgr::reset() {
+  this->prev_state = MainThreadState::MT_INIT;
+  this->current_state = MainThreadState::MT_INIT;
+}
+
 int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro) {
   (*pvt_ctx) = new pivot_ctx_t();
   pivot_ctx_t* pvt_ctx_dref = *pvt_ctx;
@@ -170,6 +175,7 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx) {
 
   MainThreadState cur_state = pvt_ctx->mts_mgr.get_state();
   assert(cur_state != MainThreadState::MT_BLOCK);
+  pvt_ctx->mts_mgr.reset();
 
   pvt_ctx->range_min = 0;
   pvt_ctx->range_max = 0;
@@ -179,6 +185,8 @@ int pivot_ctx_reset(pivot_ctx_t* pvt_ctx) {
             pvt_ctx->rank_bin_count_aggr.end(), 0);
 
   pvt_ctx->oob_buffer->Reset();
+
+  // TODO: reset manifest
 
   pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
   return 0;

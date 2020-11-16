@@ -206,9 +206,9 @@ static struct ps {
  */
 static void run_vpic_app();
 static void do_dump();
-static void do_dump_mux();
+static void do_dump_mux(int);
 static void do_dump_shuffle_skew();
-static void do_dump_from_trace();
+static void do_dump_from_trace(int);
 
 /*
  * main program.
@@ -372,7 +372,7 @@ static void run_vpic_app() {
     if (myrank == 0) printf("\n== VPIC Epoch %d ...\n", epoch + 1);
     int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
     usleep(int(g.steptime * steps * 1000 * 1000));
-    do_dump_mux();
+    do_dump_mux(epoch);
   }
 }
 
@@ -424,9 +424,9 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 #endif
 }  // namespace
 
-static void do_dump_mux() {
+static void do_dump_mux(int timestep) {
   // do_dump_shuffle_skew();
-  do_dump_from_trace();
+  do_dump_from_trace(timestep);
   // do_dump();
 }
 
@@ -548,7 +548,7 @@ static void do_dump_shuffle_skew() {
   closedir(dir);
 }
 
-static void do_dump_from_trace() {
+static void do_dump_from_trace(int epoch) {
   FILE* file;
   DIR* dir;
   dir = opendir(g.pdir);
@@ -561,7 +561,8 @@ static void do_dump_from_trace() {
   // range_end, g.nps * g.size, range_wp, myrank, g.size);
 
   char fpath[255];
-  int timestep = 800;
+  int timesteps[] = {800, 1600, 2400, 3200, 4000, 4800, 5600};
+  int timestep = timesteps[epoch];
   // snprintf(fpath, 255, "/users/ankushj/T.2850/eparticle.2850.%d", myrank);
   const char* homedir_path = "/users/ankushj/T.%d/eparticle.%d.%d";
   const char* panfs_path =
