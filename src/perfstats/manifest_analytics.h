@@ -31,10 +31,9 @@ class ManifestAnalytics {
   uint64_t count_max_ = 0;
   uint64_t mass_max_ = 0;
 
-  bool stats_computed_ = false;
-
-  int Read();
+  int Read(int epoch);
   void GenerateQueryPoints();
-  int ComputeStats();
+  int ComputeStats(int epoch);
+  int PrintStats(int epoch);
 };
 }  // namespace pdlfs

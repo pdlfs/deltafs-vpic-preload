@@ -2371,6 +2371,10 @@ int closedir_impl(DIR* dirp) {
             ABORT("fail to sync plfsdir");
         }
 
+        if (pctx.carp_on) {
+          pctx.range_backend->EpochFinish();
+        }
+
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
           logf(LOG_INFO, "pre-flushing done %s",

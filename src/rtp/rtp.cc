@@ -543,7 +543,6 @@ int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
          stage_num, rctx->my_rank);
 
     size_t next_buf_sz = msgfmt_bufsize_rtp_pivots(merged_pvtcnt);
-    logf(LOG_WARN, "[rtp bufsz] %zu bytes for %d pivots\n", next_buf_sz, merged_pvtcnt);
     char next_buf[next_buf_sz];
 
     if (stage_num < STAGES_MAX) {

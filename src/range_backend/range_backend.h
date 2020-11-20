@@ -81,9 +81,9 @@ class Bucket {
 
   void UpdateExpectedRange(float bmin, float bmax);
 
-  void Reset();
+  void Reset(bool epoch_flush = false);
 
-  int FlushAndReset(PartitionManifest& manifest);
+  int FlushAndReset(PartitionManifest& manifest, bool epoch_flush = false);
 
   ~Bucket();
 };
@@ -127,6 +127,7 @@ class PartitionManifest {
   int GetOverLappingEntries(float point, PartitionManifestMatch& match);
   int GetOverLappingEntries(float range_begin, float range_end,
                             PartitionManifestMatch& match);
+  int Reset();
 };
 
 class RangeBackend {
@@ -147,8 +148,11 @@ class RangeBackend {
   /* XXX: needs to be atomic if writing is multithreaded */
   uint32_t bucket_idx_ = 0;
 
+  uint32_t epoch_;
+
+  void ComputePaths();
   int WriteManifestToDisk(const char* path);
-  int FlushAndReset(Bucket& bucket);
+  int FlushAndReset(Bucket& bucket, bool epoch_flush = false);
 
  public:
   RangeBackend(int rank, const char* dirpath, uint32_t memtable_size,
@@ -156,6 +160,7 @@ class RangeBackend {
   int UpdateBounds(float bound_start, float bound_end);
   std::string GetManifestDir();
   int Write(const char* fname, int fname_len, const char* data, int data_len);
+  int EpochFinish();
   int Finish();
 };
 }  // namespace pdlfs

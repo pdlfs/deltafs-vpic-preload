@@ -66,25 +66,25 @@ void xn_local_barrier(xn_ctx_t* ctx) {
 void xn_shuffle_epoch_end(xn_ctx_t* ctx) {
   hg_return_t hret;
   assert(ctx != NULL && ctx->sh != NULL);
-  hret = shuffle_flush_originqs(ctx->sh);
-  if (hret != HG_SUCCESS) {
-    RPC_FAILED("fail to flush local origin queues", hret);
-  }
-
   hret = shuffle_flush_originqs(ctx->psh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local priority origin queues", hret);
   }
 
-  xn_local_barrier(ctx);
-  hret = shuffle_flush_remoteqs(ctx->sh);
+  hret = shuffle_flush_originqs(ctx->sh);
   if (hret != HG_SUCCESS) {
-    RPC_FAILED("fail to flush remote queues", hret);
+    RPC_FAILED("fail to flush local origin queues", hret);
   }
 
+  xn_local_barrier(ctx);
   hret = shuffle_flush_remoteqs(ctx->psh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush remote priority queues", hret);
+  }
+
+  hret = shuffle_flush_remoteqs(ctx->sh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush remote queues", hret);
   }
 }
 
@@ -101,15 +101,15 @@ void xn_shuffle_epoch_start(xn_ctx_t* ctx) {
   hg_uint64_t tmprl;
   assert(ctx != NULL && ctx->sh != NULL);
 
+  hret = shuffle_flush_relayqs(ctx->psh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush local priorty relay queues", hret);
+  }
+
   hret = shuffle_flush_relayqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local relay queues", hret);
   }
-
-  // hret = shuffle_flush_relayqs(ctx->psh);
-  // if (hret != HG_SUCCESS) {
-    // RPC_FAILED("fail to flush local priorty relay queues", hret);
-  // }
 
   xn_local_barrier(ctx);
   ctx->last_stat = ctx->stat;
@@ -117,15 +117,15 @@ void xn_shuffle_epoch_start(xn_ctx_t* ctx) {
   ctx->stat.local.sends = tmpori + tmprl;
 
   shuffle_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
+  hret = shuffle_flush_delivery(ctx->psh);
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("fail to flush priority delivery", hret);
+  }
+
   hret = shuffle_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush delivery", hret);
   }
-
-  // hret = shuffle_flush_delivery(ctx->psh);
-  // if (hret != HG_SUCCESS) {
-    // RPC_FAILED("fail to flush priority delivery", hret);
-  // }
 }
 
 static void xn_shuffle_deliver(int src, int dst, uint32_t type, void* buf,

@@ -16,28 +16,24 @@ ManifestAnalytics::ManifestAnalytics(RangeBackend* backend)
     : manifest_path_(backend->GetManifestDir()) {}
 
 void ManifestAnalytics::PrintStats() {
-  if (!stats_computed_) ComputeStats();
+  int epoch = 0;
+  while (PrintStats(epoch) == 0) epoch++;
 
   logf(LOG_INFO,
-       "[perfstats-analytics] %s SSTs (%s items, OOB: %.2f%%). "
-       "Max overlap: %s SSTs (%s items, %.4f%%) \n",
-       pretty_num(count_total_).c_str(), pretty_num(mass_total_).c_str(),
-       mass_oob_ * 100.0 / mass_total_, pretty_num(count_max_).c_str(),
-       pretty_num(mass_max_).c_str(), mass_max_ * 100.0 / mass_total_);
+       "[perfstats-analytics] %d epochs discovered. Analysis complete. \n",
+       epoch);
 }
 
-int ManifestAnalytics::Read() {
+int ManifestAnalytics::Read(int epoch) {
   int rv = 0;
-
-  stats_computed_ = false;
 
   int rank = 0;
   struct stat stat_buf;
 
   while (true) {
     char rank_path[2048];
-    snprintf(rank_path, 2048, "%s/vpic-manifest.%d", manifest_path_.c_str(),
-             rank++);
+    snprintf(rank_path, 2048, "%s/vpic-manifest.%d.%d", manifest_path_.c_str(),
+             epoch, rank++);
 
     if (stat(rank_path, &stat_buf)) break;
 
@@ -65,21 +61,36 @@ void ManifestAnalytics::GenerateQueryPoints() {
   } while (intvl_cur <= range_max_);
 }
 
-int ManifestAnalytics::ComputeStats() {
-  if (!manifest_.Size()) Read();
-  assert(manifest_.Size());
-  if (query_points_.empty()) GenerateQueryPoints();
+int ManifestAnalytics::ComputeStats(int epoch) {
+  manifest_.Reset();
+  Read(epoch);
+
+  if (manifest_.Size() == 0u) return -1;
+
+  GenerateQueryPoints();
   assert(!query_points_.empty());
 
   for (size_t i = 0; i < query_points_.size(); i++) {
-      PartitionManifestMatch match;
-      manifest_.GetOverLappingEntries(query_points_[i], match);
-      count_max_ = std::max(count_max_, (uint64_t)match.items.size());
-      mass_max_ = std::max(mass_max_, match.mass_total);
+    PartitionManifestMatch match;
+    manifest_.GetOverLappingEntries(query_points_[i], match);
+    count_max_ = std::max(count_max_, (uint64_t)match.items.size());
+    mass_max_ = std::max(mass_max_, match.mass_total);
   }
 
-  stats_computed_ = true;
-
   return 0;
+}
+
+int ManifestAnalytics::PrintStats(int epoch) {
+  int rv = ComputeStats(epoch);
+  if (rv != 0) return rv;
+
+  logf(LOG_INFO,
+       "[perfstats-analytics] [epoch %d] %s SSTs (%s items, OOB: %.2f%%). "
+       "Max overlap: %s SSTs (%s items, %.4f%%) \n",
+       epoch, pretty_num(count_total_).c_str(), pretty_num(mass_total_).c_str(),
+       mass_oob_ * 100.0 / mass_total_, pretty_num(count_max_).c_str(),
+       pretty_num(mass_max_).c_str(), mass_max_ * 100.0 / mass_total_);
+
+  return rv;
 }
 }  // namespace pdlfs

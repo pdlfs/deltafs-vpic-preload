@@ -66,28 +66,30 @@ void Bucket::UpdateExpectedRange(float bmin, float bmax) {
   expected_.range_max = bmax;
 }
 
-void Bucket::Reset() {
+void Bucket::Reset(bool epoch_flush) {
   num_items_ = 0;
   num_items_oob_ = 0;
   data_buffer_idx_ = 0;
   observed_.Reset();
+  if (epoch_flush) expected_.Reset();
 }
 
-int Bucket::FlushAndReset(pdlfs::PartitionManifest& manifest) {
+int Bucket::FlushAndReset(pdlfs::PartitionManifest& manifest,
+                          bool epoch_flush) {
   int rv = 0;
 
   size_t bidx = manifest.AddItem(observed_.range_min, observed_.range_max,
                                  num_items_, num_items_oob_);
 
   // if (bidx < SIZE_MAX) {
-    // std::stringstream bucket_path;
-    // bucket_path << bucket_dir_ << "/bucket." << rank_ << '.' << bidx;
-    // FILE* bfile = fopen(bucket_path.str().c_str(), "wb+");
-    // fwrite(data_buffer_, size_per_item_, num_items_, bfile);
-    // fclose(bfile);
+  // std::stringstream bucket_path;
+  // bucket_path << bucket_dir_ << "/bucket." << rank_ << '.' << bidx;
+  // FILE* bfile = fopen(bucket_path.str().c_str(), "wb+");
+  // fwrite(data_buffer_, size_per_item_, num_items_, bfile);
+  // fclose(bfile);
   // }
 
-  Reset();
+  Reset(epoch_flush);
 
   return rv;
 }
@@ -200,6 +202,14 @@ int PartitionManifest::GetMass(uint64_t& mass_total, uint64_t mass_oob) const {
 
 size_t PartitionManifest::Size() const { return items_.size(); }
 
+int PartitionManifest::Reset() {
+  items_.clear();
+  range_min_ = FLT_MAX;
+  range_max_ = FLT_MIN;
+  mass_total_ = 0;
+  mass_oob_ = 0;
+}
+
 RangeBackend::RangeBackend(int rank, const char* dirpath,
                            uint32_t memtable_size_bytes,
                            uint32_t key_size_bytes)
@@ -209,20 +219,17 @@ RangeBackend::RangeBackend(int rank, const char* dirpath,
       key_size_(key_size_bytes),
       items_per_flush_(memtable_size_ / key_size_),
       current_(rank, dirpath, memtable_size_, key_size_),
-      prev_(rank, dirpath, memtable_size_, key_size_) {
+      prev_(rank, dirpath, memtable_size_, key_size_),
+      epoch_(0) {
+  /* XXX: force manifest to write to shared storage for analytics */
+  dirpath_ = "/users/ankushj/tmp";
   std::string man_dirpath = dirpath_ + "/manifests";
   mkdir(man_dirpath.c_str(), S_IRWXU);
 
   std::string bucket_dirpath = dirpath_ + "/buckets";
   mkdir(bucket_dirpath.c_str(), S_IRWXU);
 
-  std::stringstream man_path;
-  man_path << man_dirpath << '/' << "vpic-manifest." << rank;
-  manifest_path_ = man_path.str();
-
-  std::stringstream man_bin_path;
-  man_bin_path << man_dirpath << '/' << "vpic-manifest.bin." << rank;
-  manifest_bin_path_ = man_bin_path.str();
+  ComputePaths();
 }
 
 int RangeBackend::Write(const char* fname, int fname_len, const char* data,
@@ -244,10 +251,10 @@ int RangeBackend::Write(const char* fname, int fname_len, const char* data,
   return rv;
 }
 
-int RangeBackend::FlushAndReset(Bucket& bucket) {
+int RangeBackend::FlushAndReset(Bucket& bucket, bool epoch_flush) {
   int rv = 0;
 
-  rv = bucket.FlushAndReset(manifest_);
+  rv = bucket.FlushAndReset(manifest_, epoch_flush);
 
   return rv;
 }
@@ -266,11 +273,38 @@ int RangeBackend::UpdateBounds(const float bound_start, const float bound_end) {
   return 0;
 }
 
+void RangeBackend::ComputePaths() {
+  std::string man_dirpath = dirpath_ + "/manifests";
+
+  std::stringstream man_path;
+  man_path << man_dirpath << '/' << "vpic-manifest." << epoch_ << "." << rank_;
+  manifest_path_ = man_path.str();
+
+  std::stringstream man_bin_path;
+  man_bin_path << man_dirpath << '/' << "vpic-manifest.bin." << epoch_ << "."
+               << rank_;
+  manifest_bin_path_ = man_bin_path.str();
+}
+
 int RangeBackend::WriteManifestToDisk(const char* path) {
   int rv = 0;
   FILE* out_file = fopen(path, "w+");
   manifest_.WriteToDisk(out_file);
+  manifest_.Reset();
   fclose(out_file);
+  return rv;
+}
+
+int RangeBackend::EpochFinish() {
+  int rv = 0;
+
+  FlushAndReset(prev_, /* epoch_end */ true);
+  FlushAndReset(current_, /* epoch_end */ true);
+
+  WriteManifestToDisk(manifest_path_.c_str());
+
+  epoch_++;
+  ComputePaths();
   return rv;
 }
 
