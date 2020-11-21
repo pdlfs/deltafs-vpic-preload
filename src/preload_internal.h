@@ -164,6 +164,9 @@ typedef struct preload_ctx {
 
   int carp_on; /* true if CARP enabled */
 
+  int carp_dynamic_reneg;
+  uint64_t carp_reneg_intvl; /* for fixed intvl reneg */
+
   pdlfs::perfstats_ctx_t perf_ctx;
   /* TODO: clean up pvt common code from this ctx */
   range_ctx_t rctx;

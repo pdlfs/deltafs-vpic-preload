@@ -10,11 +10,14 @@
 #pragma once
 
 namespace pdlfs {
+/* forward declaration */
+struct perfstats_ctx;
+
 class ManifestAnalytics {
  public:
   explicit ManifestAnalytics(const char* query_path);
   explicit ManifestAnalytics(RangeBackend* backend);
-  void PrintStats();
+  void PrintStats(perfstats_ctx* perf_ctx);
 
  private:
   std::string manifest_path_;
@@ -34,6 +37,6 @@ class ManifestAnalytics {
   int Read(int epoch);
   void GenerateQueryPoints();
   int ComputeStats(int epoch);
-  int PrintStats(int epoch);
+  int PrintStats(perfstats_ctx* pctx, int epoch);
 };
 }  // namespace pdlfs

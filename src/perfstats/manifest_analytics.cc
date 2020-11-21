@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 
 #include "common.h"
+#include "perfstats.h"
 
 namespace pdlfs {
 ManifestAnalytics::ManifestAnalytics(const char* manifest_path)
@@ -15,9 +16,9 @@ ManifestAnalytics::ManifestAnalytics(const char* manifest_path)
 ManifestAnalytics::ManifestAnalytics(RangeBackend* backend)
     : manifest_path_(backend->GetManifestDir()) {}
 
-void ManifestAnalytics::PrintStats() {
+void ManifestAnalytics::PrintStats(perfstats_ctx_t* perf_ctx) {
   int epoch = 0;
-  while (PrintStats(epoch) == 0) epoch++;
+  while (PrintStats(perf_ctx, epoch) == 0) epoch++;
 
   logf(LOG_INFO,
        "[perfstats-analytics] %d epochs discovered. Analysis complete. \n",
@@ -80,16 +81,37 @@ int ManifestAnalytics::ComputeStats(int epoch) {
   return 0;
 }
 
-int ManifestAnalytics::PrintStats(int epoch) {
+int ManifestAnalytics::PrintStats(perfstats_ctx_t* perf_ctx, int epoch) {
+  perfstats_log_carp(perf_ctx);
+
   int rv = ComputeStats(epoch);
   if (rv != 0) return rv;
+
+  float oob_frac = mass_oob_ * 100.0f / mass_total_;
+  float overlap_frac = mass_max_ * 100.0f / mass_total_;
 
   logf(LOG_INFO,
        "[perfstats-analytics] [epoch %d] %s SSTs (%s items, OOB: %.2f%%). "
        "Max overlap: %s SSTs (%s items, %.4f%%) \n",
        epoch, pretty_num(count_total_).c_str(), pretty_num(mass_total_).c_str(),
-       mass_oob_ * 100.0 / mass_total_, pretty_num(count_max_).c_str(),
-       pretty_num(mass_max_).c_str(), mass_max_ * 100.0 / mass_total_);
+       oob_frac, pretty_num(count_max_).c_str(), pretty_num(mass_max_).c_str(),
+       overlap_frac);
+
+  std::string event_label =
+      "MANIFEST_ANALYTICS_E" + std::to_string(epoch) + "_";
+
+#define PERFLOG(a, b)                                         \
+  perfstats_log_eventstr(perf_ctx, (event_label + (a)).c_str(), \
+                         std::to_string(b).c_str())
+
+  PERFLOG("SST_COUNT", count_total_);
+  PERFLOG("SST_MASS", mass_total_);
+  PERFLOG("OOB_FRAC", oob_frac);
+  PERFLOG("OLAP_MAXCNT", count_max_);
+  PERFLOG("OLAP_MAXMASS", mass_max_);
+  PERFLOG("OLAP_FRAC", overlap_frac);
+
+#undef PERFLOG
 
   return rv;
 }

@@ -46,80 +46,89 @@ typedef struct perfstats_ctx {
 /**
  * @brief
  *
- * @param pctx
+ * @param perf_ctx
  * @param my_rank
  * @param dir_path
  * @param local_root
  *
  * @return
  */
-int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
+int perfstats_init(perfstats_ctx_t* perf_ctx, int my_rank, const char* dir_path,
                    const char* local_root);
 
 /**
  * @brief
  *
- * @param pctx
+ * @param perf_ctx
  *
  * @return
  */
-int perfstats_destroy(perfstats_ctx_t* pctx);
+int perfstats_destroy(perfstats_ctx_t* perf_ctx);
 
 /**
  * @brief
  *
- * @param pctx
+ * @param perf_ctx
  * @param pvt_ctx
  * @param rctx
  *
  * @return
  */
-int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
+int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pivot_ctx_t* pvt_ctx,
                         rtp_ctx_t rctx);
 
 /**
  * @brief
  *
- * @param pctx
+ * @param perf_ctx
  * @param pvt_ctx
  * @param my_rank
  * @return
  */
-int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
-                                 int my_rank);
+int perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
+                                 pivot_ctx_t* pvt_ctx, int my_rank);
 
 /**
  * @brief
  *
- * @param pctx
+ * @param perf_ctx
  * @param pivots
  * @param num_pivots
  * @param pivot_label
  * @return
  */
-int perfstats_log_mypivots(perfstats_ctx_t* pctx, double* pivots,
-                           int num_pivots, const char *pivot_label);
+int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
+                           int num_pivots, const char* pivot_label);
 
 /**
- * @brief 
+ * @brief
  *
- * @param pctx
+ * @param perf_ctx
+ *
+ * @return
+ */
+int perfstats_log_carp(perfstats_ctx_t* perf_ctx);
+
+/**
+ * @brief
+ *
+ * @param perf_ctx
  * @param event_label
  * @param event_desc
  *
- * @return 
+ * @return
  */
-int perfstats_log_eventstr(perfstats_ctx_t* pctx, const char* event_label,
+int perfstats_log_eventstr(perfstats_ctx_t* perf_ctx, const char* event_label,
                            const char* event_desc);
 
 /**
- * @brief 
+ * @brief
  *
- * @param pctx
+ * @param perf_ctx
  * @param fmt
  * @param ...
  *
- * @return 
+ * @return
  */
-int perfstats_printf(perfstats_ctx_t* pctx, const char* fmt, ...);
+int perfstats_printf(perfstats_ctx_t* perf_ctx, const char* fmt, ...);
 }  // namespace pdlfs

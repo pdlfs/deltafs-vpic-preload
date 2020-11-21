@@ -343,7 +343,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   bool reneg_and_block =
       (!shuffle_now && pvt_ctx->oob_buffer->IsFull()) || RENEG_ONGOING(pvt_ctx);
 
-  if (pvt_ctx->last_reneg_counter == pdlfs::kRenegInterval) {
+  if (pvt_ctx->last_reneg_counter == pctx.carp_reneg_intvl) {
     reneg_and_block = true;
   }
 

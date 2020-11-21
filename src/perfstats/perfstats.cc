@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include "perfstats/stat.h"
+#include "preload_internal.h"
 
 #ifdef PRELOAD_HAS_BLKID
 #include "perfstats/stat_blkid.h"
@@ -16,12 +17,13 @@
 
 /* Local Definitions */
 namespace {
-uint64_t get_timestamp(pdlfs::perfstats_ctx_t* pctx) {
+uint64_t get_timestamp(pdlfs::perfstats_ctx_t* perf_ctx) {
   struct timespec stat_time;
   clock_gettime(CLOCK_MONOTONIC, &(stat_time));
 
-  uint64_t time_delta_ms = (stat_time.tv_sec - pctx->start_time.tv_sec) * 1e3 +
-                           (stat_time.tv_nsec - pctx->start_time.tv_nsec) / 1e6;
+  uint64_t time_delta_ms =
+      (stat_time.tv_sec - perf_ctx->start_time.tv_sec) * 1e3 +
+      (stat_time.tv_nsec - perf_ctx->start_time.tv_nsec) / 1e6;
 
   return time_delta_ms;
 }
@@ -53,27 +55,27 @@ namespace pdlfs {
 /* Internal Declarations */
 void* perfstats_worker(void* arg);
 
-int perfstats_log_once(perfstats_ctx_t* pctx);
+int perfstats_log_once(perfstats_ctx_t* perf_ctx);
 
-int perfstats_log_stat(perfstats_ctx_t* pctx, Stat& s);
+int perfstats_log_stat(perfstats_ctx_t* perf_ctx, Stat& s);
 
-int perfstats_log_hooks(perfstats_ctx_t* pctx, uint64_t timestamp);
+int perfstats_log_hooks(perfstats_ctx_t* perf_ctx, uint64_t timestamp);
 
-int perfstats_generate_header(perfstats_ctx_t* pctx);
+int perfstats_generate_header(perfstats_ctx_t* perf_ctx);
 
-int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
+int perfstats_init(perfstats_ctx_t* perf_ctx, int my_rank, const char* dir_path,
                    const char* local_root) {
-  assert(pctx != NULL);
+  assert(perf_ctx != NULL);
 
-  pctx->my_rank = my_rank;
-  pctx->shutdown = false;
+  perf_ctx->my_rank = my_rank;
+  perf_ctx->shutdown = false;
   int rv = 0;
 
-  clock_gettime(CLOCK_MONOTONIC, &(pctx->start_time));
+  clock_gettime(CLOCK_MONOTONIC, &(perf_ctx->start_time));
 
-  snprintf(pctx->stats_fpath, PATH_MAX, "%s/vpic-perfstats.log.%d", dir_path,
-           my_rank);
-  FILE* output_file = fopen(pctx->stats_fpath, "w");
+  snprintf(perf_ctx->stats_fpath, PATH_MAX, "%s/vpic-perfstats.log.%d",
+           dir_path, my_rank);
+  FILE* output_file = fopen(perf_ctx->stats_fpath, "w");
 
   if (output_file == NULL) {
     rv = -1;
@@ -83,16 +85,16 @@ int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
 
   setvbuf(output_file, NULL, _IOLBF, 0);
 
-  pctx->output_file = output_file;
+  perf_ctx->output_file = output_file;
 
-  perfstats_generate_header(pctx);
+  perfstats_generate_header(perf_ctx);
 
-  rv = pthread_create(&(pctx->stats_thread), NULL, perfstats_worker,
-                      static_cast<void*>(pctx));
+  rv = pthread_create(&(perf_ctx->stats_thread), NULL, perfstats_worker,
+                      static_cast<void*>(perf_ctx));
 
 #ifdef PRELOAD_HAS_BLKID
   StatBlkid* statBlkid = new StatBlkid(local_root);
-  pctx->all_loggers_.push_back(statBlkid);
+  perf_ctx->all_loggers_.push_back(statBlkid);
 #endif
 
   if (rv) {
@@ -103,16 +105,16 @@ int perfstats_init(perfstats_ctx_t* pctx, int my_rank, const char* dir_path,
   return 0;
 }
 
-int perfstats_destroy(perfstats_ctx_t* pctx) {
+int perfstats_destroy(perfstats_ctx_t* perf_ctx) {
   /* Tell worker thread to shut down */
-  pctx->shutdown = true;
-  pthread_join(pctx->stats_thread, NULL);
+  perf_ctx->shutdown = true;
+  pthread_join(perf_ctx->stats_thread, NULL);
 
-  fclose(pctx->output_file);
-  pctx->output_file = NULL;
+  fclose(perf_ctx->output_file);
+  perf_ctx->output_file = NULL;
 
-  for (uint32_t sidx = 0; sidx < pctx->all_loggers_.size(); sidx++) {
-    delete pctx->all_loggers_[sidx];
+  for (uint32_t sidx = 0; sidx < perf_ctx->all_loggers_.size(); sidx++) {
+    delete perf_ctx->all_loggers_[sidx];
   }
 
   return 0;
@@ -120,78 +122,78 @@ int perfstats_destroy(perfstats_ctx_t* pctx) {
 
 /* BEGIN Internal Definitions */
 void* perfstats_worker(void* arg) {
-  perfstats_ctx_t* pctx = static_cast<perfstats_ctx_t*>(arg);
+  perfstats_ctx_t* perf_ctx = static_cast<perfstats_ctx_t*>(arg);
 
   while (true) {
-    pctx->worker_mtx.Lock();
+    perf_ctx->worker_mtx.Lock();
 
-    if (pctx->shutdown) {
-      if (pctx->my_rank == 0) {
+    if (perf_ctx->shutdown) {
+      if (perf_ctx->my_rank == 0) {
         logf(LOG_INFO, "perfstats_worker: shutting down");
       }
 
-      if (pctx->my_rank == 0) {
+      if (perf_ctx->my_rank == 0) {
         logf(LOG_INFO, "perfstats_worker: done");
       }
 
-      pctx->worker_mtx.Unlock();
+      perf_ctx->worker_mtx.Unlock();
       break;
     }
 
     /* do logging */
-    perfstats_log_once(pctx);
+    perfstats_log_once(perf_ctx);
 
-    pctx->worker_mtx.Unlock();
+    perf_ctx->worker_mtx.Unlock();
     usleep(1e6 / PERFSTATS_CAPTURE_FREQ);
   }
 
   return NULL;
 }
 
-int perfstats_log_stat(perfstats_ctx_t* pctx, Stat& s) {
-  pctx->worker_mtx.AssertHeld();
-  s.Serialize(pctx->output_file);
+int perfstats_log_stat(perfstats_ctx_t* perf_ctx, Stat& s) {
+  perf_ctx->worker_mtx.AssertHeld();
+  s.Serialize(perf_ctx->output_file);
 
   return 0;
 }
 
-int perfstats_log_once(perfstats_ctx_t* pctx) {
-  pctx->worker_mtx.AssertHeld();
+int perfstats_log_once(perfstats_ctx_t* perf_ctx) {
+  perf_ctx->worker_mtx.AssertHeld();
 
-  uint64_t timestamp = ::get_timestamp(pctx);
-  perfstats_log_hooks(pctx, timestamp);
+  uint64_t timestamp = ::get_timestamp(perf_ctx);
+  perfstats_log_hooks(perf_ctx, timestamp);
 
   /* construct with random parameters; TODO: add better constructor */
   Stat s(StatType::V_INT, "");
 
-  for (uint32_t sidx = 0; sidx < pctx->all_loggers_.size(); sidx++) {
-    pctx->all_loggers_[sidx]->LogOnce(timestamp, s);
-    perfstats_log_stat(pctx, s);
+  for (uint32_t sidx = 0; sidx < perf_ctx->all_loggers_.size(); sidx++) {
+    perf_ctx->all_loggers_[sidx]->LogOnce(timestamp, s);
+    perfstats_log_stat(perf_ctx, s);
   }
 
   return 0;
 }
 
-int perfstats_generate_header(perfstats_ctx_t* pctx) {
+int perfstats_generate_header(perfstats_ctx_t* perf_ctx) {
   const char* header_str = "Timestamp (ms),Stat Type, Stat Value\n";
-  fwrite(header_str, strlen(header_str), 1, pctx->output_file);
+  fwrite(header_str, strlen(header_str), 1, perf_ctx->output_file);
   return 0;
 }
 
-int perfstats_log_hooks(perfstats_ctx_t* pctx, uint64_t timestamp) {
-  pctx->worker_mtx.AssertHeld();
+int perfstats_log_hooks(perfstats_ctx_t* perf_ctx, uint64_t timestamp) {
+  perf_ctx->worker_mtx.AssertHeld();
 
   const char* lbw_label = "LOGICAL_BYTES_WRITTEN";
   Stat logical_bytes_written(StatType::V_UINT64, lbw_label);
-  logical_bytes_written.SetValue(timestamp, pctx->stat_hooks.bytes_written);
+  logical_bytes_written.SetValue(timestamp, perf_ctx->stat_hooks.bytes_written);
 
-  perfstats_log_stat(pctx, logical_bytes_written);
+  perfstats_log_stat(perf_ctx, logical_bytes_written);
   return 0;
 }
 
-int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
+int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pivot_ctx_t* pvt_ctx,
                         rtp_ctx_t rctx) {
-  uint64_t timestamp = ::get_timestamp(pctx);
+  uint64_t timestamp = ::get_timestamp(perf_ctx);
 
   const char* const kRenegMassLabel = "RENEG_COUNTS";
   Stat massStat(StatType::V_STR, kRenegMassLabel);
@@ -219,16 +221,16 @@ int perfstats_log_reneg(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
                /* truncate */ false);
   pivotStat.SetValue(timestamp, buf);
 
-  pctx->worker_mtx.Lock();
-  perfstats_log_stat(pctx, massStat);
-  perfstats_log_stat(pctx, pivotStat);
-  pctx->worker_mtx.Unlock();
+  perf_ctx->worker_mtx.Lock();
+  perfstats_log_stat(perf_ctx, massStat);
+  perfstats_log_stat(perf_ctx, pivotStat);
+  perf_ctx->worker_mtx.Unlock();
 
   return 0;
 }
 
-int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
-                                 int my_rank) {
+int perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
+                                 pivot_ctx_t* pvt_ctx, int my_rank) {
   int rv = 0;
   std::vector<uint64_t>& cnt_vec = pvt_ctx->rank_bin_count_aggr;
   size_t bin_sz = cnt_vec.size();
@@ -247,7 +249,7 @@ int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
 
   print_vector(buf, buf_sz, recv_buf, bin_sz, false);
 
-  uint64_t timestamp = get_timestamp(pctx);
+  uint64_t timestamp = get_timestamp(perf_ctx);
   aggr_count.SetValue(timestamp, buf);
 
   const char* const kAggrStdLabel = "RENEG_AGGR_STD";
@@ -259,61 +261,73 @@ int perfstats_log_aggr_bin_count(perfstats_ctx_t* pctx, pivot_ctx_t* pvt_ctx,
     logf(LOG_INFO, "[perfstats] normalized load stddev: %.3f\n", aggr_std_val);
   }
 
-  pctx->worker_mtx.Lock();
-  perfstats_log_stat(pctx, aggr_count);
-  perfstats_log_stat(pctx, aggr_std);
-  pctx->worker_mtx.Unlock();
+  perf_ctx->worker_mtx.Lock();
+  perfstats_log_stat(perf_ctx, aggr_count);
+  perfstats_log_stat(perf_ctx, aggr_std);
+  perf_ctx->worker_mtx.Unlock();
 
   return rv;
 }
 
-int perfstats_log_mypivots(perfstats_ctx_t* pctx, double* pivots,
-                           int num_pivots, const char *pivot_label) {
+int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
+                           int num_pivots, const char* pivot_label) {
   int rv = 0;
 
   size_t buf_sz = STAT_BUF_MAX;
   char buf[buf_sz];
   print_vector(buf, buf_sz, pivots, num_pivots, false);
 
-  uint64_t timestamp = get_timestamp(pctx);
+  uint64_t timestamp = get_timestamp(perf_ctx);
   Stat pivot_stat(StatType::V_STR, pivot_label);
   pivot_stat.SetValue(timestamp, buf);
 
-  pctx->worker_mtx.Lock();
-  perfstats_log_stat(pctx, pivot_stat);
-  pctx->worker_mtx.Unlock();
+  perf_ctx->worker_mtx.Lock();
+  perfstats_log_stat(perf_ctx, pivot_stat);
+  perf_ctx->worker_mtx.Unlock();
 
   return rv;
 }
 
-int perfstats_log_eventstr(perfstats_ctx_t* pctx, const char* event_label,
+int perfstats_log_carp(perfstats_ctx_t* perf_ctx) {
+#define PERFLOG(a, b) \
+  perfstats_log_eventstr(perf_ctx, a, std::to_string(b).c_str())
+  PERFLOG("CARP_ENABLED", pctx.carp_on);
+  PERFLOG("CARP_NUM_PIVOTS", pctx.carp_on);
+  PERFLOG("CARP_DYNAMIC_ENABLED", pctx.carp_dynamic_reneg);
+  PERFLOG("CARP_RENEG_INTERVAL", pctx.carp_reneg_intvl);
+#undef PERFLOG
+
+  return 0;
+}
+
+int perfstats_log_eventstr(perfstats_ctx_t* perf_ctx, const char* event_label,
                            const char* event_desc) {
   int rv = 0;
 
-  uint64_t timestamp = get_timestamp(pctx);
+  uint64_t timestamp = get_timestamp(perf_ctx);
 
   Stat str_stat(StatType::V_STR, event_label);
   str_stat.SetValue(timestamp, event_desc);
 
-  pctx->worker_mtx.Lock();
-  perfstats_log_stat(pctx, str_stat);
-  pctx->worker_mtx.Unlock();
+  perf_ctx->worker_mtx.Lock();
+  perfstats_log_stat(perf_ctx, str_stat);
+  perf_ctx->worker_mtx.Unlock();
   return rv;
 }
 
-int perfstats_printf(perfstats_ctx_t* pctx, const char* fmt, ...) {
+int perfstats_printf(perfstats_ctx_t* perf_ctx, const char* fmt, ...) {
   int rv = 0;
-  uint64_t timestamp = get_timestamp(pctx);
+  uint64_t timestamp = get_timestamp(perf_ctx);
 
-  pctx->worker_mtx.Lock();
+  perf_ctx->worker_mtx.Lock();
 
   va_list ap;
   va_start(ap, fmt);
-  vfprintf(pctx->output_file, fmt, ap);
+  vfprintf(perf_ctx->output_file, fmt, ap);
   va_end(ap);
-  fprintf(pctx->output_file, "\n");
+  fprintf(perf_ctx->output_file, "\n");
 
-  pctx->worker_mtx.Unlock();
+  perf_ctx->worker_mtx.Unlock();
 
   return 0;
 }

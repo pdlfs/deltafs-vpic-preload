@@ -474,6 +474,23 @@ static void preload_init() {
     pctx.opts->oob_buf_sz = DEFAULT_OOBSZ;
   }
 
+  tmp = maybe_getenv("RANGE_Enable_dynamic");
+  if (tmp != NULL) {
+    pctx.carp_dynamic_reneg = atoi(tmp);
+  } else {
+    pctx.carp_dynamic_reneg = 0;
+  }
+
+  /* Dynamic Reneg Not Implemented Yet */
+  assert(pctx.carp_dynamic_reneg == 0);
+
+  tmp = maybe_getenv("RANGE_Reneg_interval");
+  if (tmp != NULL) {
+    pctx.carp_reneg_intvl = atoi(tmp);
+  } else {
+    pctx.carp_reneg_intvl = pdlfs::kRenegInterval;
+  }
+
   /* additional init can go here or MPI_Init() */
   signal(SIGUSR1, sigusr1);
 }
@@ -1901,17 +1918,6 @@ int MPI_Finalize(void) {
     }
   }
 
-  /* destroy time series monitor */
-  if (!pctx.nomon) {
-    // logf(LOG_WARN, "perfstats aggr stats disabled");
-    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
-                                        pctx.my_rank);
-    int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
-    if (rv) {
-      ABORT("perfstats_destroy");
-    }
-  }
-
   pctx.range_backend->Finish();
   rtp_destroy(&(pctx.rtp_ctx));
   pivot_ctx_destroy(&(pctx.pvt_ctx));
@@ -1939,7 +1945,7 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "num renegotiations: %d\n", pctx.rtp_ctx.round_num);
 
     pdlfs::ManifestAnalytics manifest_analytics(pctx.range_backend);
-    manifest_analytics.PrintStats();
+    manifest_analytics.PrintStats(&(pctx.perf_ctx));
 
     logf(LOG_INFO, "== dir data compaction");
     logf(LOG_INFO,
@@ -1961,6 +1967,17 @@ int MPI_Finalize(void) {
   if (pctx.trace != NULL) {
     fflush(pctx.trace);
     fclose(pctx.trace);
+  }
+
+  /* destroy time series monitor */
+  if (!pctx.nomon) {
+    // logf(LOG_WARN, "perfstats aggr stats disabled");
+    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
+                                        pctx.my_rank);
+    int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
+    if (rv) {
+      ABORT("perfstats_destroy");
+    }
   }
 
   /* release the receiver communicator */
