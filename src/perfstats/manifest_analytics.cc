@@ -18,6 +18,9 @@ ManifestAnalytics::ManifestAnalytics(RangeBackend* backend)
 
 void ManifestAnalytics::PrintStats(perfstats_ctx_t* perf_ctx) {
   int epoch = 0;
+
+  perfstats_log_carp(perf_ctx);
+
   while (PrintStats(perf_ctx, epoch) == 0) epoch++;
 
   logf(LOG_INFO,
@@ -82,8 +85,6 @@ int ManifestAnalytics::ComputeStats(int epoch) {
 }
 
 int ManifestAnalytics::PrintStats(perfstats_ctx_t* perf_ctx, int epoch) {
-  perfstats_log_carp(perf_ctx);
-
   int rv = ComputeStats(epoch);
   if (rv != 0) return rv;
 

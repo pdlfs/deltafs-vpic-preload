@@ -289,13 +289,20 @@ int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
 }
 
 int perfstats_log_carp(perfstats_ctx_t* perf_ctx) {
+  int* pvtcnt = pctx.opts->rtp_pvtcnt;
+  char pvtcnt_str[64];
+  snprintf(pvtcnt_str, 64, "%d/%d/%d", pvtcnt[1], pvtcnt[2], pvtcnt[3]);
+
 #define PERFLOG(a, b) \
   perfstats_log_eventstr(perf_ctx, a, std::to_string(b).c_str())
+#define PERFLOGS(a, b) \
+  perfstats_log_eventstr(perf_ctx, a, b)
   PERFLOG("CARP_ENABLED", pctx.carp_on);
-  PERFLOG("CARP_NUM_PIVOTS", pctx.carp_on);
+  PERFLOGS("CARP_NUM_PIVOTS", pvtcnt_str);
   PERFLOG("CARP_DYNAMIC_ENABLED", pctx.carp_dynamic_reneg);
   PERFLOG("CARP_RENEG_INTERVAL", pctx.carp_reneg_intvl);
 #undef PERFLOG
+#undef PERFLOGS
 
   return 0;
 }

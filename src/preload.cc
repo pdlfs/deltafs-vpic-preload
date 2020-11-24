@@ -1924,13 +1924,6 @@ int MPI_Finalize(void) {
   }
 
   pctx.range_backend->Finish();
-  rtp_destroy(&(pctx.rtp_ctx));
-  pivot_ctx_destroy(&(pctx.pvt_ctx));
-
-  pctx.pvt_ctx = nullptr;
-
-  delete pctx.opts;
-  pctx.opts = nullptr;
 
   /* extra stats */
   MPI_Reduce(&num_bytes_writ, &sum_bytes_writ, 1, MPI_UNSIGNED_LONG_LONG,
@@ -1966,6 +1959,13 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "       > %.1f per rank",
          double(sum_pthreads) / pctx.comm_sz);
   }
+
+  rtp_destroy(&(pctx.rtp_ctx));
+  pivot_ctx_destroy(&(pctx.pvt_ctx));
+  pctx.pvt_ctx = nullptr;
+
+  delete pctx.opts;
+  pctx.opts = nullptr;
 
   delete pctx.range_backend;
   pctx.range_backend = nullptr;
