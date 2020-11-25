@@ -107,10 +107,10 @@ int ManifestAnalytics::PrintStats(perfstats_ctx_t* perf_ctx, int epoch) {
 
   PERFLOG("SST_COUNT", count_total_);
   PERFLOG("SST_MASS", mass_total_);
-  PERFLOG("OOB_FRAC", oob_frac);
+  PERFLOG("OOB_FRACPCT", oob_frac);
   PERFLOG("OLAP_MAXCNT", count_max_);
   PERFLOG("OLAP_MAXMASS", mass_max_);
-  PERFLOG("OLAP_FRAC", overlap_frac);
+  PERFLOG("OLAP_FRACPCT", overlap_frac);
 
 #undef PERFLOG
 
