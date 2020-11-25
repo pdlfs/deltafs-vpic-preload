@@ -657,6 +657,7 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     /* Next round has started, keep main thread sleeping and participate */
     replay_rtp_begin_flag = true;
     rctx->state_mgr.update_state(RenegState::READYBLOCK);
+    pvt_ctx->mts_mgr.update_state(MainThreadState::MT_REMAIN_BLOCKED);
   } else {
     /* Next round has not started yet, we're READY */
     rctx->state_mgr.update_state(RenegState::READY);

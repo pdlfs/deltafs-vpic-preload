@@ -124,20 +124,26 @@ MainThreadState MainThreadStateMgr::get_prev_state() {
 MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   MainThreadState cur_state = this->current_state;
 
-  if (cur_state == MainThreadState::MT_INIT &&
-      new_state == MainThreadState::MT_BLOCK) {
-    // pass
-  } else if (cur_state == MainThreadState::MT_READY &&
-             new_state == MainThreadState::MT_BLOCK) {
-    // pass
-  } else if (cur_state == MainThreadState::MT_BLOCK &&
-             new_state == MainThreadState::MT_READY) {
-    // pass
+#define IS_TRANS(a, b) (cur_state == (MainThreadState::a) && new_state == (MainThreadState::b))
+  if (IS_TRANS(MT_INIT, MT_BLOCK)) {
+    // accept
+  } else if(IS_TRANS(MT_READY, MT_BLOCK)) {
+    // accept
+  } else if (IS_TRANS(MT_BLOCK, MT_READY)) {
+    // accept
+  } else if (IS_TRANS(MT_BLOCK, MT_REMAIN_BLOCKED)) {
+    // indicates that next round has already started
+    // same as allowing a transition from MT_BLOCK to MT_BLOCK
+    // but making it explicit helps us catch more errors
+    // accept
+  } else if (IS_TRANS(MT_REMAIN_BLOCKED, MT_BLOCK)) {
+    // accept
   } else {
     logf(LOG_ERRO, "update_state @ R%d: %d to %d\n", pctx.my_rank, cur_state,
          new_state);
     ABORT("MainThreadStateMgr::update_state: unexpected transition");
   }
+#undef IS_TRANS
 
   this->prev_state = this->current_state;
   this->current_state = new_state;

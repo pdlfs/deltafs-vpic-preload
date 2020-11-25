@@ -36,6 +36,7 @@ enum MainThreadState {
   MT_INIT,
   MT_READY,
   MT_BLOCK,
+  MT_REMAIN_BLOCKED,
 };
 
 /* TODO: remove BUF_LEFT and BUF_WRITE, after naive impl is ported */
