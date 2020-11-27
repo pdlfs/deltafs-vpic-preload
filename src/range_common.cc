@@ -174,6 +174,8 @@ int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro) {
   pvt_ctx_dref->rank_bin_count_aggr.resize(pctx.comm_sz);
 
   pthread_mutex_unlock(&(pvt_ctx_dref->pivot_access_m));
+  pivot_ctx_reset(*pvt_ctx);
+
   return 0;
 }
 
