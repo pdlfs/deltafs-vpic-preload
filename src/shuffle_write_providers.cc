@@ -338,7 +338,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
    */
 
 #define RENEG_ONGOING(pvt_ctx) \
-  ((pvt_ctx)->mts_mgr.get_state() == MainThreadState::MT_BLOCK)
+  ((pvt_ctx)->mts_mgr.get_state() != MainThreadState::MT_READY)
 
   bool reneg_and_block =
       (!shuffle_now && pvt_ctx->oob_buffer->IsFull()) || RENEG_ONGOING(pvt_ctx);

@@ -1043,7 +1043,7 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   pctx.range_backend =
-      new pdlfs::RangeBackend(pctx.my_rank, pctx.local_root, 1023 * 1024, 48);
+      new pdlfs::MockBackend(pctx.my_rank, pctx.local_root, 1023 * 1024, 48);
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {

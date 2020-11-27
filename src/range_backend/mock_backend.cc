@@ -2,7 +2,7 @@
 // Created by Ankush J on 9/2/20.
 //
 
-#include "range_backend.h"
+#include "mock_backend.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -210,7 +210,7 @@ int PartitionManifest::Reset() {
   mass_oob_ = 0;
 }
 
-RangeBackend::RangeBackend(int rank, const char* dirpath,
+MockBackend::MockBackend(int rank, const char* dirpath,
                            uint32_t memtable_size_bytes,
                            uint32_t key_size_bytes)
     : rank_(rank),
@@ -232,7 +232,7 @@ RangeBackend::RangeBackend(int rank, const char* dirpath,
   ComputePaths();
 }
 
-int RangeBackend::Write(const char* fname, int fname_len, const char* data,
+int MockBackend::Write(const char* fname, int fname_len, const char* data,
                         int data_len) {
   int rv = 0;
 
@@ -251,7 +251,7 @@ int RangeBackend::Write(const char* fname, int fname_len, const char* data,
   return rv;
 }
 
-int RangeBackend::FlushAndReset(Bucket& bucket, bool epoch_flush) {
+int MockBackend::FlushAndReset(Bucket& bucket, bool epoch_flush) {
   int rv = 0;
 
   rv = bucket.FlushAndReset(manifest_, epoch_flush);
@@ -259,7 +259,7 @@ int RangeBackend::FlushAndReset(Bucket& bucket, bool epoch_flush) {
   return rv;
 }
 
-int RangeBackend::UpdateBounds(const float bound_start, const float bound_end) {
+int MockBackend::UpdateBounds(const float bound_start, const float bound_end) {
   /* Strictly, should lock before updating, but this is only for measuring
    * "pollution" - who cares if it's a couple of counters off */
   prev_.UpdateExpectedRange(current_.GetExpectedRange());
@@ -273,7 +273,7 @@ int RangeBackend::UpdateBounds(const float bound_start, const float bound_end) {
   return 0;
 }
 
-void RangeBackend::ComputePaths() {
+void MockBackend::ComputePaths() {
   std::string man_dirpath = dirpath_ + "/manifests";
 
   std::stringstream man_path;
@@ -286,7 +286,7 @@ void RangeBackend::ComputePaths() {
   manifest_bin_path_ = man_bin_path.str();
 }
 
-int RangeBackend::WriteManifestToDisk(const char* path) {
+int MockBackend::WriteManifestToDisk(const char* path) {
   int rv = 0;
   FILE* out_file = fopen(path, "w+");
   manifest_.WriteToDisk(out_file);
@@ -295,7 +295,7 @@ int RangeBackend::WriteManifestToDisk(const char* path) {
   return rv;
 }
 
-int RangeBackend::EpochFinish() {
+int MockBackend::EpochFinish() {
   int rv = 0;
 
   FlushAndReset(prev_, /* epoch_end */ true);
@@ -308,7 +308,7 @@ int RangeBackend::EpochFinish() {
   return rv;
 }
 
-int RangeBackend::Finish() {
+int MockBackend::Finish() {
   FlushAndReset(prev_);
   FlushAndReset(current_);
 
@@ -316,7 +316,7 @@ int RangeBackend::Finish() {
   return 0;
 }
 
-std::string RangeBackend::GetManifestDir() {
+std::string MockBackend::GetManifestDir() {
   return manifest_path_.substr(0, manifest_path_.find_last_of('/'));
 }
 }  // namespace pdlfs

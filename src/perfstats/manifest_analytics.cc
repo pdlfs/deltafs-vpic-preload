@@ -13,7 +13,7 @@ namespace pdlfs {
 ManifestAnalytics::ManifestAnalytics(const char* manifest_path)
     : manifest_path_(manifest_path) {}
 
-ManifestAnalytics::ManifestAnalytics(RangeBackend* backend)
+ManifestAnalytics::ManifestAnalytics(MockBackend* backend)
     : manifest_path_(backend->GetManifestDir()) {}
 
 void ManifestAnalytics::PrintStats(perfstats_ctx_t* perf_ctx) {

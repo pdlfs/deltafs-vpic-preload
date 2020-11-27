@@ -5,7 +5,7 @@
 #include <cfloat>
 #include <string>
 
-#include "range_backend/range_backend.h"
+#include "range_backend/mock_backend.h"
 
 #pragma once
 
@@ -16,7 +16,7 @@ struct perfstats_ctx;
 class ManifestAnalytics {
  public:
   explicit ManifestAnalytics(const char* query_path);
-  explicit ManifestAnalytics(RangeBackend* backend);
+  explicit ManifestAnalytics(MockBackend* backend);
   void PrintStats(perfstats_ctx* perf_ctx);
 
  private:

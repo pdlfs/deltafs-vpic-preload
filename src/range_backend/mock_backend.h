@@ -130,7 +130,7 @@ class PartitionManifest {
   int Reset();
 };
 
-class RangeBackend {
+class MockBackend {
  private:
   const int rank_;
   std::string dirpath_;
@@ -155,7 +155,7 @@ class RangeBackend {
   int FlushAndReset(Bucket& bucket, bool epoch_flush = false);
 
  public:
-  RangeBackend(int rank, const char* dirpath, uint32_t memtable_size,
+  MockBackend(int rank, const char* dirpath, uint32_t memtable_size,
                uint32_t key_size);
   int UpdateBounds(float bound_start, float bound_end);
   std::string GetManifestDir();

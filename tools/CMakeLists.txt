@@ -28,7 +28,7 @@ add_executable(preload-runner-no-deltafs preload_runner.cc)
 target_link_libraries(preload-runner-no-deltafs Threads::Threads)
 
 add_executable(range-reader query_main.cc query_client/query_client.cc
-        query_client/sortable_buffer.cc ../src/range_backend/range_backend.cc)
+        query_client/sortable_buffer.cc ../src/range_backend/mock_backend.cc)
 
 target_include_directories(range-reader PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../src>

@@ -124,10 +124,11 @@ MainThreadState MainThreadStateMgr::get_prev_state() {
 MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   MainThreadState cur_state = this->current_state;
 
-#define IS_TRANS(a, b) (cur_state == (MainThreadState::a) && new_state == (MainThreadState::b))
-  if (IS_TRANS(MT_INIT, MT_BLOCK)) {
+#define IS_TRANS(a, b) \
+  (cur_state == (MainThreadState::a) && new_state == (MainThreadState::b))
+  if (IS_TRANS(MT_INIT, MT_READY)) {
     // accept
-  } else if(IS_TRANS(MT_READY, MT_BLOCK)) {
+  } else if (IS_TRANS(MT_READY, MT_BLOCK)) {
     // accept
   } else if (IS_TRANS(MT_BLOCK, MT_READY)) {
     // accept
@@ -152,8 +153,8 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
 }
 
 void MainThreadStateMgr::reset() {
-  this->prev_state = MainThreadState::MT_INIT;
-  this->current_state = MainThreadState::MT_INIT;
+  this->prev_state = this->current_state;
+  this->current_state = MainThreadState::MT_READY;
 }
 
 int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro) {
@@ -203,6 +204,9 @@ int pivot_ctx_destroy(pivot_ctx_t** pvt_ctx) {
 
   assert(*pvt_ctx != nullptr);
   assert((*pvt_ctx)->oob_buffer != nullptr);
+
+  logf(LOG_INFO, "[OOB Buffer] %zu particles unshuffled\n",
+       (*pvt_ctx)->oob_buffer->Size());
 
   delete ((*pvt_ctx)->oob_buffer);
   delete *pvt_ctx;
