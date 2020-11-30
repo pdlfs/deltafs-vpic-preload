@@ -40,6 +40,7 @@ class RangeUtilsTest {
 
     pivot_ctx_init(&pctx, &ro);
 
+    pctx->mts_mgr.update_state(MainThreadState::MT_READY);
     pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
   }
 

@@ -52,6 +52,7 @@ class MainThreadStateMgr {
  private:
   MainThreadState current_state;
   MainThreadState prev_state;
+  bool first_block_;
 
  public:
   MainThreadStateMgr();
@@ -63,6 +64,8 @@ class MainThreadStateMgr {
   MainThreadState update_state(MainThreadState new_state);
 
   void reset();
+
+  bool first_block() const;
 };
 
 typedef struct pivot_ctx {

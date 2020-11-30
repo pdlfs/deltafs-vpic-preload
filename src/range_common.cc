@@ -113,7 +113,7 @@ int get_range_bounds(pivot_ctx_t* pvt_ctx, std::vector<float>& oobl,
 }  // namespace
 
 MainThreadStateMgr::MainThreadStateMgr()
-    : current_state{MT_INIT}, prev_state{MT_INIT} {};
+    : current_state{MT_INIT}, prev_state{MT_INIT}, first_block_(true) {};
 
 MainThreadState MainThreadStateMgr::get_state() { return this->current_state; }
 
@@ -131,6 +131,7 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   } else if (IS_TRANS(MT_READY, MT_BLOCK)) {
     // accept
   } else if (IS_TRANS(MT_BLOCK, MT_READY)) {
+    first_block_ = false;
     // accept
   } else if (IS_TRANS(MT_BLOCK, MT_REMAIN_BLOCKED)) {
     // indicates that next round has already started
@@ -155,6 +156,11 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
 void MainThreadStateMgr::reset() {
   this->prev_state = this->current_state;
   this->current_state = MainThreadState::MT_READY;
+  first_block_ = true;
+}
+
+bool MainThreadStateMgr::first_block() const {
+  return first_block_;
 }
 
 int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro) {
@@ -230,7 +236,7 @@ int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
 
   assert(cur_state == MainThreadState::MT_BLOCK);
 
-  if (prev_state == MainThreadState::MT_INIT) {
+  if (pvt_ctx->mts_mgr.first_block()) {
     rv = pivot_calculate_from_oobl(pvt_ctx, num_pivots);
   } else {
     rv = pivot_calculate_from_all(pvt_ctx, num_pivots);
