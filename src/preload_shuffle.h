@@ -178,12 +178,6 @@ void shuffle_pause(shuffle_ctx_t* ctx);
 void shuffle_resume(shuffle_ctx_t* ctx);
 
 /*
- * get_indexable_property: get property to range-query for, from particle data
- * TODO: does it belong here?
- */
-float get_indexable_property(const char* data_buf, unsigned int dbuf_sz);
-
-/*
  * shuffle_data_target: get shuffle target from indexed prop
  */
 int shuffle_data_target2(const float& indexed_prop);

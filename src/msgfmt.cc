@@ -23,6 +23,12 @@ uint32_t msgfmt_write_data(char* buf, int buf_sz, const char* fname,
 
   memset(buf + base_sz, 0, buf_sz - base_sz);
 
+  logf(LOG_DBG2, 
+      "msgfmt_write_data: base_sz: %u, fname: %d, data: %d, extra: %d"
+      "(%u %u)\n", 
+      base_sz, fname_sz, data_sz, extra_data_sz,
+      MSGFMT_TYPE_SIZE, MSGFMT_TYPE_SIZE + 1);
+
   return base_sz + extra_data_sz;
 }
 

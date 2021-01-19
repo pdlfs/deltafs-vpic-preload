@@ -398,6 +398,8 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
   } else if (round_num != rctx->round_num) {
     /* If round_nums are equal, msg is duplicate and DROP */
     ABORT("rtp_handle_rtp_begin: unexpected round_num recvd");
+  } else {
+    assert(round_num == rctx->round_num);
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));

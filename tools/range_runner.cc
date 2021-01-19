@@ -565,9 +565,11 @@ static void do_dump_from_trace(int epoch) {
   int timestep = timesteps[epoch];
   // snprintf(fpath, 255, "/users/ankushj/T.2850/eparticle.2850.%d", myrank);
   const char* homedir_path = "/users/ankushj/T.%d/eparticle.%d.%d";
-  const char* panfs_path =
-      "/panfs/probescratch/TableFS/test-aj-512/forcefree-tracing-master-512/"
-      "particle.compressed/T.%d/eparticle.%d.%d";
+  // const char* panfs_path =
+      // "/panfs/probescratch/TableFS/test-aj-512/forcefree-tracing-master-512/"
+      // "particle.compressed/T.%d/eparticle.%d.%d";
+  const char* panfs_path = "/panfs/probescratch/TableFS/test-aj-512/exp/"
+    "particle.compressed/T.%d/eparticle.%d.%d";
 
   snprintf(
       fpath, 255, panfs_path, timestep, timestep, myrank);

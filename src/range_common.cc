@@ -97,7 +97,8 @@ int get_range_bounds(pivot_ctx_t* pvt_ctx, std::vector<float>& oobl,
    * i.e., if range_min is 0.63, and OOBs are empty, then
    * oob_min (= 0) needs to be ignored
    */
-  if (prev_state == MainThreadState::MT_INIT) {
+  // if (prev_state == MainThreadState::MT_INIT) {
+  if (pvt_ctx->mts_mgr.first_block()) {
     range_start = oob_min;
   } else if (oobl_sz) {
     range_start = std::min(oob_min, pvt_ctx->range_min);
@@ -134,6 +135,7 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
     first_block_ = false;
     // accept
   } else if (IS_TRANS(MT_BLOCK, MT_REMAIN_BLOCKED)) {
+    first_block_ = false;
     // indicates that next round has already started
     // same as allowing a transition from MT_BLOCK to MT_BLOCK
     // but making it explicit helps us catch more errors
@@ -503,8 +505,10 @@ int pivot_update_pivots(pivot_ctx_t* pvt_ctx, double* pivots, int num_pivots) {
 
   // pvt_ctx->range_min = pivots[0];
   // pvt_ctx->range_max = pivots[num_pivots - 1];
-  assert(float_lte(updbeg, pvtbeg));
-  assert(float_gte(updend, pvtend));
+  if (!pvt_ctx->mts_mgr.first_block()) {
+    assert(float_lte(updbeg, pvtbeg));
+    assert(float_gte(updend, pvtend));
+  }
 
   pvtbeg = updbeg;
   pvtend = updend;

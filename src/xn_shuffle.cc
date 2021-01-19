@@ -361,6 +361,7 @@ void xn_shuffle_init(xn_ctx_t* ctx) {
   so.lobuftarget = 1;
   so.lrbuftarget = 1;
   so.rbuftarget = 1;
+  so.deliverq_threshold = 0;
 
   ctx->psh = shuffle_init(ctx->nx, const_cast<char*>("shuffle_rpc_priority"),
                            xn_shuffle_deliver, &so);

@@ -397,11 +397,6 @@ int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
   return (rv & ctx->receiver_mask);
 }
 
-float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
-  const float* prop = reinterpret_cast<const float*>(data_buf);
-  return prop[0];
-}
-
 int shuffle_data_target2(const float& indexed_prop) {
   auto rank_iter = std::lower_bound(pctx.rctx.rank_bins.begin(),
                                     pctx.rctx.rank_bins.end(), indexed_prop);
@@ -555,8 +550,10 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
   unsigned char base_sz = 1 + fname_len + data_len;
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
 
-  float indexed_property =
-      static_cast<float>(get_indexable_property(data, data_len));
+  /* XXX: clean up, useless */
+  float indexed_property = 0;
+  // float indexed_property =
+      // static_cast<float>(get_indexable_property(data, data_len));
 
   // fprintf(stderr, "Rank %d, energy %f\n", rank, indexed_property);
 
@@ -765,8 +762,11 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   ctx = &pctx.sctx;
 
   if (buf_sz !=
-      msgfmt_get_data_size(ctx->fname_len, ctx->data_len, ctx->extra_data_len))
+      msgfmt_get_data_size(ctx->fname_len, ctx->data_len, ctx->extra_data_len)) {
+    logf(LOG_DBUG, "Bufsz: %u, msgfmt: %d/%d/%d\n", 
+        buf_sz, ctx->fname_len, ctx->data_len, ctx->extra_data_len);
     ABORT("unexpected incoming shuffle request size");
+  }
 
   char *fname, *fdata;
   msgfmt_parse_data(buf, buf_sz, &fname, ctx->fname_len, &fdata, ctx->data_len);

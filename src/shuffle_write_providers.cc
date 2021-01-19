@@ -41,6 +41,13 @@ buf_type_t compute_oob_buf(pivot_ctx_t* pvt_ctx, float indexed_prop) {
 float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
   const float* prop = reinterpret_cast<const float*>(data_buf);
   return prop[0];
+  // assert(dbuf_sz >= 7 * sizeof(float));
+  // const float* p_ar = reinterpret_cast<const float*>(data_buf);
+  // const float ux = p_ar[4];
+  // const float uy = p_ar[5];
+  // const float uz = p_ar[6];
+
+  // return sqrt(ux*ux + uy*uy + uz*uz);
 }
 
 int shuffle_data_target(const float& indexed_prop) {
@@ -299,7 +306,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
 
   /* Decide whether to buffer or send */
-  float indexed_prop = ::get_indexable_property(data, data_len);
+  float indexed_prop = get_indexable_property(data, data_len);
 
   /* Serialize data */
   pdlfs::particle_mem_t p;
@@ -313,6 +320,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   p.buf_sz = msgfmt_write_data(
       p.buf, 255, reinterpret_cast<char*>(&indexed_prop), sizeof(float),
       data_reorg, fname_len + data_len, ctx->extra_data_len);
+
+  logf(LOG_DBG2, "shuffle_write, bufsz: %d\n", p.buf_sz);
 
   p.indexed_prop = indexed_prop;
 
