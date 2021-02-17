@@ -46,6 +46,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <getopt.h>
+#include <limits.h>
 #include <mpi.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -69,6 +70,13 @@
  */
 static char* argv0; /* argv[0], program name */
 static int myrank = 0;
+
+/*
+ * for trace replay
+ */
+static int trace_epochs[256];
+const int kMaxEpochs = 256;
+static int trace_epcnt;
 
 /*
  * Range query arguments. Can be moved to take cmdline params
@@ -144,6 +152,7 @@ static struct gs {
   int psize;          /* total state per vpic particle (bytes) */
   int nps;            /* number of particles per rank */
   int timeout;        /* alarm timeout */
+  const char* trace;
 } g;
 
 /*
@@ -180,6 +189,43 @@ static void usage(const char* msg) {
 skip_prints:
   MPI_Finalize();
   exit(1);
+}
+
+static void read_tracedir(const char* trace_path) {
+  struct dirent* entry;
+  DIR* dir = opendir(trace_path);
+
+  if (dir == NULL) {
+    fprintf(stderr, "[range-runner] Failed to open tracedir: %s\n", trace_path);
+    exit(1);
+  }
+
+  trace_epcnt = 0;
+
+  while ((entry = readdir(dir))) {
+    const char* dname = entry->d_name;
+    size_t dsz = strlen(dname);
+    if (dsz < 3) continue;
+
+    if ((strncmp(dname, "T.", 2))) continue;
+
+    long int ts = strtol(&(dname[2]), NULL, 10);
+    if (ts == LONG_MAX) continue;
+
+    if (ts > INT_MAX) continue;
+    int tsint = ts;
+
+    if (trace_epcnt >= kMaxEpochs) {
+      fprintf(stderr, "Too many epochs discovered!\n");
+      exit(1);
+    }
+
+    trace_epochs[trace_epcnt++] = tsint;
+  }
+
+  closedir(dir);
+  fprintf(stdout, "[range-runner] Trace Replay: %d epochs discovered\n",
+          trace_epcnt);
 }
 
 /* particle data struct
@@ -244,8 +290,9 @@ int main(int argc, char* argv[]) {
   g.psize = DEF_PARTICLESIZE;
   g.nps = DEF_NPARTICLES;
   g.timeout = DEF_TIMEOUT;
+  g.trace = NULL;
 
-  while ((ch = getopt(argc, argv, "b:c:d:o:s:T:t:")) != -1) {
+  while ((ch = getopt(argc, argv, "b:c:d:i:o:s:T:t:")) != -1) {
     switch (ch) {
       case 'b':
         g.psize = atoi(optarg);
@@ -258,6 +305,9 @@ int main(int argc, char* argv[]) {
       case 'd':
         g.ndumps = atoi(optarg);
         if (g.ndumps < 0) usage("bad num dumps");
+        break;
+      case 'i':
+        g.trace = optarg;
         break;
       case 'o':
         strncpy(g.pdir, optarg, sizeof(g.pdir));
@@ -311,6 +361,9 @@ int main(int argc, char* argv[]) {
     printf("== VPIC options:\n");
     printf(" > MPI_rank   = %d\n", myrank);
     printf(" > MPI_size   = %d\n", g.size);
+    if (g.trace) {
+      printf(" > trace       = %s\n", g.trace);
+    }
     printf(" > deck       = %s\n", g.deck);
     printf(" > deckid     = %s\n", g.deckid);
     printf(" > @p         = [ %d x %d x %d ]\n", g.p[0], g.p[1], g.p[2]);
@@ -332,6 +385,16 @@ int main(int argc, char* argv[]) {
 
   signal(SIGALRM, sigalarm);
   alarm(g.timeout);
+
+  if (g.trace) {
+    read_tracedir(g.trace);
+    if (g.ndumps > trace_epcnt) {
+      fprintf(stderr,
+              "[range-runner] dumps requested exceed those found in trace\n");
+      exit(1);
+    }
+  }
+
   if (myrank == 0) printf("== VPIC Starting ...\n");
 
   memset(&p, 0, sizeof(p));
@@ -426,8 +489,11 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 
 static void do_dump_mux(int timestep) {
   // do_dump_shuffle_skew();
-  do_dump_from_trace(timestep);
-  // do_dump();
+  if (g.trace) {
+    do_dump_from_trace(timestep);
+  } else {
+    do_dump();
+  }
 }
 
 static void do_dump() {
@@ -561,21 +627,15 @@ static void do_dump_from_trace(int epoch) {
   // range_end, g.nps * g.size, range_wp, myrank, g.size);
 
   char fpath[255];
-  int timesteps[] = {800, 1600, 2400, 3200, 4000, 4800, 5600};
-  int timestep = timesteps[epoch];
-  // snprintf(fpath, 255, "/users/ankushj/T.2850/eparticle.2850.%d", myrank);
-  const char* homedir_path = "/users/ankushj/T.%d/eparticle.%d.%d";
-  // const char* panfs_path =
-      // "/panfs/probescratch/TableFS/test-aj-512/forcefree-tracing-master-512/"
-      // "particle.compressed/T.%d/eparticle.%d.%d";
-  const char* panfs_path = "/panfs/probescratch/TableFS/test-aj-512/exp/"
-    "particle.compressed/T.%d/eparticle.%d.%d";
+  int timestep = trace_epochs[epoch];
 
-  snprintf(
-      fpath, 255, panfs_path, timestep, timestep, myrank);
+  snprintf(fpath, 255, "%s/T.%d/eparticle.%d.%d", g.trace, timestep, timestep,
+           myrank);
 
-  fprintf(stderr, "Reading from trace: %s\n", fpath);
-  // snprintf(fpath, 255, "/users/ankush/T.100/eparticle.100.%d", myrank);
+  if (myrank == 0) {
+    fprintf(stdout, "[range-runner] trace: %s\n", fpath);
+  }
+
   FILE* trace_file = fopen(fpath, "r");
 
   const int prefix = snprintf(p.pname, sizeof(p.pname), "%s/", g.pdir);
