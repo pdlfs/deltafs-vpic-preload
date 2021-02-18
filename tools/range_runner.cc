@@ -224,8 +224,10 @@ static void read_tracedir(const char* trace_path) {
   }
 
   closedir(dir);
-  fprintf(stdout, "[range-runner] Trace Replay: %d epochs discovered\n",
-          trace_epcnt);
+  if (myrank == 0) {
+    fprintf(stdout, "[range-runner] Trace Replay: %d epochs discovered\n",
+            trace_epcnt);
+  }
 }
 
 /* particle data struct
@@ -534,8 +536,6 @@ static void do_dump() {
     fclose(file);
   }
 
-  sleep(10);
-
   closedir(dir);
 }
 
@@ -660,8 +660,6 @@ static void do_dump_from_trace(int epoch) {
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
     fclose(file);
   }
-
-  sleep(10);
 
   closedir(dir);
   fclose(trace_file);
