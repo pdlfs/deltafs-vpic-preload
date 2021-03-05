@@ -152,6 +152,7 @@ int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
   char buf[SHUFFLE_BUF_LEN];
 
   float prop = ::get_indexable_property(data, data_len);
+
   int peer_rank = int(prop);
   int rank = shuffle_rank(ctx);
   int rv;
@@ -306,7 +307,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
 
   /* Decide whether to buffer or send */
-  float indexed_prop = get_indexable_property(data, data_len);
+  float indexed_prop = ::get_indexable_property(data, data_len);
 
   /* Serialize data */
   pdlfs::particle_mem_t p;
@@ -378,26 +379,25 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   peer_rank = ::shuffle_data_target(indexed_prop);
 
-  // [> XXX <] peer_rank = (*reinterpret_cast<int *>(&indexed_prop) ^ 0xc3) %
-  // pctx.comm_sz;
-
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
-    rv = native_write(fname, fname_len, data, data_len, epoch);
-    goto cleanup;
+    // rv = native_write(fname, fname_len, data, data_len, epoch);
+    rv = native_write(reinterpret_cast<char*>(&indexed_prop), sizeof(float),
+                      data_reorg, fname_len + data_len, epoch);
+    shuffle_now = false;
   }
 
   if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
     rv = 0;
-    goto cleanup;
+    shuffle_now = false;
+  } else {
+    pvt_ctx->rank_bin_count[peer_rank]++;
+    pvt_ctx->rank_bin_count_aggr[peer_rank]++;
   }
 
   /* write trace if we are in testing mode */
   if (pctx.testin && pctx.trace != NULL)
     shuffle_write_range_debug(ctx, p.buf, p.buf_sz, epoch, rank, peer_rank);
-
-  pvt_ctx->rank_bin_count[peer_rank]++;
-  pvt_ctx->rank_bin_count_aggr[peer_rank]++;
 
 cleanup:
   pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
