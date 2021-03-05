@@ -1246,8 +1246,8 @@ int MPI_Init(int* argc, char*** argv) {
 
       /* Timeseries perf collection - functionality may overlap
        * with other monitoring functions */
-      int rv = pdlfs::perfstats_init(&(pctx.perf_ctx), pctx.my_rank, dirpath,
-                                     pctx.local_root);
+      int rv = pdlfs::perfstats_init(&(pctx.perf_ctx), pctx.my_rank,
+                                     pctx.log_home, pctx.local_root);
       if (rv) {
         ABORT("perfstats_init");
       }

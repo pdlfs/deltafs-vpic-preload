@@ -4,7 +4,7 @@
 #include "perfstats/perfstats.h"
 #include "preload_internal.h"
 
-//extern preload_ctx_t pctx;
+// extern preload_ctx_t pctx;
 
 namespace {
 
@@ -153,18 +153,18 @@ void broadcast_rtp_begin(rtp_ctx_t rctx);
 void replay_rtp_begin(rtp_ctx_t rctx);
 
 int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
-                           int src);
+                         int src);
 
 int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
                            int src);
 
 int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
-                             int src);
+                           int src);
 bool expected_items_for_stage(rtp_ctx_t rctx, int stage, int items);
 /* END internal declarations */
 
 int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
-               reneg_opts* ro) {
+             reneg_opts* ro) {
   xn_ctx_t* xn_sctx = NULL;
   int rv = 0;
 
@@ -319,7 +319,7 @@ int rtp_init_round(rtp_ctx_t rctx) {
 }
 
 int rtp_handle_message(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
-                     int src) {
+                       int src) {
   if (rctx == NULL) {
     logf(LOG_DBUG, "rtp_handle_message: rctx is null!\n");
     ABORT("panic");
@@ -368,7 +368,7 @@ int rtp_handle_message(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
  * @return
  */
 int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
-                           int src) {
+                         int src) {
   int srank, round_num;
   msgfmt_decode_rtp_begin(buf, buf_sz, &srank, &round_num);
 
@@ -435,7 +435,9 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     pivot_calculate_safe(pvt_ctx, pvtcnt);
 
     perfstats_log_mypivots(&(pctx.perf_ctx), pvt_ctx->my_pivots, pvtcnt,
-        "RENEG_PIVOTS");
+                           "RENEG_PIVOTS");
+    perfstats_log_vec(&(pctx.perf_ctx), pvt_ctx->rank_bin_count_aggr,
+                      "RENEG_BINCNT");
 
     pvt_buf_len = msgfmt_encode_rtp_pivots(
         pvt_buf, pvt_buf_sz, rctx->round_num, stage_idx, rctx->my_rank,
@@ -575,8 +577,8 @@ int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
           next_buf, next_buf_sz, round_num, stage_num + 1, rctx->my_rank,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
 
-    perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_MASS %f",
-        (merged_pvtcnt - 1) * merged_width);
+      perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_MASS %f",
+                       (merged_pvtcnt - 1) * merged_width);
 
       send_to_rank(rctx, next_buf, next_buf_len, rctx->root[3]);
     }  // if
@@ -586,7 +588,7 @@ int rtp_handle_reneg_pivot(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
 }
 
 int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
-                             int src) {
+                           int src) {
   /* You only expect to receive this message once per-round;
    * TODO: parse the round-num for a FATAL error verification
    * but no intermediate state change necessary here. Process
