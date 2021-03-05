@@ -220,9 +220,8 @@ MockBackend::MockBackend(int rank, const char* dirpath,
       items_per_flush_(memtable_size_ / key_size_),
       current_(rank, dirpath, memtable_size_, key_size_),
       prev_(rank, dirpath, memtable_size_, key_size_),
+      prev2_(rank, dirpath, memtable_size_, key_size_),
       epoch_(0) {
-  /* XXX: force manifest to write to shared storage for analytics */
-  dirpath_ = "/users/ankushj/tmp";
   std::string man_dirpath = dirpath_ + "/manifests";
   mkdir(man_dirpath.c_str(), S_IRWXU);
 
@@ -242,10 +241,14 @@ int MockBackend::Write(const char* fname, int fname_len, const char* data,
     rv = current_.Insert(indexed_prop, fname, fname_len, data, data_len);
 
     if (rv) rv = FlushAndReset(current_);
-  } else {
+  } else if (prev_.Inside(indexed_prop)){
     rv = prev_.Insert(indexed_prop, fname, fname_len, data, data_len);
 
     if (rv) rv = FlushAndReset(prev_);
+  } else {
+    rv = prev2_.Insert(indexed_prop, fname, fname_len, data, data_len);
+
+    if (rv) rv = FlushAndReset(prev2_);
   }
 
   return rv;
@@ -262,12 +265,14 @@ int MockBackend::FlushAndReset(Bucket& bucket, bool epoch_flush) {
 int MockBackend::UpdateBounds(const float bound_start, const float bound_end) {
   /* Strictly, should lock before updating, but this is only for measuring
    * "pollution" - who cares if it's a couple of counters off */
+  prev2_.UpdateExpectedRange(prev_.GetExpectedRange());
   prev_.UpdateExpectedRange(current_.GetExpectedRange());
   current_.UpdateExpectedRange(bound_start, bound_end);
 
   /* XXX: disabled flushing prev_, assuming that it will reduce bucket count
    * without significantly affecting overlaps */
-  // FlushAndReset(prev_);
+  // FlushAndReset(prev2_);
+  FlushAndReset(prev_);
   FlushAndReset(current_);
 
   return 0;
@@ -298,6 +303,7 @@ int MockBackend::WriteManifestToDisk(const char* path) {
 int MockBackend::EpochFinish() {
   int rv = 0;
 
+  FlushAndReset(prev2_, /* epoch_end */ true);
   FlushAndReset(prev_, /* epoch_end */ true);
   FlushAndReset(current_, /* epoch_end */ true);
 
@@ -309,6 +315,7 @@ int MockBackend::EpochFinish() {
 }
 
 int MockBackend::Finish() {
+  FlushAndReset(prev2_);
   FlushAndReset(prev_);
   FlushAndReset(current_);
 

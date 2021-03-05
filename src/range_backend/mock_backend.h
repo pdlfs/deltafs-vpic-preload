@@ -32,7 +32,9 @@ struct Range {
     range_max = 0;
   }
 
-  bool Inside(float f) const { return (f >= range_min && f <= range_max); }
+  bool Inside(float f) const { 
+    return (range_min == 0 && range_max == 0) || (f >= range_min && f <= range_max); 
+  }
 
   void Extend(float f) {
     if (range_min == 0 and range_max == 0) {
@@ -40,7 +42,7 @@ struct Range {
       range_max = f;
     } else {
       range_min = std::min(range_min, f);
-      range_max = std::max(range_min, f);
+      range_max = std::max(range_max, f);
     }
   }
 };
@@ -140,6 +142,7 @@ class MockBackend {
 
   Bucket current_;
   Bucket prev_;
+  Bucket prev2_;
 
   std::string manifest_path_;
   std::string manifest_bin_path_;
