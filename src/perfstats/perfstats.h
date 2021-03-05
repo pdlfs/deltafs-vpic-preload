@@ -104,6 +104,18 @@ int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
  * @brief
  *
  * @param perf_ctx
+ * @param pivots
+ * @param num_pivots
+ * @param pivot_label
+ * @return
+ */
+int perfstats_log_vec(perfstats_ctx_t* perf_ctx, std::vector<uint64_t>& vec,
+                      const char* pivot_label);
+
+/**
+ * @brief
+ *
+ * @param perf_ctx
  *
  * @return
  */

@@ -288,6 +288,25 @@ int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
   return rv;
 }
 
+int perfstats_log_vec(perfstats_ctx_t* perf_ctx, std::vector<uint64_t>& vec,
+                      const char* vlabel) {
+  int rv = 0;
+
+  size_t buf_sz = vec.size() * 32;
+  char buf[buf_sz];
+  print_vector(buf, buf_sz, vec, vec.size(), false);
+
+  uint64_t timestamp = get_timestamp(perf_ctx);
+  Stat pivot_stat(StatType::V_STR, vlabel);
+  pivot_stat.SetValue(timestamp, buf);
+
+  perf_ctx->worker_mtx.Lock();
+  perfstats_log_stat(perf_ctx, pivot_stat);
+  perf_ctx->worker_mtx.Unlock();
+
+  return rv;
+}
+
 int perfstats_log_carp(perfstats_ctx_t* perf_ctx) {
   int* pvtcnt = pctx.opts->rtp_pvtcnt;
   char pvtcnt_str[64];
@@ -295,8 +314,7 @@ int perfstats_log_carp(perfstats_ctx_t* perf_ctx) {
 
 #define PERFLOG(a, b) \
   perfstats_log_eventstr(perf_ctx, a, std::to_string(b).c_str())
-#define PERFLOGS(a, b) \
-  perfstats_log_eventstr(perf_ctx, a, b)
+#define PERFLOGS(a, b) perfstats_log_eventstr(perf_ctx, a, b)
   PERFLOG("CARP_ENABLED", pctx.carp_on);
   PERFLOGS("CARP_NUM_PIVOTS", pvtcnt_str);
   PERFLOG("CARP_DYNAMIC_ENABLED", pctx.carp_dynamic_reneg);
