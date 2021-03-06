@@ -1,4 +1,4 @@
-#include "rtp/rtp.h"
+#include "carp/rtp.h"
 
 #include "msgfmt.h"
 #include "perfstats/perfstats.h"
@@ -632,7 +632,7 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)\n",
          rctx->my_rank, print_buf, pivot_width);
 
-    logf(LOG_INFO, "-- rtp round %d completed at rank 0 --\n", rctx->round_num);
+    logf(LOG_INFO, "-- carp round %d completed at rank 0 --\n", rctx->round_num);
   }
 
   /* Install pivots, reset state, and signal back to the main thread */

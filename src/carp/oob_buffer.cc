@@ -9,6 +9,7 @@
 #include <algorithm>
 
 namespace pdlfs {
+namespace carp {
 OobBuffer::OobBuffer(const size_t oob_max_sz) : oob_max_sz_(oob_max_sz) {
   buf_.reserve(oob_max_sz_);
 }
@@ -120,4 +121,5 @@ bool OobFlushIterator::operator!=(const size_t other) const {
 }
 
 OobFlushIterator::~OobFlushIterator() { buf_.buf_.resize(preserve_idx_); }
+}  // namespace carp
 }  // namespace pdlfs

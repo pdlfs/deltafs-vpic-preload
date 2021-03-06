@@ -26,7 +26,7 @@ namespace {
 buf_type_t compute_oob_buf(pivot_ctx_t* pvt_ctx, float indexed_prop) {
   /* Assert pvt_ctx->pvt_access_m.lockheld() */
   MainThreadState state = pvt_ctx->mts_mgr.get_state();
-  pdlfs::OobBuffer* oob_buffer = pvt_ctx->oob_buffer;
+  pdlfs::carp::OobBuffer* oob_buffer = pvt_ctx->oob_buffer;
   buf_type_t buf_type;
 
   if (oob_buffer->OutOfBounds(indexed_prop)) {
@@ -70,28 +70,24 @@ int shuffle_data_target(const float& indexed_prop) {
 int shuffle_flush_oob(shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx, int epoch) {
   int rv = 0;
 
-  pdlfs::OobBuffer* oob_buffer = pvt_ctx->oob_buffer;
-  pdlfs::OobFlushIterator fi(*oob_buffer);
+  pdlfs::carp::OobBuffer* oob_buffer = pvt_ctx->oob_buffer;
+  pdlfs::carp::OobFlushIterator fi(*oob_buffer);
   int rank = shuffle_rank(sctx);
 
   while (fi != oob_buffer->Size()) {
-    pdlfs::particle_mem_t& p = *fi;
-    if (oob_buffer->OutOfBounds(p.indexed_prop)) {
+    pdlfs::carp::particle_mem_t& p = *fi;
+    if (p.shuffle_dest == -1) {
       fi.PreserveCurrent();
       fi++;
       continue;
     }
 
-    int peer_rank = shuffle_data_target(p.indexed_prop);
-    if (peer_rank < -1 || peer_rank >= pctx.comm_sz) {
+    if (p.shuffle_dest < -1 || p.shuffle_dest >= pctx.comm_sz) {
       ABORT("shuffle_flush_oob: invalid peer_rank");
     }
 
-    pvt_ctx->rank_bin_count[peer_rank]++;
-    pvt_ctx->rank_bin_count_aggr[peer_rank]++;
-
     xn_shuffle_enqueue(static_cast<xn_ctx_t*>(sctx->rep), p.buf, p.buf_sz,
-                       epoch, peer_rank, rank);
+                       epoch, p.shuffle_dest, rank);
 
     fi++;
   }
@@ -212,79 +208,6 @@ timespec diff(timespec start, timespec end) {
   return temp;
 }
 
-int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
-                          unsigned char fname_len, char* data,
-                          unsigned char data_len, int epoch) {
-  pivot_ctx* pvt_ctx = pctx.pvt_ctx;
-  pdlfs::rtp_ctx_t rctx = &(pctx.rtp_ctx);
-
-  for (int i = 0; i < 1000; i++) {
-    float rand_value = (rand() % 16738) / 167.38;
-    pdlfs::particle_mem_t p;
-    p.indexed_prop = rand_value;
-    p.buf_sz = 0;
-    pvt_ctx->oob_buffer->Insert(p);
-  }
-
-  // sleep(5);
-  pvt_ctx->mts_mgr.update_state(MT_BLOCK);
-
-  if (pctx.my_rank == 3) {
-    // rctx->reneg_bench.rec_start();
-    rtp_init_round(rctx);
-    // rctx->reneg_bench.rec_finished();
-    // fprintf(stderr, "=========== MAIN THREAD AWAKE ==========\n");
-    // rctx->reneg_bench.print_stderr();
-    // rtp_init_round(rctx);
-  }
-
-  sleep(10);
-
-  return 0;
-
-  // for (int i = 0; i < 100; i++) {
-  // int sleep_time = rand() % 10000;
-  // usleep(sleep_time);
-  // rtp_init_round(rctx);
-  // }
-
-  // if (pctx.my_rank == 0) {
-  // rctx->reneg_bench.print_stderr();
-  // }
-
-  // sleep(20);
-  /* Enable the snippet below to do some writing after RTP
-   * Right now, run.sh has some issues with plfsdir compaction in this
-   * function handler if BYPASS_Write is disabled, i.e. writes are enabled
-   */
-
-  // assert(ctx == &pctx.sctx);
-  // assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->fname_len - 1);
-  // if (ctx->fname_len != fname_len) ABORT("bad filename len");
-  // if (ctx->data_len != data_len) ABORT("bad data len");
-
-  // unsigned char base_sz = 1 + fname_len + data_len;
-  // unsigned char buf_sz = base_sz + ctx->extra_data_len;
-  // int rank = shuffle_rank(ctx);
-  // int peer_rank = -1;
-  // char buf[255];
-
-  // buf_sz = msgfmt_write_data(buf, SHUFFLE_BUF_LEN, fname, fname_len, data,
-  // data_len, ctx->extra_data_len);
-
-  // peer_rank = shuffle_target(ctx, buf, buf_sz);
-
-  // if (ctx->type == SHUFFLE_XN) {
-  // int padded_sz = buf_sz;
-  // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
-  // peer_rank, rank);
-  // } else {
-  // nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
-  // }
-
-  return 0;
-}
-
 int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
                         unsigned char fname_len, char* data,
                         unsigned char data_len, int epoch) {
@@ -304,33 +227,18 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   rank = shuffle_rank(ctx);
 
   unsigned char base_sz = 1 + fname_len + data_len;
-  unsigned char buf_sz = base_sz + ctx->extra_data_len;
-
-  /* Decide whether to buffer or send */
-  float indexed_prop = ::get_indexable_property(data, data_len);
+  //  unsigned char buf_sz = base_sz + ctx->extra_data_len;
 
   /* Serialize data */
-  pdlfs::particle_mem_t p;
-  // p.buf_sz = msgfmt_write_data(p.buf, 255, fname, fname_len, data, data_len,
-  // ctx->extra_data_len);
-
-  char data_reorg[255];
-  memcpy(data_reorg, fname, fname_len);
-  memcpy(data_reorg + fname_len, data, data_len);
-
-  p.buf_sz = msgfmt_write_data(
-      p.buf, 255, reinterpret_cast<char*>(&indexed_prop), sizeof(float),
-      data_reorg, fname_len + data_len, ctx->extra_data_len);
-
-  logf(LOG_DBG2, "shuffle_write, bufsz: %d\n", p.buf_sz);
-
-  p.indexed_prop = indexed_prop;
+  pdlfs::carp::particle_mem_t p;
+  pctx.carp->Serialize(fname, fname_len, data, data_len, ctx->extra_data_len,
+                       p);
 
   pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
 
   pvt_ctx->last_reneg_counter++;
 
-  buf_type_t dest_buf = compute_oob_buf(pvt_ctx, indexed_prop);
+  buf_type_t dest_buf = compute_oob_buf(pvt_ctx, p.indexed_prop);
 
   bool shuffle_now = (dest_buf == buf_type_t::RB_NO_BUF);
 
@@ -368,22 +276,22 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   }
 
   if (!shuffle_now) {
-    logf(LOG_DBG2, "Rank %d: buffering item %f\n", pctx.my_rank, indexed_prop);
+    logf(LOG_DBG2, "Rank %d: buffering item %f\n", pctx.my_rank,
+         p.indexed_prop);
 
     /* Condition 1. Buffered in OOB, flushed if necessary, nothing to do */
     rv = 0;
     goto cleanup;
   }
 
-  logf(LOG_DBG2, "Rank %d: shuffling item %f\n", pctx.my_rank, indexed_prop);
+  logf(LOG_DBG2, "Rank %d: shuffling item %f\n", pctx.my_rank, p.indexed_prop);
 
-  peer_rank = ::shuffle_data_target(indexed_prop);
+  peer_rank = ::shuffle_data_target(p.indexed_prop);
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
-    // rv = native_write(fname, fname_len, data, data_len, epoch);
-    rv = native_write(reinterpret_cast<char*>(&indexed_prop), sizeof(float),
-                      data_reorg, fname_len + data_len, epoch);
+    rv = native_write(reinterpret_cast<char*>(&p.indexed_prop), sizeof(float),
+                      p.data_ptr, p.data_sz, epoch);
     shuffle_now = false;
   }
 

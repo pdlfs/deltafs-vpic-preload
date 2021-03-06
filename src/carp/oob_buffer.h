@@ -9,10 +9,14 @@
 #include "range_constants.h"
 
 namespace pdlfs {
+namespace carp {
 typedef struct particle_mem {
   float indexed_prop;             // property for range query
   char buf[pdlfs::kMaxPartSize];  // other data
   int buf_sz;
+  char* data_ptr;
+  int data_sz;
+  int shuffle_dest;
 } particle_mem_t;
 
 class OobBuffer {
@@ -25,6 +29,7 @@ class OobBuffer {
   std::vector<particle_mem_t> buf_;
 
   friend class OobFlushIterator;
+  friend class Carp;
 
  public:
   OobBuffer(const size_t oob_max_sz);
@@ -53,6 +58,11 @@ class OobFlushIterator {
 
  public:
   explicit OobFlushIterator(OobBuffer& buf);
+  explicit OobFlushIterator(const OobFlushIterator& other)
+      : buf_(other.buf_),
+        preserve_idx_(other.preserve_idx_),
+        flush_idx_(other.flush_idx_),
+        buf_len_(other.buf_len_) {}
   int PreserveCurrent();
   particle_mem_t& operator*();
   void operator++(int);
@@ -60,5 +70,5 @@ class OobFlushIterator {
   bool operator!=(size_t other) const;
   ~OobFlushIterator();
 };
-
+}  // namespace carp
 }  // namespace pdlfs

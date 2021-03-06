@@ -12,7 +12,7 @@
 #include "common.h"
 #include "msgfmt.h"
 
-#include "rtp/rtp.h"
+#include "carp/rtp.h"
 
 int shuffle_write_mock(shuffle_ctx_t* ctx, const char* fname,
                   unsigned char fname_len, char* data, unsigned char data_len,

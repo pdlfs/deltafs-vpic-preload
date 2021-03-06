@@ -7,7 +7,7 @@
 
 #include <vector>
 
-#include "oob_buffer.h"
+#include "carp/oob_buffer.h"
 #include "range_constants.h"
 
 struct reneg_opts {
@@ -83,7 +83,7 @@ typedef struct pivot_ctx {
   double range_min, range_max;
   /*  END Shared variables protected by bin_access_m */
 
-  pdlfs::OobBuffer* oob_buffer;
+  pdlfs::carp::OobBuffer* oob_buffer;
 
   double my_pivots[pdlfs::kMaxPivots];
   int my_pivot_count;

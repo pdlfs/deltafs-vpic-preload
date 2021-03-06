@@ -41,10 +41,10 @@ set(PRELOAD_SOURCES range_backend/mock_backend.cc preload.cc
         preload_internal.cc preload_mon.cc preload_shuffle.cc
         shuffle_write_providers.cc msgfmt.cc nn_shuffler.cc
         nn_shuffler_internal.cc xn_shuffle.cc hstg.cc common.cc
-        pthreadtap.cc preload_range.cc range_common.cc rtp/rtp.cc
-        rtp/rtp_util.cc range_utils.cc perfstats/perfstats.cc
-        rtp/data_buffer.cc rtp/rtp_state_mgr.cc perfstats/stat.cc
-        oob_buffer.cc perfstats/manifest_analytics.cc)
+        pthreadtap.cc preload_range.cc range_common.cc carp/carp.cc
+        carp/rtp.cc carp/rtp_util.cc range_utils.cc perfstats/perfstats.cc
+        carp/data_buffer.cc carp/policy.cc carp/rtp_state_mgr.cc
+        perfstats/stat.cc carp/oob_buffer.cc perfstats/manifest_analytics.cc)
 
 if (PRELOAD_BLKID)
     find_package(BLKID)

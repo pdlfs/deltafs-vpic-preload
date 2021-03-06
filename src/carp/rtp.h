@@ -6,7 +6,7 @@
 #include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_utils.h"
-#include "rtp/rtp_internal.h"
+#include "carp/rtp_internal.h"
 #include "rtp_state_mgr.h"
 #include "xn_shuffle.h"
 

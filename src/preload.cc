@@ -1329,6 +1329,10 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   pivot_ctx_init(&(pctx.pvt_ctx), pctx.opts);
+  pdlfs::carp::CarpOptions carp_opts;
+  carp_opts.num_ranks = pctx.comm_sz;
+  carp_opts.oob_sz = pctx.opts->oob_buf_sz;
+  pctx.carp = new pdlfs::carp::Carp(carp_opts);
   rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.pvt_ctx, pctx.opts);
 
   srand(pctx.my_rank);
@@ -1962,6 +1966,10 @@ int MPI_Finalize(void) {
 
   rtp_destroy(&(pctx.rtp_ctx));
   pivot_ctx_destroy(&(pctx.pvt_ctx));
+
+  delete pctx.carp;
+  pctx.carp = nullptr;
+
   pctx.pvt_ctx = nullptr;
 
   delete pctx.opts;

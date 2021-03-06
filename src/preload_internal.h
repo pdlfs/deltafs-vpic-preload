@@ -45,6 +45,8 @@
 #include <set>
 #include <vector>
 
+#include "carp/carp.h"
+#include "carp/rtp.h"
 #include "common.h"
 #include "perfstats/perfstats.h"
 #include "preload.h"
@@ -52,7 +54,6 @@
 #include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_backend/mock_backend.h"
-#include "rtp/rtp.h"
 
 /*
  * preload context:
@@ -173,6 +174,7 @@ typedef struct preload_ctx {
 
   /* Contains main thread state for range queries */
   pivot_ctx_t* pvt_ctx;
+  pdlfs::carp::Carp* carp;
 
   reneg_opts* opts;
   struct pdlfs::rtp_ctx rtp_ctx;

@@ -60,7 +60,7 @@ bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
 }
 
 namespace {
-bool pmt_comp(const pdlfs::particle_mem_t& a, const pdlfs::particle_mem_t& b) {
+bool pmt_comp(const pdlfs::carp::particle_mem_t& a, const pdlfs::carp::particle_mem_t& b) {
   return a.indexed_prop < b.indexed_prop;
 }
 
@@ -175,7 +175,7 @@ int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro) {
     logf(LOG_INFO, "pivot_ctx_init: oob_buf_sz: %d\n", ro->oob_buf_sz);
   }
 
-  pvt_ctx_dref->oob_buffer = new pdlfs::OobBuffer(ro->oob_buf_sz);
+  pvt_ctx_dref->oob_buffer = new pdlfs::carp::OobBuffer(ro->oob_buf_sz);
 
   pvt_ctx_dref->rank_bins.resize(pctx.comm_sz + 1);
   pvt_ctx_dref->rank_bin_count.resize(pctx.comm_sz);
@@ -268,7 +268,7 @@ int pivot_calculate_from_oobl(pivot_ctx_t* pvt_ctx, int num_pivots) {
 
   std::vector<float> oobl, oobr;
 
-  pdlfs::OobBuffer* oob = pvt_ctx->oob_buffer;
+  pdlfs::carp::OobBuffer* oob = pvt_ctx->oob_buffer;
   pvt_ctx->oob_buffer->GetPartitionedProps(oobl, oobr);
 
   assert(oobr.size() == 0);
@@ -324,7 +324,7 @@ int pivot_calculate_from_all(pivot_ctx_t* pvt_ctx, const size_t num_pivots) {
   float range_start, range_end;
   std::vector<float> oobl, oobr;
 
-  pdlfs::OobBuffer* oob = pvt_ctx->oob_buffer;
+  pdlfs::carp::OobBuffer* oob = pvt_ctx->oob_buffer;
   pvt_ctx->oob_buffer->GetPartitionedProps(oobl, oobr);
 
   get_range_bounds(pvt_ctx, oobl, oobr, range_start, range_end);

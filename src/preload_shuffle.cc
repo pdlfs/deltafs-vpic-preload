@@ -46,7 +46,7 @@
 #include "preload_internal.h"
 #include "preload_mon.h"
 #include "preload_range.h"
-#include "rtp/rtp.h"
+#include "carp/rtp.h"
 #include "xn_shuffle.h"
 #ifdef PRELOAD_HAS_CH_PLACEMENT
 #include <ch-placement.h>
