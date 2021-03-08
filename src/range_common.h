@@ -10,17 +10,20 @@
 #include "carp/oob_buffer.h"
 #include "range_constants.h"
 
-struct reneg_opts {
-  int oob_buf_sz;
-  int rtp_pvtcnt[4];
-};
-
 typedef struct rb_item {
   int rank;
   double bin_val;
   double bin_other;
   bool is_start;
 } rb_item_t;  // rank-bin item
+
+enum class buf_type_t {
+  RB_NO_BUF,
+  RB_BUF_OOB,
+  RB_UNDECIDED,
+  RB_BUF_LEFT,
+  RB_BUF_RIGHT
+};
 
 bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
 
@@ -37,15 +40,6 @@ enum MainThreadState {
   MT_READY,
   MT_BLOCK,
   MT_REMAIN_BLOCKED,
-};
-
-/* TODO: remove BUF_LEFT and BUF_WRITE, after naive impl is ported */
-enum class buf_type_t {
-  RB_NO_BUF,
-  RB_BUF_OOB,
-  RB_UNDECIDED,
-  RB_BUF_LEFT,
-  RB_BUF_RIGHT
 };
 
 class MainThreadStateMgr {
@@ -90,43 +84,7 @@ typedef struct pivot_ctx {
   double pivot_width;
 
   int last_reneg_counter = 0;
-} pivot_ctx_t;
-
-int pivot_ctx_init(pivot_ctx_t** pvt_ctx, reneg_opts* ro);
-
-int pivot_ctx_reset(pivot_ctx_t* pvt_ctx);
-
-int pivot_ctx_destroy(pivot_ctx_t** pvt_ctx);
-
-/**
- * @brief Calculate pivots from the current pivot_ctx state.
- * This also modifies OOB buffers (sorts them), but their order shouldn't
- * be relied upon anyway.
- *
- * SAFE version computes "token pivots" in case no mass is there to
- * actually compute pivots. This ensures that merging calculations
- * do not fail.
- *
- * XXX: a more semantically appropriate fix would be to define addition
- * and resampling for zero-pivots
- *
- * @param pvt_ctx pivot context
- *
- * @return
- */
-int pivot_calculate_safe(pivot_ctx_t* pvt_ctx, const size_t num_pivots);
-
-/**
- * @brief Update pivots after renegotiation. This *does not* manipulate the
- * state manager. State manager needs to be directly controlled by the
- * renegotiation provider because of synchronization implications
- *
- * @param pvt_ctx
- * @param pivots
- * @param num_pivots
- * @return
- */
-int pivot_update_pivots(pivot_ctx_t* pvt_ctx, double* pivots, int num_pivots);
+} ppivot_ctx_t;
 
 static inline int print_vector(char* buf, int buf_sz, std::vector<uint64_t>& v,
                                int vlen = 0, bool truncate = true) {

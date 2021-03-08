@@ -445,7 +445,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
   logf(LOG_INFO, "Initiating OOB flush at rank %d\n", pctx.my_rank);
   int oob_count_left = rctx->oob_count_left;
   for (int oidx = oob_count_left - 1; oidx >= 0; oidx--) {
-    pdlfs::particle_mem_t& p = rctx->oob_buffer_left[oidx];
+    pdlfs::carp::particle_mem_t& p = rctx->oob_buffer_left[oidx];
     fprintf(stderr, "Flushing particle with energy %.1f\n", p.indexed_prop);
     if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
       // should never happen since we flush after a reneg
@@ -479,7 +479,7 @@ int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
 
   int oob_count_right = rctx->oob_count_right;
   for (int oidx = oob_count_right - 1; oidx >= 0; oidx--) {
-    pdlfs::particle_mem_t& p = rctx->oob_buffer_right[oidx];
+    pdlfs::carp::particle_mem_t& p = rctx->oob_buffer_right[oidx];
 #ifdef RANGE_DEBUG
     fprintf(stderr, "Rank %d, flushing particle with energy %.1f\n",
             pctx.my_rank, p.indexed_prop);

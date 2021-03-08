@@ -117,6 +117,10 @@ int compute_fanout(int world_sz, int* fo_arr) {
 
 namespace pdlfs {
 
+typedef carp::Carp Carp;
+typedef carp::CarpOptions CarpOptions;
+typedef carp::PivotUtils PivotUtils;
+
 /* BEGIN internal declarations */
 /**
  * @brief Initialize our peers_s1/s2/s3 (if applicable), and root_sx's
@@ -163,8 +167,8 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
 bool expected_items_for_stage(rtp_ctx_t rctx, int stage, int items);
 /* END internal declarations */
 
-int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
-             reneg_opts* ro) {
+int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, Carp* carp,
+             CarpOptions* ro) {
   xn_ctx_t* xn_sctx = NULL;
   int rv = 0;
 
@@ -205,7 +209,7 @@ int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
   rctx->xn_sctx = xn_sctx;
   rctx->nxp = xn_sctx->nx;
 
-  rctx->pvt_ctx = pvt_ctx;
+  rctx->carp = carp;
 
   rctx->round_num = 0;
 
@@ -297,10 +301,10 @@ int rtp_topology_init(rtp_ctx_t rctx) {
 }
 
 int rtp_init_round(rtp_ctx_t rctx) {
-  pivot_ctx_t* pvt_ctx = rctx->pvt_ctx;
+  Carp* carp = rctx->carp;
 
   /* ALWAYS BLOCK MAIN THREAD MUTEX FIRST */
-  /* Assert pivot_access_m.lockheld() */
+  carp->mutex_.AssertHeld();
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   if (rctx->state_mgr.get_state() == RenegState::READY) {
@@ -312,7 +316,7 @@ int rtp_init_round(rtp_ctx_t rctx) {
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
   while (rctx->state_mgr.get_state() != RenegState::READY) {
-    pthread_cond_wait(&(pvt_ctx->pivot_update_cv), &(pvt_ctx->pivot_access_m));
+    carp->cv_.Wait();
   }
 
   return 0;
@@ -377,7 +381,7 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
 
   bool activated_now = false;
 
-  pthread_mutex_lock(&(rctx->pvt_ctx->pivot_access_m));
+  rctx->carp->mutex_.Lock();
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
   if (round_num < rctx->round_num) {
@@ -389,7 +393,7 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
              rctx->state_mgr.get_state() == RenegState::READYBLOCK) {
     /* If we're ready for Round R, no way we can receive R+1 first */
     assert(round_num == rctx->round_num);
-    rctx->pvt_ctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
+    rctx->carp->UpdateState(MainThreadState::MT_BLOCK);
     rctx->state_mgr.update_state(RenegState::PVTSND);
     rctx->reneg_bench.rec_active();
     activated_now = true;
@@ -403,7 +407,7 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
-  pthread_mutex_unlock(&(rctx->pvt_ctx->pivot_access_m));
+  rctx->carp->mutex_.Unlock();
 
   if (activated_now) {
     /* Can reuse the same RTP_BEGIN buf. src_rank is anyway sent separately
@@ -422,9 +426,9 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
 
     /* send pivots to s1root now */
     const int stage_idx = 1;
-    pivot_ctx* pvt_ctx = rctx->pvt_ctx;
+    Carp* carp = rctx->carp;
 
-    pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
+    carp->mutex_.Lock();
 
     int pvtcnt = rctx->pvtcnt[stage_idx];
 
@@ -432,18 +436,18 @@ int rtp_handle_rtp_begin(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     char pvt_buf[pvt_buf_sz];
     int pvt_buf_len;
 
-    pivot_calculate_safe(pvt_ctx, pvtcnt);
+    PivotUtils::CalculatePivots(carp, pvtcnt);
 
-    perfstats_log_mypivots(&(pctx.perf_ctx), pvt_ctx->my_pivots, pvtcnt,
+    perfstats_log_mypivots(&(pctx.perf_ctx), carp->my_pivots_, pvtcnt,
                            "RENEG_PIVOTS");
-    perfstats_log_vec(&(pctx.perf_ctx), pvt_ctx->rank_bin_count_aggr,
+    perfstats_log_vec(&(pctx.perf_ctx), carp->rank_counts_aggr_,
                       "RENEG_BINCNT");
 
     pvt_buf_len = msgfmt_encode_rtp_pivots(
         pvt_buf, pvt_buf_sz, rctx->round_num, stage_idx, rctx->my_rank,
-        pvt_ctx->my_pivots, pvt_ctx->pivot_width, pvtcnt);
+        carp->my_pivots_, carp->my_pivot_width_, pvtcnt);
 
-    pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
+    carp->mutex_.Unlock();
 
     logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u\n",
          pctx.my_rank, pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
@@ -638,21 +642,21 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
   /* Install pivots, reset state, and signal back to the main thread */
   bool replay_rtp_begin_flag = false;
 
-  pivot_ctx_t* pvt_ctx = rctx->pvt_ctx;
+  Carp* carp = rctx->carp;
 
   /* If next round has already started, replay its messages from buffers.
    * If not, mark self as READY, and wake up Main Thread
    */
-  pthread_mutex_lock(&(pvt_ctx->pivot_access_m));
+  carp->mutex_.Lock();
   pthread_mutex_lock(&(rctx->reneg_mutex));
 
-  perfstats_log_reneg(&(pctx.perf_ctx), pvt_ctx, rctx);
+  perfstats_log_reneg(&(pctx.perf_ctx), carp, rctx);
 
   logf(LOG_DBG2, "Broadcast pivot count: %d, expected %d\n", num_pivots,
        rctx->num_ranks + 1);
   assert(num_pivots == rctx->num_ranks + 1);
 
-  pivot_update_pivots(pvt_ctx, pivots, num_pivots);
+  PivotUtils::UpdatePivots(carp, pivots, num_pivots);
 
   rctx->data_buffer->advance_round();
   rctx->round_num++;
@@ -661,21 +665,21 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     /* Next round has started, keep main thread sleeping and participate */
     replay_rtp_begin_flag = true;
     rctx->state_mgr.update_state(RenegState::READYBLOCK);
-    pvt_ctx->mts_mgr.update_state(MainThreadState::MT_REMAIN_BLOCKED);
+    carp->UpdateState(MainThreadState::MT_REMAIN_BLOCKED);
   } else {
     /* Next round has not started yet, we're READY */
     rctx->state_mgr.update_state(RenegState::READY);
-    pvt_ctx->mts_mgr.update_state(MainThreadState::MT_READY);
+    carp->UpdateState(MainThreadState::MT_READY);
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));
 
   if (!replay_rtp_begin_flag) {
     /* Since no round to replay, wake up Main Thread */
-    pthread_cond_signal(&(pvt_ctx->pivot_update_cv));
+    carp->cv_.Signal();
   }
 
-  pthread_mutex_unlock(&(pvt_ctx->pivot_access_m));
+  carp->mutex_.Unlock();
 
   if (replay_rtp_begin_flag) {
     /* Not supposed to access without lock, but logging statement so ok */

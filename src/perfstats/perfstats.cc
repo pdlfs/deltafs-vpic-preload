@@ -191,7 +191,7 @@ int perfstats_log_hooks(perfstats_ctx_t* perf_ctx, uint64_t timestamp) {
   return 0;
 }
 
-int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pivot_ctx_t* pvt_ctx,
+int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
                         rtp_ctx_t rctx) {
   uint64_t timestamp = ::get_timestamp(perf_ctx);
 
@@ -207,17 +207,17 @@ int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pivot_ctx_t* pvt_ctx,
   buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx,
                       "RANK%d_R%d: ", rctx->my_rank, rctx->round_num);
 
-  std::vector<float>& counts = pvt_ctx->rank_bin_count;
+  std::vector<float>& counts = carp->rank_counts_;
   buf_idx +=
       print_vector(buf + buf_idx, buf_sz - buf_idx, counts, counts.size(),
                    /* truncate */ false);
 
   buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOB (%zu)",
-                      pvt_ctx->oob_buffer->Size());
+                      carp->OobSize());
 
   massStat.SetValue(timestamp, buf);
 
-  print_vector(buf, buf_sz, pvt_ctx->my_pivots, pvt_ctx->my_pivot_count,
+  print_vector(buf, buf_sz, carp->my_pivots_, carp->my_pivot_count_,
                /* truncate */ false);
   pivotStat.SetValue(timestamp, buf);
 
@@ -230,9 +230,9 @@ int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pivot_ctx_t* pvt_ctx,
 }
 
 int perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
-                                 pivot_ctx_t* pvt_ctx, int my_rank) {
+                                 pdlfs::carp::Carp* carp, int my_rank) {
   int rv = 0;
-  std::vector<uint64_t>& cnt_vec = pvt_ctx->rank_bin_count_aggr;
+  std::vector<uint64_t>& cnt_vec = carp->rank_counts_aggr_;
   size_t bin_sz = cnt_vec.size();
   uint64_t send_buf[bin_sz], recv_buf[bin_sz];
 

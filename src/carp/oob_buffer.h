@@ -58,7 +58,7 @@ class OobFlushIterator {
 
  public:
   explicit OobFlushIterator(OobBuffer& buf);
-  explicit OobFlushIterator(const OobFlushIterator& other)
+  OobFlushIterator(const OobFlushIterator& other)
       : buf_(other.buf_),
         preserve_idx_(other.preserve_idx_),
         flush_idx_(other.flush_idx_),

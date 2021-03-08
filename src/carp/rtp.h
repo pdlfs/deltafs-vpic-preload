@@ -2,11 +2,12 @@
 
 #include <time.h>
 
+#include "carp.h"
+#include "carp/rtp_internal.h"
 #include "data_buffer.h"
 #include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_utils.h"
-#include "carp/rtp_internal.h"
 #include "rtp_state_mgr.h"
 #include "xn_shuffle.h"
 
@@ -64,7 +65,7 @@ struct rtp_ctx {
   xn_ctx_t* xn_sctx; /* shuffler to use for data */
   nexus_ctx_t nxp;   /* extracted from sctx */
 
-  pivot_ctx_t* pvt_ctx;
+  carp::Carp* carp;
 
   /* All data below is protected by this mutex - this is also
    * shared between the main thread and multiple message handlers.
@@ -88,18 +89,23 @@ struct rtp_ctx {
 
 typedef struct rtp_ctx* rtp_ctx_t;
 
+/* forward declaration */
+namespace carp {
+class CarpOptions;
+}
+
 /**
  * @brief
  *
  * @param rctx The RTP context
  * @param sctx The shuffle (3-hop only) context
- * @param pvt_ctx The pivot context
+ * @param carp The pivot context
  * @param ro Config options for RTP
  *
  * @return retcode
  */
-int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
-             reneg_opts* ro);
+int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, carp::Carp* carp,
+             carp::CarpOptions* ro);
 
 /**
  * @brief Handler for all RTP messages. Multiplexes to internal handlers.
@@ -111,8 +117,7 @@ int rtp_init(rtp_ctx_t rctx, shuffle_ctx_t* sctx, pivot_ctx_t* pvt_ctx,
  *
  * @return
  */
-int rtp_handle_message(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
-                       int src);
+int rtp_handle_message(rtp_ctx_t rctx, char* buf, unsigned int buf_sz, int src);
 
 /**
  * @brief

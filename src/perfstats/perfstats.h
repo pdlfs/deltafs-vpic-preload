@@ -69,24 +69,24 @@ int perfstats_destroy(perfstats_ctx_t* perf_ctx);
  * @brief
  *
  * @param perf_ctx
- * @param pvt_ctx
+ * @param carp
  * @param rctx
  *
  * @return
  */
-int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pivot_ctx_t* pvt_ctx,
+int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
                         rtp_ctx_t rctx);
 
 /**
  * @brief
  *
  * @param perf_ctx
- * @param pvt_ctx
+ * @param carp
  * @param my_rank
  * @return
  */
 int perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
-                                 pivot_ctx_t* pvt_ctx, int my_rank);
+                                 pdlfs::carp::Carp* carp, int my_rank);
 
 /**
  * @brief

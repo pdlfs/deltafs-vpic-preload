@@ -6,6 +6,7 @@
 
 #include <iostream>
 
+#include "carp/carp.h"
 #include "pdlfs-common/testharness.h"
 #include "pdlfs-common/testutil.h"
 #include "perfstats/manifest_analytics.h"
@@ -29,52 +30,52 @@ namespace pdlfs {
 
 class RangeUtilsTest {
  public:
-  pivot_ctx_t* pctx;
-  reneg_opts ro;
+  carp::Carp* carp;
+  carp::CarpOptions ro;
 
   RangeUtilsTest() {
     ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
     ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
     ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
-    ro.oob_buf_sz = DEFAULT_OOBSZ;
+    ro.oob_sz = DEFAULT_OOBSZ;
 
-    pivot_ctx_init(&pctx, &ro);
+    carp = new carp::Carp(ro);
 
-    pctx->mts_mgr.update_state(MainThreadState::MT_READY);
-    pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
+    carp->UpdateState(MainThreadState::MT_READY);
+    carp->UpdateState(MainThreadState::MT_BLOCK);
   }
 
   void AdvancePastInit() {
-    pctx->mts_mgr.update_state(MainThreadState::MT_READY);
-    pctx->mts_mgr.update_state(MainThreadState::MT_BLOCK);
+    carp->UpdateState(MainThreadState::MT_READY);
+    carp->UpdateState(MainThreadState::MT_BLOCK);
   }
 
   void LoadData(const float* oob_data, const int oob_data_sz) {
-    pctx->oob_buffer->Reset();
+    carp->oob_buffer_.Reset();
 
     for (int i = 0; i < oob_data_sz; i++) {
-      particle_mem_t p;
+      carp::particle_mem_t p;
       p.indexed_prop = oob_data[i];
-      pctx->oob_buffer->Insert(p);
+      carp->oob_buffer_.Insert(p);
     }
   }
 
   void LoadData(const int num_ranks, const float range_min,
                 const float range_max, const float* rank_bin_counts,
                 const float* rank_bins) {
-    pctx->range_min = range_min;
-    pctx->range_max = range_max;
+    carp->range_min_ = range_min;
+    carp->range_max_ = range_max;
 
-    pctx->oob_buffer->SetRange(range_min, range_max);
+    carp->oob_buffer_.SetRange(range_min, range_max);
 
-    pctx->rank_bins.resize(num_ranks + 1);
-    pctx->rank_bin_count.resize(num_ranks);
-    std::copy(rank_bins, rank_bins + num_ranks + 1, pctx->rank_bins.begin());
+    carp->rank_bins_.resize(num_ranks + 1);
+    carp->rank_counts_.resize(num_ranks);
+    std::copy(rank_bins, rank_bins + num_ranks + 1, carp->rank_bins_.begin());
     std::copy(rank_bin_counts, rank_bin_counts + num_ranks,
-              pctx->rank_bin_count.begin());
+              carp->rank_counts_.begin());
   }
 
-  ~RangeUtilsTest() { pivot_ctx_destroy(&pctx); }
+  ~RangeUtilsTest() { delete carp; }
 };
 
 TEST(RangeUtilsTest, ParticleCount) {
@@ -90,17 +91,17 @@ TEST(RangeUtilsTest, PivotCalc) {
 
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     float rand_val = rand() * 1.0f / RAND_MAX;
-    particle_mem_t p;
+    carp::particle_mem_t p;
     p.indexed_prop = rand_val;
-    pctx->oob_buffer->Insert(p);
+    carp->oob_buffer_.Insert(p);
   }
 
   int num_pivots = 8;
-  pivot_calculate_safe(pctx, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
 
   for (int pvt_idx = 1; pvt_idx < num_pivots; pvt_idx++) {
-    float a = pctx->my_pivots[pvt_idx];
-    float b = pctx->my_pivots[pvt_idx - 1];
+    float a = carp->my_pivots_[pvt_idx];
+    float b = carp->my_pivots_[pvt_idx - 1];
     ASSERT_GT(a, b);
   }
 }
@@ -118,16 +119,16 @@ TEST(RangeUtilsTest, PivotCalc2) {
                               0.508574486, 2.42758608};
 
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
-    particle_mem_t p;
+    carp::particle_mem_t p;
     p.indexed_prop = data[oob_idx];
-    pctx->oob_buffer->Insert(p);
+    carp->oob_buffer_.Insert(p);
   }
 
   int num_pivots = 8;
-  pivot_calculate_safe(pctx, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
 
   for (int pvt_idx = 0; pvt_idx < num_pivots; pvt_idx++) {
-    float pvt = pctx->my_pivots[pvt_idx];
+    float pvt = carp->my_pivots_[pvt_idx];
     float ref = pivots_ref[pvt_idx];
 
     ASSERT_TRUE(float_eq(pvt, ref));
@@ -156,8 +157,8 @@ TEST(RangeUtilsTest, PivotCalc3) {
 
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
-  ::pivot_calculate_safe(pctx, 8);
-  ::assert_monotonic(pctx->my_pivots, 8);
+  carp::PivotUtils::CalculatePivots(carp, 8);
+  ::assert_monotonic(carp->my_pivots_, 8);
 }
 
 TEST(RangeUtilsTest, PivotCalc4) {
@@ -165,8 +166,8 @@ TEST(RangeUtilsTest, PivotCalc4) {
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
-  ::pivot_calculate_safe(pctx, num_pivots);
-  ::assert_monotonic(pctx->my_pivots, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc5) {
@@ -174,8 +175,8 @@ TEST(RangeUtilsTest, PivotCalc5) {
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
-  ::pivot_calculate_safe(pctx, num_pivots);
-  ::assert_monotonic(pctx->my_pivots, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc6) {
@@ -183,15 +184,15 @@ TEST(RangeUtilsTest, PivotCalc6) {
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
-  ::pivot_calculate_safe(pctx, num_pivots);
-  ::assert_monotonic(pctx->my_pivots, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc7) {
 #include "pivot_calc_7_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
-  ::pivot_calculate_safe(pctx, num_pivots);
-  ::assert_monotonic(pctx->my_pivots, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc8) {
@@ -199,8 +200,8 @@ TEST(RangeUtilsTest, PivotCalc8) {
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
-  ::pivot_calculate_safe(pctx, num_pivots);
-  ::assert_monotonic(pctx->my_pivots, num_pivots);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
 }
 
 }  // namespace pdlfs

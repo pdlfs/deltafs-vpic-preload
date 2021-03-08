@@ -83,12 +83,12 @@ typedef struct range_ctx {
 
   /* OOB buffers are never handled by reneg threads
    * and therefore don't need a lock */
-  std::vector<pdlfs::particle_mem_t> oob_buffer_left;
+  std::vector<pdlfs::carp::particle_mem_t> oob_buffer_left;
   /* OOB buffers are preallocated to MAX to avoid resize calls
    * thus we use counters to track actual size */
   int oob_count_left;
 
-  std::vector<pdlfs::particle_mem_t> oob_buffer_right;
+  std::vector<pdlfs::carp::particle_mem_t> oob_buffer_right;
   int oob_count_right;
 
   /* "infinitely" extensible queue for when you don't know what
@@ -96,7 +96,7 @@ typedef struct range_ctx {
    * at some point the rank will come to its senses and flush this
    * queue (read: finish negotiation or flush fixed queues)
    */
-  std::vector<pdlfs::particle_mem_t> contingency_queue;
+  std::vector<pdlfs::carp::particle_mem_t> contingency_queue;
 
   double my_pivots[pdlfs::kMaxPivots];
   double pivot_width;

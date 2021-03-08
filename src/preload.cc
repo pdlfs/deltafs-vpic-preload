@@ -449,7 +449,7 @@ static void preload_init() {
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
   if (is_envset("PRELOAD_Enable_CARP")) pctx.carp_on = 1;
 
-  pctx.opts = new reneg_opts();
+  pctx.opts = new pdlfs::carp::CarpOptions();
 
 #define INIT_PVTCNT(arr, idx)                \
   tmp = maybe_getenv("RANGE_Pvtcnt_s" #idx); \
@@ -468,10 +468,10 @@ static void preload_init() {
 
   tmp = maybe_getenv("RANGE_Oob_size");
   if (tmp != NULL) {
-    pctx.opts->oob_buf_sz = atoi(tmp);
-    assert(pctx.opts->oob_buf_sz > 0);
+    pctx.opts->oob_sz = atoi(tmp);
+    assert(pctx.opts->oob_sz > 0);
   } else {
-    pctx.opts->oob_buf_sz = DEFAULT_OOBSZ;
+    pctx.opts->oob_sz = DEFAULT_OOBSZ;
   }
 
   tmp = maybe_getenv("RANGE_Enable_dynamic");
@@ -1328,12 +1328,9 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  pivot_ctx_init(&(pctx.pvt_ctx), pctx.opts);
-  pdlfs::carp::CarpOptions carp_opts;
-  carp_opts.num_ranks = pctx.comm_sz;
-  carp_opts.oob_sz = pctx.opts->oob_buf_sz;
-  pctx.carp = new pdlfs::carp::Carp(carp_opts);
-  rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.pvt_ctx, pctx.opts);
+  pctx.opts->num_ranks = pctx.comm_sz;
+  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
+  rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.carp, pctx.opts);
 
   srand(pctx.my_rank);
 
@@ -1923,7 +1920,7 @@ int MPI_Finalize(void) {
   }
 
   if (!pctx.nomon) {
-    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.pvt_ctx,
+    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.carp,
                                         pctx.my_rank);
   }
 
@@ -1965,12 +1962,9 @@ int MPI_Finalize(void) {
   }
 
   rtp_destroy(&(pctx.rtp_ctx));
-  pivot_ctx_destroy(&(pctx.pvt_ctx));
 
   delete pctx.carp;
   pctx.carp = nullptr;
-
-  pctx.pvt_ctx = nullptr;
 
   delete pctx.opts;
   pctx.opts = nullptr;
@@ -2206,7 +2200,7 @@ int opendir_impl(const char* dir) {
   num_eps++; /* must go before the barrier below */
 
   range_ctx_reset(&(pctx.rctx));
-  pivot_ctx_reset(pctx.pvt_ctx);
+  pctx.carp->AdvanceEpoch();
 
   if (pctx.paranoid_post_barrier) {
     /*

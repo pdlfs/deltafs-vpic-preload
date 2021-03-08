@@ -2,20 +2,21 @@
 // Created by Ankush J on 3/5/21.
 //
 
+#pragma once
+
 #include <float.h>
 #include <msgfmt.h>
 #include <pdlfs-common/status.h>
 #include <range_constants.h>
 #include <range_utils.h>
 
+#include "carp_utils.h"
 #include "oob_buffer.h"
 #include "pdlfs-common/mutexlock.h"
 #include "policy.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
 #include "range_backend/mock_backend.h"
 #include "rtp.h"
-
-#pragma once
 
 namespace pdlfs {
 namespace carp {
@@ -24,12 +25,16 @@ struct CarpOptions {
   uint32_t num_ranks;
   uint32_t oob_sz;
   uint64_t reneg_intvl;
+  int rtp_pvtcnt[4];
 };
 
 class Carp {
  public:
   Carp(const CarpOptions& options)
       : options_(options),
+        cv_(&mutex_),
+        range_min_(0),
+        range_max_(0),
         rank_bins_(options_.num_ranks + 1, 0),
         rank_counts_(options_.num_ranks, 0),
         rank_counts_aggr_(options_.num_ranks, 0),
@@ -44,45 +49,40 @@ class Carp {
                    unsigned char data_len, unsigned char extra_data_len,
                    particle_mem_t& p);
 
-  Status AttemptBuffer(particle_mem_t& p, bool& shuffle) {
-    Status s = Status::OK();
+  Status AttemptBuffer(particle_mem_t& p, bool& shuffle);
+
+  /* AdvanceEpoch is also called before the first epoch,
+   * so it can't be assumed that the first epoch is e0
+   */
+  void AdvanceEpoch() {
     mutex_.Lock();
+    MainThreadState cur_state = mts_mgr_.get_state();
+    assert(cur_state != MainThreadState::MT_BLOCK);
 
-    bool can_buf = oob_buffer_.OutOfBounds(p.indexed_prop);
-    /* shuffle = true if we can't buffer */
-    shuffle = !can_buf;
+    Reset();
 
-    if (can_buf) {
-      /* XXX: check RV */
-      oob_buffer_.Insert(p);
-    }
-
-    /* reneg = true iff
-     * 1. Trigger returns true
-     * 2. OOB is full
-     * 3. Reneg is ongoing
-     */
-
-    bool reneg_ongoing = (mts_mgr_.get_state() != MainThreadState::MT_READY);
-    bool reneg =
-        policy_->TriggerReneg() || oob_buffer_.IsFull() || reneg_ongoing;
-
-    if (reneg) {
-      rtp_init_round(NULL);
-      MarkFlushableBufferedItems();
-    }
-
-    if (shuffle) {
-      AssignShuffleTarget(p);
-      if (p.shuffle_dest == -1) {
-        ABORT("Invalid shuffle target");
-      }
-    }
-
+    policy_->AdvanceEpoch();
     mutex_.Unlock();
   }
 
-  void AdvanceEpoch() { policy_->AdvanceEpoch(); }
+  OobFlushIterator OobIterator() { return OobFlushIterator(oob_buffer_); }
+
+  size_t OobSize() { return oob_buffer_.Size(); }
+
+  void UpdateState(MainThreadState new_state) {
+    mutex_.AssertHeld();
+    mts_mgr_.update_state(new_state);
+  }
+
+  MainThreadState GetCurState() {
+    mutex_.AssertHeld();
+    return mts_mgr_.get_state();
+  }
+
+  MainThreadState GetPrevState() {
+    mutex_.AssertHeld();
+    return mts_mgr_.get_prev_state();
+  }
 
  private:
   void AssignShuffleTarget(particle_mem_t& p) {
@@ -119,21 +119,26 @@ class Carp {
   }
 
   bool Reset() {
-    mutex_.Lock();
-    range_.Reset();
+    mutex_.AssertHeld();
+    mts_mgr_.reset();
+    range_min_ = 0;
+    range_max_ = 0;
     std::fill(rank_counts_.begin(), rank_counts_.end(), 0);
     std::fill(rank_counts_aggr_.begin(), rank_counts_aggr_.end(), 0);
     oob_buffer_.Reset();
-    mutex_.Unlock();
   }
 
  private:
   const CarpOptions& options_;
   MainThreadStateMgr mts_mgr_;
 
+ public:
+  /* XXX: temporary, refactor RTP/perfstats as friend classes */
   port::Mutex mutex_;
+  port::CondVar cv_;
 
-  Range range_;
+  double range_min_;
+  double range_max_;
 
   std::vector<float> rank_bins_;
   std::vector<float> rank_counts_;
@@ -145,8 +150,11 @@ class Carp {
   size_t my_pivot_count_;
   double my_pivot_width_;
 
+ private:
   friend class InvocationPolicy;
   InvocationPolicy* policy_;
+
+  friend class PivotUtils;
 };
 }  // namespace carp
 }  // namespace pdlfs

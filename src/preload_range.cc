@@ -642,7 +642,7 @@ void range_handle_reneg_acks(char *buf, unsigned int buf_sz) {
   return;
 }
 
-bool comp_particle(const pdlfs::particle_mem_t &a, const pdlfs::particle_mem_t &b) {
+bool comp_particle(const pdlfs::carp::particle_mem_t &a, pdlfs::carp::particle_mem_t &b) {
   return a.indexed_prop < b.indexed_prop;
 }
 
@@ -840,8 +840,8 @@ void take_snapshot(range_ctx_t *rctx) {
   snap.range_min = rctx->range_min;
   snap.range_max = rctx->range_max;
 
-  std::vector<pdlfs::particle_mem_t> &oob_left = rctx->oob_buffer_left;
-  std::vector<pdlfs::particle_mem_t> &oob_right = rctx->oob_buffer_right;
+  std::vector<pdlfs::carp::particle_mem_t> &oob_left = rctx->oob_buffer_left;
+  std::vector<pdlfs::carp::particle_mem_t> &oob_right = rctx->oob_buffer_right;
 
   int oob_count_left = rctx->oob_count_left;
   int oob_count_right = rctx->oob_count_right;
