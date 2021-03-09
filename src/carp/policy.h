@@ -16,18 +16,23 @@ class CarpOptions;
 class InvocationPolicy {
  public:
   InvocationPolicy(Carp& carp, const CarpOptions& options);
+  virtual bool BufferInOob(particle_mem_t& p);
   virtual bool TriggerReneg() = 0;
   virtual void AdvanceEpoch() = 0;
   virtual int ComputeShuffleTarget(particle_mem_t& p) = 0;
 
  protected:
-  int ComputeShuffleTarget(particle_mem_t& p, int& rank, int& num_ranks);
+  bool FirstRenegCompleted();
+
+  void Reset();
+
+  int ComputeShuffleTarget(particle_mem_t& p, int& rank);
 
   bool IsOobFull();
 
   uint32_t epoch_;
   uint64_t num_writes_;
-  const Carp& carp_;
+  Carp& carp_;
   const CarpOptions& options_;
 };
 
@@ -38,14 +43,14 @@ class InvocationPeriodic : public InvocationPolicy {
   bool TriggerReneg() override;
 
   void AdvanceEpoch() override {
+    Reset();
     epoch_++;
     num_writes_ = 0;
   }
 
   int ComputeShuffleTarget(particle_mem_t& p) override {
     int rank;
-    int num_ranks;
-    InvocationPolicy::ComputeShuffleTarget(p, rank, num_ranks);
+    InvocationPolicy::ComputeShuffleTarget(p, rank);
     return rank;
   }
 
@@ -58,30 +63,17 @@ class InvocationPerEpoch : public InvocationPolicy {
   InvocationPerEpoch(Carp& carp, const CarpOptions& options)
       : InvocationPolicy(carp, options), reneg_triggered_(false) {}
 
-  bool TriggerReneg() override {
-    if (!reneg_triggered_ && InvocationPolicy::IsOobFull()) {
-      reneg_triggered_ = true;
-      return true;
-    } else {
-      return false;
-    }
-  }
+  bool BufferInOob(particle_mem_t& p) override { return !reneg_triggered_; }
+
+  bool TriggerReneg() override;
 
   void AdvanceEpoch() override {
+    Reset();
     epoch_++;
     reneg_triggered_ = false;
   }
 
-  int ComputeShuffleTarget(particle_mem_t& p) override {
-    int rank;
-    int num_ranks;
-    InvocationPolicy::ComputeShuffleTarget(p, rank, num_ranks);
-    /* dump all unseen particles into the last rank */
-    if (rank == num_ranks) {
-      rank = num_ranks - 1;
-    }
-    return rank;
-  }
+  int ComputeShuffleTarget(particle_mem_t& p) override;
 
  private:
   bool reneg_triggered_;
@@ -91,6 +83,7 @@ class InvocationOnce : public InvocationPerEpoch {
  public:
   InvocationOnce(Carp& carp, const CarpOptions& options)
       : InvocationPerEpoch(carp, options) {}
+  // Don't reset
   void AdvanceEpoch() override { epoch_++; }
 };
 }  // namespace carp

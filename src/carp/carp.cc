@@ -37,13 +37,16 @@ Status Carp::AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
   Status s = Status::OK();
   mutex_.Lock();
 
-  bool can_buf = oob_buffer_.OutOfBounds(p.indexed_prop);
+  bool can_buf = policy_->BufferInOob(p);
   /* shuffle = true if we can't buffer */
   shuffle = !can_buf;
 
   if (can_buf) {
     /* XXX: check RV */
-    oob_buffer_.Insert(p);
+    int rv = oob_buffer_.Insert(p);
+    if (rv < 0) {
+      logf(LOG_INFO, "OOB Insert failed: %d\n", options_.my_rank);
+    }
   }
 
   /* reneg = true iff
@@ -53,7 +56,7 @@ Status Carp::AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
    */
 
   bool reneg_ongoing = (mts_mgr_.get_state() != MainThreadState::MT_READY);
-  bool reneg = policy_->TriggerReneg() || oob_buffer_.IsFull() || reneg_ongoing;
+  bool reneg = policy_->TriggerReneg() || reneg_ongoing;
 
   /* Attempt a flush if reneg happened */
   flush = reneg;

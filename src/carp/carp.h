@@ -45,7 +45,10 @@ class Carp {
         my_pivot_count_(0),
         my_pivot_width_(0),
         policy_(nullptr) {
-    policy_ = new InvocationPeriodic(*this, options_);
+    // not really necessary
+    Reset();
+    // policy_ = new InvocationPeriodic(*this, options_);
+    policy_ = new InvocationOnce(*this, options_);
   }
 
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
@@ -62,16 +65,13 @@ class Carp {
     mutex_.Lock();
     MainThreadState cur_state = mts_mgr_.get_state();
     assert(cur_state != MainThreadState::MT_BLOCK);
-
-    Reset();
-
     policy_->AdvanceEpoch();
     mutex_.Unlock();
   }
 
   OobFlushIterator OobIterator() { return OobFlushIterator(oob_buffer_); }
 
-  size_t OobSize() { return oob_buffer_.Size(); }
+  size_t OobSize() const { return oob_buffer_.Size(); }
 
   void UpdateState(MainThreadState new_state) {
     mutex_.AssertHeld();
@@ -107,12 +107,12 @@ class Carp {
     }
   }
 
-  float GetIndexedAttr(const char* data_buf, unsigned int data_len) {
+  static float GetIndexedAttr(const char* data_buf, unsigned int data_len) {
     const float* prop = reinterpret_cast<const float*>(data_buf);
     return prop[0];
   }
 
-  float GetIndexedAttrAlt(const char* data_buf, unsigned int data_len) {
+  static float GetIndexedAttrAlt(const char* data_buf, unsigned int data_len) {
     assert(data_len >= 7 * sizeof(float));
     const float* p_ar = reinterpret_cast<const float*>(data_buf);
     const float ux = p_ar[4];
@@ -122,6 +122,7 @@ class Carp {
     return sqrt(ux * ux + uy * uy + uz * uz);
   }
 
+  /* Not called directly - up to the invocation policy */
   bool Reset() {
     mutex_.AssertHeld();
     mts_mgr_.reset();

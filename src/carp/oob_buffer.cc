@@ -8,6 +8,8 @@
 
 #include <algorithm>
 
+#include "common.h"
+
 namespace pdlfs {
 namespace carp {
 OobBuffer::OobBuffer(const size_t oob_max_sz) : oob_max_sz_(oob_max_sz) {
@@ -27,10 +29,12 @@ int OobBuffer::Insert(particle_mem_t& item) {
 
   if (range_set_ and prop > range_min_ and prop < range_max_) {
     rv = -1;
+    logf(LOG_WARN, "[OOB] Buffering of in-bounds item attempted");
     return rv;
   }
 
   if (buf_.size() >= oob_max_sz_) {
+    logf(LOG_WARN, "[OOB] Overflow alert");
     return -1;
   }
 
