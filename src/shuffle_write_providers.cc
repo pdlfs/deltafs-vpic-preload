@@ -200,12 +200,13 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
   pctx.carp->Serialize(fname, fname_len, data, data_len, ctx->extra_data_len,
                        p);
 
+  bool flush_oob;
   bool shuffle_now;
   /* AttemptBuffer will renegotiate internally if required */
-  pctx.carp->AttemptBuffer(p, shuffle_now);
+  pctx.carp->AttemptBuffer(&(pctx.rtp_ctx), p, shuffle_now, flush_oob);
   peer_rank = p.shuffle_dest;
 
-  if (pctx.carp->OobSize()) {
+  if (flush_oob and pctx.carp->OobSize()) {
     shuffle_flush_oob(epoch);
   }
 

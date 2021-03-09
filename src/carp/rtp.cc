@@ -666,10 +666,13 @@ int rtp_handle_pivot_bcast(rtp_ctx_t rctx, char* buf, unsigned int buf_sz,
     replay_rtp_begin_flag = true;
     rctx->state_mgr.update_state(RenegState::READYBLOCK);
     carp->UpdateState(MainThreadState::MT_REMAIN_BLOCKED);
+    logf(LOG_DBUG, "[CARP] Rank %d: continuing to round %d\n", rctx->my_rank,
+         rctx->round_num);
   } else {
     /* Next round has not started yet, we're READY */
     rctx->state_mgr.update_state(RenegState::READY);
     carp->UpdateState(MainThreadState::MT_READY);
+    logf(LOG_DBUG, "[CARP] Rank %d: RTP finished, READY\n", rctx->my_rank);
   }
 
   pthread_mutex_unlock(&(rctx->reneg_mutex));

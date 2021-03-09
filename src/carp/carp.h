@@ -16,12 +16,15 @@
 #include "policy.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
 #include "range_backend/mock_backend.h"
-#include "rtp.h"
 
 namespace pdlfs {
+/* forward declaration */
+struct rtp_ctx;
+
 namespace carp {
 
 struct CarpOptions {
+  uint32_t my_rank;
   uint32_t num_ranks;
   uint32_t oob_sz;
   uint64_t reneg_intvl;
@@ -42,14 +45,15 @@ class Carp {
         my_pivot_count_(0),
         my_pivot_width_(0),
         policy_(nullptr) {
-    policy_ = new InvocationPeriodic(*this, options_.reneg_intvl);
+    policy_ = new InvocationPeriodic(*this, options_);
   }
 
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
                    unsigned char data_len, unsigned char extra_data_len,
                    particle_mem_t& p);
 
-  Status AttemptBuffer(particle_mem_t& p, bool& shuffle);
+  Status AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
+                       bool& flush);
 
   /* AdvanceEpoch is also called before the first epoch,
    * so it can't be assumed that the first epoch is e0

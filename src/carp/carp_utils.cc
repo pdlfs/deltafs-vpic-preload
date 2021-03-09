@@ -10,10 +10,10 @@
 #include "range_common.h"
 
 /**** FOR DEBUGGING ****/
-#define PRINTBUF_LEN 16384
+#define PRINTBUF_LEN 32768
 
-static char rs_pb_buf[16384];
-static char rs_pb_buf2[16384];
+static char rs_pb_buf[65536];
+static char rs_pb_buf2[65536];
 
 static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
                        int vlen) {
@@ -302,11 +302,13 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     oob_idx = next_idx;
   }
 
+#define ERRLIM 1e0
+
   if (cur_pivot == num_pivots) {
-    assert(fabs(particles_carried_over) < 1e-1);
+    assert(fabs(particles_carried_over) < ERRLIM);
   } else if (cur_pivot == num_pivots - 1) {
-    assert(fabs(particles_carried_over) < 1e-1 or
-           fabs(particles_carried_over - part_per_pivot) < 1e-1);
+    assert(fabs(particles_carried_over) < ERRLIM or
+           fabs(particles_carried_over - part_per_pivot) < ERRLIM);
   } else {
     /* shouldn't happen */
     assert(false);

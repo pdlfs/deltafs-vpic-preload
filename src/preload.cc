@@ -486,9 +486,9 @@ static void preload_init() {
 
   tmp = maybe_getenv("RANGE_Reneg_interval");
   if (tmp != NULL) {
-    pctx.carp_reneg_intvl = atoi(tmp);
+    pctx.opts->reneg_intvl = atoi(tmp);
   } else {
-    pctx.carp_reneg_intvl = pdlfs::kRenegInterval;
+    pctx.opts->reneg_intvl = pdlfs::kRenegInterval;
   }
 
   /* additional init can go here or MPI_Init() */
@@ -1329,6 +1329,7 @@ int MPI_Init(int* argc, char*** argv) {
   }
 
   pctx.opts->num_ranks = pctx.comm_sz;
+  pctx.opts->my_rank = pctx.my_rank;
   pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
   rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.carp, pctx.opts);
 

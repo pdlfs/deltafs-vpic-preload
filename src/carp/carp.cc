@@ -4,6 +4,8 @@
 
 #include "carp.h"
 
+#include "rtp.h"
+
 namespace pdlfs {
 namespace carp {
 Status Carp::Serialize(const char* fname, unsigned char fname_len, char* data,
@@ -30,7 +32,8 @@ Status Carp::Serialize(const char* fname, unsigned char fname_len, char* data,
   return s;
 }
 
-Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle) {
+Status Carp::AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
+                           bool& flush) {
   Status s = Status::OK();
   mutex_.Lock();
 
@@ -50,11 +53,13 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle) {
    */
 
   bool reneg_ongoing = (mts_mgr_.get_state() != MainThreadState::MT_READY);
-  bool reneg =
-      policy_->TriggerReneg() || oob_buffer_.IsFull() || reneg_ongoing;
+  bool reneg = policy_->TriggerReneg() || oob_buffer_.IsFull() || reneg_ongoing;
+
+  /* Attempt a flush if reneg happened */
+  flush = reneg;
 
   if (reneg) {
-    rtp_init_round(NULL);
+    rtp_init_round(rtp_ctx);
     MarkFlushableBufferedItems();
   }
 
