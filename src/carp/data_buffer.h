@@ -23,7 +23,7 @@ class DataBuffer {
    *
    * @param num_pivots Expected pivot_count for each stage
    */
-  DataBuffer(int num_pivots[STAGES_MAX + 1]);
+  DataBuffer(const int num_pivots[STAGES_MAX + 1]);
 
   /**
    * @brief Store pivots for the current round

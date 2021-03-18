@@ -176,8 +176,6 @@ typedef struct preload_ctx {
   pdlfs::carp::Carp* carp;
   pdlfs::carp::CarpOptions* opts;
 
-  struct pdlfs::rtp_ctx rtp_ctx;
-
   pdlfs::MockBackend* range_backend;
 } preload_ctx_t;
 

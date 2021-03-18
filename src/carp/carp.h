@@ -14,8 +14,10 @@
 #include "oob_buffer.h"
 #include "pdlfs-common/mutexlock.h"
 #include "policy.h"
+#include "preload_shuffle.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
 #include "range_backend/mock_backend.h"
+#include "rtp.h"
 
 namespace pdlfs {
 /* forward declaration */
@@ -29,12 +31,14 @@ struct CarpOptions {
   uint32_t oob_sz;
   uint64_t reneg_intvl;
   int rtp_pvtcnt[4];
+  shuffle_ctx_t* sctx;
 };
 
 class Carp {
  public:
   Carp(const CarpOptions& options)
       : options_(options),
+        rtp_(this, options_),
         cv_(&mutex_),
         range_min_(0),
         range_max_(0),
@@ -55,8 +59,7 @@ class Carp {
                    unsigned char data_len, unsigned char extra_data_len,
                    particle_mem_t& p);
 
-  Status AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
-                       bool& flush);
+  Status AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush);
 
   /* AdvanceEpoch is also called before the first epoch,
    * so it can't be assumed that the first epoch is e0
@@ -87,6 +90,12 @@ class Carp {
     mutex_.AssertHeld();
     return mts_mgr_.get_prev_state();
   }
+
+  Status HandleMessage(char* buf, unsigned int bufsz, int src) {
+    return rtp_.HandleMessage(buf, bufsz, src);
+  }
+
+  int NumRounds() const { return rtp_.NumRounds(); }
 
  private:
   void AssignShuffleTarget(particle_mem_t& p) {
@@ -136,6 +145,8 @@ class Carp {
  private:
   const CarpOptions& options_;
   MainThreadStateMgr mts_mgr_;
+
+  RTP rtp_;
 
  public:
   /* XXX: temporary, refactor RTP/perfstats as friend classes */

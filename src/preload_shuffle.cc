@@ -747,7 +747,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
     // range_handle_reneg_begin(buf, buf_sz);
     // return 0;
     case MSGFMT_RTP_MAGIC:
-      rtp_handle_message(&(pctx.rtp_ctx), buf, buf_sz, src);
+      pctx.carp->HandleMessage(buf, buf_sz, src);
       return 0;
     case MSGFMT_RENEG_PIVOTS:
       range_handle_reneg_pivots(buf, buf_sz, src);

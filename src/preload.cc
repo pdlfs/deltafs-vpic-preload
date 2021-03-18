@@ -1331,7 +1331,6 @@ int MPI_Init(int* argc, char*** argv) {
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
   pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
-  rtp_init(&(pctx.rtp_ctx), &(pctx.sctx), pctx.carp, pctx.opts);
 
   srand(pctx.my_rank);
 
@@ -1944,7 +1943,7 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "final stats...");
-    logf(LOG_INFO, "num renegotiations: %d\n", pctx.rtp_ctx.round_num);
+    logf(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
 
     pdlfs::ManifestAnalytics manifest_analytics(pctx.range_backend);
     manifest_analytics.PrintStats(&(pctx.perf_ctx));
@@ -1961,8 +1960,6 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "       > %.1f per rank",
          double(sum_pthreads) / pctx.comm_sz);
   }
-
-  rtp_destroy(&(pctx.rtp_ctx));
 
   delete pctx.carp;
   pctx.carp = nullptr;

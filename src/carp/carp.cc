@@ -32,8 +32,7 @@ Status Carp::Serialize(const char* fname, unsigned char fname_len, char* data,
   return s;
 }
 
-Status Carp::AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
-                           bool& flush) {
+Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
   Status s = Status::OK();
   mutex_.Lock();
 
@@ -62,7 +61,7 @@ Status Carp::AttemptBuffer(rtp_ctx* rtp_ctx, particle_mem_t& p, bool& shuffle,
   flush = reneg;
 
   if (reneg) {
-    rtp_init_round(rtp_ctx);
+    rtp_.InitRound();
     MarkFlushableBufferedItems();
   }
 

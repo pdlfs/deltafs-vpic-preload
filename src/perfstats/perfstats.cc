@@ -192,7 +192,7 @@ int perfstats_log_hooks(perfstats_ctx_t* perf_ctx, uint64_t timestamp) {
 }
 
 int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
-                        rtp_ctx_t rctx) {
+                        int my_rank, int round_num) {
   uint64_t timestamp = ::get_timestamp(perf_ctx);
 
   const char* const kRenegMassLabel = "RENEG_COUNTS";
@@ -205,7 +205,7 @@ int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
   char buf[buf_sz];
 
   buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx,
-                      "RANK%d_R%d: ", rctx->my_rank, rctx->round_num);
+                      "RANK%d_R%d: ", my_rank, round_num);
 
   std::vector<float>& counts = carp->rank_counts_;
   buf_idx +=

@@ -10,27 +10,6 @@
 #include "range_common.h"
 
 /**** FOR DEBUGGING ****/
-#define PRINTBUF_LEN 32768
-
-static char rs_pb_buf[65536];
-static char rs_pb_buf2[65536];
-
-static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
-                       int vlen) {
-  assert(v.size() >= vlen);
-
-  int start_ptr = 0;
-
-  for (int item = 0; item < vlen; item++) {
-    start_ptr +=
-        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.2f, ", v[item]);
-
-    if (PRINTBUF_LEN - start_ptr < 20) break;
-  }
-
-  return buf;
-}
-
 /* local functions */
 
 /* return true if a is smaller - we prioritize smaller bin_val
@@ -50,6 +29,41 @@ bool pmt_comp(const pdlfs::carp::particle_mem_t& a,
 
 namespace pdlfs {
 namespace carp {
+template <typename T>
+std::string PivotUtils::SerializeVector(std::vector<T>& v) {
+  std::string s;
+  for (size_t i = 0; i < v.size(); i++) {
+    T elem = v[i];
+    if (i == 0) {
+      s += std::to_string(elem);
+    } else {
+      s += "," + std::to_string(elem);
+    }
+  }
+
+  return s;
+}
+
+template <typename T>
+std::string PivotUtils::SerializeVector(T* v, size_t vsz) {
+  std::string s;
+  for (size_t i = 0; i < vsz; i++) {
+    T elem = v[i];
+    if (i == 0) {
+      s += std::to_string(elem);
+    } else {
+      s += "," + std::to_string(elem);
+    }
+  }
+
+  return s;
+}
+
+template std::string PivotUtils::SerializeVector<float>(std::vector<float>& v);
+template std::string PivotUtils::SerializeVector<double>(
+    std::vector<double>& v);
+template std::string PivotUtils::SerializeVector<double>(double* v, size_t vsz);
+
 int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
   carp->mutex_.AssertHeld();
 
@@ -189,9 +203,8 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
           "rbc: %s (%zu)\n"
           "bin: %s (%zu)\n",
           pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
-          particle_count, print_vec(rs_pb_buf, PRINTBUF_LEN, ff, ff.size()),
-          ff.size(), print_vec(rs_pb_buf2, PRINTBUF_LEN, gg, gg.size()),
-          gg.size());
+          particle_count, SerializeVector(ff).c_str(), ff.size(),
+          SerializeVector(gg).c_str(), gg.size());
   /**********************/
 
   float accumulated_ppp = 0;
@@ -403,6 +416,5 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
 
   return rv;
 }
-
 }  // namespace carp
 }  // namespace pdlfs

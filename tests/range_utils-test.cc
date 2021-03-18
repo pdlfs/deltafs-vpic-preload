@@ -204,6 +204,15 @@ TEST(RangeUtilsTest, PivotCalc8) {
   ::assert_monotonic(carp->my_pivots_, num_pivots);
 }
 
+TEST(RangeUtilsTest, PivotCalc9) {
+#include "pivot_calc_9_data.cc"  // NOLINT(bugprone-suspicious-include)
+  AdvancePastInit();
+  LoadData(oob_data, oob_data_sz);
+  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
+}
+
 }  // namespace pdlfs
 
 int main(int argc, char* argv[]) {

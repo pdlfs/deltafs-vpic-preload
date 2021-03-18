@@ -18,6 +18,11 @@ class Carp;
 
 class PivotUtils {
  public:
+  template <typename T>
+  static std::string SerializeVector(std::vector<T>& v);
+
+  template <typename T>
+  static std::string SerializeVector(T* v, size_t vsz);
   /**
    * @brief Calculate pivots from the current pivot_ctx state.
    * This also modifies OOB buffers (sorts them), but their order shouldn't

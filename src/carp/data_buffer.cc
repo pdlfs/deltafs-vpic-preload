@@ -3,7 +3,7 @@
 #include "rtp.h"
 
 namespace pdlfs {
-DataBuffer::DataBuffer(int num_pivots[STAGES_MAX + 1]) {
+DataBuffer::DataBuffer(const int num_pivots[STAGES_MAX + 1]) {
   memset(data_len, 0, sizeof(data_len));
 
   for (int sidx = 1; sidx <= STAGES_MAX; sidx++ ){

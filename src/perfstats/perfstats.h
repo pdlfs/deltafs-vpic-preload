@@ -7,10 +7,10 @@
 #include <stdio.h>
 #include <time.h>
 
+#include "carp/rtp.h"
 #include "common.h"
 #include "pdlfs-common/mutexlock.h"
 #include "range_common.h"
-#include "carp/rtp.h"
 #include "stat.h"
 
 #define PERFSTATS_MEM_SIZE 1
@@ -70,12 +70,13 @@ int perfstats_destroy(perfstats_ctx_t* perf_ctx);
  *
  * @param perf_ctx
  * @param carp
- * @param rctx
+ * @param my_rank
+ * @param round_num
  *
  * @return
  */
 int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
-                        rtp_ctx_t rctx);
+                        int my_rank, int round_num);
 
 /**
  * @brief
