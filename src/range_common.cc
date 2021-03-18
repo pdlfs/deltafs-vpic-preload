@@ -87,9 +87,9 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   } else if (IS_TRANS(MT_REMAIN_BLOCKED, MT_BLOCK)) {
     // accept
   } else {
-    logf(LOG_ERRO, "update_state @ R%d: %d to %d\n", pctx.my_rank, cur_state,
+    logf(LOG_ERRO, "UpdateState @ R%d: %d to %d\n", pctx.my_rank, cur_state,
          new_state);
-    ABORT("MainThreadStateMgr::update_state: unexpected transition");
+    ABORT("MainThreadStateMgr::UpdateState: unexpected transition");
   }
 #undef IS_TRANS
 

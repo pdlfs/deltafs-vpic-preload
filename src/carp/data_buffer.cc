@@ -4,41 +4,41 @@
 
 namespace pdlfs {
 DataBuffer::DataBuffer(const int num_pivots[STAGES_MAX + 1]) {
-  memset(data_len, 0, sizeof(data_len));
+  memset(data_len_, 0, sizeof(data_len_));
 
   for (int sidx = 1; sidx <= STAGES_MAX; sidx++ ){
-    this->num_pivots[sidx] = num_pivots[sidx];
+    this->num_pivots_[sidx] = num_pivots[sidx];
   }
 
-  this->cur_store_idx = 0;
+  this->cur_store_idx_ = 0;
 
   return;
 }
 
-int DataBuffer::store_data(int stage, double* pivot_data, int dlen,
+int DataBuffer::StoreData(int stage, double* pivot_data, int dlen,
                            double pivot_width, bool isnext) {
-  int sidx = this->cur_store_idx;
+  int sidx = this->cur_store_idx_;
   if (isnext) sidx = !sidx;
 
   if (stage < 1 || stage > 3) {
     return -1;
   }
 
-  if (data_len[sidx][stage] >= FANOUT_MAX) {
+  if (data_len_[sidx][stage] >= FANOUT_MAX) {
     return -2;
   }
 
-  if (dlen != num_pivots[stage]) {
-    logf(LOG_ERRO, "[DataBuffer] Expected %d, got %d\n", num_pivots[stage],
+  if (dlen != num_pivots_[stage]) {
+    logf(LOG_ERRO, "[DataBuffer] Expected %d, got %d\n", num_pivots_[stage],
          dlen);
     return -3;
   }
 
-  int idx = data_len[sidx][stage];
+  int idx = data_len_[sidx][stage];
 
-  memcpy(data_store[sidx][stage][idx], pivot_data, dlen * sizeof(double));
-  data_widths[sidx][stage][idx] = pivot_width;
-  int new_size = ++data_len[sidx][stage];
+  memcpy(data_store_[sidx][stage][idx], pivot_data, dlen * sizeof(double));
+  data_widths_[sidx][stage][idx] = pivot_width;
+  int new_size = ++data_len_[sidx][stage];
   assert(new_size > 0);
 
   logf(LOG_INFO, "Rank %d: new store size %d\n", -1, new_size);
@@ -46,49 +46,49 @@ int DataBuffer::store_data(int stage, double* pivot_data, int dlen,
   return new_size;
 }
 
-int DataBuffer::get_num_items(int stage, bool isnext) {
+int DataBuffer::GetNumItems(int stage, bool isnext) {
   if (stage < 1 || stage > STAGES_MAX) {
     return -1;
   }
 
-  int sidx = this->cur_store_idx;
+  int sidx = this->cur_store_idx_;
   if (isnext) sidx = !sidx;
 
-  return data_len[sidx][stage];
+  return data_len_[sidx][stage];
 }
 
-int DataBuffer::advance_round() {
-  int old_sidx = this->cur_store_idx;
-  memset(data_len[old_sidx], 0, sizeof(data_len[old_sidx]));
+int DataBuffer::AdvanceRound() {
+  int old_sidx = this->cur_store_idx_;
+  memset(data_len_[old_sidx], 0, sizeof(data_len_[old_sidx]));
 
-  this->cur_store_idx = !old_sidx;
+  this->cur_store_idx_ = !old_sidx;
   return 0;
 }
 
-int DataBuffer::clear_all_data() {
-  memset(data_len, 0, sizeof(data_len));
+int DataBuffer::ClearAllData() {
+  memset(data_len_, 0, sizeof(data_len_));
   return 0;
 }
 
-int DataBuffer::get_pivot_widths(int stage, std::vector<double>& widths) {
-  int sidx = this->cur_store_idx;
-  int item_count = data_len[sidx][stage];
+int DataBuffer::GetPivotWidths(int stage, std::vector<double>& widths) {
+  int sidx = this->cur_store_idx_;
+  int item_count = data_len_[sidx][stage];
   widths.resize(item_count);
-  std::copy(data_widths[sidx][stage], data_widths[sidx][stage] + item_count,
+  std::copy(data_widths_[sidx][stage], data_widths_[sidx][stage] + item_count,
             widths.begin());
   return 0;
 }
 
-int DataBuffer::load_into_rbvec(int stage, std::vector<rb_item_t>& rbvec) {
-  int sidx = this->cur_store_idx;
+int DataBuffer::LoadIntoRbvec(int stage, std::vector<rb_item_t>& rbvec) {
+  int sidx = this->cur_store_idx_;
 
-  int num_ranks = data_len[sidx][stage];
-  int bins_per_rank = num_pivots[stage];
+  int num_ranks = data_len_[sidx][stage];
+  int bins_per_rank = num_pivots_[stage];
 
   for (int rank = 0; rank < num_ranks; rank++) {
     for (int bidx = 0; bidx < bins_per_rank - 1; bidx++) {
-      double bin_start = data_store[sidx][stage][rank][bidx];
-      double bin_end = data_store[sidx][stage][rank][bidx + 1];
+      double bin_start = data_store_[sidx][stage][rank][bidx];
+      double bin_end = data_store_[sidx][stage][rank][bidx + 1];
 
       if (bin_start == bin_end) continue;
 

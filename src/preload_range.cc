@@ -324,7 +324,7 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
     logf(LOG_INFO,
          "Rank %d received %d pivots: %.1f to %.1f \
       (theirs: %d, ours: %d)\n",
-         pctx.my_rank, num_pivots, pivots[0], pivots[num_pivots - 1], round_num,
+         pctx.my_rank, num_pivots_, pivots[0], pivots[num_pivots_ - 1], round_num,
          pctx.rctx.pvt_round_num.load());
 #endif
 
@@ -347,7 +347,7 @@ void range_handle_reneg_pivots(char *buf, unsigned int buf_sz, int src_rank) {
     pctx.rctx.all_pivot_widths[src_rank] = pivot_width;
 
 #ifdef RANGE_DEBUG
-    for (int i = 0; i < num_pivots; i++) {
+    for (int i = 0; i < num_pivots_; i++) {
       fprintf(stderr, "Range pivot: %.1f\n",
               pctx.rctx.all_pivots[src_rank * RANGE_NUM_PIVOTS + i]);
     }

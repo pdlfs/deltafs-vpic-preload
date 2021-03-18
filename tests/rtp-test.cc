@@ -29,7 +29,7 @@ class RTPTest {
   }
 
   void AssertReady(RTP* rtp) {
-    ASSERT_EQ(rtp->state_.get_state(), RenegState::READY);
+    ASSERT_EQ(rtp->state_.GetState(), RenegState::READY);
   }
 
   uint64_t ValidateTopology(RTP* rtp) {

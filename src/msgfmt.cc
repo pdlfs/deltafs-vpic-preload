@@ -79,7 +79,7 @@ unsigned char msgfmt_get_msgtype(char* buf) { return buf[0]; }
 
 uint32_t msgfmt_nbytes_reneg_pivots(int num_pivots) {
   /* One extra float for pivot width */
-  /* XXX: we send num_pivots now, not num_pivots + 1 */
+  /* XXX: we send num_pivots_ now, not num_pivots_ + 1 */
   uint32_t data_bytes = (num_pivots + 1) * sizeof(double);
   /* One int for sender_rank, another for round_no  */
   uint32_t header = MSGFMT_TYPE_SIZE + 2 * sizeof(int);
@@ -96,7 +96,7 @@ void msgfmt_encode_reneg_pivots(char* buf, int buf_sz, int round_no,
   /* message type_id */
   buf[0] = MSGFMT_RENEG_PIVOTS;
   memcpy(buf + 1, &round_no, sizeof(int));
-  /* num_pivots */
+  /* num_pivots_ */
   memcpy(buf + 1 + sizeof(int), &num_pivots, sizeof(int));
   /* pivot width */
   memcpy(buf + 1 + 2 * sizeof(int), &pivot_width, sizeof(double));

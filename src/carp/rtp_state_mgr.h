@@ -15,21 +15,17 @@ enum RenegState {
 
 class RtpStateMgr {
  private:
-  RenegState current_state;
-  RenegState prev_state;
+  RenegState current_state_;
+  RenegState prev_state_;
 
-  int cur_round_num;
-  bool next_round_started;
+  int cur_round_num_;
+  bool next_round_started_;
 
  public:
   RtpStateMgr();
-
-  RenegState get_state();
-
-  RenegState update_state(RenegState new_state);
-
-  void mark_next_round_start(int round_num);
-
-  bool get_next_round_start();
+  RenegState GetState();
+  RenegState UpdateState(RenegState new_state);
+  void MarkNextRoundStart(int round_num);
+  bool GetNextRoundStart();
 };
 } // namespace pdlfs

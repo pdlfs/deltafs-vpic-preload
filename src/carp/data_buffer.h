@@ -10,12 +10,12 @@ class DataBuffer {
    * be incurred for ranks that aren't actually using those
    * stages. (Virtual Memory ftw)
    */
-  double data_store[2][STAGES_MAX + 1][FANOUT_MAX][kMaxPivots];
-  double data_widths[2][STAGES_MAX + 1][FANOUT_MAX];
-  int data_len[2][STAGES_MAX + 1];
+  double data_store_[2][STAGES_MAX + 1][FANOUT_MAX][kMaxPivots];
+  double data_widths_[2][STAGES_MAX + 1][FANOUT_MAX];
+  int data_len_[2][STAGES_MAX + 1];
 
-  int num_pivots[STAGES_MAX + 1];
-  int cur_store_idx;
+  int num_pivots_[STAGES_MAX + 1];
+  int cur_store_idx_;
 
  public:
   /**
@@ -36,7 +36,7 @@ class DataBuffer {
    *
    * @return errno if < 0, else num_items in store for the stage
    */
-  int store_data(int stage, double* pivot_data, int dlen, double pivot_width,
+  int StoreData(int stage, double* pivot_data, int dlen, double pivot_width,
                  bool isnext);
 
   /**
@@ -47,14 +47,14 @@ class DataBuffer {
    *
    * @return
    */
-  int get_num_items(int stage, bool isnext);
+  int GetNumItems(int stage, bool isnext);
 
   /**
    * @brief Clear all data for current round, set next round data as cur
    *
    * @return errno or 0
    */
-  int advance_round();
+  int AdvanceRound();
 
   /**
    * @brief A somewhat hacky way to get pivot width arrays withouy copying
@@ -63,7 +63,7 @@ class DataBuffer {
    *
    * @return
    */
-  int get_pivot_widths(int stage, std::vector<double>& widths);
+  int GetPivotWidths(int stage, std::vector<double>& widths);
 
   /**
    * @brief
@@ -73,13 +73,13 @@ class DataBuffer {
    *
    * @return
    */
-  int load_into_rbvec(int stage, std::vector<rb_item_t>& rbvec);
+  int LoadIntoRbvec(int stage, std::vector<rb_item_t>& rbvec);
 
   /**
    * @brief Clear ALL data (both current round and next). Use with caution.
    *
    * @return
    */
-  int clear_all_data();
+  int ClearAllData();
 };
 }  // namespace pdlfs

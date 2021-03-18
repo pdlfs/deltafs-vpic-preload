@@ -126,7 +126,7 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
       round_num_(0),
       my_rank_(opts.my_rank),
       num_ranks_(opts.num_ranks) {
-  if (state_.get_state() != RenegState::INIT) {
+  if (state_.GetState() != RenegState::INIT) {
     logf(LOG_ERRO, "rtp_init: can initialize only in init stage\n");
     return;
   }
@@ -168,7 +168,7 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
   Status s = InitTopology();
 
   if (s.ok()) {
-    state_.update_state(RenegState::READY);
+    state_.UpdateState(RenegState::READY);
   }
 }
 
@@ -178,12 +178,12 @@ Status RTP::InitRound() {
   carp_->mutex_.AssertHeld();
   mutex_.Lock();
 
-  if (state_.get_state() == RenegState::READY) {
+  if (state_.GetState() == RenegState::READY) {
     s = BroadcastBegin();
-    state_.update_state(RenegState::READYBLOCK);
+    state_.UpdateState(RenegState::READYBLOCK);
   }
 
-  while (state_.get_state() != RenegState::READY) {
+  while (state_.GetState() != RenegState::READY) {
     carp_->cv_.Wait();
   }
 
@@ -220,7 +220,7 @@ int RTP::NumRounds() const { return round_num_; }
 Status RTP::InitTopology() {
   Status s = Status::OK();
 
-  if (state_.get_state() != RenegState::INIT) {
+  if (state_.GetState() != RenegState::INIT) {
     logf(LOG_DBUG, "rtp_topology_init: can initialize only in init stage\n");
     return Status::AssertionFailed("RTP: Not in INIT state");
   }
@@ -347,16 +347,16 @@ Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
          "Stale RENEG_BEGIN received at Rank %d, dropping"
          "(theirs: %d, ours: %d)\n",
          my_rank_, msg_round_num, round_num_);
-  } else if (state_.get_state() == RenegState::READY ||
-             state_.get_state() == RenegState::READYBLOCK) {
+  } else if (state_.GetState() == RenegState::READY ||
+             state_.GetState() == RenegState::READYBLOCK) {
     /* If we're ready for Round R, no way we can receive R+1 first */
     assert(msg_round_num == round_num_);
     carp_->UpdateState(MainThreadState::MT_BLOCK);
-    state_.update_state(RenegState::PVTSND);
+    state_.UpdateState(RenegState::PVTSND);
     reneg_bench_.MarkActive();
     activated_now = true;
   } else if (msg_round_num == round_num_ + 1) {
-    state_.mark_next_round_start(msg_round_num);
+    state_.MarkNextRoundStart(msg_round_num);
   } else if (msg_round_num != round_num_) {
     /* If round_nums are equal, msg is duplicate and DROP */
     ABORT("rtp_handle_rtp_begin: unexpected msg_round_num recvd");
@@ -447,7 +447,7 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
   fanout_[(stage_idx)] == (item_count)
 
   if (msg_round_num != round_num_) {
-    stage_pivot_count = data_buffer_.store_data(
+    stage_pivot_count = data_buffer_.StoreData(
         stage_num, pivots, num_pivots, pivot_width, /* isnextround */ true);
 
     /* If we're receiving a pivot for a future round, we can never have
@@ -460,7 +460,7 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
      */
     assert(!EXPECTED_ITEMS_FOR_STAGE(stage_num, stage_pivot_count));
   } else {
-    stage_pivot_count = data_buffer_.store_data(
+    stage_pivot_count = data_buffer_.StoreData(
         stage_num, pivots, num_pivots, pivot_width, /*isnextround */ false);
   }
   mutex_.Unlock();
@@ -508,7 +508,7 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
 
       reneg_bench_.MarkPvtBcast();
 
-      /* XXX: num_pivots = comm_sz, 2048B IS NOT SUFFICIENT */
+      /* XXX: num_pivots_ = comm_sz, 2048B IS NOT SUFFICIENT */
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
@@ -533,7 +533,7 @@ Status RTP::HandlePivotBroadcast(char* buf, unsigned int bufsz, int src) {
 
   mutex_.Lock();
 
-  RenegState rstate = state_.get_state();
+  RenegState rstate = state_.GetState();
 
   if (rstate != RenegState::PVTSND) {
     ABORT("rtp_handle_pivot_bcast: unexpected pivot bcast");
@@ -578,19 +578,19 @@ Status RTP::HandlePivotBroadcast(char* buf, unsigned int bufsz, int src) {
 
   PivotUtils::UpdatePivots(carp_, pivots, num_pivots);
 
-  data_buffer_.advance_round();
+  data_buffer_.AdvanceRound();
   round_num_++;
 
-  if (state_.get_next_round_start()) {
+  if (state_.GetNextRoundStart()) {
     /* Next round has started, keep main thread sleeping and participate */
     replay_rtp_begin_flag = true;
-    state_.update_state(RenegState::READYBLOCK);
+    state_.UpdateState(RenegState::READYBLOCK);
     carp_->UpdateState(MainThreadState::MT_REMAIN_BLOCKED);
     logf(LOG_DBUG, "[CARP] Rank %d: continuing to round %d\n", my_rank_,
          round_num_);
   } else {
     /* Next round has not started yet, we're READY */
-    state_.update_state(RenegState::READY);
+    state_.UpdateState(RenegState::READY);
     carp_->UpdateState(MainThreadState::MT_READY);
     logf(LOG_DBUG, "[CARP] Rank %d: RTP finished, READY\n", my_rank_);
   }
@@ -642,8 +642,8 @@ void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
 
   double sample_width;
 
-  data_buffer_.load_into_rbvec(stage_num, rbvec);
-  data_buffer_.get_pivot_widths(stage_num, pivot_widths);
+  data_buffer_.LoadIntoRbvec(stage_num, rbvec);
+  data_buffer_.GetPivotWidths(stage_num, pivot_widths);
 
   pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_widths,
               fanout_[stage_num]);

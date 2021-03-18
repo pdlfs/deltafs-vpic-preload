@@ -347,7 +347,7 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
   double updend = pivots[num_pivots - 1];
 
   // carp->range_min = pivots[0];
-  // carp->range_max = pivots[num_pivots - 1];
+  // carp->range_max = pivots[num_pivots_ - 1];
   if (!carp->mts_mgr_.first_block()) {
     assert(float_lte(updbeg, pvtbeg));
     assert(float_gte(updend, pvtend));
@@ -403,7 +403,7 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
    * i.e., if range_min is 0.63, and OOBs are empty, then
    * oob_min (= 0) needs to be ignored
    */
-  // if (prev_state == MainThreadState::MT_INIT) {
+  // if (prev_state_ == MainThreadState::MT_INIT) {
   if (carp->mts_mgr_.first_block()) {
     range_start = oob_min;
   } else if (oobl_sz) {

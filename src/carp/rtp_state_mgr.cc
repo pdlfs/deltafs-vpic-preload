@@ -9,15 +9,15 @@
 namespace pdlfs {
 
 RtpStateMgr::RtpStateMgr()
-    : current_state{INIT},
-      prev_state{INIT},
-      next_round_started{false},
-      cur_round_num{0} {}
+    : current_state_{INIT},
+      prev_state_{INIT},
+      next_round_started_{false},
+      cur_round_num_{0} {}
 
-RenegState RtpStateMgr::get_state() { return this->current_state; }
+RenegState RtpStateMgr::GetState() { return this->current_state_; }
 
-RenegState RtpStateMgr::update_state(RenegState new_state) {
-  RenegState cur_state = this->current_state;
+RenegState RtpStateMgr::UpdateState(RenegState new_state) {
+  RenegState cur_state = this->current_state_;
 
 #define IS_TRANS(a, b) (cur_state == (a) && new_state == (b))
 
@@ -31,30 +31,30 @@ RenegState RtpStateMgr::update_state(RenegState new_state) {
     // allow
   } else if (IS_TRANS(PVTSND, READY)) {
     /* READY or READYBLOCK represent state machine entering the next round */
-    this->next_round_started = false;
-    this->cur_round_num++;
+    this->next_round_started_ = false;
+    this->cur_round_num_++;
   } else if (IS_TRANS(PVTSND, READYBLOCK)) {
-    this->next_round_started = false;
-    this->cur_round_num++;
+    this->next_round_started_ = false;
+    this->cur_round_num_++;
   } else {
-    ABORT("RtpStateMgr::update_state: unexpected transition");
+    ABORT("RtpStateMgr::UpdateState: unexpected transition");
   }
 
-  this->prev_state = this->current_state;
-  this->current_state = new_state;
+  this->prev_state_ = this->current_state_;
+  this->current_state_ = new_state;
 
-  return this->prev_state;
+  return this->prev_state_;
 
 #undef IS_TRANS
 }
 
-void RtpStateMgr::mark_next_round_start(int round_num) {
-  if (round_num != this->cur_round_num + 1) {
-    ABORT("RtpStateMgr::mark_next_round_start: wrong round_num");
+void RtpStateMgr::MarkNextRoundStart(int round_num) {
+  if (round_num != this->cur_round_num_ + 1) {
+    ABORT("RtpStateMgr::MarkNextRoundStart: wrong round_num");
   }
 
-  this->next_round_started = true;
+  this->next_round_started_ = true;
 }
 
-bool RtpStateMgr::get_next_round_start() { return this->next_round_started; }
+bool RtpStateMgr::GetNextRoundStart() { return this->next_round_started_; }
 }  // namespace pdlfs
