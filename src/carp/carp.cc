@@ -33,8 +33,8 @@ Status Carp::Serialize(const char* fname, unsigned char fname_len, char* data,
 }
 
 Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
+  MutexLock ml(&mutex_);
   Status s = Status::OK();
-  mutex_.Lock();
 
   bool can_buf = policy_->BufferInOob(p);
   /* shuffle = true if we can't buffer */
@@ -54,7 +54,7 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
    * 3. Reneg is ongoing
    */
 
-  bool reneg_ongoing = (mts_mgr_.get_state() != MainThreadState::MT_READY);
+  bool reneg_ongoing = (mts_mgr_.GetState() != MainThreadState::MT_READY);
   bool reneg = policy_->TriggerReneg() || reneg_ongoing;
 
   /* Attempt a flush if reneg happened */
@@ -72,7 +72,6 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
     }
   }
 
-  mutex_.Unlock();
   return s;
 }
 }  // namespace carp

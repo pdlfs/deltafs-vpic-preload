@@ -58,16 +58,16 @@ bool pmt_comp(const pdlfs::carp::particle_mem_t& a, const pdlfs::carp::particle_
 }  // namespace
 
 MainThreadStateMgr::MainThreadStateMgr()
-    : current_state{MT_INIT}, prev_state{MT_INIT}, first_block_(true) {};
+    : current_state_{MT_INIT}, prev_state_{MT_INIT}, first_block_(true) {};
 
-MainThreadState MainThreadStateMgr::get_state() { return this->current_state; }
+MainThreadState MainThreadStateMgr::GetState() { return this->current_state_; }
 
-MainThreadState MainThreadStateMgr::get_prev_state() {
-  return this->prev_state;
+MainThreadState MainThreadStateMgr::GetPrevState() {
+  return this->prev_state_;
 }
 
-MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
-  MainThreadState cur_state = this->current_state;
+MainThreadState MainThreadStateMgr::UpdateState(MainThreadState new_state) {
+  MainThreadState cur_state = this->current_state_;
 
 #define IS_TRANS(a, b) \
   (cur_state == (MainThreadState::a) && new_state == (MainThreadState::b))
@@ -93,19 +93,19 @@ MainThreadState MainThreadStateMgr::update_state(MainThreadState new_state) {
   }
 #undef IS_TRANS
 
-  this->prev_state = this->current_state;
-  this->current_state = new_state;
+  this->prev_state_ = this->current_state_;
+  this->current_state_ = new_state;
 
-  return this->prev_state;
+  return this->prev_state_;
 }
 
-void MainThreadStateMgr::reset() {
-  this->prev_state = this->current_state;
-  this->current_state = MainThreadState::MT_READY;
+void MainThreadStateMgr::Reset() {
+  this->prev_state_ = this->current_state_;
+  this->current_state_ = MainThreadState::MT_READY;
   first_block_ = true;
 }
 
-bool MainThreadStateMgr::first_block() const {
+bool MainThreadStateMgr::FirstBlock() const {
   return first_block_;
 }
 

@@ -19,7 +19,7 @@ bool InvocationPolicy::BufferInOob(particle_mem_t& p) {
 }
 
 bool InvocationPolicy::FirstRenegCompleted() {
-  return !carp_.mts_mgr_.first_block();
+  return !carp_.mts_mgr_.FirstBlock();
 }
 
 void InvocationPolicy::Reset() { carp_.Reset(); }
@@ -33,7 +33,7 @@ int InvocationPolicy::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
 }
 
 bool InvocationPolicy::IsOobFull() {
-  logf(LOG_WARN, "OOB size: %zu\n", carp_.oob_buffer_.Size());
+  // logf(LOG_WARN, "OOB size: %zu\n", carp_.oob_buffer_.Size());
   return carp_.oob_buffer_.IsFull();
 }
 

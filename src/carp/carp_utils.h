@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <string>
 #include <vector>
 
 #include "carp/oob_buffer.h"

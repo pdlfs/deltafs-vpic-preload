@@ -83,7 +83,7 @@ class InvocationOnce : public InvocationPerEpoch {
  public:
   InvocationOnce(Carp& carp, const CarpOptions& options)
       : InvocationPerEpoch(carp, options) {}
-  // Don't reset
+  // Don't Reset
   void AdvanceEpoch() override { epoch_++; }
 };
 }  // namespace carp
