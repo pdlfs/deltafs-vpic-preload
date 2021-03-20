@@ -145,14 +145,14 @@ void range_ctx_init(range_ctx_t *rctx) {
   std::fill(rctx->ranks_acked_next.begin(), rctx->ranks_acked_next.end(),
             false);
 
-  /* Round number is never reset, it keeps monotonically increasing
+  /* Round number is never Reset, it keeps monotonically increasing
    * even through all the epochs */
   rctx->nneg_round_num = 0;
 
   rctx->pvt_round_num = 0;
   rctx->ack_round_num = 0;
 
-  /* Ranks_responded is reset after the end of the previous round
+  /* Ranks_responded is Reset after the end of the previous round
    * because when the next round starts is ambiguous and either
    * a RENEG ACK or a RENEG PIVOT can initiate the next round
    */
@@ -165,7 +165,7 @@ void range_ctx_init(range_ctx_t *rctx) {
 }
 
 void range_ctx_reset(range_ctx_t *rctx) {
-  /* reset range stats */
+  /* Reset range stats */
   std::lock_guard<std::mutex> balg(pctx.rctx.bin_access_m);
 
   assert(range_state_t::RS_RENEGO != pctx.rctx.range_state);

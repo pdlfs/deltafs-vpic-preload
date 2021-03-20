@@ -1330,6 +1330,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
+  pctx.opts->sctx = &(pctx.sctx);
   pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
 
   srand(pctx.my_rank);
@@ -2210,7 +2211,7 @@ int opendir_impl(const char* dir) {
 
   if (!pctx.nomon) {
     mon_reinit(&pctx.mctx); /* clear mon stats */
-    /* reset epoch id */
+    /* Reset epoch id */
     pctx.mctx.epoch_seq = num_eps;
 
     pctx.epoch_start = start; /* record epoch start */

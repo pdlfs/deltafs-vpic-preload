@@ -71,14 +71,14 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
 
   int rv = 0;
 
-  const MainThreadState prev_state = carp->mts_mgr_.get_prev_state();
-  const MainThreadState cur_state = carp->mts_mgr_.get_state();
+  const MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
+  const MainThreadState cur_state = carp->mts_mgr_.GetState();
 
   carp->my_pivot_width_ = 0;
 
   assert(cur_state == MainThreadState::MT_BLOCK);
 
-  if (carp->mts_mgr_.first_block()) {
+  if (carp->mts_mgr_.FirstBlock()) {
     rv = CalculatePivotsFromOob(carp, num_pivots);
   } else {
     rv = CalculatePivotsFromAll(carp, num_pivots);
@@ -348,7 +348,7 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
 
   // carp->range_min = pivots[0];
   // carp->range_max = pivots[num_pivots_ - 1];
-  if (!carp->mts_mgr_.first_block()) {
+  if (!carp->mts_mgr_.FirstBlock()) {
     assert(float_lte(updbeg, pvtbeg));
     assert(float_gte(updend, pvtend));
   }
@@ -396,7 +396,7 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
     assert(oobl_max <= oobr_max);
   }
 
-  MainThreadState prev_state = carp->mts_mgr_.get_prev_state();
+  MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
 
   /* Since our default value is zero, min needs to obtained
    * complex-ly, while max is just max
@@ -404,7 +404,7 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
    * oob_min (= 0) needs to be ignored
    */
   // if (prev_state_ == MainThreadState::MT_INIT) {
-  if (carp->mts_mgr_.first_block()) {
+  if (carp->mts_mgr_.FirstBlock()) {
     range_start = oob_min;
   } else if (oobl_sz) {
     range_start = std::min(oob_min, carp->range_min_);

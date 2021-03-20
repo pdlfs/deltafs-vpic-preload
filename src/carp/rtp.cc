@@ -80,7 +80,7 @@ int compute_fanout_better(int world_sz, int* fo_arr) {
   return rv;
 }
 
-int compute_fanout(int world_sz, int* fo_arr) {
+int compute_fanout(const int world_sz, int* fo_arr) {
   int rv = 0;
 
   /* Init fanout of the tree for each stage */
@@ -183,11 +183,12 @@ Status RTP::InitRound() {
     state_.UpdateState(RenegState::READYBLOCK);
   }
 
-  while (state_.GetState() != RenegState::READY) {
+  mutex_.Unlock();
+
+  while (carp_->GetCurState() != MainThreadState::MT_READY) {
     carp_->cv_.Wait();
   }
 
-  mutex_.Unlock();
   return s;
 }
 
@@ -306,6 +307,8 @@ Status RTP::SendToAll(int stage, const char* buf, int bufsz,
 
     xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0, drank, my_rank_);
   }
+
+  return Status::OK();
 }
 
 Status RTP::SendToChildren(const char* buf, int bufsz, bool exclude_self) {
@@ -371,8 +374,10 @@ Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
     /* Can reuse the same RTP_BEGIN buf. src_rank is anyway sent separately
      * If we're an S3 root, prioritize Stage 3 sending first, so as to
      * trigger other leaf broadcasts in parallel
+     *
+     * Explicitly also send to self
      * */
-    SendToChildren(buf, bufsz);
+    SendToChildren(buf, bufsz, /* exclude_self */ false);
 
     /* send pivots to s1root now */
     const int stage_idx = 1;
@@ -444,7 +449,7 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
   int stage_pivot_count = 0;
 
 #define EXPECTED_ITEMS_FOR_STAGE(stage_idx, item_count) \
-  fanout_[(stage_idx)] == (item_count)
+  (fanout_[(stage_idx)] == (item_count))
 
   if (msg_round_num != round_num_) {
     stage_pivot_count = data_buffer_.StoreData(
@@ -561,7 +566,7 @@ Status RTP::HandlePivotBroadcast(char* buf, unsigned int bufsz, int src) {
     logf(LOG_INFO, "-- carp round %d completed at rank 0 --\n", round_num_);
   }
 
-  /* Install pivots, reset state, and signal back to the main thread */
+  /* Install pivots, Reset state, and signal back to the main thread */
   bool replay_rtp_begin_flag = false;
 
   /* If next round has already started, replay its messages from buffers.

@@ -44,22 +44,17 @@ enum MainThreadState {
 
 class MainThreadStateMgr {
  private:
-  MainThreadState current_state;
-  MainThreadState prev_state;
+  MainThreadState current_state_;
+  MainThreadState prev_state_;
   bool first_block_;
 
  public:
   MainThreadStateMgr();
-
-  MainThreadState get_state();
-
-  MainThreadState get_prev_state();
-
-  MainThreadState update_state(MainThreadState new_state);
-
-  void reset();
-
-  bool first_block() const;
+  MainThreadState GetState();
+  MainThreadState GetPrevState();
+  MainThreadState UpdateState(MainThreadState new_state);
+  void Reset();
+  bool FirstBlock() const;
 };
 
 typedef struct pivot_ctx {

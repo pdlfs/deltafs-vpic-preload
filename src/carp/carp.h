@@ -49,10 +49,11 @@ class Carp {
         my_pivot_count_(0),
         my_pivot_width_(0),
         policy_(nullptr) {
-    // not really necessary
+    MutexLock ml(&mutex_);
+    // necessary to set mts_state_ to READY
     Reset();
-    // policy_ = new InvocationPeriodic(*this, options_);
-    policy_ = new InvocationOnce(*this, options_);
+    policy_ = new InvocationPeriodic(*this, options_);
+    // policy_ = new InvocationOnce(*this, options_);
   }
 
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
@@ -65,11 +66,10 @@ class Carp {
    * so it can't be assumed that the first epoch is e0
    */
   void AdvanceEpoch() {
-    mutex_.Lock();
-    MainThreadState cur_state = mts_mgr_.get_state();
+    MutexLock ml(&mutex_);
+    MainThreadState cur_state = mts_mgr_.GetState();
     assert(cur_state != MainThreadState::MT_BLOCK);
     policy_->AdvanceEpoch();
-    mutex_.Unlock();
   }
 
   OobFlushIterator OobIterator() { return OobFlushIterator(oob_buffer_); }
@@ -78,17 +78,17 @@ class Carp {
 
   void UpdateState(MainThreadState new_state) {
     mutex_.AssertHeld();
-    mts_mgr_.update_state(new_state);
+    mts_mgr_.UpdateState(new_state);
   }
 
   MainThreadState GetCurState() {
     mutex_.AssertHeld();
-    return mts_mgr_.get_state();
+    return mts_mgr_.GetState();
   }
 
   MainThreadState GetPrevState() {
     mutex_.AssertHeld();
-    return mts_mgr_.get_prev_state();
+    return mts_mgr_.GetPrevState();
   }
 
   Status HandleMessage(char* buf, unsigned int bufsz, int src) {
@@ -134,7 +134,7 @@ class Carp {
   /* Not called directly - up to the invocation policy */
   bool Reset() {
     mutex_.AssertHeld();
-    mts_mgr_.reset();
+    mts_mgr_.Reset();
     range_min_ = 0;
     range_max_ = 0;
     std::fill(rank_counts_.begin(), rank_counts_.end(), 0);
