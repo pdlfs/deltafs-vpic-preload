@@ -181,6 +181,7 @@ Status RTP::InitRound() {
   if (state_.GetState() == RenegState::READY) {
     s = BroadcastBegin();
     state_.UpdateState(RenegState::READYBLOCK);
+    carp_->UpdateState(MainThreadState::MT_READYBLOCK);
   }
 
   mutex_.Unlock();

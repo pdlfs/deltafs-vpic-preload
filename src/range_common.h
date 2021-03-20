@@ -38,6 +38,7 @@ typedef struct snapshot_state {
 enum MainThreadState {
   MT_INIT,
   MT_READY,
+  MT_READYBLOCK,
   MT_BLOCK,
   MT_REMAIN_BLOCKED,
 };
