@@ -360,12 +360,11 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
   std::fill(carp->rank_counts_.begin(), carp->rank_counts_.end(), 0);
 
   carp->oob_buffer_.SetRange(carp->range_min_, carp->range_max_);
-  deltafs_plfsdir_range_update(pctx.plfshdl, carp->range_min_,
-                               carp->range_max_);
 
   double our_bin_start = pivots[pctx.my_rank];
   double our_bin_end = pivots[pctx.my_rank + 1];
   pctx.range_backend->UpdateBounds(our_bin_start, our_bin_end);
+  deltafs_plfsdir_range_update(pctx.plfshdl, our_bin_start, our_bin_end);
 
   return 0;
 }
