@@ -191,6 +191,10 @@ skip_prints:
   exit(1);
 }
 
+static int compare(const void* a, const void* b) {
+  return (*(int*)a - *(int*)b);
+}
+
 static void read_tracedir(const char* trace_path) {
   struct dirent* entry;
   DIR* dir = opendir(trace_path);
@@ -224,6 +228,9 @@ static void read_tracedir(const char* trace_path) {
   }
 
   closedir(dir);
+
+  qsort(trace_epochs, trace_epcnt, sizeof(int), compare);
+
   if (myrank == 0) {
     fprintf(stdout, "[range-runner] Trace Replay: %d epochs discovered\n",
             trace_epcnt);
@@ -654,8 +661,7 @@ static void do_dump_from_trace(int epoch) {
     if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
 
     fread(static_cast<void*>(&p_energy), 1, sizeof(float), trace_file);
-    // fprintf(stderr, "myrank: %d %.1f\n", myrank, p_energy);
-    //
+    // fprintf(stderr, "rangerunner: %d %.3f\n", myrank, p_energy);
     fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
     fclose(file);
