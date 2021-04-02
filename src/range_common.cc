@@ -73,6 +73,10 @@ MainThreadState MainThreadStateMgr::UpdateState(MainThreadState new_state) {
   (cur_state == (MainThreadState::a) && new_state == (MainThreadState::b))
   if (IS_TRANS(MT_INIT, MT_READY)) {
     // accept
+  } else if (IS_TRANS(MT_READY, MT_READYBLOCK)) {
+    // accept
+  } else if (IS_TRANS(MT_READYBLOCK, MT_BLOCK)) {
+    // accept
   } else if (IS_TRANS(MT_READY, MT_BLOCK)) {
     // accept
   } else if (IS_TRANS(MT_BLOCK, MT_READY)) {
