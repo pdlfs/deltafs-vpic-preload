@@ -1331,6 +1331,11 @@ int MPI_Init(int* argc, char*** argv) {
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
   pctx.opts->sctx = &(pctx.sctx);
+  pctx.opts->dynamic_intvl = 1000;
+  pctx.opts->dynamic_thresh = 1.2;
+  pctx.opts->mount_path = pctx.local_root;
+  pctx.opts->mount_path += "/";
+  pctx.opts->mount_path += stripped;
   pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
 
   srand(pctx.my_rank);
