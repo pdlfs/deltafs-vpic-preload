@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <pdlfs-common/env.h>
 
+#include <algorithm>
 #include <numeric>
 #include <string>
 #include <vector>

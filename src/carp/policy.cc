@@ -57,7 +57,7 @@ bool InvocationDynamic::TriggerReneg() {
 }
 
 /* don't reset */
-bool InvocationDynamic::AdvanceEpoch() { epoch_++; }
+void InvocationDynamic::AdvanceEpoch() { epoch_++; }
 
 bool InvocationPerEpoch::TriggerReneg() {
   if ((options_.my_rank == 0) && !reneg_triggered_ &&

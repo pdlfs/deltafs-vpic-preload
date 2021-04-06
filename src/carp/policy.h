@@ -65,7 +65,7 @@ class InvocationDynamic : public InvocationPeriodic {
 
   bool TriggerReneg() override;
 
-  bool AdvanceEpoch() override;
+  void AdvanceEpoch() override;
 
  private:
   StatTrigger stat_trigger_;
