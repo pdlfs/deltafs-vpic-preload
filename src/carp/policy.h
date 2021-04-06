@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include "oob_buffer.h"
+#include "stat_trigger.h"
 
 namespace pdlfs {
 namespace carp {
@@ -56,6 +57,18 @@ class InvocationPeriodic : public InvocationPolicy {
 
  private:
   const uint64_t invoke_intvl_;
+};
+
+class InvocationDynamic : public InvocationPeriodic {
+ public:
+  InvocationDynamic(Carp& carp, const CarpOptions& options);
+
+  bool TriggerReneg() override;
+
+  bool AdvanceEpoch() override;
+
+ private:
+  StatTrigger stat_trigger_;
 };
 
 class InvocationPerEpoch : public InvocationPolicy {

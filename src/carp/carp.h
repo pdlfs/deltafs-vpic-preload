@@ -32,6 +32,10 @@ struct CarpOptions {
   uint64_t reneg_intvl;
   int rtp_pvtcnt[4];
   shuffle_ctx_t* sctx;
+  uint32_t dynamic_intvl;
+  float dynamic_thresh;
+  std::string mount_path;
+  Env* env;
 };
 
 class Carp {

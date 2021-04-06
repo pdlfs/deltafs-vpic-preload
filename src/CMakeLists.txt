@@ -37,6 +37,15 @@ endif ()
 #
 # create the library target
 #
+set(RANGE_SOURCES
+        range_backend/mock_backend.cc
+        preload_range.cc
+        range_common.cc
+        range_utils.cc
+        perfstats/perfstats.cc
+        perfstats/stat.cc
+        perfstats/manifest_analytics.cc
+        )
 
 set(CARP_SOURCES
         carp/carp.cc
@@ -48,14 +57,23 @@ set(CARP_SOURCES
         carp/rtp.cc
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc
+        carp/stat_trigger.cc
         )
-set(PRELOAD_SOURCES range_backend/mock_backend.cc preload.cc
-        preload_internal.cc preload_mon.cc preload_shuffle.cc
-        shuffle_write_providers.cc msgfmt.cc nn_shuffler.cc
-        nn_shuffler_internal.cc xn_shuffle.cc hstg.cc common.cc
-        pthreadtap.cc preload_range.cc range_common.cc
-        range_utils.cc perfstats/perfstats.cc
-        perfstats/stat.cc perfstats/manifest_analytics.cc ${CARP_SOURCES})
+
+set(PRELOAD_SOURCES
+        preload.cc
+        preload_internal.cc
+        preload_mon.cc
+        preload_shuffle.cc
+        shuffle_write_providers.cc
+        msgfmt.cc
+        nn_shuffler.cc
+        nn_shuffler_internal.cc
+        xn_shuffle.cc
+        hstg.cc
+        common.cc
+        pthreadtap.cc
+        )
 
 if (PRELOAD_BLKID)
     find_package(BLKID)
@@ -65,7 +83,10 @@ if (PRELOAD_BLKID)
     endif ()
 endif ()
 
-add_library(deltafs-preload ${PRELOAD_SOURCES})
+add_library(deltafs-preload
+        ${RANGE_SOURCES}
+        ${CARP_SOURCES}
+        ${PRELOAD_SOURCES})
 
 target_include_directories(deltafs-preload PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

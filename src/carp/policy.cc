@@ -47,6 +47,18 @@ bool InvocationPeriodic::TriggerReneg() {
   return intvl_trigger || IsOobFull();
 }
 
+InvocationDynamic::InvocationDynamic(Carp& carp, const CarpOptions& options)
+    : InvocationPeriodic(carp, options), stat_trigger_(options) {}
+
+bool InvocationDynamic::TriggerReneg() {
+  num_writes_++;
+  bool intvl_trigger = stat_trigger_.Invoke();
+  return intvl_trigger || IsOobFull();
+}
+
+/* don't reset */
+bool InvocationDynamic::AdvanceEpoch() { epoch_++; }
+
 bool InvocationPerEpoch::TriggerReneg() {
   if ((options_.my_rank == 0) && !reneg_triggered_ &&
       InvocationPolicy::IsOobFull()) {
