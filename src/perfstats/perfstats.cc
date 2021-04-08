@@ -79,7 +79,8 @@ int perfstats_init(perfstats_ctx_t* perf_ctx, int my_rank, const char* dir_path,
 
   if (output_file == NULL) {
     rv = -1;
-    logf(LOG_ERRO, "perfstats_init: failed to open file");
+    logf(LOG_ERRO, "perfstats_init: failed to open file: %s\n",
+         perf_ctx->stats_fpath);
     return rv;
   }
 
@@ -204,16 +205,16 @@ int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
   int buf_sz = STAT_BUF_MAX, buf_idx = 0;
   char buf[buf_sz];
 
-  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx,
-                      "RANK%d_R%d: ", my_rank, round_num);
+  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, "RANK%d_R%d: ", my_rank,
+                      round_num);
 
   std::vector<float>& counts = carp->rank_counts_;
   buf_idx +=
       print_vector(buf + buf_idx, buf_sz - buf_idx, counts, counts.size(),
                    /* truncate */ false);
 
-  buf_idx += snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOB (%zu)",
-                      carp->OobSize());
+  buf_idx +=
+      snprintf(buf + buf_idx, buf_sz - buf_idx, ": OOB (%zu)", carp->OobSize());
 
   massStat.SetValue(timestamp, buf);
 

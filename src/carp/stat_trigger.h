@@ -62,7 +62,12 @@ class StatTrigger {
     Status s = Status::OK();
     s = StatFiles();
     if (!s.ok()) return false;
-    return EvalTrigger();
+    bool trigger =  EvalTrigger();
+    // if (trigger) {
+      PersistCur();
+    // }
+
+    return trigger;
   }
 
   Status StatFiles() {
@@ -83,7 +88,7 @@ class StatTrigger {
       fprintf(stderr, "%s: %" PRIu64 "\n", rpath.c_str(), rsize);
 
       rsize_diff_[rank] = rsize - prev_rsize_[rank];
-      prev_rsize_[rank] = rsize;
+      cur_rsize_[rank] = rsize;
     }
 
     return s;
@@ -91,25 +96,32 @@ class StatTrigger {
 
   bool EvalTrigger() {
     uint64_t load_sum =
-        std::accumulate(rsize_diff_.begin(), rsize_diff_.end(), 0);
+        std::accumulate(rsize_diff_.begin(), rsize_diff_.end(), 0llu);
+
+    if (load_sum == 0) return false;
+
     uint64_t load_avg = load_sum / nranks_;
     uint64_t load_max =
         *std::max_element(rsize_diff_.begin(), rsize_diff_.end());
     float load_skew = load_max * 1.0f / load_avg;
 
     if (load_skew > thresh_) {
-      logf(LOG_DBUG,
+      logf(LOG_WARN,
            "[StatTrigger] TRIGGER! Max: %" PRIu64 ", Avg: %" PRIu64
            ", Skew: %.3f\n",
            load_max, load_avg, load_skew);
     } else {
-      logf(LOG_DBUG,
+      logf(LOG_WARN,
            "[StatTrigger] Max: %" PRIu64 ", Avg: %" PRIu64
            ", Skew: %.3f\n",
            load_max, load_avg, load_skew);
     }
 
     return load_skew > thresh_;
+  }
+
+  void PersistCur() {
+    std::copy(cur_rsize_.begin(), cur_rsize_.end(), prev_rsize_.begin());
   }
 
   Env* env_;
@@ -122,6 +134,7 @@ class StatTrigger {
   const float thresh_;
 
   std::vector<std::string> rank_paths_;
+  std::vector<uint64_t> cur_rsize_;
   std::vector<uint64_t> prev_rsize_;
   std::vector<uint64_t> rsize_diff_;
 };

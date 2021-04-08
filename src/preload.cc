@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <execinfo.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
@@ -481,14 +482,19 @@ static void preload_init() {
     pctx.carp_dynamic_reneg = 0;
   }
 
-  /* Dynamic Reneg Not Implemented Yet */
-  assert(pctx.carp_dynamic_reneg == 0);
-
   tmp = maybe_getenv("RANGE_Reneg_interval");
   if (tmp != NULL) {
     pctx.opts->reneg_intvl = atoi(tmp);
+    pctx.opts->dynamic_intvl = atoi(tmp);
   } else {
     pctx.opts->reneg_intvl = pdlfs::kRenegInterval;
+  }
+
+  tmp = maybe_getenv("RANGE_Dynamic_threshold");
+  if (tmp != NULL) {
+    pctx.opts->dynamic_thresh = atof(tmp);
+  } else {
+    pctx.opts->dynamic_thresh = pdlfs::kDynamicThreshold;
   }
 
   /* additional init can go here or MPI_Init() */
@@ -1331,11 +1337,14 @@ int MPI_Init(int* argc, char*** argv) {
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
   pctx.opts->sctx = &(pctx.sctx);
-  pctx.opts->dynamic_intvl = 1000;
-  pctx.opts->dynamic_thresh = 1.2;
   pctx.opts->mount_path = pctx.local_root;
   pctx.opts->mount_path += "/";
   pctx.opts->mount_path += stripped;
+
+  if (pctx.my_rank == 0) {
+    logf(LOG_INFO, "[carp] reneg_intvl: %" PRIu64 ", reneg_thresh: %.3f\n",
+         pctx.opts->reneg_intvl, pctx.opts->dynamic_thresh);
+  }
   pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
 
   srand(pctx.my_rank);

@@ -16,8 +16,11 @@ StatTrigger::StatTrigger(const CarpOptions& options)
       invoke_intvl_(options.dynamic_intvl),
       invoke_counter_(0),
       thresh_(options.dynamic_thresh),
+      cur_rsize_(nranks_, 0),
       prev_rsize_(nranks_, 0),
       rsize_diff_(nranks_, 0) {
+  // XXX: temporary
+  env_ = Env::Default();
 }
 }  // namespace carp
 }  // namespace pdlfs
