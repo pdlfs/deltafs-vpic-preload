@@ -43,6 +43,7 @@ class Carp {
   Carp(const CarpOptions& options)
       : options_(options),
         rtp_(this, options_),
+        epoch_(0),
         cv_(&mutex_),
         range_min_(0),
         range_max_(0),
@@ -75,6 +76,7 @@ class Carp {
     MainThreadState cur_state = mts_mgr_.GetState();
     assert(cur_state != MainThreadState::MT_BLOCK);
     policy_->AdvanceEpoch();
+    epoch_++;
   }
 
   OobFlushIterator OobIterator() { return OobFlushIterator(oob_buffer_); }
@@ -152,6 +154,7 @@ class Carp {
   MainThreadStateMgr mts_mgr_;
 
   RTP rtp_;
+  int epoch_;
 
  public:
   /* XXX: temporary, refactor RTP/perfstats as friend classes */

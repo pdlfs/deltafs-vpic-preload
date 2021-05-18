@@ -172,6 +172,8 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
   }
 }
 
+RTP::~RTP() { PivotUtils::LogPivots(carp_, pvtcnt_[1]); }
+
 Status RTP::InitRound() {
   Status s = Status::OK();
 
@@ -392,11 +394,7 @@ Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
     int pvt_buf_len;
 
     PivotUtils::CalculatePivots(carp_, pvtcnt);
-
-    perfstats_log_mypivots(&(pctx.perf_ctx), carp_->my_pivots_, pvtcnt,
-                           "RENEG_PIVOTS");
-    perfstats_log_vec(&(pctx.perf_ctx), carp_->rank_counts_aggr_,
-                      "RENEG_BINCNT");
+    PivotUtils::LogPivots(carp_, pvtcnt);
 
     pvt_buf_len = msgfmt_encode_rtp_pivots(
         pvt_buf, pvt_buf_sz, round_num_, stage_idx, my_rank_, carp_->my_pivots_,

@@ -1,6 +1,6 @@
 #pragma once
 
-#define DEFAULT_PVTCNT 64
+#define DEFAULT_PVTCNT 256
 
 #define DEFAULT_OOBSZ 512
 
