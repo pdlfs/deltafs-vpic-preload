@@ -129,7 +129,7 @@ class PartitionManifest {
   int GetOverLappingEntries(float point, PartitionManifestMatch& match);
   int GetOverLappingEntries(float range_begin, float range_end,
                             PartitionManifestMatch& match);
-  int Reset();
+  void Reset();
 };
 
 class MockBackend {

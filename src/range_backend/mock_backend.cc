@@ -202,7 +202,7 @@ int PartitionManifest::GetMass(uint64_t& mass_total, uint64_t mass_oob) const {
 
 size_t PartitionManifest::Size() const { return items_.size(); }
 
-int PartitionManifest::Reset() {
+void PartitionManifest::Reset() {
   items_.clear();
   range_min_ = FLT_MAX;
   range_max_ = FLT_MIN;

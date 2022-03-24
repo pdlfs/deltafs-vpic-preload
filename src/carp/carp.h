@@ -57,8 +57,8 @@ class Carp {
     MutexLock ml(&mutex_);
     // necessary to set mts_state_ to READY
     Reset();
-    policy_ = new InvocationDynamic(*this, options_);
-    // policy_ = new InvocationPeriodic(*this, options_);
+    // policy_ = new InvocationDynamic(*this, options_);
+    policy_ = new InvocationPeriodic(*this, options_);
     // policy_ = new InvocationOnce(*this, options_);
   }
 
