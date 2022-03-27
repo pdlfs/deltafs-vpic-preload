@@ -656,12 +656,20 @@ static void do_dump_from_trace(int epoch) {
   float p_energy_base = 1;
 
   for (int i = 0; i < g.nps; i++) {
+    size_t bytes_read =
+        fread(static_cast<void*>(&p_energy), 1, sizeof(float), trace_file);
+
+    if (bytes_read != sizeof(float)) {
+      if (feof(trace_file)) {
+        break;
+      } else {
+        complain(EXIT_FAILURE, 0, "trace fread error");
+      }
+    }
+
     base64_encoding(p.pname + prefix, (highbits | i));
     file = fopen(p.pname, "a");
     if (!file) complain(EXIT_FAILURE, 0, "!fopen errno=%d", errno);
-
-    fread(static_cast<void*>(&p_energy), 1, sizeof(float), trace_file);
-    // fprintf(stderr, "rangerunner: %d %.3f\n", myrank, p_energy);
     fwrite(static_cast<void*>(&p_energy), 1, sizeof(float), file);
     fwrite(p.pdata.bdata, 1, p.psz - sizeof(float), file);
     fclose(file);
