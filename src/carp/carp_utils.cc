@@ -196,15 +196,15 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
   /**********************/
   std::vector<float>& ff = carp->rank_counts_;
   std::vector<float>& gg = carp->rank_bins_;
-  fprintf(stderr,
-          "rank%d get_local_pivots state_dump "
-          "oob_count_left: %d, oob_count_right: %d\n"
-          "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-          "rbc: %s (%zu)\n"
-          "bin: %s (%zu)\n",
-          pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
-          particle_count, SerializeVector(ff).c_str(), ff.size(),
-          SerializeVector(gg).c_str(), gg.size());
+  // fprintf(stderr,
+          // "rank%d get_local_pivots state_dump "
+          // "oob_count_left: %d, oob_count_right: %d\n"
+          // "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
+          // "rbc: %s (%zu)\n"
+          // "bin: %s (%zu)\n",
+          // pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
+          // particle_count, SerializeVector(ff).c_str(), ff.size(),
+          // SerializeVector(gg).c_str(), gg.size());
   /**********************/
 
   float accumulated_ppp = 0;

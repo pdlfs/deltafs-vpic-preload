@@ -54,15 +54,29 @@ int ManifestAnalytics::Read(int epoch) {
 void ManifestAnalytics::GenerateQueryPoints() {
   query_points_.clear();
 
-  int32_t num_points = 100;
-  float intvl_sz = (range_max_ - range_min_) / num_points;
+  // replace with superior version below:
+  // int32_t num_points = 100;
+  // float intvl_sz = (range_max_ - range_min_) / num_points;
 
-  float intvl_cur = range_min_;
+  // float intvl_cur = range_min_;
 
-  do {
-    query_points_.push_back(intvl_cur);
-    intvl_cur += intvl_sz;
-  } while (intvl_cur <= range_max_);
+  // do {
+    // query_points_.push_back(intvl_cur);
+    // intvl_cur += intvl_sz;
+  // } while (intvl_cur <= range_max_);
+
+  float pmax = range_max_;
+  float cutoffs[] = { 100, 50, 20, 10, 5, range_min_};
+  float deltas[] = { 10, 5, 2, 1, 0.5, 0.1 };
+
+  for (int i = 0; i < 6; i++) {
+    if (pmax > cutoffs[i]) {
+      for (float f = cutoffs[i]; f < pmax; f += deltas[i]) {
+        query_points_.push_back(f);
+      }
+      pmax = cutoffs[i];
+    }
+  }
 }
 
 int ManifestAnalytics::ComputeStats(int epoch) {

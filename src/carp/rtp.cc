@@ -619,7 +619,8 @@ Status RTP::HandlePivotBroadcast(char* buf, unsigned int bufsz, int src) {
 }
 
 Status RTP::ReplayBegin() {
-  mutex_.AssertHeld();
+  // XXX: commented out as it makes sense, but not tested
+  // mutex_.AssertHeld();
   Status s = Status::OK();
 
   logf(LOG_DBUG, "replay_rtp_begin: at rank %d\n", my_rank_);
