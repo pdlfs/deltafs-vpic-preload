@@ -482,6 +482,13 @@ static void preload_init() {
     pctx.carp_dynamic_reneg = 0;
   }
 
+  tmp = maybe_getenv("RANGE_Reneg_policy");
+  if (tmp != NULL) {
+    pctx.opts->reneg_policy = tmp;
+  } else {
+    pctx.opts->reneg_policy = pdlfs::kDefaultRenegPolicy;
+  }
+
   tmp = maybe_getenv("RANGE_Reneg_interval");
   if (tmp != NULL) {
     pctx.opts->reneg_intvl = atoi(tmp);

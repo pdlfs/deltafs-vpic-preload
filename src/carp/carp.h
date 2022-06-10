@@ -32,6 +32,7 @@ struct CarpOptions {
   uint64_t reneg_intvl;
   int rtp_pvtcnt[4];
   shuffle_ctx_t* sctx;
+  const char* reneg_policy;
   uint32_t dynamic_intvl;
   float dynamic_thresh;
   std::string mount_path;
@@ -57,9 +58,20 @@ class Carp {
     MutexLock ml(&mutex_);
     // necessary to set mts_state_ to READY
     Reset();
-    // policy_ = new InvocationDynamic(*this, options_);
-    policy_ = new InvocationPeriodic(*this, options_);
-    // policy_ = new InvocationOnce(*this, options_);
+
+#define POLICY_IS(s) (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
+
+    if (options_.reneg_policy == nullptr) {
+      policy_ = new InvocationPeriodic(*this, options_);
+    } else if(POLICY_IS("InvocationDynamic")) {
+      policy_ = new InvocationDynamic(*this, options_);
+    } else if (POLICY_IS("InvocationPeriodic")) {
+      policy_ = new InvocationPeriodic(*this, options_);
+    } else if (POLICY_IS("InvocationOnce")) {
+      policy_ = new InvocationOnce(*this, options_);
+    } else {
+      policy_ = new InvocationPeriodic(*this, options_);
+    }
   }
 
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
