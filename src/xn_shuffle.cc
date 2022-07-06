@@ -408,6 +408,8 @@ int xn_shuffle_my_rank(xn_ctx_t* ctx) {
 }
 
 void xn_shuffle_destroy(xn_ctx_t* ctx) {
+  hg_class_t *hcls;
+  hg_context_t *hctx;
   if (ctx != NULL) {
     // shutdown the priorty shuffler first
     if (ctx->sh != NULL) {
@@ -433,12 +435,20 @@ void xn_shuffle_destroy(xn_ctx_t* ctx) {
       ctx->nx = NULL;
     }
     if (ctx->localhand && ctx->localhand != ctx->nethand) {
-      /* for NEXUS_ALT_LOCAL case */
+      /* for NEXUS_ALT_LOCAL case - must dispose of local mercury */
+      hcls = mercury_progressor_hgclass(ctx->localhand);
+      hctx = mercury_progressor_hgcontext(ctx->localhand);
       mercury_progressor_freehandle(ctx->localhand);
+      HG_Context_destroy(hctx);
+      HG_Finalize(hcls);
     }
     ctx->localhand = NULL;
     if (ctx->nethand) {
+      hcls = mercury_progressor_hgclass(ctx->nethand);
+      hctx = mercury_progressor_hgcontext(ctx->nethand);
       mercury_progressor_freehandle(ctx->nethand);
+      HG_Context_destroy(hctx);
+      HG_Finalize(hcls);
       ctx->nethand = NULL;
     }
   }
