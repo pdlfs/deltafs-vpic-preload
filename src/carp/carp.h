@@ -151,7 +151,7 @@ class Carp {
   }
 
   /* Not called directly - up to the invocation policy */
-  bool Reset() {
+  void Reset() {
     mutex_.AssertHeld();
     mts_mgr_.Reset();
     range_min_ = 0;

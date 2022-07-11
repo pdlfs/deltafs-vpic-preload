@@ -222,6 +222,7 @@ int WorkloadGenerator::next(float &value) {
       throw std::invalid_argument("WP_RANK_SEQUENTIAL is not implemented");
       break;
   }
+  return -1;
 }
 
 int WorkloadGenerator::next_sequential(float &value) {

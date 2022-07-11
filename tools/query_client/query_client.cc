@@ -15,7 +15,10 @@
 
 void clear() {
   int fd = open("/proc/sys/vm/drop_caches", O_WRONLY);
-  write(fd, "1", 1);
+  if (write(fd, "1", 1) != 1) {
+    perror("/proc/sys/vm/drop_caches: write");
+    exit(1);
+  }
   close(fd);
 }
 

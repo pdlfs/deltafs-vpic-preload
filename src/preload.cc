@@ -61,6 +61,10 @@
 
 #include "range_common.h"
 
+/* setup tmpdir defns */
+#define PRELOAD_TMPDIR_FMT "/tmp/vpic-deltafs-run-%u"
+#define PRELOAD_TMPDIR_BSIZE (sizeof(PRELOAD_TMPDIR_FMT) + 10) /* pad for %u */
+
 /* default particle format */
 #define DEFAULT_PARTICLE_ID_BYTES 8 /* particle filename length */
 #define DEFAULT_PARTICLE_EXTRA_BYTES 0
@@ -856,7 +860,7 @@ int MPI_Init(int* argc, char*** argv) {
   int exact;
   const char* env;
   const char* stripped;
-  char dirpath[PATH_MAX];
+  char dirpath[PRELOAD_TMPDIR_BSIZE];
   char path[PATH_MAX];
   std::string conf;
 #if MPI_VERSION >= 3
@@ -1004,7 +1008,7 @@ int MPI_Init(int* argc, char*** argv) {
            "disable testing");
     }
 
-    snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
+    snprintf(dirpath, sizeof(dirpath), PRELOAD_TMPDIR_FMT,
              static_cast<unsigned>(uid));
     snprintf(path, sizeof(path), "%s/vpic-deltafs-trace.log.%d", dirpath,
              pctx.my_rank);
@@ -1239,7 +1243,7 @@ int MPI_Init(int* argc, char*** argv) {
     }
 
     if (!pctx.nomon) {
-      snprintf(dirpath, sizeof(dirpath), "/tmp/vpic-deltafs-run-%u",
+      snprintf(dirpath, sizeof(dirpath), PRELOAD_TMPDIR_FMT,
                static_cast<unsigned>(uid));
       snprintf(path, sizeof(path), "%s/vpic-deltafs-mon.bin.%d", dirpath,
                pctx.my_rank);
