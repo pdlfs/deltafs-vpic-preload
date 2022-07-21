@@ -39,7 +39,6 @@ endif ()
 #
 set(RANGE_SOURCES
         range_backend/mock_backend.cc
-        preload_range.cc
         range_common.cc
         range_utils.cc
         perfstats/perfstats.cc

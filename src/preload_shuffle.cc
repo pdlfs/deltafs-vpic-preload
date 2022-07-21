@@ -397,15 +397,6 @@ int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
   return (rv & ctx->receiver_mask);
 }
 
-int shuffle_data_target2(const float& indexed_prop) {
-  auto rank_iter = std::lower_bound(pctx.rctx.rank_bins.begin(),
-                                    pctx.rctx.rank_bins.end(), indexed_prop);
-
-  int rank = rank_iter - pctx.rctx.rank_bins.begin() - 1;
-
-  return rank;
-}
-
 namespace {
 void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
                          int epoch, int src, int dst) {
@@ -436,85 +427,6 @@ int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
   retval = shuffle_write_range(ctx, fname, fname_len, data, data_len, epoch);
 
   return retval;
-}
-
-/* Only to be used with preprocessed particle_mem_t structs
- * NOT for external use
- */
-int shuffle_flush_oob(shuffle_ctx_t* ctx, range_ctx_t* rctx, int epoch) {
-  logf(LOG_INFO, "Initiating OOB flush at rank %d\n", pctx.my_rank);
-  int oob_count_left = rctx->oob_count_left;
-  for (int oidx = oob_count_left - 1; oidx >= 0; oidx--) {
-    pdlfs::carp::particle_mem_t& p = rctx->oob_buffer_left[oidx];
-    fprintf(stderr, "Flushing particle with energy %.1f\n", p.indexed_prop);
-    if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
-      // should never happen since we flush after a reneg
-      logf(LOG_ERRO,
-           "Flushed particle %f @ %d lies out-of-bounds!"
-           " Don't know what to do. Dropping particle",
-           pctx.my_rank, p.indexed_prop);
-      // ABORT("panic");
-      continue;  // drop this particle
-    }
-    int peer_rank = shuffle_data_target2(p.indexed_prop);
-
-    if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
-      logf(LOG_ERRO,
-           "Invalid shuffle_data_target2 for particle %.1f at %d: %d!\n",
-           p.indexed_prop, pctx.my_rank, peer_rank);
-      logf(LOG_ERRO, "INVALID %f\n",
-           p.indexed_prop - rctx->rank_bins[pctx.comm_sz]);
-    }
-
-    rctx->rank_bin_count[peer_rank]++;
-
-#ifdef RANGE_DEBUG
-    fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
-#endif
-    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
-    // epoch, peer_rank, pctx.my_rank);
-  }
-
-  rctx->oob_count_left = 0;
-
-  int oob_count_right = rctx->oob_count_right;
-  for (int oidx = oob_count_right - 1; oidx >= 0; oidx--) {
-    pdlfs::carp::particle_mem_t& p = rctx->oob_buffer_right[oidx];
-#ifdef RANGE_DEBUG
-    fprintf(stderr, "Rank %d, flushing particle with energy %.1f\n",
-            pctx.my_rank, p.indexed_prop);
-#endif
-    if (p.indexed_prop > rctx->range_max || p.indexed_prop < rctx->range_min) {
-      // should never happen since we flush after a reneg
-      logf(LOG_ERRO,
-           "Flushed particle lies out-of-bounds!"
-           " Don't know what to do. Dropping particle");
-      // ABORT("panic");
-      continue;  // drop this particle
-    }
-    int peer_rank = shuffle_data_target2(p.indexed_prop);
-    rctx->rank_bin_count[peer_rank]++;
-
-    if (peer_rank == -1 || peer_rank >= pctx.comm_sz) {
-      return 0;
-    }
-
-#ifdef RANGE_DEBUG
-    fprintf(stderr, "Flushing ptcl rank: %d\n", peer_rank);
-#endif
-    // TODO: copy everything
-    // xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz,
-    // epoch, peer_rank, pctx.my_rank);
-  }
-
-  rctx->oob_count_right = 0;
-
-#ifdef RANGE_DEBUG
-  fprintf(stderr, "Returning from flush-rank %d (%d/%d)\n", pctx.my_rank,
-          rctx->oob_count_left, rctx->oob_count_right);
-#endif
-
-  return 0;
 }
 
 void send_all_acks();

@@ -906,8 +906,6 @@ int MPI_Init(int* argc, char*** argv) {
     return rv;
   }
 
-  range_ctx_init(&(pctx.rctx));
-
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
     logf(LOG_WARN,
@@ -2223,7 +2221,6 @@ int opendir_impl(const char* dir) {
   /* epoch count is increased before the beginning of each epoch */
   num_eps++; /* must go before the barrier below */
 
-  range_ctx_reset(&(pctx.rctx));
   pctx.carp->AdvanceEpoch();
 
   if (pctx.paranoid_post_barrier) {

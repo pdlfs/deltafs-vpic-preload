@@ -47,91 +47,9 @@ enum class range_state_t {
   RS_BLOCKED, /* don't really need this but verify */
 };
 
-typedef struct range_ctx {
-  /* range data structures */
-
-  /* Current/next negotiation round number
-   * (use range_state to check if you're in a negotiation round */
-  std::atomic<int> nneg_round_num;
-
-  /* assert 0 <= (pvt - ack) <= 1 */
-  std::atomic<int> pvt_round_num;
-  std::atomic<int> ack_round_num;
-
-  int ts_writes_received;
-  int ts_writes_shuffled;
-
-  /* must grab this every time you read/write what exactly?
-   * In the common case, this lock is expected to be uncontended
-   * hence not expensive to acquire
-   */
-  std::mutex bin_access_m;
-
-  /*  START Shared variables protected by bin_access_m */
-  range_state_t range_state;
-  range_state_t range_state_prev;
-
-  std::vector<double> rank_bins;
-  std::vector<float> rank_bin_count;
-  float range_min, range_max;
-  /*  END Shared variables protected by bin_access_m */
-
-  std::mutex snapshot_access_m;
-  /* START Shared variables protected by snapshot_acces_m */
-  snapshot_state snapshot;
-  /* END Shared variables protected by snapshot_acces_m */
-
-  /* OOB buffers are never handled by reneg threads
-   * and therefore don't need a lock */
-  std::vector<pdlfs::carp::particle_mem_t> oob_buffer_left;
-  /* OOB buffers are preallocated to MAX to avoid resize calls
-   * thus we use counters to track actual size */
-  int oob_count_left;
-
-  std::vector<pdlfs::carp::particle_mem_t> oob_buffer_right;
-  int oob_count_right;
-
-  /* "infinitely" extensible queue for when you don't know what
-   * to do with a particle; to be used sparingly for corner cases
-   * at some point the rank will come to its senses and flush this
-   * queue (read: finish negotiation or flush fixed queues)
-   */
-  std::vector<pdlfs::carp::particle_mem_t> contingency_queue;
-
-  double my_pivots[pdlfs::kMaxPivots];
-  double pivot_width;
-
-  /* Store pivots from all ranks during a negotiation */
-  std::vector<double> all_pivots;
-  std::vector<double> all_pivot_widths;
-  std::atomic<int> ranks_responded;
-
-  std::vector<bool> ranks_acked;
-  std::atomic<int> ranks_acked_count;
-
-  std::vector<bool> ranks_acked_next;
-  std::atomic<int> ranks_acked_count_next;
-
-  std::condition_variable block_writes_cv;
-} range_ctx_t;
-
 typedef struct preload_ctx preload_ctx_t;
 
-void range_ctx_init(range_ctx_t *rctx);
-
-void range_ctx_reset(range_ctx_t *rctx);
-
 void range_init_negotiation(preload_ctx_t* pctx);
-
-/* get_local_pivots: Take the bins stored in bin_snapshots and OOB buffers
- * and store their pivots in rctx->my_pivots. Return nothing
- * XXX TODO: Also need to snapshot OOB buffers (if only indexable_prob) in
- * TODO: don't really have to snapshot buffers, if we can snapshot the idx
- * addition to bins.
- * @param rctx range_ctx
- * @return None
- * */
-void get_local_pivots(range_ctx_t* rctx);
 
 void range_handle_reneg_pivots(char* buf, unsigned int buf_sz, int src_rank);
 
