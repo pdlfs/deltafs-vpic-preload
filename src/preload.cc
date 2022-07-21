@@ -94,8 +94,7 @@ static int num_pthreads = 0;
 static int num_barriers = 0;
 
 /* number of epochs generated */
-// XXX: removed static since we're stealing it read-only in preload_range
-int num_eps = 0;
+static int num_eps = 0;
 
 /*
  * we use the address of fake_dirptr as a fake DIR* with opendir/closedir
