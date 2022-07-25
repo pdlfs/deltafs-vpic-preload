@@ -27,14 +27,6 @@ enum class buf_type_t {
 
 bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
 
-typedef struct snapshot_state {
-  std::vector<float> rank_bins;
-  std::vector<float> rank_bin_count;
-  std::vector<float> oob_buffer_left;
-  std::vector<float> oob_buffer_right;
-  float range_min, range_max;
-} snapshot_state_t;
-
 enum MainThreadState {
   MT_INIT,
   MT_READY,
@@ -57,30 +49,6 @@ class MainThreadStateMgr {
   void Reset();
   bool FirstBlock() const;
 };
-
-typedef struct pivot_ctx {
-  /* The whole structure, except for the snapshot, is protected by
-   * this mutex */
-  pthread_mutex_t pivot_access_m = PTHREAD_MUTEX_INITIALIZER;
-  pthread_cond_t pivot_update_cv = PTHREAD_COND_INITIALIZER;
-
-  MainThreadStateMgr mts_mgr;
-
-  std::vector<float> rank_bins;
-  /* both of these should be ints, TODO: change count to int and validate */
-  std::vector<float> rank_bin_count;
-  std::vector<uint64_t> rank_bin_count_aggr;
-  double range_min, range_max;
-  /*  END Shared variables protected by bin_access_m */
-
-  pdlfs::carp::OobBuffer* oob_buffer;
-
-  double my_pivots[pdlfs::kMaxPivots];
-  int my_pivot_count;
-  double pivot_width;
-
-  int last_reneg_counter = 0;
-} ppivot_ctx_t;
 
 static inline int print_vector(char* buf, int buf_sz, std::vector<uint64_t>& v,
                                int vlen = 0, bool truncate = true) {
