@@ -2,7 +2,7 @@
 
 #include "preload_internal.h"
 #include "preload_mon.h"
-#include "preload_range.h"
+#include "carp/preload_range.h"
 #include "preload_shuffle.h"
 
 #include "nn_shuffler.h"
@@ -10,7 +10,7 @@
 #include "xn_shuffle.h"
 
 #include "common.h"
-#include "msgfmt.h"
+#include "carp/msgfmt.h"
 
 #include "carp/rtp.h"
 

@@ -51,7 +51,6 @@
 #include "perfstats/perfstats.h"
 #include "preload.h"
 #include "preload_mon.h"
-#include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_backend/mock_backend.h"
 

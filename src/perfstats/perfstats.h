@@ -10,7 +10,7 @@
 #include "carp/rtp.h"
 #include "common.h"
 #include "pdlfs-common/mutexlock.h"
-#include "range_common.h"
+#include "../carp/range_common.h"
 #include "stat.h"
 
 #define PERFSTATS_MEM_SIZE 1

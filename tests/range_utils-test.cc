@@ -1,4 +1,4 @@
-#include "range_utils.h"
+#include "carp/range_utils.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +10,7 @@
 #include "pdlfs-common/testharness.h"
 #include "pdlfs-common/testutil.h"
 #include "perfstats/manifest_analytics.h"
-#include "range_common.h"
+#include "carp/range_common.h"
 
 namespace {
 template <typename T>

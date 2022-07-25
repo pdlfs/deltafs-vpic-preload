@@ -39,8 +39,6 @@ endif ()
 #
 set(RANGE_SOURCES
         range_backend/mock_backend.cc
-        range_common.cc
-        range_utils.cc
         perfstats/perfstats.cc
         perfstats/stat.cc
         perfstats/manifest_analytics.cc
@@ -50,8 +48,11 @@ set(CARP_SOURCES
         carp/carp.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
+        carp/msgfmt.cc
         carp/oob_buffer.cc
         carp/policy.cc
+        carp/range_common.cc
+        carp/range_utils.cc
         carp/regular_trigger.cc
         carp/rtp.cc
         carp/rtp_state_mgr.cc
@@ -65,7 +66,6 @@ set(PRELOAD_SOURCES
         preload_mon.cc
         preload_shuffle.cc
         shuffle_write_providers.cc
-        msgfmt.cc
         nn_shuffler.cc
         nn_shuffler_internal.cc
         xn_shuffle.cc

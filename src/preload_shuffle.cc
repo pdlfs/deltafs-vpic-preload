@@ -45,7 +45,7 @@
 #include "nn_shuffler_internal.h"
 #include "preload_internal.h"
 #include "preload_mon.h"
-#include "preload_range.h"
+#include "carp/preload_range.h"
 #include "carp/rtp.h"
 #include "xn_shuffle.h"
 #ifdef PRELOAD_HAS_CH_PLACEMENT
@@ -53,7 +53,7 @@
 #endif
 
 #include "common.h"
-#include "msgfmt.h"
+#include "carp/msgfmt.h"
 #include "shuffle_write_providers.h"
 
 char buf_type_buf[256];

@@ -59,7 +59,7 @@
 #include <papi.h>
 #endif
 
-#include "range_common.h"
+#include "carp/range_common.h"
 
 /* setup tmpdir defns */
 #define PRELOAD_TMPDIR_FMT "/tmp/vpic-deltafs-run-%u"
