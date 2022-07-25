@@ -14,18 +14,6 @@
 
 #include "carp/rtp.h"
 
-int shuffle_write_mock(shuffle_ctx_t* ctx, const char* fname,
-                  unsigned char fname_len, char* data, unsigned char data_len,
-                  int epoch);
-
-int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
-                  unsigned char fname_len, char* data, unsigned char data_len,
-                  int epoch);
-
-int shuffle_write_treeneg(shuffle_ctx_t* ctx, const char* fname,
-                       unsigned char fname_len, char* data,
-                       unsigned char data_len, int epoch);
-
 int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
                        unsigned char fname_len, char* data,
                        unsigned char data_len, int epoch);

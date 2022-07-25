@@ -67,7 +67,7 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf,
                                unsigned char buf_sz, int epoch, int src,
                                int dst) {
-  const float h = ::get_indexable_property(buf, buf_sz);
+  const float h = ::get_indexable_property(buf, buf_sz); //XXX
 
   if (src != dst || ctx->force_rpc) {
     fprintf(pctx.trace, "[SH] %u bytes (ep=%d) r%d >> r%d (fl=%f)\n", buf_sz,
