@@ -556,7 +556,7 @@ int my_cpu_cores() {
 }
 
 int logf(int lvl, const char* fmt, ...) {
-  if (lvl < LOG_LEVEL) return 0;
+  if (lvl < LOG_LEVEL) return 0;  /* filter level set at compile in common.h */
 
   const char* prefix;
   va_list ap;
