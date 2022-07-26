@@ -556,17 +556,22 @@ int my_cpu_cores() {
 }
 
 int logf(int lvl, const char* fmt, ...) {
+  if (lvl < LOG_LEVEL) return 0;
+
   const char* prefix;
   va_list ap;
   switch (lvl) {
-    case 3:
+    case LOG_ERRO:
       prefix = "!!! ERROR !!! ";
       break;
-    case 2:
+    case LOG_WARN:
       prefix = "-WARNING- ";
       break;
-    case 1:
+    case LOG_INFO:
       prefix = "-INFO- ";
+      break;
+    case LOG_DBUG:
+      prefix = "-DEBUG- ";
       break;
     default:
       prefix = "";
