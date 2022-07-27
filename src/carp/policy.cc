@@ -75,7 +75,7 @@ int InvocationPerEpoch::ComputeShuffleTarget(particle_mem_t& p) {
   int rank;
   InvocationPolicy::ComputeShuffleTarget(p, rank);
   /* dump all unseen particles into the last rank */
-  if (rank == -1 and reneg_triggered) {
+  if (rank == -1 and reneg_triggered_) {
     rank = 0;
   } else if (rank == options_.num_ranks and reneg_triggered_) {
     rank = options_.num_ranks - 1;
