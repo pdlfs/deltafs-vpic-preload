@@ -7,21 +7,6 @@
 
 #include <time.h>
 
-void mock_reneg();
-
-void mock_reneg() {
-  range_ctx_t* rctx = &pctx.rctx;
-
-  range_init_negotiation(&pctx);
-
-  std::unique_lock<std::mutex> bin_access_ul(rctx->bin_access_m);
-
-  rctx->block_writes_cv.wait(bin_access_ul, [] {
-    /* having a condition ensures we ignore spurious wakes */
-    return (pctx.rctx.range_state == range_state_t::RS_READY);
-  });
-}
-
 namespace {
 float get_indexable_property(const char* data_buf, unsigned int dbuf_sz) {
   const float* prop = reinterpret_cast<const float*>(data_buf);
@@ -95,19 +80,6 @@ void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf,
   }
 }
 }  // namespace
-
-int shuffle_write_mock(shuffle_ctx_t* ctx, const char* fname,
-                       unsigned char fname_len, char* data,
-                       unsigned char data_len, int epoch) {
-#ifndef RANGE_MOCK_RENEG
-
-  logf(LOG_ERRO, "RANGE_MOCK_RENEG flag is not enabled");
-  return 0;
-
-#endif
-  mock_reneg();
-  return 0;
-}
 
 int shuffle_write_nohash(shuffle_ctx_t* ctx, const char* fname,
                          unsigned char fname_len, char* data,
