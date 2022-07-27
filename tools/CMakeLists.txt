@@ -12,6 +12,8 @@ find_package(Threads REQUIRED)
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
+add_subdirectory(rtp_bench)
+
 add_executable(preload-plfsdir-reader preload_plfsdir_reader.cc)
 target_link_libraries(preload-plfsdir-reader deltafs)
 
