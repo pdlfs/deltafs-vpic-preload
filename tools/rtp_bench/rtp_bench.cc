@@ -2,6 +2,10 @@
 
 namespace pdlfs {
 namespace carp {
+uint64_t sumsq(const uint64_t& total, const uint64_t& v) {
+  return total + v*v;
+}
+
 void RTPBench::InitParams() {
   int overwrite = 0;
 #define SETENV(k, v) setenv(k, v, overwrite);
@@ -49,12 +53,18 @@ void RTPBench::InitParams() {
   pctx.particle_extra_size = 8;
   pctx.my_cpus = my_cpu_cores();
 
+  pctx.log_home = "logs";
+  pctx.local_root = "data";
+
   MPI_Comm_rank(MPI_COMM_WORLD, &pctx.my_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &pctx.comm_sz);
 
   /* Everyone is a shuffle sender + receiver for the benchmark */
   pctx.recv_comm = MPI_COMM_WORLD;
   MPI_Comm_rank(pctx.recv_comm, &pctx.recv_rank);
   MPI_Comm_size(pctx.recv_comm, &pctx.recv_sz);
+
+  my_rank_ = pctx.my_rank;
 
   pctx.opts = new pdlfs::carp::CarpOptions();
   pctx.opts->rtp_pvtcnt[1] = 256;
@@ -69,10 +79,14 @@ void RTPBench::InitParams() {
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
   pctx.opts->sctx = &(pctx.sctx);
+  pctx.opts->mock_io_enabled = false;
+  pctx.opts->io_enabled = false;
+
 //  pctx.opts->mount_path = pctx.local_root; // XXX: local_root not set
 //  pctx.opts->mount_path += "/";
 //  pctx.opts->mount_path += "stripped"; // XXX: what is this?
 //  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
+//
 
 #undef SETENV
 }

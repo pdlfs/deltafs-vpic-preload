@@ -161,8 +161,8 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
   pvtcnt_[3] = opts.rtp_pvtcnt[3];
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "[rtp_init] pivot_count: %d/%d/%d\n", pvtcnt_[1], pvtcnt_[2],
-         pvtcnt_[3]);
+    logf(LOG_INFO, "[rtp_init] pivot_count: %d/%d/%d, ranks: %d\n", pvtcnt_[1],
+         pvtcnt_[2], pvtcnt_[3], num_ranks_);
   }
 
   Status s = InitTopology();

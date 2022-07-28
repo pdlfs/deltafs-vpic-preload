@@ -504,6 +504,12 @@ static void preload_init() {
     pctx.opts->dynamic_thresh = pdlfs::kDynamicThreshold;
   }
 
+  /* Flags added for RTP-bench, storage is disabled in that mode
+   * In the regular invocation, storage is always enabled currently
+   */
+  pctx.opts->mock_io_enabled = true;
+  pctx.opts->io_enabled = true;
+
   /* additional init can go here or MPI_Init() */
   signal(SIGUSR1, sigusr1);
 }

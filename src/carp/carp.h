@@ -37,6 +37,8 @@ struct CarpOptions {
   float dynamic_thresh;
   std::string mount_path; // for stat_trigger only
   Env* env;
+  bool mock_io_enabled;
+  bool io_enabled;
 };
 
 class Carp {
