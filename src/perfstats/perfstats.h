@@ -48,8 +48,8 @@ typedef struct perfstats_ctx {
  *
  * @param perf_ctx
  * @param my_rank
- * @param dir_path
- * @param local_root
+ * @param dir_path Directory where perfstats-files are to be written
+ * @param local_root Only used for blkid-stats
  *
  * @return
  */
