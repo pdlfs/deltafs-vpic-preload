@@ -16,7 +16,7 @@
 #include "policy.h"
 #include "preload_shuffle.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
-#include "range_backend/mock_backend.h"
+#include "mock_backend.h"
 #include "rtp.h"
 
 namespace pdlfs {

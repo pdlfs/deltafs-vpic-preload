@@ -38,7 +38,6 @@ endif ()
 # create the library target
 #
 set(RANGE_SOURCES
-        range_backend/mock_backend.cc
         perfstats/perfstats.cc
         perfstats/stat.cc
         perfstats/manifest_analytics.cc
@@ -48,6 +47,7 @@ set(CARP_SOURCES
         carp/carp.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
+        carp/mock_backend.cc
         carp/msgfmt.cc
         carp/oob_buffer.cc
         carp/policy.cc
