@@ -74,5 +74,12 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
 
   return s;
 }
+
+Status Carp::ForceRenegotiation() {
+  MutexLock ml(&mutex_);
+  Status s = Status::OK();
+  rtp_.InitRound();
+  return s;
+}
 }  // namespace carp
 }  // namespace pdlfs

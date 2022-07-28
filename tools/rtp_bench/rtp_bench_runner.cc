@@ -10,9 +10,9 @@
  */
 
 int main(int argc, char* argv[]) {
-  printf("hello world");
   MPI_Init(&argc, &argv);
   pdlfs::carp::RTPBench rtp_bench;
   rtp_bench.Run();
+  MPI_Finalize();
   return 0;
 }

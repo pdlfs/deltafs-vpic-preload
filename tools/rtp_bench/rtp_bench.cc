@@ -38,6 +38,7 @@ void RTPBench::InitParams() {
   SETENV("SHUFFLE_Paranoid_checks", "0");
   SETENV("SHUFFLE_Random_flush", "0");
   SETENV("SHUFFLE_Recv_radix", "0");
+  SETENV("SHUFFLE_Use_multihop", "1");
   SETENV("NEXUS_ALT_LOCAL", "na+sm");
   SETENV("NEXUS_BYPASS_LOCAL", "0");
 
@@ -54,6 +55,24 @@ void RTPBench::InitParams() {
   pctx.recv_comm = MPI_COMM_WORLD;
   MPI_Comm_rank(pctx.recv_comm, &pctx.recv_rank);
   MPI_Comm_size(pctx.recv_comm, &pctx.recv_sz);
+
+  pctx.opts = new pdlfs::carp::CarpOptions();
+  pctx.opts->rtp_pvtcnt[1] = 256;
+  pctx.opts->rtp_pvtcnt[2] = 256;
+  pctx.opts->rtp_pvtcnt[3] = 256;
+  /* doesn't matter, not used */
+  pctx.opts->oob_sz = 256;
+  pctx.carp_dynamic_reneg = 0;
+  pctx.opts->reneg_policy = pdlfs::kDefaultRenegPolicy;
+  pctx.opts->reneg_intvl = pdlfs::kRenegInterval;
+  pctx.opts->dynamic_thresh = pdlfs::kDynamicThreshold;
+  pctx.opts->num_ranks = pctx.comm_sz;
+  pctx.opts->my_rank = pctx.my_rank;
+  pctx.opts->sctx = &(pctx.sctx);
+//  pctx.opts->mount_path = pctx.local_root; // XXX: local_root not set
+//  pctx.opts->mount_path += "/";
+//  pctx.opts->mount_path += "stripped"; // XXX: what is this?
+//  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
 
 #undef SETENV
 }

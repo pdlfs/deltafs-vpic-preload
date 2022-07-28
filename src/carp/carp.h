@@ -80,6 +80,9 @@ class Carp {
 
   Status AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush);
 
+  /* Only for benchmarks, not for actual data runs */
+  Status ForceRenegotiation();
+
   /* AdvanceEpoch is also called before the first epoch,
    * so it can't be assumed that the first epoch is e0
    */

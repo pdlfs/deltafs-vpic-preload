@@ -16,19 +16,30 @@ class RTPBench {
   RTPBench() {}
   Status Run() {
     InitParams();
-    InitShuffle();
-    DestroyShuffle();
+    InitCarp();
+//    RunCarp();
+    DestroyCarp();
     return Status::OK();
   }
 
  private:
   void InitParams();
 
-  void InitShuffle() {
+  void InitCarp() {
     shuffle_init(&pctx.sctx);
+    pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
   }
 
-  void DestroyShuffle() {
+  void RunCarp() {
+    pctx.carp->ForceRenegotiation();
+    sleep(20);
+  }
+
+  void DestroyCarp() {
+    delete pctx.carp;
+    pctx.carp = nullptr;
+    delete pctx.opts;
+    pctx.opts = nullptr;
     shuffle_finalize(&pctx.sctx);
 
     if (pctx.recv_comm != MPI_COMM_NULL && pctx.recv_comm != MPI_COMM_WORLD) {
