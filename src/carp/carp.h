@@ -35,7 +35,7 @@ struct CarpOptions {
   const char* reneg_policy;
   uint32_t dynamic_intvl;
   float dynamic_thresh;
-  std::string mount_path;
+  std::string mount_path; // for stat_trigger only
   Env* env;
 };
 
