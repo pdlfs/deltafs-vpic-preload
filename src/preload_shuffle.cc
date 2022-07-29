@@ -713,7 +713,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
-    xn_shuffle_init(rep);
+    xn_shuffle_init(rep, NULL);
     world_sz = xn_shuffle_world_size(rep);
     ctx->rep = rep;
   } else {

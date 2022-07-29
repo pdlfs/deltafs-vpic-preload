@@ -66,11 +66,29 @@ void xn_local_barrier(xn_ctx_t* ctx) {
 void xn_shuffle_epoch_end(xn_ctx_t* ctx) {
   hg_return_t hret;
   assert(ctx != NULL && ctx->sh != NULL);
+
+  if (ctx->psh) {
+    /* flush psh if enabled (just in case it is flow controlled) */
+    hret = shuffle_flush_originqs(ctx->psh);
+    if (hret != HG_SUCCESS) {
+      RPC_FAILED("fail to flush local priority origin queues", hret);
+    }
+  }
+
   hret = shuffle_flush_originqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local origin queues", hret);
   }
   xn_local_barrier(ctx);
+
+  if (ctx->psh) {
+    /* flush psh if enabled (just in case it is flow controlled) */
+    hret = shuffle_flush_remoteqs(ctx->psh);
+    if (hret != HG_SUCCESS) {
+      RPC_FAILED("fail to flush remote priority queues", hret);
+    }
+  }
+
   hret = shuffle_flush_remoteqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush remote queues", hret);
@@ -89,15 +107,35 @@ void xn_shuffle_epoch_start(xn_ctx_t* ctx) {
   hg_uint64_t tmpori;
   hg_uint64_t tmprl;
   assert(ctx != NULL && ctx->sh != NULL);
+
+  if (ctx->psh) {
+    /* flush psh if enabled (just in case it is flow controlled) */
+    hret = shuffle_flush_relayqs(ctx->psh);
+    if (hret != HG_SUCCESS) {
+      RPC_FAILED("fail to flush local priorty relay queues", hret);
+    }
+  }
+
   hret = shuffle_flush_relayqs(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush local relay queues", hret);
   }
+
   xn_local_barrier(ctx);
   ctx->last_stat = ctx->stat;
   shuffle_send_stats(ctx->sh, &tmpori, &tmprl, &ctx->stat.remote.sends);
   ctx->stat.local.sends = tmpori + tmprl;
+
   shuffle_recv_stats(ctx->sh, &ctx->stat.local.recvs, &ctx->stat.remote.recvs);
+
+  if (ctx->psh) {
+    /* flush psh if enabled (just in case it is flow controlled) */
+    hret = shuffle_flush_delivery(ctx->psh);
+    if (hret != HG_SUCCESS) {
+      RPC_FAILED("fail to flush priority delivery", hret);
+    }
+  }
+
   hret = shuffle_flush_delivery(ctx->sh);
   if (hret != HG_SUCCESS) {
     RPC_FAILED("fail to flush delivery", hret);
@@ -126,7 +164,19 @@ void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
   }
 }
 
-void xn_shuffle_init(xn_ctx_t* ctx) {
+void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
+                               int epoch, int dst, int src, uint32_t type) {
+  hg_return_t hret;
+  assert(ctx->psh != NULL);
+  hret = shuffle_enqueue(ctx->psh, dst, type, buf, buf_sz);
+
+  if (hret != HG_SUCCESS) {
+    RPC_FAILED("plfsdir shuffler priority send failed", hret);
+  }
+}
+
+/* psh is only init'd if psh_callback is not NULL */
+void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
   hg_class_t *hgcls;
   hg_context_t *hgctx;
   struct shuffle_opts so;
@@ -315,6 +365,45 @@ void xn_shuffle_init(xn_ctx_t* ctx) {
     }
   }
 
+  /* we only init the priority shuffle (psh) if we have a callback for it */
+  if (!psh_callback) {
+    ctx->psh = NULL;
+     if (pctx.my_rank == 0) {
+       logf(LOG_INFO, "PRIORITY 3-HOP inactive");
+     }
+  } else {
+   /*
+    * priority shuffle has identical shuffle options, except that it does
+    * not batch RPCs.  thus all buftarget values are set to 1 and the
+    * deliverq threashold to 0.
+    */
+   so.lobuftarget = 1;
+   so.lrbuftarget = 1;
+   so.rbuftarget = 1;
+   so.deliverq_threshold = 0;
+
+   ctx->psh = shuffle_init(ctx->nx, const_cast<char*>("shuffle_rpc_priority"),
+                            psh_callback, &so);
+
+   if (ctx->psh == NULL) {
+     ABORT("priority_shuffler_init");
+   } else if (pctx.my_rank == 0) {
+     logf(LOG_INFO,
+          "PRIORITY 3-HOP active; confs: sndlim(l/r)=%d/%d, "
+          "maxrpc(lo/lr/r)=%d/%d/%d, "
+          "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
+          so.localsenderlimit, so.remotesenderlimit, so.lomaxrpc, so.lrmaxrpc,
+          so.rmaxrpc, so.lobuftarget, so.lrbuftarget, so.rbuftarget,
+          so.deliverq_threshold, so.deliverq_max);
+     if (logfile != NULL && logfile[0] != 0 && strcmp(logfile, "/") != 0) {
+       fputs(">>> LOGGING is ON, will log to ...\n --> ", stderr);
+       fputs(logfile, stderr);
+       fprintf(stderr, ".[0-%d]\n", pctx.comm_sz);
+     }
+   }
+
+  }
+
   if (is_envset("SHUFFLE_Force_global_barrier")) {
     ctx->force_global_barrier = 1;
     if (pctx.my_rank == 0) {
@@ -355,6 +444,12 @@ void xn_shuffle_destroy(xn_ctx_t* ctx) {
       shuffle_shutdown(ctx->sh);
       ctx->sh = NULL;
     }
+
+    if (ctx->psh != NULL) {
+      shuffle_shutdown(ctx->psh);
+      ctx->psh = NULL;
+    }
+
     if (ctx->nx != NULL) {
       nexus_destroy(ctx->nx);
       ctx->nx = NULL;
