@@ -1,9 +1,33 @@
+#include <pdlfs-common/env.h>
+#include <pdlfs-common/env_files.h>
+
 #include "rtp_bench.h"
 
 namespace pdlfs {
 namespace carp {
 uint64_t sumsq(const uint64_t& total, const uint64_t& v) {
   return total + v*v;
+}
+
+void EnsureDir(const char* dpath) {
+  Env* env = pdlfs::Env::Default();
+  Status s = env->CreateDir(dpath);
+  if (s.ok() or (s == Status::AlreadyExists)) {
+    // success;
+    return;
+  } else {
+    logf(LOG_ERRO, "Error creating directory %s (%s)\n", dpath, s.ToString());
+    exit(-1);
+  }
+}
+
+void EnsureAllDirs() {
+  if (pctx.my_rank != 0) {
+    return;
+  }
+
+  EnsureDir(pctx.log_home);
+  EnsureDir(pctx.local_root);
 }
 
 void RTPBench::InitParams() {
@@ -58,6 +82,9 @@ void RTPBench::InitParams() {
 
   MPI_Comm_rank(MPI_COMM_WORLD, &pctx.my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &pctx.comm_sz);
+
+  /* only executes at Rank 0 */
+  EnsureAllDirs();
 
   /* Everyone is a shuffle sender + receiver for the benchmark */
   pctx.recv_comm = MPI_COMM_WORLD;

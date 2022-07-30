@@ -15,12 +15,13 @@ namespace carp {
 uint64_t sumsq(const uint64_t& total, const uint64_t& v);
 
 struct RTPBenchOpts {
-  int nrounds;
+  int nrounds; // number of RTP rounds to run
+  int nwarmup; // number of untimed rounds to warm up with
 };
 
 class RTPBench {
  public:
-  RTPBench(RTPBenchOpts& opts) : my_rank_(-1), nrounds_(opts.nrounds) {}
+  RTPBench(RTPBenchOpts& opts) : opts_(opts), my_rank_(-1) {}
   Status Run() {
     InitParams();
     MPI_Barrier(MPI_COMM_WORLD);
@@ -53,7 +54,11 @@ class RTPBench {
 
   void RunCarp() {
     if (my_rank_ == 0) {
-      for (size_t n = 0; n < nrounds_; n++) {
+      for (size_t n = 0; n < opts_.nwarmup; n++) {
+        TriggerRound(/* untimed */ true);
+      }
+
+      for (size_t n = 0; n < opts_.nrounds; n++) {
         TriggerRound();
       }
     }
@@ -63,11 +68,14 @@ class RTPBench {
     sleep(1);
   }
 
-  void TriggerRound() {
+  void TriggerRound(bool untimed=false) {
     uint64_t rbeg_us = Now();
     pctx.carp->ForceRenegotiation();
     uint64_t rend_us = Now();
-    LogRound(rbeg_us, rend_us);
+
+    if (!untimed) {
+      LogRound(rbeg_us, rend_us);
+    }
   }
 
   static uint64_t Now() {
@@ -81,11 +89,11 @@ class RTPBench {
   }
 
   void LogRound(uint64_t rbeg_us, uint64_t rend_us) {
-    all_rounds_.push_back(rend_us - rbeg_us);
+    all_rtimes_.push_back(rend_us - rbeg_us);
   }
 
   void PrintStats() {
-    size_t rlatcnt = all_rounds_.size();
+    size_t rlatcnt = all_rtimes_.size();
 
     uint64_t const& (*min)(uint64_t const&, uint64_t const&) =
         std::min<uint64_t>;
@@ -93,9 +101,9 @@ class RTPBench {
         std::max<uint64_t>;
 
     uint64_t rlatsum =
-        std::accumulate(all_rounds_.begin(), all_rounds_.end(), 0ull);
+        std::accumulate(all_rtimes_.begin(), all_rtimes_.end(), 0ull);
     uint64_t rlatsqsum =
-        std::accumulate(all_rounds_.begin(), all_rounds_.end(), 0ull, sumsq);
+        std::accumulate(all_rtimes_.begin(), all_rtimes_.end(), 0ull, sumsq);
 
     double rlatmean = rlatsum / rlatcnt;
     double rlatmeansq = rlatmean * rlatmean;
@@ -104,9 +112,9 @@ class RTPBench {
     double rlatstd = pow(rlatvar, 0.5);
 
     uint64_t rlatmin =
-        std::accumulate(all_rounds_.begin(), all_rounds_.end(), UINT_MAX, min);
+        std::accumulate(all_rtimes_.begin(), all_rtimes_.end(), UINT_MAX, min);
     uint64_t rlatmax =
-        std::accumulate(all_rounds_.begin(), all_rounds_.end(), 0ull, max);
+        std::accumulate(all_rtimes_.begin(), all_rtimes_.end(), 0ull, max);
 
     logf(LOG_INFO,
          "Rounds: %zu, Latency: %.1lfus+-%.1lfus (Range: %" PRIu64 "us-%" PRIu64
@@ -131,9 +139,9 @@ class RTPBench {
     }
   }
 
+  const RTPBenchOpts& opts_;
   int my_rank_;
-  int nrounds_;
-  std::vector<uint64_t> all_rounds_;
+  std::vector<uint64_t> all_rtimes_;
 };
 }  // namespace carp
 }  // namespace pdlfs

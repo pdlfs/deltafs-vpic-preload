@@ -39,7 +39,10 @@ foreach (tgt ${CARP_SOURCES} ${PRELOAD_SOURCES} ${OTHER_SOURCES})
     list(APPEND ALL_SOURCES ${CMAKE_SOURCE_DIR}/src/${tgt})
 endforeach ()
 
-add_library(carp-base ${ALL_SOURCES} preload_funcs.cc)
+# To prevent preloading we exclude preload.cc from carp-base
+# This almost works but there is no definition of preload_write
+# which is invoked outside. We provide that symbol in preload_funcs.cc
+add_library(carp-base STATIC ${ALL_SOURCES} preload_funcs.cc)
 target_link_libraries(carp-base
         mercury
         mssg
@@ -53,3 +56,27 @@ target_include_directories(carp-base PUBLIC
 
 add_executable(rtp-bench-runner rtp_bench_runner.cc rtp_bench.cc)
 target_link_libraries(rtp-bench-runner carp-base)
+
+# Copy MPI hacks from parent CMakeLists. Is there a cleaner way?
+foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
+    if (NOT ${lcv} STREQUAL "")
+        target_compile_options(rtp-bench-runner
+                PUBLIC $<BUILD_INTERFACE:${lcv}>)
+    endif ()
+endforeach ()
+
+# XXX: have to do this one dir at a time
+foreach (lcv ${MPI_CXX_INCLUDE_PATH})
+    target_include_directories(rtp-bench-runner
+            PUBLIC $<BUILD_INTERFACE:${lcv}>)
+endforeach ()
+
+foreach (lcv ${MPI_CXX_LIBRARIES})
+    target_link_libraries(rtp-bench-runner $<BUILD_INTERFACE:${lcv}>)
+endforeach ()
+
+set_property(TARGET rtp-bench-runner APPEND PROPERTY LINK_FLAGS
+        ${MPI_CXX_LINK_FLAGS})
+
+install(TARGETS rtp-bench-runner
+        RUNTIME DESTINATION bin)
