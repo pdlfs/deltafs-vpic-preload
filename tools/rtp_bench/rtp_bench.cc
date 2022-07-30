@@ -1,22 +1,23 @@
+#include "rtp_bench.h"
+
 #include <pdlfs-common/env.h>
 #include <pdlfs-common/env_files.h>
-
-#include "rtp_bench.h"
 
 namespace pdlfs {
 namespace carp {
 uint64_t sumsq(const uint64_t& total, const uint64_t& v) {
-  return total + v*v;
+  return total + v * v;
 }
 
 void EnsureDir(const char* dpath) {
   Env* env = pdlfs::Env::Default();
   Status s = env->CreateDir(dpath);
-  if (s.ok() or (s == Status::AlreadyExists)) {
+  if (s.ok() or s.IsAlreadyExists()) {
     // success;
     return;
   } else {
-    logf(LOG_ERRO, "Error creating directory %s (%s)\n", dpath, s.ToString());
+    logf(LOG_ERRO, "Error creating directory %s (%s)\n", dpath,
+         s.ToString().c_str());
     exit(-1);
   }
 }
@@ -109,11 +110,11 @@ void RTPBench::InitParams() {
   pctx.opts->mock_io_enabled = false;
   pctx.opts->io_enabled = false;
 
-//  pctx.opts->mount_path = pctx.local_root; // XXX: local_root not set
-//  pctx.opts->mount_path += "/";
-//  pctx.opts->mount_path += "stripped"; // XXX: what is this?
-//  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
-//
+  //  pctx.opts->mount_path = pctx.local_root; // XXX: local_root not set
+  //  pctx.opts->mount_path += "/";
+  //  pctx.opts->mount_path += "stripped"; // XXX: what is this?
+  //  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
+  //
 
 #undef SETENV
 }
