@@ -193,6 +193,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     return 0;
   }
 
+#if 0
   /**********************/
   std::vector<float>& ff = carp->rank_counts_;
   std::vector<float>& gg = carp->rank_bins_;
@@ -206,6 +207,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
           // particle_count, SerializeVector(ff).c_str(), ff.size(),
           // SerializeVector(gg).c_str(), gg.size());
   /**********************/
+#endif
 
   float accumulated_ppp = 0;
   float particles_carried_over = 0;
