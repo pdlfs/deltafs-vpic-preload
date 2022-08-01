@@ -478,13 +478,6 @@ static void preload_init() {
     pctx.opts->oob_sz = DEFAULT_OOBSZ;
   }
 
-  tmp = maybe_getenv("RANGE_Enable_dynamic");
-  if (tmp != NULL) {
-    pctx.carp_dynamic_reneg = atoi(tmp);
-  } else {
-    pctx.carp_dynamic_reneg = 0;
-  }
-
   tmp = maybe_getenv("RANGE_Reneg_policy");
   if (tmp != NULL) {
     pctx.opts->reneg_policy = tmp;

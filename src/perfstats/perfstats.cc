@@ -318,8 +318,6 @@ int perfstats_log_carp(perfstats_ctx_t* perf_ctx) {
 #define PERFLOGS(a, b) perfstats_log_eventstr(perf_ctx, a, b)
   PERFLOG("CARP_ENABLED", pctx.carp_on);
   PERFLOGS("CARP_NUM_PIVOTS", pvtcnt_str);
-  PERFLOG("CARP_DYNAMIC_ENABLED", pctx.carp_dynamic_reneg);
-  PERFLOG("CARP_RENEG_INTERVAL", pctx.carp_reneg_intvl);
 #undef PERFLOG
 #undef PERFLOGS
 
