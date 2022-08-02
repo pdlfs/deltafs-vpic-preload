@@ -16,7 +16,7 @@
 namespace {
 float get_indexable_property(const char* data_buf) {
   const float* prop = reinterpret_cast<const float*>(data_buf);
-  return prop[0];
+  return prop[0];   // XXX hardwired.  can we hook into index_attr_offset?
 }
 
 }  // namespace

@@ -154,7 +154,7 @@ class Carp {
 
   static float GetIndexedAttr(const char* data_buf, unsigned int data_len) {
     const float* prop = reinterpret_cast<const float*>(data_buf);
-    return prop[0];
+    return prop[0];  // XXX hardwired.  use index_attr_offset.
   }
 
   static float GetIndexedAttrAlt(const char* data_buf, unsigned int data_len) {
