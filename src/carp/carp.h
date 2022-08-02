@@ -25,18 +25,35 @@ struct rtp_ctx;
 
 namespace carp {
 
+/*
+ * CarpOptions: used to init carp via the Carp constructor.  for
+ * preload config via RANGE_* environment variables, the variable
+ * name is given.
+ */
 struct CarpOptions {
-  uint32_t my_rank;
-  uint32_t num_ranks;
-  uint32_t oob_sz;
-  uint64_t reneg_intvl;
-  int rtp_pvtcnt[4];
-  shuffle_ctx_t* sctx;
-  const char* reneg_policy;
-  uint32_t dynamic_intvl;
-  float dynamic_thresh;
-  std::string mount_path;
-  Env* env;
+  int index_attr_size;       /* sizeof indexed attr, default=sizeof(float) */
+                             /* note: currenly only float is supported */
+                             /* (PRELOAD_Particle_indexed_attr_size) */
+  int index_attr_offset;     /* offset in particle buf of indexed attr */
+                             /* default: 0 */
+                             /* (PRELOAD_Particle_indexed_attr_offset) */
+  uint32_t oob_sz;           /* max #particles in oob buf (RANGE_Oob_size) */
+  const char* reneg_policy;  /* InvocationDynamic, InvocationPeriodic (def), */
+                             /* InvocationOnce. (RANGE_Reneg_policy) */
+  uint64_t reneg_intvl;      /* periodic: reneg every reneg_intvl writes */
+                             /*   (RANGE_Reneg_interval) */
+  uint32_t dynamic_intvl;    /* stat: invoke every dynamic_intvl calls */
+                             /*   (RANGE_Reneg_interval) */
+  float dynamic_thresh;      /* stat: evaltrigger if load_skew > trigger */
+                             /*   (RANGE_Dynamic_threshold) */
+  int rtp_pvtcnt[4];         /* # of RTP pivots gen'd by each stage */
+                             /* RANGE_Pvtcnt_s{1,2,3} */
+  Env* env;                  /* stat: for GetFileSize() in StatFiles() */
+                             /* normally set to Env::Default() */
+  uint32_t my_rank;          /* my MPI rank */
+  uint32_t num_ranks;        /* MPI world size */
+  shuffle_ctx_t* sctx;       /* shuffle context (set from preload MPI_Init) */
+  std::string mount_path;    /* mount_path (set from preload MPI_Init) */
 };
 
 class Carp {

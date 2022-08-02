@@ -665,7 +665,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   assert(ctx != NULL);
 
   if (pctx.carp_on) {
-    ctx->fname_len = TOUCHAR(pctx.particle_indexed_attr_size);
+    ctx->fname_len = TOUCHAR(pctx.opts->index_attr_size);
     ctx->data_len = TOUCHAR(pctx.particle_id_size + pctx.particle_size);
     ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
   } else {

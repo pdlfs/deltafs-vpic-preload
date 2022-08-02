@@ -45,6 +45,7 @@ set(RANGE_SOURCES
 
 set(CARP_SOURCES
         carp/carp.cc
+        carp/carp_preload.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
         carp/mock_backend.cc

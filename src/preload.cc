@@ -60,6 +60,7 @@
 #endif
 
 #include "carp/range_common.h"
+#include "carp/carp_preload.h"
 
 /* setup tmpdir defns */
 #define PRELOAD_TMPDIR_FMT "/tmp/vpic-deltafs-run-%u"
@@ -196,7 +197,6 @@ static void preload_init() {
   pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
   pctx.particle_size = DEFAULT_PARTICLE_BYTES;
   pctx.particle_buf_size = DEFAULT_PARTICLE_BUFSIZE;
-  pctx.particle_indexed_attr_size = DEFAULT_INDEXED_ATTR_SIZE;
   pctx.particle_count = 0;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
@@ -360,14 +360,6 @@ static void preload_init() {
     }
   }
 
-  tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_size");
-  if (tmp != NULL) {
-    pctx.particle_indexed_attr_size = atoi(tmp);
-    if (pctx.particle_extra_size < 0) {
-      pctx.particle_extra_size = 0;
-    }
-  }
-
   tmp = maybe_getenv("PRELOAD_Bg_threads");
   if (tmp != NULL) {
     pctx.bgdepth = atoi(tmp);
@@ -451,53 +443,10 @@ static void preload_init() {
     pctx.paranoid_post_barrier = 0;
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
-  if (is_envset("PRELOAD_Enable_CARP")) pctx.carp_on = 1;
 
-  pctx.opts = new pdlfs::carp::CarpOptions();
-
-#define INIT_PVTCNT(arr, idx)                \
-  tmp = maybe_getenv("RANGE_Pvtcnt_s" #idx); \
-  if (tmp != NULL) {                         \
-    (arr)[(idx)] = atoi(tmp);                \
-    assert(arr[(idx)] > 0);                  \
-  } else {                                   \
-    (arr)[(idx)] = DEFAULT_PVTCNT;           \
-  }
-
-  INIT_PVTCNT(pctx.opts->rtp_pvtcnt, 1);
-  INIT_PVTCNT(pctx.opts->rtp_pvtcnt, 2);
-  INIT_PVTCNT(pctx.opts->rtp_pvtcnt, 3);
-
-#undef INIT_PVTCNT
-
-  tmp = maybe_getenv("RANGE_Oob_size");
-  if (tmp != NULL) {
-    pctx.opts->oob_sz = atoi(tmp);
-    assert(pctx.opts->oob_sz > 0);
-  } else {
-    pctx.opts->oob_sz = DEFAULT_OOBSZ;
-  }
-
-  tmp = maybe_getenv("RANGE_Reneg_policy");
-  if (tmp != NULL) {
-    pctx.opts->reneg_policy = tmp;
-  } else {
-    pctx.opts->reneg_policy = pdlfs::kDefaultRenegPolicy;
-  }
-
-  tmp = maybe_getenv("RANGE_Reneg_interval");
-  if (tmp != NULL) {
-    pctx.opts->reneg_intvl = atoi(tmp);
-    pctx.opts->dynamic_intvl = atoi(tmp);
-  } else {
-    pctx.opts->reneg_intvl = pdlfs::kRenegInterval;
-  }
-
-  tmp = maybe_getenv("RANGE_Dynamic_threshold");
-  if (tmp != NULL) {
-    pctx.opts->dynamic_thresh = atof(tmp);
-  } else {
-    pctx.opts->dynamic_thresh = pdlfs::kDynamicThreshold;
+  if (is_envset("PRELOAD_Enable_CARP")) {
+    pctx.carp_on = 1;
+    pctx.opts = pdlfs::carp::preload_init_carpopts();
   }
 
   /* additional init can go here or MPI_Init() */
@@ -713,7 +662,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
   std::string key_size_indexed_attr =
-      std::to_string(pctx.particle_indexed_attr_size);
+      std::to_string(pctx.opts->index_attr_size); // XXXCARP assumption
 
   if (pctx.carp_on) {
     dirc.key_size = key_size_indexed_attr.c_str();
@@ -1335,18 +1284,10 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  pctx.opts->num_ranks = pctx.comm_sz;
-  pctx.opts->my_rank = pctx.my_rank;
-  pctx.opts->sctx = &(pctx.sctx);
-  pctx.opts->mount_path = pctx.local_root;
-  pctx.opts->mount_path += "/";
-  pctx.opts->mount_path += stripped;
-
-  if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "[carp] reneg_intvl: %" PRIu64 ", reneg_thresh: %.3f\n",
-         pctx.opts->reneg_intvl, pctx.opts->dynamic_thresh);
+  if (pctx.carp_on) {
+    pdlfs::carp::preload_mpiinit_carpopts(&pctx, pctx.opts, stripped);
+    pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
   }
-  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
 
   srand(pctx.my_rank);
 
@@ -1977,11 +1918,9 @@ int MPI_Finalize(void) {
          double(sum_pthreads) / pctx.comm_sz);
   }
 
-  delete pctx.carp;
-  pctx.carp = nullptr;
-
-  delete pctx.opts;
-  pctx.opts = nullptr;
+  if (pctx.carp_on) {
+    pdlfs::carp::preload_finalize_carp(&pctx);
+  }
 
   delete pctx.range_backend;
   pctx.range_backend = nullptr;
