@@ -26,8 +26,8 @@ Status Carp::Serialize(const char* fname, unsigned char fname_len, char* data,
   p.indexed_prop = indexed_prop;
   /* XXX: breaking msgfmt abstraction; fix */
   /* XXX: only used for shuffle_write_range()'s "bypass rpc if target local" */
-  p.data_ptr = p.buf + fname_len + 2;
-  p.data_sz = data_len;
+  p.data_ptr = p.buf + sizeof(float) + 2; /* XXX */
+  p.data_sz = fname_len + data_len;  /* XXX */
 
   logf(LOG_DBG2, "shuffle_write, bufsz: %d\n", p.buf_sz);
   return s;
