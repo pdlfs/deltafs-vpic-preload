@@ -52,6 +52,8 @@
  *    Extra bytes for each particle
  *  PRELOAD_Number_particles_per_rank
  *    Number of particles per rank
+ *  PRELOAD_Epoch_max_writes
+ *    Start dropping if plfs writes in epoch exceed this number
  *  PRELOAD_Pthread_tap
  *    Rank# less than this will get their rusage tapped
  *  PRELOAD_Ignore_dirs (semicolon separated paths)
@@ -86,6 +88,8 @@
  *    Use the wisc-key format
  *  PRELOAD_Enable_bloomy
  *    Use the bloomy format
+ *  PRELOAD_Epoch_max_writes
+ *    Drop writes if they exceed this number
  *  PRELOAD_No_sys_probing
  *    Do not scan operating system or device settings
  *  PRELOAD_No_paranoid_checks

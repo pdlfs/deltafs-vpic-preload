@@ -99,6 +99,12 @@ typedef struct preload_ctx {
   int particle_id_size;
   int particle_count;
 
+  /* params to drop writes - for load balancing experiments */
+  unsigned long long epoch_wrcnt_max; /* max num-writes per-epoch */
+  unsigned long long epoch_wrcnt_cur; /* num-writes for cur epoch */
+  unsigned long long total_dropcnt;   /* total writes dropped */
+
+
   int particle_indexed_attr_size; /* if not indexing by particle ID, for CARP */
 
   /* since some ranks may be sender-only, so we have a dedicated MPI

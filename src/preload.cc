@@ -195,6 +195,9 @@ static void preload_init() {
   pctx.particle_buf_size = DEFAULT_PARTICLE_BUFSIZE;
   pctx.particle_indexed_attr_size = DEFAULT_INDEXED_ATTR_SIZE;
   pctx.particle_count = 0;
+  pctx.epoch_wrcnt_max = 0;
+  pctx.epoch_wrcnt_cur = 0;
+  pctx.total_dropcnt = 0;
   pctx.sthres = 100; /* 100 samples per 1 million input */
 
   pctx.sampling = 1;
@@ -323,6 +326,12 @@ static void preload_init() {
     if (pctx.particle_count < 0) {
       ABORT("bad particle count");
     }
+  }
+
+  tmp = maybe_getenv("PRELOAD_Epoch_max_writes");
+  if (tmp != NULL) {
+    // All values of this limit are valid
+    pctx.epoch_wrcnt_max = atoll(tmp);
   }
 
   tmp = maybe_getenv("PRELOAD_Particle_buf_size");
@@ -1676,6 +1685,19 @@ int MPI_Finalize(void) {
       }
     }
 
+    /* check if any particles were deliberately dropped */
+    if (pctx.epoch_wrcnt_max) {
+      unsigned long long global_dropcnt = 0;
+      MPI_Reduce(&(pctx.total_dropcnt), &global_dropcnt, 1,
+                 MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+      if (global_dropcnt) {
+        logf(LOG_WARN, "> %s particles dropped as per configured limits",
+            pretty_num(global_dropcnt).c_str());
+      }
+
+    }
+
     /* close, merge, and dist mon files */
     if (pctx.monfd != -1) {
       if (!pctx.nodist) {
@@ -2227,6 +2249,7 @@ int opendir_impl(const char* dir) {
 
   range_ctx_reset(&(pctx.rctx));
   pctx.carp->AdvanceEpoch();
+  pctx.epoch_wrcnt_cur = 0;
 
   if (pctx.paranoid_post_barrier) {
     /*
@@ -2908,6 +2931,17 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   ssize_t n;
   char buf[12];
   int rv;
+
+  /* check if we want to drop writes */
+  if (pctx.epoch_wrcnt_max) {
+    pctx.epoch_wrcnt_cur++;
+    if (pctx.epoch_wrcnt_cur == pctx.epoch_wrcnt_max) {
+      pctx.total_dropcnt++;
+
+      rv = 0;
+      return rv;
+    }
+  }
 
   pctx.perf_ctx.stat_hooks.bytes_written += data_len;
 
