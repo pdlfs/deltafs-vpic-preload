@@ -19,9 +19,13 @@ void assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
     auto a = seq[i];
     auto b = seq[i - 1];
     if (verbose) {
-      std::cout << a << " " << b << "\n";
+      std::cout << "[" << i << "]" << " " << a << " " << b << "\n";
+      std::stringstream s;
+      s << a << ", " << b;
+      logf(LOG_ERRO, "[%zu] %s\n", i, s.str().c_str());
     }
-    ASSERT_GT(a, b);
+//    ASSERT_GT(a, b);
+    ASSERT_GE(a, b);
   }
 }
 }  // namespace
@@ -43,6 +47,7 @@ class RangeUtilsTest {
     ro.sctx->type = SHUFFLE_XN;
     ro.my_rank = 0;
     ro.num_ranks = 512;
+    ro.reneg_policy = "InvocationPeriodic";
 
     carp = new carp::Carp(ro);
 
@@ -237,6 +242,20 @@ TEST(RangeUtilsTest, PivotCalc9) {
   carp::PivotUtils::CalculatePivots(carp, num_pivots);
   carp->mutex_.Unlock();
   ::assert_monotonic(carp->my_pivots_, num_pivots);
+}
+
+/* This test may require bumping up the value of
+ * pdlfs::kMaxPivots to >= 2048.
+ * TODO: think of a better way to handle this
+ */
+TEST(RangeUtilsTest, PivotCalc10) {
+#include "pivot_calc_10_data.cc"  // NOLINT(bugprone-suspicious-include)
+  LoadData(oob_data, oob_data_sz);
+  int npivots = 2048;
+  carp->mutex_.Lock();
+  carp::PivotUtils::CalculatePivots(carp, npivots);
+  carp->mutex_.Unlock();
+  ::assert_monotonic(carp->my_pivots_, npivots);
 }
 
 }  // namespace pdlfs

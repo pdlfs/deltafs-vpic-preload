@@ -97,7 +97,7 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
   }
 
   for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
-    assert(carp->my_pivots_[pidx] < carp->my_pivots_[pidx + 1]);
+    assert(carp->my_pivots_[pidx] <= carp->my_pivots_[pidx + 1]);
   }
 
   return rv;
