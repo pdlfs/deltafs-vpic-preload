@@ -47,6 +47,12 @@ class OobBuffer {
   int GetPartitionedProps(std::vector<float>& left, std::vector<float>& right);
 
   int Reset();
+
+ private:
+  /* Takes in a sorted array, removes duplicates (approx comparison), prints
+   * warnings if duplicates are dropped
+   */
+  void CopyWithoutDuplicates(std::vector<float>& in, std::vector<float>& out);
 };
 
 class OobFlushIterator {
