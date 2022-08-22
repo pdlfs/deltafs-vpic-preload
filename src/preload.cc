@@ -1070,6 +1070,12 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  if (pctx.epoch_wrcnt_max && (pctx.my_rank == 0)) {
+    logf(LOG_WARN,
+         ">> PRELOAD_Epoch_max_writes set! Writes beyond %lld will be dropped.",
+         pctx.epoch_wrcnt_max);
+  }
+
   pctx.range_backend =
       new pdlfs::MockBackend(pctx.my_rank, pctx.local_root, 1023 * 1024, 48);
 
@@ -1693,9 +1699,8 @@ int MPI_Finalize(void) {
 
       if (global_dropcnt) {
         logf(LOG_WARN, "> %s particles dropped as per configured limits",
-            pretty_num(global_dropcnt).c_str());
+             pretty_num(global_dropcnt).c_str());
       }
-
     }
 
     /* close, merge, and dist mon files */
@@ -2932,13 +2937,16 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   char buf[12];
   int rv;
 
+  pthread_mtx_lock(&write_mtx);
+
   /* check if we want to drop writes */
   if (pctx.epoch_wrcnt_max) {
     pctx.epoch_wrcnt_cur++;
-    if (pctx.epoch_wrcnt_cur == pctx.epoch_wrcnt_max) {
+    if (pctx.epoch_wrcnt_cur >= pctx.epoch_wrcnt_max) {
       pctx.total_dropcnt++;
 
       rv = 0;
+      pthread_mtx_unlock(&write_mtx);
       return rv;
     }
   }
@@ -2949,7 +2957,6 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     epoch = num_eps - 1;
   }
 
-  pthread_mtx_lock(&write_mtx);
 
   pctx.range_backend->Write(fname, fname_len, data, data_len);
 
