@@ -78,9 +78,9 @@ typedef struct shuffle_ctx {
   /* (rank & receiver_mask) -> receiver_rank */
   unsigned int receiver_mask;
   int is_receiver;
-  unsigned char fname_len;
+  unsigned char skey_len;
   unsigned char extra_data_len;
-  unsigned char data_len;
+  unsigned char svalue_len;
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
@@ -116,9 +116,9 @@ int shuffle_world_sz(shuffle_ctx_t* ctx);
  *
  * return 0 on success, or EOF or errors.
  */
-int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
-                  unsigned char fname_len, char* data, unsigned char data_len,
-                  int epoch);
+int shuffle_write(shuffle_ctx_t* ctx, const char* skey,
+                  unsigned char skey_len, char* svalue,
+                  unsigned char svalue_len, int epoch);
 
 /*
  * shuffle_epoch_start: perform necessary flushes at the

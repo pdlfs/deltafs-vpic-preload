@@ -331,25 +331,28 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 }
 
 int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
-  int world_sz;
+  int world_sz, keylen;
   unsigned long target;
   int rv;
 
   assert(ctx != NULL);
-  assert(buf_sz >= ctx->fname_len);
+  assert(buf_sz >= ctx->skey_len);
 
   world_sz = shuffle_world_sz(ctx);
+  /* XXX backward compat: don't hash the trailing null to match old code */
+  /* XXX: assumes at this level skey is a filename in a C string */
+  keylen = ctx->skey_len - 1;
 
   if (world_sz != 1) {
 #ifdef PRELOAD_HAS_CH_PLACEMENT
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
       assert(ctx->chp != NULL);
       ch_placement_find_closest(
-          ctx->chp, pdlfs::xxhash64(buf, ctx->fname_len, 0), 1, &target);
+          ctx->chp, pdlfs::xxhash64(buf, keylen, 0), 1, &target);
       rv = static_cast<int>(target);
     } else {
 #endif
-      rv = pdlfs::xxhash32(buf, ctx->fname_len, 0) % world_sz;
+      rv = pdlfs::xxhash32(buf, keylen, 0) % world_sz;
 #ifdef PRELOAD_HAS_CH_PLACEMENT
     }
 #endif
@@ -377,24 +380,24 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 }
 }  // namespace
 
-int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
-                  unsigned char fname_len, char* data, unsigned char data_len,
-                  int epoch) {
+// the shuffle key/value should match the preload inkey/invalue
+int shuffle_write(shuffle_ctx_t* ctx, const char* skey,
+                  unsigned char skey_len, char* svalue,
+                  unsigned char svalue_len, int epoch) {
   char buf[255];
   int peer_rank;
   int rank;
   int rv;
 
   assert(ctx == &pctx.sctx);
-  assert(ctx->extra_data_len + ctx->data_len < 255 - ctx->fname_len - 1);
-  if (ctx->fname_len != fname_len) ABORT("bad filename len");
-  if (ctx->data_len != data_len) ABORT("bad data len");
+  assert(ctx->skey_len + ctx->svalue_len + ctx->extra_data_len <= sizeof(buf));
+  if (ctx->skey_len != skey_len) ABORT("bad shuffle key len");
+  if (ctx->svalue_len != svalue_len) ABORT("bad shuffle value len");
 
-  unsigned char base_sz = 1 + fname_len + data_len;
+  unsigned char base_sz = skey_len + svalue_len;
   unsigned char buf_sz = base_sz + ctx->extra_data_len;
-  memcpy(buf, fname, fname_len);
-  buf[fname_len] = 0;
-  memcpy(buf + fname_len + 1, data, data_len);
+  memcpy(buf, skey, skey_len);
+  memcpy(buf + skey_len, svalue, svalue_len);
   if (buf_sz != base_sz) memset(buf + base_sz, 0, buf_sz - base_sz);
 
   peer_rank = shuffle_target(ctx, buf, buf_sz);
@@ -406,7 +409,7 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
-    rv = native_write(fname, fname_len, data, data_len, epoch);
+    rv = native_write(skey, skey_len, svalue, svalue_len, epoch);
     return rv;
   }
 
@@ -437,10 +440,10 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   int rv;
 
   ctx = &pctx.sctx;
-  if (buf_sz != ctx->extra_data_len + ctx->data_len + ctx->fname_len + 1)
+  if (buf_sz != ctx->extra_data_len + ctx->svalue_len + ctx->skey_len)
     ABORT("unexpected incoming shuffle request size");
-  rv = exotic_write(buf, ctx->fname_len, buf + ctx->fname_len + 1,
-                    ctx->data_len, epoch, src);
+  rv = exotic_write(buf, ctx->skey_len, buf + ctx->skey_len,
+                    ctx->svalue_len, epoch, src);
 
   if (pctx.testin && pctx.trace != NULL)
     shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
@@ -633,24 +636,18 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   assert(ctx != NULL);
 
-  ctx->fname_len = TOUCHAR(pctx.particle_id_size);
-  ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
-  if (pctx.sideft) {
-    ctx->data_len = 0;
-  } else if (pctx.sideio) {
-    ctx->data_len = 8;
-  } else {
-    ctx->data_len = TOUCHAR(pctx.particle_size);
-  }
-  if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
+  ctx->skey_len = TOUCHAR(pctx.preload_inkey_size);
+  ctx->extra_data_len = TOUCHAR(pctx.shuffle_extrabytes);
+  ctx->svalue_len = TOUCHAR(pctx.preload_invalue_size);
+  if (ctx->extra_data_len + ctx->svalue_len > 255 - ctx->skey_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
-  if (ctx->fname_len == 0) {
+  if (ctx->skey_len == 0) {
     ABORT("bad shuffle conf: id size is zero");
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "shuffle format: K = %u (+ 1) bytes, V = %u bytes",
-         ctx->fname_len, ctx->extra_data_len + ctx->data_len);
+    logf(LOG_INFO, "shuffle format: K = %u bytes, V = %u bytes",
+         ctx->skey_len, ctx->extra_data_len + ctx->svalue_len);
   }
 
   ctx->receiver_rate = 1;

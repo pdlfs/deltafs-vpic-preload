@@ -40,22 +40,24 @@
 /* The global preload context */
 preload_ctx_t pctx = {0};
 
-int exotic_write(const char* fname, unsigned char fname_len, char* data,
-                 unsigned char data_len, int epoch, int src) {
+/* exotic_write: expects preload_inkey and preload_invalue */
+int exotic_write(const char* pkey, unsigned char pkey_len, char* pvalue,
+                 unsigned char pvalue_len, int epoch, int src) {
   int rv;
 
-  rv = preload_write(fname, fname_len, data, data_len, epoch, src);
+  rv = preload_write(pkey, pkey_len, pvalue, pvalue_len, epoch, src);
 
   pctx.mctx.nfw++;
 
   return rv;
 }
 
-int native_write(const char* fname, unsigned char fname_len, char* data,
-                 unsigned char data_len, int epoch) {
+/* native_write: expects preload_inkey and preload_invalue */
+int native_write(const char* pkey, unsigned char pkey_len, char* pvalue,
+                 unsigned char pvalue_len, int epoch) {
   int rv;
 
-  rv = preload_write(fname, fname_len, data, data_len, epoch, pctx.my_rank);
+  rv = preload_write(pkey, pkey_len, pvalue, pvalue_len, epoch, pctx.my_rank);
 
   pctx.mctx.nlw++;
 

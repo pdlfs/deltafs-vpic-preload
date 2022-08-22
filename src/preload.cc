@@ -58,9 +58,12 @@
 #endif
 
 /* default particle format */
-#define DEFAULT_PARTICLE_ID_BYTES 8 /* particle filename length */
+#define DEFAULT_FILENAME_BYTES       8  /* particle filename length */
+#define DEFAULT_FILEDATA_BYTES      40  /* particle file data length */
+#define DEFAULT_EXTRA_SHUFFLE_BYTES  0  /* extra null bytes shuffled with
+                                           a serialized k-v pair */
+
 #define DEFAULT_PARTICLE_EXTRA_BYTES 0
-#define DEFAULT_PARTICLE_BYTES 40 /* particle payload */
 #define DEFAULT_PARTICLE_BUFSIZE (2 << 20)
 
 /*
@@ -177,9 +180,9 @@ static void preload_init() {
   pctx.smap = new std::map<std::string, int>;
 
   pctx.mpi_wait = DEFAULT_MPI_WAIT;
-  pctx.particle_id_size = DEFAULT_PARTICLE_ID_BYTES;
-  pctx.particle_extra_size = DEFAULT_PARTICLE_EXTRA_BYTES;
-  pctx.particle_size = DEFAULT_PARTICLE_BYTES;
+  pctx.filename_size = DEFAULT_FILENAME_BYTES;
+  pctx.filedata_size = DEFAULT_FILEDATA_BYTES;
+  pctx.shuffle_extrabytes = DEFAULT_EXTRA_SHUFFLE_BYTES;
   pctx.particle_buf_size = DEFAULT_PARTICLE_BUFSIZE;
   pctx.particle_count = 0;
   pctx.sthres = 100; /* 100 samples per 1 million input */
@@ -318,27 +321,33 @@ static void preload_init() {
     }
   }
 
-  tmp = maybe_getenv("PRELOAD_Particle_id_size");
+  tmp = maybe_getenv("PRELOAD_Filename_size");
+  if (!tmp)
+    tmp = maybe_getenv("PRELOAD_Particle_id_size"); /* XXX backward compat */
   if (tmp != NULL) {
-    pctx.particle_id_size = atoi(tmp);
-    if (pctx.particle_id_size <= 0) {
-      ABORT("bad particle id size");
+    pctx.filename_size = atoi(tmp);
+    if (pctx.filename_size <= 0) {
+      ABORT("bad particle filename size");
     }
   }
 
-  tmp = maybe_getenv("PRELOAD_Particle_extra_size");
+  tmp = maybe_getenv("PRELOAD_Filedata_size");
+  if (!tmp)
+    tmp = maybe_getenv("PRELOAD_Particle_size"); /* XXX backward compat */
   if (tmp != NULL) {
-    pctx.particle_extra_size = atoi(tmp);
-    if (pctx.particle_extra_size < 0) {
-      pctx.particle_extra_size = 0;
+    pctx.filedata_size = atoi(tmp);
+    if (pctx.filedata_size < 0) {
+      ABORT("bad particle file data size");
     }
   }
 
-  tmp = maybe_getenv("PRELOAD_Particle_size");
+  tmp = maybe_getenv("PRELOAD_Particle_extra_shuffle_bytes");
+  if (!tmp)
+    tmp = maybe_getenv("PRELOAD_Particle_extra_size");/* XXX backward compat */
   if (tmp != NULL) {
-    pctx.particle_size = atoi(tmp);
-    if (pctx.particle_size < 0) {
-      pctx.particle_size = 0;
+    pctx.shuffle_extrabytes = atoi(tmp);
+    if (pctx.shuffle_extrabytes < 0) {
+      ABORT("bad shuffle extra bytes padding size");
     }
   }
 
@@ -425,6 +434,66 @@ static void preload_init() {
     pctx.paranoid_post_barrier = 0;
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
+
+  /*
+   * sanity check mode and derive transform sizes based on filename_size,
+   * filedata_size, and the mode.
+   */
+  if (pctx.sideft + pctx.sideio /* + pctx.carpon */ > 1)
+    ABORT("config err: only one special I/O mode can be enabled at a time");
+
+  /* normal (default) mode */
+  pctx.preload_inkey_size = pctx.preload_outkey_size = pctx.filename_size + 1;
+  pctx.preload_invalue_size = pctx.preload_outvalue_size = pctx.filedata_size;
+
+  /* default: use first PLFSDIR_Key_size bytes of hash of preload_outkey */
+  tmp = maybe_getenv("PLFSDIR_Key_size");
+  pctx.key_size = (tmp) ? atoi(tmp) : atoi(DEFAULT_KEY_SIZE);
+  pctx.value_size = pctx.preload_outvalue_size;
+
+  /* mode specific code here ... */
+  if (pctx.sideft) {
+    /*
+     * in side filter mode (bloomy) we:
+     *  1. write data to deltafs locally w/deltafs_plfsdir_append()
+     *  2. shuffle just the filename (as the key) to remote (value=empty)
+     *  3. the remote adds the key to its filter w/deltafs_plfsdir_filter_put()
+     *
+     * note that deltafs_plfsdir_append() is not called on the remote side.
+     *
+     * so we just need to zero invalue/outvalue size to indicate that
+     * we are not shuffling the particle data over the network.
+     */
+    pctx.preload_invalue_size = pctx.preload_outvalue_size = 0;
+  } else if (pctx.sideio) {
+    /*
+     *  in side io mode (wisc-key) we:
+     *   1. write data to a local log file
+     *   2. shuffle the filename (key) and log file offset (value) to remote
+     *   3. on the preload out side we add u32 src rank to the value buffer
+     *   4. we deltafs_plfsdir_append() to write key and offset to deltafs
+     *
+     * so we need to change the value to an offset.
+     */
+    pctx.preload_invalue_size = sizeof(uint64_t);
+    pctx.preload_outvalue_size = pctx.preload_invalue_size + sizeof(uint32_t);
+    pctx.value_size = pctx.preload_outvalue_size;  /* update for change */
+  } else if (0 /*pctx.carpon*/) {
+    /*
+     * in carp mode (range-query) we:
+     *  1. move the filename to the filedata
+     *  2. make the inkey the float being indexed
+     *
+     * so we need to resize the key/value sizes to match
+     */
+    pctx.preload_invalue_size += pctx.preload_inkey_size;
+    pctx.preload_outvalue_size += pctx.preload_outkey_size;
+    pctx.preload_inkey_size = pctx.preload_outkey_size = sizeof(float);
+    pctx.key_size = pctx.preload_outkey_size;
+    pctx.value_size = pctx.preload_outvalue_size;
+  }
+
+  pctx.serialized_size = pctx.preload_inkey_size + pctx.preload_invalue_size;
 
   /* additional init can go here or MPI_Init() */
 }
@@ -653,8 +722,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   }
 
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d",
-                pctx.sideio ? 12 : pctx.particle_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", pctx.value_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
                 dirc.memtable_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
@@ -966,8 +1034,16 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "particle id: %d bytes, data: %d (+ %d) bytes",
-           pctx.particle_id_size, pctx.particle_size, pctx.particle_extra_size);
+      logf(LOG_INFO, "app particle filename: %d bytes, filedata: %d bytes",
+           pctx.filename_size, pctx.filedata_size);
+      logf(LOG_INFO, "preload in key_size: %d bytes, value_size %d bytes",
+           pctx.preload_inkey_size, pctx.preload_invalue_size);
+      logf(LOG_INFO, "preload out key_size: %d bytes, value_size %d bytes",
+           pctx.preload_outkey_size, pctx.preload_outvalue_size);
+      logf(LOG_INFO, "shuffle serialized_size: %d bytes (+ %d extra)",
+           pctx.serialized_size, pctx.shuffle_extrabytes);
+      logf(LOG_INFO, "backend key_size: %d bytes, value_size %d bytes",
+           pctx.key_size, pctx.value_size);
     }
 
     /* everyone is a receiver by default. when shuffle is enabled, some ranks
@@ -1365,7 +1441,7 @@ int MPI_Finalize(void) {
         if (f0 != NULL) {
           fprintf(f0, "num_epochs=%d\n", num_eps);
           fprintf(f0, "key_size=%s\n", dirc.key_size);
-          fprintf(f0, "value_size=%d\n", pctx.sideio ? 12 : pctx.particle_size);
+          fprintf(f0, "value_size=%d\n", pctx.value_size);
           fprintf(f0, "filter_bits_per_key=%s\n", dirc.bits_per_key);
           fprintf(f0, "memtable_size=%s\n", dirc.memtable_size);
           fprintf(f0, "lg_parts=%s\n", dirc.lg_parts);
@@ -1373,14 +1449,21 @@ int MPI_Finalize(void) {
           fprintf(f0, "bypass_shuffle=%d\n", IS_BYPASS_SHUFFLE(pctx.mode));
           fprintf(f0, "force_leveldb_format=%d\n", dirc.force_leveldb_format);
           fprintf(f0, "unordered_storage=%d\n", dirc.unordered_storage);
-          fprintf(f0, "particle_id_size=%d\n", pctx.particle_id_size);
-          fprintf(f0, "particle_size=%d\n", pctx.particle_size);
+          /* XXX: start old names */
+          fprintf(f0, "particle_id_size=%d\n", pctx.filename_size);
+          fprintf(f0, "particle_size=%d\n", pctx.filedata_size);
+          /* XXX: end old names */
+          fprintf(f0, "filename_size=%d\n", pctx.filename_size);
+          fprintf(f0, "filedata_size=%d\n", pctx.filedata_size);
           fprintf(f0, "io_engine=%d\n", dirc.io_engine);
           fprintf(f0, "comm_sz=%d\n", pctx.recv_sz);
+          /* mode specific code here ... */
           if (pctx.sideft)
             fprintf(f0, "fmt=bloomy\n");
           else if (pctx.sideio)
             fprintf(f0, "fmt=wisc\n");
+          else if (0 /* pctx.carpon */)
+            fprintf(f0, "fmt=carp\n");
 
           fflush(f0);
           fclose(f0);
@@ -2477,13 +2560,14 @@ int fputc(int character, FILE* stream) {
  * fclose.   returns EOF on error.
  */
 int fclose(FILE* stream) {
-  static uint64_t off = 0;
-  ssize_t n;
-  const char* fname;
-  size_t fname_len;
-  char* data;
-  size_t data_len;
+  static uint64_t sideio_off = 0;   /* XXX: static hack for sideio mode */
   int rv;
+  ssize_t n = 0;
+  const char *filename;
+  size_t filename_size;
+  const char *preload_inkey;
+  char *preload_invalue;
+  size_t inkey_size, invalue_size;
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -2493,36 +2577,36 @@ int fclose(FILE* stream) {
   }
 
   fake_file* const ff = reinterpret_cast<fake_file*>(stream);
-  fname = ff->file_name();
-  assert(fname != NULL);
-  n = 0;
+  filename = ff->file_name();
+  assert(filename != NULL);
 
-  /* check file path and remove parent directories */
+  /* check file path and remove parent dirs to make default preload_inkey */
   assert(pctx.len_plfsdir != 0 && pctx.plfsdir != NULL);
-  assert(strncmp(fname, pctx.plfsdir, pctx.len_plfsdir) == 0);
-  assert(fname[pctx.len_plfsdir] == '/');
-  fname += pctx.len_plfsdir + 1;
+  assert(strncmp(filename, pctx.plfsdir, pctx.len_plfsdir) == 0);
+  assert(filename[pctx.len_plfsdir] == '/');
 
-  /* obtain filename length */
-  fname_len = strlen(fname);
+  filename += pctx.len_plfsdir + 1;
+  filename_size = strlen(filename);
 
   if (pctx.paranoid_checks) {
-    if (pctx.particle_id_size != fname_len) {
-      ABORT("bad particle id size");
+    if (filename_size != pctx.filename_size) {
+      ABORT("bad filename particle id size");
     }
-    if (pctx.particle_size != ff->size()) {
-      ABORT("bad particle size");
+    if (pctx.filedata_size != ff->size()) {
+      ABORT("bad filedata particle size");
     }
   }
 
+  /* mode specific code here ... transform #1 */
   if (pctx.sideft) { /* switch to the bloomy fmt */
     if (IS_BYPASS_WRITE(pctx.mode)) {
-      /* noop */
+      /* noop (skip writing key/value locally) */
 
     } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
       assert(pctx.plfshdl != NULL);
-      n = deltafs_plfsdir_append(pctx.plfshdl, fname, num_eps - 1, ff->data(),
-                                 ff->size());
+      /* write key/value locally first */
+      n = deltafs_plfsdir_append(pctx.plfshdl, filename, num_eps - 1,
+                                 ff->data(), ff->size());
       if (n != ff->size()) {
         ABORT("plfsdir write failed");
       }
@@ -2530,12 +2614,15 @@ int fclose(FILE* stream) {
       ABORT("not implemented");
     }
 
-    data_len = 0;
-    data = NULL;
+    /* just need to send the key to the filter on the remote */
+    preload_inkey = filename;         /* key is filename */
+    inkey_size = filename_size + 1;   /* send the null too */
+    preload_invalue = NULL;           /* value written locally, don't send */
+    invalue_size = 0;
 
   } else if (pctx.sideio) { /* switch to the wisc-key fmt */
     if (IS_BYPASS_WRITE(pctx.mode)) {
-      /* noop */
+      /* noop (skip writing key/value to log) */
 
     } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
       assert(pctx.plfshdl != NULL);
@@ -2548,23 +2635,33 @@ int fclose(FILE* stream) {
       ABORT("not implemented");
     }
 
-    data_len = sizeof(off);
-    data = reinterpret_cast<char*>(&off);
-    off += n;
+    /* send the key and log offset to the remote side */
+    preload_inkey = filename;         /* key is filename */
+    inkey_size = filename_size + 1;   /* send the null too */
+    preload_invalue = reinterpret_cast<char*>(&sideio_off);  /* static var */
+    invalue_size = sizeof(sideio_off);
+    sideio_off += n;
 
   } else { /* use the default fmt */
-    data_len = ff->size();
-    data = ff->data();
+    /* send the key and value as-is to remote */
+    preload_inkey = filename;         /* key is filename */
+    inkey_size = filename_size + 1;   /* send the null too */
+    preload_invalue = ff->data();
+    invalue_size = ff->size();
   }
 
+  assert(inkey_size == pctx.preload_inkey_size);
+  assert(invalue_size == pctx.preload_invalue_size);
+
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write(&pctx.sctx, fname, fname_len, data, data_len,
-                       num_eps - 1);
+    rv = shuffle_write(&pctx.sctx, preload_inkey, inkey_size,
+                       preload_invalue, invalue_size, num_eps - 1);
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }
   } else {
-    rv = native_write(fname, fname_len, data, data_len, num_eps - 1);
+    rv = native_write(preload_inkey, inkey_size,
+                      preload_invalue, invalue_size, num_eps - 1);
     if (rv) {
       ABORT("plfsdir write failed");
     }
@@ -2573,7 +2670,7 @@ int fclose(FILE* stream) {
   pthread_mtx_lock(&preload_mtx);
 
   if (ff == &the_stock_file) {
-    stock_file = &the_stock_file; /* to be reused*/
+    stock_file = &the_stock_file; /* to be reused */
   } else {
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->erase(stream);
@@ -2581,7 +2678,6 @@ int fclose(FILE* stream) {
   }
 
   pthread_mtx_unlock(&preload_mtx);
-
   return rv;
 }
 
@@ -2735,12 +2831,13 @@ long ftell(FILE* stream) {
 } /* extern "C" */
 
 /*
- * preload_write
+ * preload_write: expects preload_inkey and preload_invalue and will
+ * pass preload_outkey and preload_outvalue down to deltafs.
  */
-int preload_write(const char* fname, unsigned char fname_len, char* data,
-                  unsigned char data_len, int epoch, int src) {
+int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
+                  unsigned char pvalue_len, int epoch, int src) {
   ssize_t n;
-  char buf[12];
+  char sideio_buf[12];  /* for transform#2 where we add src rank to offset */
   int rv;
 
   if (epoch == -1) {
@@ -2750,10 +2847,8 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
   pthread_mtx_lock(&write_mtx);
 
   if (pctx.paranoid_checks) {
-    if (fname_len != strlen(fname)) {
-      ABORT("bad particle filename length");
-    }
-    if (fname_len != pctx.particle_id_size || data_len != pctx.particle_size) {
+    if (pkey_len   != pctx.preload_inkey_size ||
+        pvalue_len != pctx.preload_invalue_size) {
       ABORT("bad particle format");
     }
     if (epoch != num_eps - 1) {
@@ -2761,16 +2856,16 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     }
   }
 
-  if (pctx.sampling) {
+  if (pctx.sampling) {  /* XXX only works if pkey is a C string */
     assert(pctx.smap != NULL);
     if (num_eps == 1) {
       /* during the initial epoch, we accept as many names as possible */
       if (getr(0, 1000000 - 1) < pctx.sthres) {
-        pctx.smap->insert(std::make_pair(fname, 1));
+        pctx.smap->insert(std::make_pair(pkey, 1));
       }
     } else {
-      if (pctx.smap->count(fname) != 0) {
-        pctx.smap->at(fname)++;
+      if (pctx.smap->count(pkey) != 0) {
+        pctx.smap->at(pkey)++;
       }
     }
   }
@@ -2781,19 +2876,26 @@ int preload_write(const char* fname, unsigned char fname_len, char* data,
     /* noop */
 
   } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+
     if (pctx.sideft) { /* use the bloomy fmt */
-      rv = deltafs_plfsdir_filter_put(pctx.plfshdl, fname, fname_len, src);
+      /* add key (without trailing null) to filter and we are done */
+      rv = deltafs_plfsdir_filter_put(pctx.plfshdl, pkey, pkey_len - 1, src);
     } else {
+
+      /* mode specific code here ... transform #2 */
       if (pctx.sideio) { /* use the wisc-key fmt */
-        memcpy(buf, &src, 4);
-        assert(data_len == 8);
-        memcpy(buf + 4, data, 8);
-        data_len = 12;
-        data = buf;
+        uint32_t srcrank = src;
+        memcpy(sideio_buf, &srcrank, sizeof(srcrank));
+        assert(pvalue_len == sizeof(uint64_t));
+        memcpy(sideio_buf + sizeof(srcrank), pvalue, sizeof(uint64_t));
+        pvalue_len = sizeof(uint32_t) + sizeof(uint64_t); /* rank+offset */
+        assert(pvalue_len == pctx.preload_outvalue_size);
+        pvalue = sideio_buf;
       }
 
-      n = deltafs_plfsdir_append(pctx.plfshdl, fname, epoch, data, data_len);
-      if (n != data_len) {
+      /* XXX we drop pkey_len here... plfsdir_append() does strlen() on pkey */
+      n = deltafs_plfsdir_append(pctx.plfshdl, pkey, epoch, pvalue, pvalue_len);
+      if (n != pvalue_len) {
         rv = EOF;
       }
     }
