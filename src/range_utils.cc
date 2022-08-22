@@ -1,13 +1,15 @@
+#include "range_utils.h"
+
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+
 #include <algorithm>
 #include <list>
 
 #include "preload_internal.h"
-#include "range_utils.h"
 
 #define RANGE_DEBUG_T 1
 
@@ -141,10 +143,11 @@ void pivot_union(std::vector<rb_item_t> rb_items,
         int new_len = active_ranks.size();
 
         if (old_len != new_len + 1) {
-          fprintf(stderr,
-                  "PIVOT_CALC ASSERT_FAIL"
-                  "Old Len: %d, New Len: %d\n",
-                  old_len, new_len + 1);
+          logf(LOG_ERRO,
+               "[Rank %d] [pivot_calc] ASSERT FAIL old_len (%d) != new_len "
+               "(%d) + 1",
+               pctx.my_rank, old_len, new_len + 1);
+          ABORT("Assert failed!");
         }
 
         assert(old_len == new_len + 1);
@@ -221,9 +224,11 @@ int resample_bins_irregular(const std::vector<double>& bins,
 
   if (sidx != nsamples) {
     logf(LOG_ERRO,
-         "rank %d,sidx expected to be equal to nsamples, %d-%d, accumulated: "
-         "%.1f\n",
+         "[Rank %d] [resample_bins_irregular] ASSERT FAIL sidx (%d) != "
+         "nsamples (%d) "
+         "(accumulated: %.1f)\n",
          pctx.my_rank, sidx, nsamples, accumulated);
+    ABORT("sidx != nsamples");
   }
 
   assert(sidx == nsamples);
