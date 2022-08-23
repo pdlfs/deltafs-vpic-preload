@@ -64,6 +64,10 @@ class PivotUtils {
   static int GetRangeBounds(Carp* carp, std::vector<float>& oobl,
                             std::vector<float>& oobr, float& range_start,
                             float& range_end);
+
+  static float WeightedAverage(float a, float b, float frac);
+
+  friend class RangeUtilsTest;
 };
 }  // namespace carp
 }  // namespace pdlfs

@@ -19,19 +19,20 @@ void assert_monotonic(T& seq, size_t seq_sz, bool verbose = false) {
     auto a = seq[i];
     auto b = seq[i - 1];
     if (verbose) {
-      std::cout << "[" << i << "]" << " " << a << " " << b << "\n";
+      std::cout << "[" << i << "]"
+                << " " << a << " " << b << "\n";
       std::stringstream s;
       s << a << ", " << b;
       logf(LOG_ERRO, "[%zu] %s\n", i, s.str().c_str());
     }
-//    ASSERT_GT(a, b);
+    //    ASSERT_GT(a, b);
     ASSERT_GE(a, b);
   }
 }
 }  // namespace
 
 namespace pdlfs {
-
+namespace carp {
 class RangeUtilsTest {
  public:
   carp::Carp* carp;
@@ -88,6 +89,10 @@ class RangeUtilsTest {
               carp->rank_counts_.begin());
   }
 
+  float WeightedAverage(float a, float b, float frac) {
+    return carp::PivotUtils::WeightedAverage(a, b, frac);
+  }
+
   ~RangeUtilsTest() { delete carp; }
 };
 
@@ -95,6 +100,28 @@ TEST(RangeUtilsTest, ParticleCount) {
   ASSERT_EQ(get_particle_count(3, 5, 2), 4);
   ASSERT_EQ(get_particle_count(2, 5, 2), 6);
   ASSERT_EQ(get_particle_count(3, 3, 2), 0);
+}
+
+TEST(RangeUtilsTest, WeightedAvg) {
+  float a, b, frac_1, frac_2;
+
+  a = 0;
+  b = 1;
+  frac_1 = 0.3;
+  frac_2 = 0.6;
+
+  float wavg_1 = WeightedAverage(a, b, frac_1);
+  float wavg_2 = WeightedAverage(a, b, frac_2);
+  ASSERT_LE(wavg_1, wavg_2);
+
+  a = 0.473880023;
+  b = 0.473880142;
+  frac_1 = 0.412109375;
+  frac_2 = 0.536865234;
+
+  wavg_1 = WeightedAverage(a, b, frac_1);
+  wavg_2 = WeightedAverage(a, b, frac_2);
+  ASSERT_LE(wavg_1, wavg_2);
 }
 
 TEST(RangeUtilsTest, PivotCalc) {
@@ -258,6 +285,15 @@ TEST(RangeUtilsTest, PivotCalc10) {
   ::assert_monotonic(carp->my_pivots_, npivots);
 }
 
+TEST(RangeUtilsTest, PivotCalc11) {
+#include "pivot_calc_11_data.cc"  // NOLINT(bugprone-suspicious-include)
+  LoadData(oob_data, oob_data_sz);
+  carp->mutex_.Lock();
+  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->mutex_.Unlock();
+  ::assert_monotonic(carp->my_pivots_, num_pivots);
+}
+}  // namespace carp
 }  // namespace pdlfs
 
 int main(int argc, char* argv[]) {

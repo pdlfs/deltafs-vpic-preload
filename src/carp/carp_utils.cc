@@ -141,7 +141,8 @@ int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
     float val_b = oobl[oob_idx_trunc + 1];
 
     float frac_a = oob_idx - (float)oob_idx_trunc;
-    carp->my_pivots_[pvt_idx] = (1 - frac_a) * val_a + (frac_a)*val_b;
+    float pvt = WeightedAverage(val_a, val_b, frac_a);
+    carp->my_pivots_[pvt_idx] = pvt;
   }
 
   return rv;
@@ -197,14 +198,14 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
   std::vector<float>& ff = carp->rank_counts_;
   std::vector<float>& gg = carp->rank_bins_;
   // fprintf(stderr,
-          // "rank%d get_local_pivots state_dump "
-          // "oob_count_left: %d, oob_count_right: %d\n"
-          // "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-          // "rbc: %s (%zu)\n"
-          // "bin: %s (%zu)\n",
-          // pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
-          // particle_count, SerializeVector(ff).c_str(), ff.size(),
-          // SerializeVector(gg).c_str(), gg.size());
+  // "rank%d get_local_pivots state_dump "
+  // "oob_count_left: %d, oob_count_right: %d\n"
+  // "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
+  // "rbc: %s (%zu)\n"
+  // "bin: %s (%zu)\n",
+  // pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
+  // particle_count, SerializeVector(ff).c_str(), ff.size(),
+  // SerializeVector(gg).c_str(), gg.size());
   /**********************/
 
   float accumulated_ppp = 0;
@@ -432,6 +433,33 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
   range_end = std::max(oob_max, carp->range_max_);
 
   return rv;
+}
+
+float PivotUtils::WeightedAverage(float a, float b, float frac) {
+  /* Weighted avg of a and b was updated because of test case 11 (pvtcalc)
+   * When a and b are very close, the following weighted avg is not monotonic.
+   * pvt = (1 - frac_a) * val_a + (frac_a) * val_b;
+   *
+   * weighted avg of (0.473880023 and 0.473880142) should be <= for
+   * frac_a =  0.412109375, vs frac_a = 0.536865234.
+   *
+   * The approach below seems more robust.
+   * XXX: If it still persists, use double instead of float for pivot
+   * computation
+   */
+  assert(frac >= 0);
+  assert(a <= b);
+
+  float pvt;
+  float delta = b - a;
+  float frac_delta = frac * delta;
+  pvt = a + frac_delta;
+
+  assert(delta >= 0);
+  assert(frac_delta <= delta);
+  assert(pvt <= b);
+
+  return pvt;
 }
 }  // namespace carp
 }  // namespace pdlfs
