@@ -368,25 +368,28 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 }
 
 int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
-  int world_sz;
+  int world_sz, keylen;
   unsigned long target;
   int rv;
 
   assert(ctx != NULL);
-  assert(buf_sz >= ctx->fname_len);
+  assert(buf_sz >= ctx->skey_len);
 
   world_sz = shuffle_world_sz(ctx);
+  /* XXX backward compat: don't hash the trailing null to match old code */
+  /* XXX: assumes at this level skey is a filename in a C string */
+  keylen = ctx->skey_len - 1;
 
   if (world_sz != 1) {
 #ifdef PRELOAD_HAS_CH_PLACEMENT
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
       assert(ctx->chp != NULL);
       ch_placement_find_closest(
-          ctx->chp, pdlfs::xxhash64(buf, ctx->fname_len, 0), 1, &target);
+          ctx->chp, pdlfs::xxhash64(buf, keylen, 0), 1, &target);
       rv = static_cast<int>(target);
     } else {
 #endif
-      rv = pdlfs::xxhash32(buf, ctx->fname_len, 0) % world_sz;
+      rv = pdlfs::xxhash32(buf, keylen, 0) % world_sz;
 #ifdef PRELOAD_HAS_CH_PLACEMENT
     }
 #endif
@@ -414,13 +417,14 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 }
 }  // namespace
 
-int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
-                      unsigned char fname_len, char* data,
-                      unsigned char data_len, int epoch) {
+// the shuffle key/value should match the preload inkey/invalue
+int shuffle_write_mux(shuffle_ctx_t* ctx, const char* skey,
+                      unsigned char skey_len, char* svalue,
+                      unsigned char svalue_len, int epoch) {
   int retval;
 
-  // retval = shuffle_write(ctx, fname, fname_len, data, data_len, epoch);
-  retval = shuffle_write_range(ctx, fname, fname_len, data, data_len, epoch);
+  // retval = shuffle_write(ctx, skey, skey_len, svalue, svalue_len, epoch);
+  retval = shuffle_write_range(ctx, skey, skey_len, svalue, svalue_len, epoch);
 
   return retval;
 }
@@ -449,7 +453,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   if (pctx.testin && pctx.trace != NULL)
     shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
 
-  char msg_type = msgfmt_get_msgtype(buf);
+  char msg_type = msgfmt_get_msgtype(buf); /* XXX assumes CARP */
 
   switch (msg_type) {
     case MSGFMT_DATA:
@@ -463,17 +467,18 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
 
   ctx = &pctx.sctx;
 
-  if (buf_sz !=
-      msgfmt_get_data_size(ctx->fname_len, ctx->data_len, ctx->extra_data_len)) {
+  if (buf_sz != msgfmt_get_data_size(ctx->skey_len, ctx->svalue_len,
+                                     ctx->extra_data_len)) {
     logf(LOG_DBUG, "Bufsz: %u, msgfmt: %d/%d/%d\n", 
-        buf_sz, ctx->fname_len, ctx->data_len, ctx->extra_data_len);
+        buf_sz, ctx->skey_len, ctx->svalue_len, ctx->extra_data_len);
     ABORT("unexpected incoming shuffle request size");
   }
 
-  char *fname, *fdata;
-  msgfmt_parse_data(buf, buf_sz, &fname, ctx->fname_len, &fdata, ctx->data_len);
+  char *skey, *svalue;
+  msgfmt_parse_data(buf, buf_sz, &skey, ctx->skey_len,
+                                 &svalue, ctx->svalue_len);
 
-  rv = exotic_write(fname, ctx->fname_len, fdata, ctx->data_len, epoch, src);
+  rv = exotic_write(skey, ctx->skey_len, svalue, ctx->svalue_len, epoch, src);
 
   return rv;
 }
@@ -664,32 +669,20 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   assert(ctx != NULL);
 
-  if (pctx.carp_on) {
-    ctx->fname_len = TOUCHAR(pctx.opts->index_attr_size);
-    ctx->data_len = TOUCHAR(pctx.particle_id_size + pctx.particle_size);
-    ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
-  } else {
-    ctx->fname_len = TOUCHAR(pctx.particle_id_size);
-    ctx->extra_data_len = TOUCHAR(pctx.particle_extra_size);
-    if (pctx.sideft) {
-      ctx->data_len = 0;
-    } else if (pctx.sideio) {
-      ctx->data_len = 8;
-    } else {
-      ctx->data_len = TOUCHAR(pctx.particle_size);
-    }
-  }
-
-  if (ctx->extra_data_len + ctx->data_len > 255 - ctx->fname_len - 1)
+  ctx->skey_len = TOUCHAR(pctx.preload_inkey_size);
+  ctx->extra_data_len = TOUCHAR(pctx.shuffle_extrabytes);
+  ctx->svalue_len = TOUCHAR(pctx.preload_invalue_size);
+  if (ctx->extra_data_len + ctx->svalue_len > 255 - ctx->skey_len - 1)
     ABORT("bad shuffle conf: id + data exceeds 255 bytes");
-  if (ctx->fname_len == 0) {
+  if (ctx->skey_len == 0) {
     ABORT("bad shuffle conf: id size is zero");
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "shuffle format: K = %u (+ 1) bytes, V = %u bytes, CARP: %s",
-         ctx->fname_len, ctx->extra_data_len + ctx->data_len,
-         pctx.carp_on ? "ON" : "OFF");
+    logf(LOG_INFO, "shuffle format: K = %u bytes, V = %u bytes",
+         ctx->skey_len, ctx->extra_data_len + ctx->svalue_len);
+    // XXXCDC: move this with sideft, sideio notification
+    logf(LOG_INFO, "CARP: %s", pctx.carp_on ? "ON" : "OFF");
   }
 
   ctx->receiver_rate = 1;

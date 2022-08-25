@@ -81,40 +81,70 @@ void shuffle_write_range_debug(shuffle_ctx_t* ctx, char* buf,
 }
 }  // namespace
 
-timespec diff(timespec start, timespec end) {
-  timespec temp;
-  if ((end.tv_nsec - start.tv_nsec) < 0) {
-    temp.tv_sec = end.tv_sec - start.tv_sec - 1;
-    temp.tv_nsec = 1000000000 + end.tv_nsec - start.tv_nsec;
-  } else {
-    temp.tv_sec = end.tv_sec - start.tv_sec;
-    temp.tv_nsec = end.tv_nsec - start.tv_nsec;
+// the shuffle key/value should match the preload inkey/invalue
+int shuffle_write(shuffle_ctx_t* ctx, const char* skey,
+                  unsigned char skey_len, char* svalue,
+                  unsigned char svalue_len, int epoch) {
+  char buf[255];
+  int peer_rank;
+  int rank;
+  int rv;
+
+  assert(ctx == &pctx.sctx);
+  assert(ctx->skey_len + ctx->svalue_len + ctx->extra_data_len <= sizeof(buf));
+  if (ctx->skey_len != skey_len) ABORT("bad shuffle key len");
+  if (ctx->svalue_len != svalue_len) ABORT("bad shuffle value len");
+
+  unsigned char base_sz = skey_len + svalue_len;
+  unsigned char buf_sz = base_sz + ctx->extra_data_len;
+  memcpy(buf, skey, skey_len);
+  memcpy(buf + skey_len, svalue, svalue_len);
+  if (buf_sz != base_sz) memset(buf + base_sz, 0, buf_sz - base_sz);
+
+  peer_rank = shuffle_target(ctx, buf, buf_sz);
+  rank = shuffle_rank(ctx);
+
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.trace != NULL)
+    shuffle_write_debug(ctx, buf, buf_sz, epoch, rank, peer_rank);
+
+  /* bypass rpc if target is local */
+  if (peer_rank == rank && !ctx->force_rpc) {
+    rv = native_write(skey, skey_len, svalue, svalue_len, epoch);
+    return rv;
   }
-  return temp;
+
+  if (ctx->type == SHUFFLE_XN) {
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+                       peer_rank, rank);
+  } else {
+    nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
+  }
+
+  return 0;
 }
 
-int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
-                        unsigned char fname_len, char* data,
-                        unsigned char data_len, int epoch) {
+// the shuffle key/value should match the preload inkey/invalue
+int shuffle_write_range(shuffle_ctx_t* ctx, const char* skey,
+                        unsigned char skey_len, char* svalue,
+                        unsigned char svalue_len, int epoch) {
   int peer_rank = -1;
   int rank;
   int rv = 0;
+  pdlfs::carp::particle_mem_t p;
 
   assert(ctx == &pctx.sctx);
-  assert(ctx->extra_data_len + ctx->data_len <
-         pdlfs::kMaxPartSize - ctx->fname_len - 1);
-  // if (ctx->fname_len != fname_len) ABORT("bad filename len");
-  // if (ctx->data_len != data_len) ABORT("bad data len");
+  assert(ctx->skey_len + ctx->svalue_len +
+                         ctx->extra_data_len < pdlfs::kMaxPartSize);
+  if (ctx->skey_len != skey_len) ABORT("bad shuffle key len");
+  if (ctx->svalue_len != svalue_len) ABORT("bad shuffle value len");
 
-  rank = shuffle_rank(ctx);
+  rank = shuffle_rank(ctx);   /* my rank */
 
-  unsigned char base_sz = 1 + fname_len + data_len;
-  //  unsigned char buf_sz = base_sz + ctx->extra_data_len;
-
-  /* Serialize data */
-  pdlfs::carp::particle_mem_t p;
-  pctx.carp->Serialize(fname, fname_len, data, data_len, ctx->extra_data_len,
-                       p);
+  /* Serialize data into p->buf */
+  /* XXXCDC: shouldn't need to do this if we end up calling native_write() */
+  pctx.carp->Serialize(skey, skey_len, svalue, svalue_len,
+                       ctx->extra_data_len, p);
 
   bool flush_oob;
   bool shuffle_now;
@@ -128,6 +158,9 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
+    /* XXXCDC: this is the only place we use data_ptr/data_sz */
+    /* XXXCDC: but native write just needs inkey/invalue (aka shuffle key) */
+    /* XXXCDC: and we already have that in the args... */
     rv = native_write(reinterpret_cast<char*>(&p.indexed_prop), sizeof(float),
                       p.data_ptr, p.data_sz, epoch);
     shuffle_now = false;
@@ -150,6 +183,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* fname,
     xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), p.buf, p.buf_sz, epoch,
                        peer_rank, rank);
   } else {
+    /* but carp cannot use NN, so this case currently cannot happen ... */
     nn_shuffler_enqueue(p.buf, p.buf_sz, epoch, peer_rank, rank);
   }
 

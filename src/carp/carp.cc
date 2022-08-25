@@ -8,26 +8,25 @@
 
 namespace pdlfs {
 namespace carp {
-Status Carp::Serialize(const char* fname, unsigned char fname_len, char* data,
-                       unsigned char data_len, unsigned char extra_data_len,
+
+Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
+                       unsigned char svalue_len, unsigned char extra_data_len,
                        particle_mem_t& p) {
   Status s = Status::OK();
+  float indexed_prop;
 
-  float indexed_prop = GetIndexedAttr(data, data_len);
+  /* currently must be float, higher level code has already asserted this */
+  memcpy(&indexed_prop, skey, sizeof(indexed_prop));
 
-  char data_reorg[255];
-  memcpy(data_reorg, fname, fname_len);
-  memcpy(data_reorg + fname_len, data, data_len);
-
-  p.buf_sz = msgfmt_write_data(
-      p.buf, 255, reinterpret_cast<char*>(&indexed_prop), sizeof(float),
-      data_reorg, fname_len + data_len, extra_data_len);
+  p.buf_sz = msgfmt_write_data(p.buf, 255,
+                 reinterpret_cast<char*>(&indexed_prop), sizeof(float),
+                 svalue, svalue_len, extra_data_len);
 
   p.indexed_prop = indexed_prop;
   /* XXX: breaking msgfmt abstraction; fix */
   /* XXX: only used for shuffle_write_range()'s "bypass rpc if target local" */
-  p.data_ptr = p.buf + fname_len + 2;
-  p.data_sz = data_len;
+  p.data_ptr = p.buf + skey_len + 2;
+  p.data_sz = svalue_len;
 
   logf(LOG_DBG2, "shuffle_write, bufsz: %d\n", p.buf_sz);
   return s;
