@@ -13,22 +13,21 @@ Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
                        unsigned char svalue_len, unsigned char extra_data_len,
                        particle_mem_t& p) {
   Status s = Status::OK();
-  float indexed_prop;
+  char *bp;
 
-  /* currently must be float, higher level code has already asserted this */
-  memcpy(&indexed_prop, skey, sizeof(indexed_prop));
+  memcpy(&p.indexed_prop, skey, sizeof(p.indexed_prop));
+  p.buf_sz = skey_len + svalue_len + extra_data_len;
+  assert(p.buf_sz <= sizeof(p.buf));
+  bp = p.buf;
+  memcpy(bp, skey, skey_len);
+  bp += skey_len;
+  memcpy(bp, svalue, svalue_len);
+  if (extra_data_len) {
+    memset(bp + svalue_len, 0, extra_data_len);
+  }
+  p.shuffle_dest = -1;    /* default to -1 (i.e. 'unknown') */
 
-  p.buf_sz = msgfmt_write_data(p.buf, 255,
-                 reinterpret_cast<char*>(&indexed_prop), sizeof(float),
-                 svalue, svalue_len, extra_data_len);
-
-  p.indexed_prop = indexed_prop;
-  /* XXX: breaking msgfmt abstraction; fix */
-  /* XXX: only used for shuffle_write_range()'s "bypass rpc if target local" */
-  p.data_ptr = p.buf + skey_len + 2;
-  p.data_sz = svalue_len;
-
-  logf(LOG_DBG2, "shuffle_write, bufsz: %d\n", p.buf_sz);
+  logf(LOG_DBG2, "Carp::Serialize: bufsz: %d\n", p.buf_sz);
   return s;
 }
 

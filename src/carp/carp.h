@@ -50,9 +50,9 @@ struct CarpOptions {
                              /* RANGE_Pvtcnt_s{1,2,3} */
   Env* env;                  /* stat: for GetFileSize() in StatFiles() */
                              /* normally set to Env::Default() */
+  shuffle_ctx_t* sctx;       /* shuffle context */
   uint32_t my_rank;          /* my MPI rank */
   uint32_t num_ranks;        /* MPI world size */
-  shuffle_ctx_t* sctx;       /* shuffle context (set from preload MPI_Init) */
   std::string mount_path;    /* mount_path (set from preload MPI_Init) */
 };
 
@@ -127,8 +127,8 @@ class Carp {
     return mts_mgr_.GetPrevState();
   }
 
-  Status HandleMessage(char* buf, unsigned int bufsz, int src) {
-    return rtp_.HandleMessage(buf, bufsz, src);
+  Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type) {
+    return rtp_.HandleMessage(buf, bufsz, src, type);
   }
 
   int NumRounds() const { return rtp_.NumRounds(); }

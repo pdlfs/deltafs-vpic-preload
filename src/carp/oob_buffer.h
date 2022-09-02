@@ -18,18 +18,19 @@ namespace carp {
  * particle_mem_t: struct used to store particle data in CARP.
  * populated in shuffle_write_range() using Carp::Serialize().
  * the format of the encoded particle in buf[] is:
- *    MSGFMT_DATA (1 byte code) + filename followed by a \0 +
- *      the particle data + optional zero-padding extra bytes
+ *
+ *    <inkey> + <invalue> + <optional zero-pad extra bytes>
+ *
+ * where inkey is a 4 byte float and invalue is the filename
+ * and filedata written by the application.
  *
  * note: the optional zero-padding is normally off (we used it
  *       when researching KNL performance)
  */
 typedef struct particle_mem {
-  float indexed_prop;            // float key for range q (via GetIndexedAttr)
-  char buf[pdlfs::kMaxPartSize]; // buf w/encoded particle (type+filename+data)
+  float indexed_prop;            // float key for range q (cfg via CarpOptions)
+  char buf[pdlfs::kMaxPartSize]; // buf w/encoded particle (key+filename+data)
   int buf_sz;                    // total size of encoded data in buf[]
-  char* data_ptr;                // points to particle data in buf[]
-  int data_sz;                   // size of just the particle data
   int shuffle_dest;              // rank# or -1 (unk), via AssignShuffleTarget
 } particle_mem_t;
 

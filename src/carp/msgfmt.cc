@@ -2,151 +2,59 @@
 
 #include "common.h"
 
-uint32_t msgfmt_get_data_size(int fname_sz, int data_sz, int extra_data_sz) {
-  return MSGFMT_TYPE_SIZE + fname_sz + 1 + data_sz + extra_data_sz;
+/* begin: fixed size => rank, round_num */
+int msgfmt_encode_rtp_begin(void* buf, int buf_sz, int rank, int round_num) {
+  memcpy(buf, &rank, sizeof(int));  /* XXXCDC: int not fixed sized */
+  memcpy((char*)buf+sizeof(int), &round_num, sizeof(int));
+  return(2 * sizeof(int));
 }
 
-uint32_t msgfmt_write_data(char* buf, int buf_sz, const char* fname,
-                           int fname_sz, const char* fdata, int data_sz,
-                           int extra_data_sz) {
-  uint32_t base_sz = MSGFMT_TYPE_SIZE + fname_sz + 1 + data_sz;
-
-  if (base_sz > buf_sz) {
-    ABORT("Buffer overflow");
-  }
-
-  buf[0] = MSGFMT_DATA;
-
-  memcpy(buf + MSGFMT_TYPE_SIZE, fname, fname_sz);
-  buf[MSGFMT_TYPE_SIZE + fname_sz] = 0;
-  memcpy(buf + MSGFMT_TYPE_SIZE + fname_sz + 1, fdata, data_sz);
-
-  memset(buf + base_sz, 0, buf_sz - base_sz);
-
-  logf(LOG_DBG2, 
-      "msgfmt_write_data: base_sz: %u, fname: %d, data: %d, extra: %d"
-      "(%u %u)\n", 
-      base_sz, fname_sz, data_sz, extra_data_sz,
-      MSGFMT_TYPE_SIZE, MSGFMT_TYPE_SIZE + 1);
-
-  return base_sz + extra_data_sz;
+void msgfmt_decode_rtp_begin(void* buf, int buf_sz, int* rank, int* round_num) {
+  memcpy(rank, buf, sizeof(*rank));  /* XXXCDC: int not fixed size */
+  memcpy(round_num, (char*)buf+sizeof(*rank), sizeof(*round_num));
 }
 
-void msgfmt_parse_data(char* buf, int buf_sz, char** fname, int fname_sz,
-                       char** fdata, int data_sz) {
-  uint32_t base_sz = MSGFMT_TYPE_SIZE + fname_sz + 1 + data_sz;
-  if (base_sz > buf_sz) {
-    ABORT("Buffer overflow");
-  }
-
-  if (buf[0] != MSGFMT_DATA) {
-    ABORT("Invalid data fmt");
-  }
-
-  (*fname) = &buf[MSGFMT_TYPE_SIZE];
-  (*fdata) = &buf[MSGFMT_TYPE_SIZE + fname_sz + 1];
-
-  return;
-}
-
-unsigned char msgfmt_get_msgtype(char* buf) { return buf[0]; }
-
-unsigned char msgfmt_get_rtp_msgtype(char* buf) { return buf[1]; }
-
-int msgfmt_encode_rtp_begin(char* buf, int buf_sz, int rank, int round_num) {
-  buf[0] = MSGFMT_RTP_MAGIC;
-  buf[1] = MSGFMT_RTP_BEGIN;
-  memcpy(buf + 2, &rank, sizeof(int));
-  memcpy(buf + 2 + sizeof(int), &round_num, sizeof(int));
-
-  return 2 + 2 * sizeof(int);
-}
-
-void msgfmt_decode_rtp_begin(char* buf, int buf_sz, int* rank, int* round_num) {
-  assert(buf[0] == MSGFMT_RTP_MAGIC);
-  assert(buf[1] == MSGFMT_RTP_BEGIN);
-
-  int* rank_ptr = reinterpret_cast<int*>(buf + 2);
-  *rank = *rank_ptr;
-
-  int* round_ptr = reinterpret_cast<int*>(buf + 2 + sizeof(int));
-  *round_num = *round_ptr;
-}
-
+/*
+ * pivots: round_num, stage_num, sender_id, num_pivots,
+ *             pivot_width, pivots[num_piv]        (last 2 are double)
+ */
 size_t msgfmt_bufsize_rtp_pivots(int num_pivots) {
-  size_t buf_sz = 0;
-
-  buf_sz += 2u;
-  buf_sz +=
-      4u * sizeof(int) + sizeof(double) + sizeof(double) * (size_t)num_pivots;
-
-  /* for good measure */
-  buf_sz += 2u;
-
-  return buf_sz;
+  size_t rv;
+  rv = 4*sizeof(int) + sizeof(double) + (num_pivots*sizeof(double));
+  rv += 2;   /* XXX for good measure */
+  return(rv);
 }
 
-int msgfmt_encode_rtp_pivots(char* buf, int buf_sz, int round_num,
+int msgfmt_encode_rtp_pivots(void* buf, int buf_sz, int round_num,
                              int stage_num, int sender_id, double* pivots,
                              double pivot_width, int num_pivots, bool bcast) {
-  buf[0] = MSGFMT_RTP_MAGIC;
-  buf[1] = bcast ? MSGFMT_RTP_PVT_BCAST : MSGFMT_RTP_PIVOT;
+  char *bp = (char *)buf;
+  int rv = msgfmt_bufsize_rtp_pivots(num_pivots);
+  assert(buf_sz >= rv);
+  memcpy(bp, &round_num, sizeof(round_num));      bp += sizeof(round_num);
+  memcpy(bp, &stage_num, sizeof(stage_num));      bp += sizeof(stage_num);
+  memcpy(bp, &sender_id, sizeof(sender_id));      bp += sizeof(sender_id);
+  memcpy(bp, &num_pivots, sizeof(num_pivots));    bp += sizeof(num_pivots);
+  memcpy(bp, &pivot_width, sizeof(pivot_width));  bp += sizeof(pivot_width);
+  memcpy(bp, pivots, sizeof(pivots[0]) * num_pivots);
 
-  char* cursor = buf + 2;
-
-  memcpy(cursor, &round_num, sizeof(int));
-  cursor += sizeof(int);
-
-  memcpy(cursor, &stage_num, sizeof(int));
-  cursor += sizeof(int);
-
-  memcpy(cursor, &sender_id, sizeof(int));
-  cursor += sizeof(int);
-
-  memcpy(cursor, &num_pivots, sizeof(int));
-  cursor += sizeof(int);
-
-  memcpy(cursor, &pivot_width, sizeof(double));
-  cursor += sizeof(double);
-
-  memcpy(cursor, pivots, sizeof(double) * num_pivots);
-  cursor += sizeof(double) * num_pivots;
-
-  assert(cursor - buf < (size_t)buf_sz);
-
-  return cursor - buf;
+  return(rv);
 }
 
-void msgfmt_decode_rtp_pivots(char* buf, int buf_sz, int* round_num,
+void msgfmt_decode_rtp_pivots(void* buf, int buf_sz, int* round_num,
                               int* stage_num, int* sender_id, double** pivots,
                               double* pivot_width, int* num_pivots,
                               bool bcast) {
-  assert(buf[0] == MSGFMT_RTP_MAGIC);
-  assert(buf[1] == bcast ? MSGFMT_RTP_PVT_BCAST : MSGFMT_RTP_PIVOT);
+  char *bp = (char *)buf;
+  assert(buf_sz >= msgfmt_bufsize_rtp_pivots(0));
+  memcpy(round_num, bp, sizeof(*round_num));      bp += sizeof(*round_num);
+  memcpy(stage_num, bp, sizeof(*stage_num));      bp += sizeof(*stage_num);
+  memcpy(sender_id, bp, sizeof(*sender_id));      bp += sizeof(*sender_id);
+  memcpy(num_pivots, bp, sizeof(*num_pivots));    bp += sizeof(*num_pivots);
+  memcpy(pivot_width, bp, sizeof(*pivot_width));  bp += sizeof(*pivot_width);
 
-  char* cursor = buf + 2;
-
-  int* round_ptr = reinterpret_cast<int*>(cursor);
-  *round_num = *round_ptr;
-  cursor += sizeof(int);
-
-  int* stage_ptr = reinterpret_cast<int*>(cursor);
-  *stage_num = *stage_ptr;
-  cursor += sizeof(int);
-
-  int* sender_ptr = reinterpret_cast<int*>(cursor);
-  *sender_id = *sender_ptr;
-  cursor += sizeof(int);
-
-  int* num_pivots_ptr = reinterpret_cast<int*>(cursor);
-  *num_pivots = *num_pivots_ptr;
-  cursor += sizeof(int);
-
-  double* pivot_width_ptr = reinterpret_cast<double*>(cursor);
-  *pivot_width = *pivot_width_ptr;
-  cursor += sizeof(double);
-
-  (*pivots) = reinterpret_cast<double*>(cursor);
+  /* XXXCDC: assumes alignment of bp is ok for doubles */
+  (*pivots) = reinterpret_cast<double*>(bp);
 
   return;
 }

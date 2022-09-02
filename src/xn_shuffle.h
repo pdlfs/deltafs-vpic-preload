@@ -100,12 +100,12 @@ typedef struct xn_ctx {
   progressor_handle_t *nethand;
   progressor_handle_t *localhand;
   nexus_ctx_t nx; /* nexus handle */
-  shuffle_t sh;
-  shuffle_t psh; /* priority shuffler for control messages */
+  shuffle_t sh;   /* main shuffler for data */
+  shuffle_t psh;  /* optional priority shuffler for control messages */
 } xn_ctx_t;
 
 /* xn_shuffle_init: init the shuffle or die */
-extern void xn_shuffle_init(xn_ctx_t* ctx);
+extern void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback);
 
 /* xn_shuffle_world_size: return comm world size */
 extern int xn_shuffle_world_size(xn_ctx_t* ctx);
@@ -113,13 +113,13 @@ extern int xn_shuffle_world_size(xn_ctx_t* ctx);
 /* xn_shuffle_my_rank: return my rank id */
 extern int xn_shuffle_my_rank(xn_ctx_t* ctx);
 
-void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
+void xn_shuffle_enqueue(xn_ctx_t* ctx, void* buf, unsigned char buf_sz,
                         int epoch, int dst, int src);
 
 void xn_shuffle_priority_send(xn_ctx_t* ctx, void* buf, uint32_t buf_sz,
-                               int epoch, int dst, int src);
+                               int epoch, int dst, int src, uint32_t type);
 
-/* xn_shuffler_epoch_end: do necessary flush at the end of an epoch */
+/* xn_shuffle_epoch_end: do necessary flush at the end of an epoch */
 extern void xn_shuffle_epoch_end(xn_ctx_t* ctx);
 
 /* xn_shuffle_epoch_start: do necessary flush at the beginning of an epoch */

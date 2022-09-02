@@ -46,13 +46,21 @@
 namespace pdlfs {
 namespace carp {
 
+/*
+ * carp_priority_callback: carp priority shuffle callback function.
+ * we bounce this out to the preload's carp object.
+ */
+static void carp_priority_callback(int src, int dst, uint32_t type,
+                                   void *d, uint32_t datalen) {
+  pctx.carp->HandleMessage(d, datalen, src, type);
+}
 
 /*
  * preload_init_carpopts: called from preload_init() when carp is enabled
  * to allocate and fill out carp options based on environment variable
  * settings.  returned option structure must be deleted by caller.
  */
-struct CarpOptions *preload_init_carpopts() {
+struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx) {
   struct CarpOptions *opts = new pdlfs::carp::CarpOptions();
   const char* tmp;
 
@@ -120,9 +128,12 @@ struct CarpOptions *preload_init_carpopts() {
 
   opts->env = Env::Default();
 
+  /* save shuffle context and configure priority callback */
+  opts->sctx = sx;
+  sx->priority_cb = carp_priority_callback;
+
   /* final values of these are set at MPI_Init() time */
   opts->my_rank = opts->num_ranks = 0;
-  opts->sctx = NULL;
 
   return opts;
 }
@@ -136,12 +147,12 @@ void preload_mpiinit_carpopts(preload_ctx_t *pc, struct CarpOptions *copts,
                               const char *strippedpath) {
   copts->my_rank = pc->my_rank;
   copts->num_ranks = pc->comm_sz;
-  copts->sctx = &(pc->sctx);
   copts->mount_path = pc->local_root;
   copts->mount_path += "/";
   copts->mount_path += strippedpath;
 
   if (copts->my_rank == 0) {
+    logf(LOG_INFO, "[carp] CARP enabled!\n");
     logf(LOG_INFO, "[carp] reneg_intvl: %" PRIu64 ", reneg_thresh: %.3f\n",
          copts->reneg_intvl, copts->dynamic_thresh);
   }

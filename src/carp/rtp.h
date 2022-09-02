@@ -60,20 +60,21 @@ class RTP {
   ~RTP();
 
   Status InitRound();
-  Status HandleMessage(char* buf, unsigned int bufsz, int src);
+  Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type);
   int NumRounds() const;
 
  private:
   Status InitTopology();
   Status BroadcastBegin();
-  Status SendToRank(const char* buf, int bufsz, int rank);
-  Status SendToAll(int stage, const char* buf, int bufsz,
-                   bool exclude_self = false);
-  Status SendToChildren(const char* buf, int bufsz, bool exclude_self = false);
+  Status SendToRank(const void* buf, int bufsz, int rank, uint32_t type);
+  Status SendToAll(int stage, const void* buf, int bufsz,
+                   bool exclude_self, uint32_t type);
+  Status SendToChildren(const void* buf, int bufsz,
+                   bool exclude_self, uint32_t type);
 
-  Status HandleBegin(char* buf, unsigned int bufsz, int src);
-  Status HandlePivots(char* buf, unsigned int bufsz, int src);
-  Status HandlePivotBroadcast(char* buf, unsigned int bufsz, int src);
+  Status HandleBegin(void* buf, unsigned int bufsz, int src);
+  Status HandlePivots(void* buf, unsigned int bufsz, int src);
+  Status HandlePivotBroadcast(void* buf, unsigned int bufsz, int src);
 
   Status ReplayBegin();
   void ComputeAggregatePivots(int stage_num, int num_merged,

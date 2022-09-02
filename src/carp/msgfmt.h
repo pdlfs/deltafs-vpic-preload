@@ -6,10 +6,6 @@
  * It merely provides utilities to package various message types to a
  * user-specified buffer and vice versa.
  *
- * For now, we assume two message types. Arbitrary control message types with
- * their own formats, and a generic data message type, which consists of a
- * filename and data
- *
  * MsgFmt does not provide any way to calculate the buffer size needed to handle
  * specific messages/message types. We assume that a XXX: 255-byte buffer is
  * sufficient for all message types, and all control message structs are
@@ -35,34 +31,15 @@
 void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line);
 
-#define MSGFMT_DATA (unsigned char)0x01
-#define MSGFMT_RENEG_BEGIN (unsigned char)0x02
-#define MSGFMT_RENEG_PIVOTS (unsigned char)0x03
-#define MSGFMT_RENEG_ACK (unsigned char)0x04
-
-#define MSGFMT_TYPE_SIZE 1u
-
 #define MSGFMT_RTP_MAGIC 0x57
-#define MSGFMT_RTP_BEGIN 0x01
-#define MSGFMT_RTP_PIVOT 0x02
-#define MSGFMT_RTP_PVT_BCAST 0x03
 
-uint32_t msgfmt_get_data_size(int fname_sz, int data_sz, int extra_data_sz);
+#define MSGFMT_RTP_BEGIN     (0x0100|MSGFMT_RTP_MAGIC)
+#define MSGFMT_RTP_PIVOT     (0x0200|MSGFMT_RTP_MAGIC)
+#define MSGFMT_RTP_PVT_BCAST (0x0300|MSGFMT_RTP_MAGIC)
 
-uint32_t msgfmt_write_data(char* buf, int buf_sz, const char* fname,
-                           int fname_sz, const char* fdata, int data_sz,
-                           int extra_data_sz);
+int msgfmt_encode_rtp_begin(void* buf, int buf_sz, int rank, int round_num);
 
-void msgfmt_parse_data(char* buf, int buf_sz, char** fname, int fname_sz,
-                       char** fdata, int data_sz);
-
-unsigned char msgfmt_get_msgtype(char* buf);
-
-unsigned char msgfmt_get_rtp_msgtype(char* buf);
-
-int msgfmt_encode_rtp_begin(char* buf, int buf_sz, int rank, int round_num);
-
-void msgfmt_decode_rtp_begin(char* buf, int buf_sz, int* rank, int* round_num);
+void msgfmt_decode_rtp_begin(void* buf, int buf_sz, int* rank, int* round_num);
 
 /**
  * @brief buffer space needed for num_pivots_
@@ -87,12 +64,12 @@ size_t msgfmt_bufsize_rtp_pivots(int num_pivots);
  *
  * @return
  */
-int msgfmt_encode_rtp_pivots(char* buf, int buf_sz, int round_num,
+int msgfmt_encode_rtp_pivots(void* buf, int buf_sz, int round_num,
                              int stage_num, int sender_id, double* pivots,
                              double pivot_width, int num_pivots,
-                             bool bcast = false);
+                             bool bcast);
 
-void msgfmt_decode_rtp_pivots(char* buf, int buf_sz, int* round_num,
+void msgfmt_decode_rtp_pivots(void* buf, int buf_sz, int* round_num,
                               int* stage_num, int* sender_id, double** pivots,
                               double* pivot_width, int* num_pivots,
-                              bool bcast = false);
+                              bool bcast);

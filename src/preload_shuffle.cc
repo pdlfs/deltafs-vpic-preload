@@ -450,35 +450,19 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
+  /* XXXCDC: xn gives us NULL, nn should give pctx.sctx, make uniform? */
+  if (ctx == NULL) {
+    ctx = &pctx.sctx;
+  } else {
+    assert(ctx == &pctx.sctx);
+  }
+  if (buf_sz != ctx->extra_data_len + ctx->svalue_len + ctx->skey_len)
+    ABORT("unexpected incoming shuffle request size");
+  rv = exotic_write(buf, ctx->skey_len, buf + ctx->skey_len,
+                    ctx->svalue_len, epoch, src);
+
   if (pctx.testin && pctx.trace != NULL)
     shuffle_handle_debug(ctx, buf, buf_sz, epoch, src, dst);
-
-  char msg_type = msgfmt_get_msgtype(buf); /* XXX assumes CARP */
-
-  switch (msg_type) {
-    case MSGFMT_DATA:
-      break;
-    case MSGFMT_RTP_MAGIC:
-      pctx.carp->HandleMessage(buf, buf_sz, src);
-      return 0;
-    default:
-      ABORT("Unknown msg_type");
-  }
-
-  ctx = &pctx.sctx;
-
-  if (buf_sz != msgfmt_get_data_size(ctx->skey_len, ctx->svalue_len,
-                                     ctx->extra_data_len)) {
-    logf(LOG_DBUG, "Bufsz: %u, msgfmt: %d/%d/%d\n", 
-        buf_sz, ctx->skey_len, ctx->svalue_len, ctx->extra_data_len);
-    ABORT("unexpected incoming shuffle request size");
-  }
-
-  char *skey, *svalue;
-  msgfmt_parse_data(buf, buf_sz, &skey, ctx->skey_len,
-                                 &svalue, ctx->svalue_len);
-
-  rv = exotic_write(skey, ctx->skey_len, svalue, ctx->svalue_len, epoch, src);
 
   return rv;
 }
@@ -745,10 +729,12 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
-    xn_shuffle_init(rep);
+    xn_shuffle_init(rep, ctx->priority_cb);
     world_sz = xn_shuffle_world_size(rep);
     ctx->rep = rep;
   } else {
+    if (ctx->priority_cb)
+      ABORT("CFG error: NN shuffle does not support priority callback");
     nn_shuffler_init(ctx);
     world_sz = nn_shuffler_world_size();
   }

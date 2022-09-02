@@ -158,11 +158,8 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* skey,
 
   /* bypass rpc if target is local */
   if (peer_rank == rank && !ctx->force_rpc) {
-    /* XXXCDC: this is the only place we use data_ptr/data_sz */
-    /* XXXCDC: but native write just needs inkey/invalue (aka shuffle key) */
-    /* XXXCDC: and we already have that in the args... */
-    rv = native_write(reinterpret_cast<char*>(&p.indexed_prop), sizeof(float),
-                      p.data_ptr, p.data_sz, epoch);
+    /* native write takes skey/svalue (aka preload inkey/invalue) */
+    rv = native_write(skey, skey_len, svalue, svalue_len, epoch);
     shuffle_now = false;
   }
 

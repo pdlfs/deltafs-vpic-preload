@@ -46,9 +46,11 @@ namespace carp {
 /*
  * preload_init_carpopts: called from preload_init() when carp is enabled
  * to allocate and fill out carp options based on environment variable
- * settings.  returned option structure must be deleted by caller.
+ * settings.  we pass in the shuffle context so we can both put it in the
+ * options and set the priority callback function.  the returned option
+ * structure must be deleted by caller.
  */
-struct CarpOptions *preload_init_carpopts(void);
+struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx);
 
 /*
  * preload_mpiinit_carpopts: called from preload MPI_Init() function

@@ -455,7 +455,7 @@ static void preload_init() {
 
   if (is_envset("PRELOAD_Enable_CARP")) {
     pctx.carp_on = 1;
-    pctx.opts = pdlfs::carp::preload_init_carpopts();
+    pctx.opts = pdlfs::carp::preload_init_carpopts(&pctx.sctx);
   }
 
   /*
@@ -3008,8 +3008,25 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
         pvalue = sideio_buf;
       }
 
-      /* XXX we drop pkey_len here... plfsdir_append() does strlen() on pkey */
-      n = deltafs_plfsdir_append(pctx.plfshdl, pkey, epoch, pvalue, pvalue_len);
+      /*
+       * XXX: plfsdir_append() does an additional transform where it
+       *      does a strlen(pkey) and hashes the result to generate
+       *      the key it uses for storing data.  this works fine if
+       *      pkey is a filename, but in the case of carp the key is
+       *      a float rather than a string so the strlen/hash doesn't
+       *      make sense in that context.  for now, route carp via
+       *      plfsdir_put() instead of plfsdir_append() to bypass
+       *      the strlen/hash step.  might need to rethink how the
+       *      strlen/hash is done...
+       */
+      if (pctx.carp_on) {
+        n = deltafs_plfsdir_put(pctx.plfshdl, pkey, pkey_len, epoch,
+                                   pvalue, pvalue_len);
+      } else {
+        /* XXX we drop pkey_len here... plfsdir_append() does strlen(pkey) */
+        n = deltafs_plfsdir_append(pctx.plfshdl, pkey, epoch,
+                                   pvalue, pvalue_len);
+      }
       if (n != pvalue_len) {
         rv = EOF;
       }
