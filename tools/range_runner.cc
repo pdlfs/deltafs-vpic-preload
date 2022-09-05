@@ -183,7 +183,6 @@ static void usage(const char* msg) {
   fprintf(stderr, "\t-c count    number of particles to simulate per rank\n");
   fprintf(stderr, "\t-d dump     number of frame dumps\n");
   fprintf(stderr, "\t-m dump_map number of repeats for each step");
-  fprintf(stderr, "\t-k skip     skip first k steps (default: 0)\n");
   fprintf(stderr, "\t-o output   particle output dir (can be relative)\n");
   fprintf(stderr, "\t-s step     number of steps to perform\n");
   fprintf(stderr, "\t-T time     step time in seconds\n");
@@ -213,14 +212,15 @@ static int parse_dump_map(int* dmap, const int dmap_max, const char* arg) {
 
   while (true) {
     nitems_read = sscanf(ptr, "%d:%d%n", &ts, &rep, &nchar_read);
+    printf("%d:%d, %d\n", ts, rep, nitems_read);
 
     if (nitems_read != 2) {
-      usage("bad dump_map argument");
+      usage("bad dump_map argument (nitems_read)");
       return ts_max + 1;
     }
 
     if (ts < 0 or ts > dmap_max or rep < 0) {
-      usage("bad dump_map argument");
+      usage("bad dump_map argument (ts or rep)");
       return ts_max + 1;
     }
 
@@ -231,7 +231,10 @@ static int parse_dump_map(int* dmap, const int dmap_max, const char* arg) {
 
     if (*ptr == ',') {
       ptr++;
+    } else if (*ptr == '\0') {
+      break;
     } else {
+      usage("bad dump_map argument (*ptr)");
       break;
     }
   }
@@ -316,9 +319,9 @@ static struct ps {
  */
 static void run_vpic_app();
 static void do_dump();
-static void do_dump_mux(int);
+static void do_dump_mux(int, int);
 static void do_dump_shuffle_skew();
-static void do_dump_from_trace(int);
+static void do_dump_from_trace(int, int);
 
 /*
  * main program.
@@ -452,7 +455,7 @@ int main(int argc, char* argv[]) {
     else
       printf(" > num particles       = %d per rank\n", g.nps);
     printf(" > num_dumps  = %d\n", g.ndumps);
-    printf(" > dump_map  = ");
+    printf(" > dump_map   = ");
     print_dump_map(g.dmap, g.ndumps);
     printf(" > num_steps  = %d\n", g.nsteps);
     printf(" > timeout    = %d secs\n", g.timeout);
@@ -515,7 +518,7 @@ static void run_vpic_app() {
       }
       int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
       usleep(int(g.steptime * steps * 1000 * 1000));
-      // do_dump_mux(epoch);
+      do_dump_mux(epoch, rep);
     }
   }
 }
@@ -568,10 +571,10 @@ void base64_encoding(char* dst, uint64_t input) { /* 6 bits -> 8 bits */
 #endif
 }  // namespace
 
-static void do_dump_mux(int timestep) {
+static void do_dump_mux(int timestep, int rep) {
   // do_dump_shuffle_skew();
   if (g.trace) {
-    do_dump_from_trace(timestep);
+    do_dump_from_trace(timestep, rep);
   } else {
     do_dump();
   }
@@ -693,7 +696,7 @@ static void do_dump_shuffle_skew() {
   closedir(dir);
 }
 
-static void do_dump_from_trace(int epoch) {
+static void do_dump_from_trace(int epoch, int rep) {
   FILE* file;
   DIR* dir;
   dir = opendir(g.pdir);
