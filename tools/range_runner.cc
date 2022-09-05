@@ -212,7 +212,6 @@ static int parse_dump_map(int* dmap, const int dmap_max, const char* arg) {
 
   while (true) {
     nitems_read = sscanf(ptr, "%d:%d%n", &ts, &rep, &nchar_read);
-    printf("%d:%d, %d\n", ts, rep, nitems_read);
 
     if (nitems_read != 2) {
       usage("bad dump_map argument (nitems_read)");
