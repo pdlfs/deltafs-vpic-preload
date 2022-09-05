@@ -141,17 +141,18 @@ static void fatal(const char* f, int d, const char* msg) {
 static struct gs {
   char pdir[128]; /* particle dirname */
   /* note: MPI rank stored in global "myrank" */
-  int size;           /* world size (from MPI) */
-  double steptime;    /* computation time per vpic timestep (sec) */
-  int p[3];           /* particles on x,y,z dimension */
-  int t[3];           /* topology on x,y,z dimension  */
-  const char* deckid; /* vpic deck id (vpic app name) */
-  const char* deck;   /* vpic deck (run time) */
-  int nsteps;         /* total vpic timesteps to execute */
-  int ndumps;         /* total dumps to perform */
-  int psize;          /* total state per vpic particle (bytes) */
-  int nps;            /* number of particles per rank */
-  int timeout;        /* alarm timeout */
+  int size;             /* world size (from MPI) */
+  double steptime;      /* computation time per vpic timestep (sec) */
+  int p[3];             /* particles on x,y,z dimension */
+  int t[3];             /* topology on x,y,z dimension  */
+  const char* deckid;   /* vpic deck id (vpic app name) */
+  const char* deck;     /* vpic deck (run time) */
+  int nsteps;           /* total vpic timesteps to execute */
+  int ndumps;           /* total dumps to perform */
+  int dmap[kMaxEpochs]; /* map that stores total repeats for each epoch */
+  int psize;            /* total state per vpic particle (bytes) */
+  int nps;              /* number of particles per rank */
+  int timeout;          /* alarm timeout */
   const char* trace;
 } g;
 
@@ -181,6 +182,8 @@ static void usage(const char* msg) {
   fprintf(stderr, "\t-b bytes    bytes for each particle\n");
   fprintf(stderr, "\t-c count    number of particles to simulate per rank\n");
   fprintf(stderr, "\t-d dump     number of frame dumps\n");
+  fprintf(stderr, "\t-m dump_map number of repeats for each step");
+  fprintf(stderr, "\t-k skip     skip first k steps (default: 0)\n");
   fprintf(stderr, "\t-o output   particle output dir (can be relative)\n");
   fprintf(stderr, "\t-s step     number of steps to perform\n");
   fprintf(stderr, "\t-T time     step time in seconds\n");
@@ -189,6 +192,58 @@ static void usage(const char* msg) {
 skip_prints:
   MPI_Finalize();
   exit(1);
+}
+
+static void init_dump_map(int nts) {
+  for (int t = 0; t < nts; t++) {
+    g.dmap[t] = 1;
+  }
+}
+
+/* returns max ts in the arg */
+static int parse_dump_map(int* dmap, const int dmap_max, const char* arg) {
+  int ts;
+  int rep;
+  int nchar_read;
+  int nitems_read = 0;
+
+  int ts_max = -1;
+
+  const char* ptr = arg;
+
+  while (true) {
+    nitems_read = sscanf(ptr, "%d:%d%n", &ts, &rep, &nchar_read);
+
+    if (nitems_read != 2) {
+      usage("bad dump_map argument");
+      return ts_max + 1;
+    }
+
+    if (ts < 0 or ts > dmap_max or rep < 0) {
+      usage("bad dump_map argument");
+      return ts_max + 1;
+    }
+
+    dmap[ts] = rep;
+    ts_max = ts > ts_max ? ts : ts_max;
+
+    ptr += nchar_read;
+
+    if (*ptr == ',') {
+      ptr++;
+    } else {
+      break;
+    }
+  }
+
+  return ts_max + 1;
+}
+
+static void print_dump_map(int* dmap, const int ndumps) {
+  for (int ts = 0; ts < ndumps; ts++) {
+    char delim = (ts == ndumps - 1) ? '\n' : ',';
+    printf("%d:%d%c", ts, dmap[ts], delim);
+  }
 }
 
 static int compare(const void* a, const void* b) {
@@ -300,8 +355,11 @@ int main(int argc, char* argv[]) {
   g.nps = DEF_NPARTICLES;
   g.timeout = DEF_TIMEOUT;
   g.trace = NULL;
+  init_dump_map(kMaxEpochs);
 
-  while ((ch = getopt(argc, argv, "b:c:d:i:o:s:T:t:")) != -1) {
+  int nts_dmap = 0;
+
+  while ((ch = getopt(argc, argv, "b:c:d:i:m:o:s:T:t:")) != -1) {
     switch (ch) {
       case 'b':
         g.psize = atoi(optarg);
@@ -317,6 +375,9 @@ int main(int argc, char* argv[]) {
         break;
       case 'i':
         g.trace = optarg;
+        break;
+      case 'm':
+        nts_dmap = parse_dump_map(g.dmap, kMaxEpochs, optarg);
         break;
       case 'o':
         strncpy(g.pdir, optarg, sizeof(g.pdir));
@@ -357,6 +418,10 @@ int main(int argc, char* argv[]) {
     g.nps = 100LL * g.p[0] * g.p[1] * g.p[2] / g.size;
   }
 
+  if (nts_dmap < 0 or nts_dmap > g.ndumps) {
+    usage("number of dumps in dmap > ndumps");
+  }
+
   /* check env vars */
   env = getenv("PRELOAD_Particle_size");
   if (env && env[0]) {
@@ -371,7 +436,7 @@ int main(int argc, char* argv[]) {
     printf(" > MPI_rank   = %d\n", myrank);
     printf(" > MPI_size   = %d\n", g.size);
     if (g.trace) {
-      printf(" > trace       = %s\n", g.trace);
+      printf(" > trace      = %s\n", g.trace);
     }
     printf(" > deck       = %s\n", g.deck);
     printf(" > deckid     = %s\n", g.deckid);
@@ -387,6 +452,8 @@ int main(int argc, char* argv[]) {
     else
       printf(" > num particles       = %d per rank\n", g.nps);
     printf(" > num_dumps  = %d\n", g.ndumps);
+    printf(" > dump_map  = ");
+    print_dump_map(g.dmap, g.ndumps);
     printf(" > num_steps  = %d\n", g.nsteps);
     printf(" > timeout    = %d secs\n", g.timeout);
     printf("\n");
@@ -441,10 +508,15 @@ static void run_vpic_app() {
   }
   for (int epoch = 0; epoch < g.ndumps; epoch++) {
     MPI_Barrier(MPI_COMM_WORLD);
-    if (myrank == 0) printf("\n== VPIC Epoch %d ...\n", epoch + 1);
-    int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
-    usleep(int(g.steptime * steps * 1000 * 1000));
-    do_dump_mux(epoch);
+    int nreps = g.dmap[epoch];
+    for (int rep = 0; rep < nreps; rep++) {
+      if (myrank == 0) {
+        printf("\n== VPIC Epoch %d (Rep %d)...\n", epoch + 1, rep + 1);
+      }
+      int steps = g.nsteps / g.ndumps; /* vpic timesteps per epoch */
+      usleep(int(g.steptime * steps * 1000 * 1000));
+      // do_dump_mux(epoch);
+    }
   }
 }
 
