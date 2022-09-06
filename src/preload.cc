@@ -45,6 +45,7 @@
 #include <mpi.h>
 #include <perfstats/manifest_analytics.h>
 #include <pthread.h>
+#include <signal.h>
 #include <string.h>
 #include <sys/stat.h>
 

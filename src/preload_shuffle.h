@@ -56,7 +56,6 @@
 #pragma once
 
 #include <inttypes.h>
-#include <signal.h>
 #include <stddef.h>
 
 /*
@@ -186,11 +185,6 @@ void shuffle_pause(shuffle_ctx_t* ctx);
  * shuffle_resume: resume stopped background threads.
  */
 void shuffle_resume(shuffle_ctx_t* ctx);
-
-/*
- * shuffle_data_target: get shuffle target from indexed prop
- */
-int shuffle_data_target2(const float& indexed_prop);
 
 /*
  * shuffle_target: return the shuffle destination for a given req.
