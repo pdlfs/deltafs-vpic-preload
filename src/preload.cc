@@ -2765,8 +2765,13 @@ int fclose(FILE* stream) {
   assert(invalue_size == pctx.preload_invalue_size);
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write_mux(&pctx.sctx, preload_inkey, inkey_size,
-                           preload_invalue, invalue_size, num_eps - 1);
+    if (pctx.carp_on) {
+      rv = shuffle_write_range(&pctx.sctx, preload_inkey, inkey_size,
+                               preload_invalue, invalue_size, num_eps - 1);
+    } else {
+      rv = shuffle_write(&pctx.sctx, preload_inkey, inkey_size,
+                         preload_invalue, invalue_size, num_eps - 1);
+    }
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }

@@ -58,6 +58,7 @@ set(CARP_SOURCES
         carp/rtp.cc
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc
+        carp/shuffle_write_range.cc
         carp/stat_trigger.cc
         )
 
@@ -66,7 +67,6 @@ set(PRELOAD_SOURCES
         preload_internal.cc
         preload_mon.cc
         preload_shuffle.cc
-        shuffle_write_providers.cc
         nn_shuffler.cc
         nn_shuffler_internal.cc
         xn_shuffle.cc

@@ -54,7 +54,6 @@
 
 #include "common.h"
 #include "carp/msgfmt.h"
-#include "shuffle_write_providers.h"
 
 char buf_type_buf[256];
 
@@ -418,21 +417,47 @@ void shuffle_write_debug(shuffle_ctx_t* ctx, char* buf, unsigned char buf_sz,
 }  // namespace
 
 // the shuffle key/value should match the preload inkey/invalue
-int shuffle_write_mux(shuffle_ctx_t* ctx, const char* skey,
-                      unsigned char skey_len, char* svalue,
-                      unsigned char svalue_len, int epoch) {
-  int retval;
+int shuffle_write(shuffle_ctx_t* ctx, const char* skey,
+                  unsigned char skey_len, char* svalue,
+                  unsigned char svalue_len, int epoch) {
+  char buf[255];
+  int peer_rank;
+  int rank;
+  int rv;
 
-  // retval = shuffle_write(ctx, skey, skey_len, svalue, svalue_len, epoch);
-  retval = shuffle_write_range(ctx, skey, skey_len, svalue, svalue_len, epoch);
+  assert(ctx == &pctx.sctx);
+  assert(ctx->skey_len + ctx->svalue_len + ctx->extra_data_len <= sizeof(buf));
+  if (ctx->skey_len != skey_len) ABORT("bad shuffle key len");
+  if (ctx->svalue_len != svalue_len) ABORT("bad shuffle value len");
 
-  return retval;
+  unsigned char base_sz = skey_len + svalue_len;
+  unsigned char buf_sz = base_sz + ctx->extra_data_len;
+  memcpy(buf, skey, skey_len);
+  memcpy(buf + skey_len, svalue, svalue_len);
+  if (buf_sz != base_sz) memset(buf + base_sz, 0, buf_sz - base_sz);
+
+  peer_rank = shuffle_target(ctx, buf, buf_sz);
+  rank = shuffle_rank(ctx);
+
+  /* write trace if we are in testing mode */
+  if (pctx.testin && pctx.trace != NULL)
+    shuffle_write_debug(ctx, buf, buf_sz, epoch, rank, peer_rank);
+
+  /* bypass rpc if target is local */
+  if (peer_rank == rank && !ctx->force_rpc) {
+    rv = native_write(skey, skey_len, svalue, svalue_len, epoch);
+    return rv;
+  }
+
+  if (ctx->type == SHUFFLE_XN) {
+    xn_shuffle_enqueue(static_cast<xn_ctx_t*>(ctx->rep), buf, buf_sz, epoch,
+                       peer_rank, rank);
+  } else {
+    nn_shuffler_enqueue(buf, buf_sz, epoch, peer_rank, rank);
+  }
+
+  return 0;
 }
-
-void send_all_acks();
-
-void send_all_to_all(shuffle_ctx_t* ctx, char* buf, uint32_t buf_sz,
-                     int my_rank, int comm_sz, bool send_to_self);
 
 namespace {
 void shuffle_handle_debug(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,

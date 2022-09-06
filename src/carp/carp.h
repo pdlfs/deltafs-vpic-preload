@@ -19,6 +19,8 @@
 #include "mock_backend.h"
 #include "rtp.h"
 
+#include "shuffle_write_range.h"
+
 namespace pdlfs {
 /* forward declaration */
 struct rtp_ctx;

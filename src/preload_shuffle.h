@@ -116,18 +116,6 @@ int shuffle_rank(shuffle_ctx_t* ctx);
 int shuffle_world_sz(shuffle_ctx_t* ctx);
 
 /*
- * shuffle_write_mux: shuffle a write request through an underlying transport.
- *
- * a multiplexer function that may call shuffle_write or one of the utility
- * shuffles dedveloped for various benchmarks.
- *
- * return 0 on success, or EOF or errors.
- */
-int shuffle_write_mux(shuffle_ctx_t* ctx, const char* skey,
-                      unsigned char skey_len, char* svalue,
-                      unsigned char svalue_len, int epoch);
-
-/*
  * shuffle_write: shuffle a write request through an underlying transport.
  *
  * shuffle may be bypassed if destination is local.
