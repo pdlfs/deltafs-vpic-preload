@@ -55,7 +55,16 @@
  */
 #pragma once
 
+#include <inttypes.h>
 #include <stddef.h>
+
+/*
+ * shuffle_priority_cb_t: pointer to a callback function used to
+ * deliver a priority msg.  this function is allowed to block
+ * (though that may trigger flow control).
+ */
+typedef void (*shuffle_priority_cb_t)(int src, int dst, uint32_t type,
+                                      void *d, uint32_t datalen);
 
 typedef struct shuffle_ctx {
   /* internal shuffle impl */
@@ -85,6 +94,7 @@ typedef struct shuffle_ctx {
   int type;
 #define SHUFFLE_NN 0 /* default */
 #define SHUFFLE_XN 1
+  shuffle_priority_cb_t priority_cb;   /* NULL to disable priority shuffle */
 } shuffle_ctx_t;
 
 /*

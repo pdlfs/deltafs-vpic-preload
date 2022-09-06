@@ -439,7 +439,12 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
                    int epoch, int src, int dst) {
   int rv;
 
+  /* XXXCDC: xn gives us NULL, nn should give pctx.sctx, make uniform? */
+  if (ctx == NULL) {
   ctx = &pctx.sctx;
+  } else {
+    assert(ctx == &pctx.sctx);
+  }
   if (buf_sz != ctx->extra_data_len + ctx->svalue_len + ctx->skey_len)
     ABORT("unexpected incoming shuffle request size");
   rv = exotic_write(buf, ctx->skey_len, buf + ctx->skey_len,
@@ -710,10 +715,12 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (ctx->type == SHUFFLE_XN) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
-    xn_shuffle_init(rep, NULL);
+    xn_shuffle_init(rep, ctx->priority_cb);
     world_sz = xn_shuffle_world_size(rep);
     ctx->rep = rep;
   } else {
+    if (ctx->priority_cb)
+      ABORT("CFG error: NN shuffle does not support priority callback");
     nn_shuffler_init(ctx);
     world_sz = nn_shuffler_world_size();
   }
