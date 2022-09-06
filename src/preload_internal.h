@@ -35,22 +35,22 @@
 
 #pragma once
 
-#include <mpi.h>
 #include <pthread.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 
-#include <deltafs/deltafs_api.h>
-
-#include "common.h"
-#include "preload_mon.h"
-#include "preload_shuffle.h"
-
-#include "preload.h"
+#include <mpi.h>
 
 #include <map>
 #include <set>
 #include <vector>
+
+#include <deltafs/deltafs_api.h>
+
+#include "common.h"
+#include "preload.h"
+#include "preload_mon.h"
+#include "preload_shuffle.h"
 
 /*
  * preload context:
