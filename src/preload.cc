@@ -731,11 +731,11 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
 
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
-  std::string key_size_indexed_attr =
-      std::to_string(pctx.opts->index_attr_size); // XXXCARP assumption
-
   if (pctx.carp_on) {
-    dirc.key_size = key_size_indexed_attr.c_str();
+    static char carp_key_size_str[32];  /* storing fixed value in static buf */
+    snprintf(carp_key_size_str, sizeof(carp_key_size_str),
+             "%d", pctx.opts->index_attr_size);
+    dirc.key_size = carp_key_size_str;
   } else {
     dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
     if (dirc.key_size == NULL) {
