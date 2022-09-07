@@ -491,6 +491,7 @@ static void preload_init() {
     pctx.preload_outvalue_size = pctx.preload_invalue_size + sizeof(uint32_t);
     pctx.value_size = pctx.preload_outvalue_size;  /* update for change */
   } else if (0 /*pctx.carpon*/) {
+#if 0
     /*
      * in carp mode (range-query) we:
      *  1. move the filename to the filedata
@@ -504,6 +505,7 @@ static void preload_init() {
     pctx.preload_outvalue_size += pctx.filename_size;
     pctx.key_size = pctx.preload_outkey_size;
     pctx.value_size = pctx.preload_outvalue_size;
+#endif
   }
 
   pctx.serialized_size = pctx.preload_inkey_size + pctx.preload_invalue_size;
