@@ -473,3 +473,8 @@ void xn_shuffle_destroy(xn_ctx_t* ctx) {
     }
   }
 }
+
+void xn_shuffle_dump_state(xn_ctx_t* ctx, int tostderr) {
+  /* should we dump ctx->psh too? */
+  shuffle_statedump(ctx->sh, tostderr);
+}

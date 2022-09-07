@@ -140,6 +140,12 @@ static void must_getnextdlsym(void** result, const char* symbol) {
   if (*result == NULL) ABORT(symbol);
 }
 
+/* signal handler to print shuffler info for debug */
+static void sigusr1(int foo) {
+  fprintf(stderr, "Received SIGUSR1 at Rank %d\n", pctx.my_rank);
+  shuffle_dump_state(&pctx.sctx, 0);
+}
+
 /*
  * preload_init: called via init_once.   if this fails we are sunk, so
  * we'll abort the process....
@@ -501,6 +507,7 @@ static void preload_init() {
   pctx.serialized_size = pctx.preload_inkey_size + pctx.preload_invalue_size;
 
   /* additional init can go here or MPI_Init() */
+  signal(SIGUSR1, sigusr1);
 }
 
 /*

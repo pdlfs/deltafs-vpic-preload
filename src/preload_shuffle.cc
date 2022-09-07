@@ -849,3 +849,11 @@ void shuffle_msg_received() {
   pctx.mctx.max_nmr++;
   pctx.mctx.nmr++;
 }
+
+void shuffle_dump_state(shuffle_ctx_t* ctx, int tostderr) {
+  if (ctx->type == SHUFFLE_XN) {
+    xn_shuffle_dump_state(static_cast<xn_ctx_t*>(ctx->rep), tostderr);
+  } else {
+    // NN shuffler does not have a statedump function
+  }
+}

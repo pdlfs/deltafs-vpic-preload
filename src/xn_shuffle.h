@@ -128,6 +128,9 @@ extern void xn_shuffle_epoch_start(xn_ctx_t* ctx);
 /* xn_shuffle_destroy: shutdown the shuffle */
 extern void xn_shuffle_destroy(xn_ctx_t* ctx);
 
+/* xn_shuffle_dump_state: dump shuffle state */
+void xn_shuffle_dump_state(xn_ctx_t* ctx, int tostderr);
+
 /*
  * Default size of the rpc delivery queue.
  */
