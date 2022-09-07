@@ -33,48 +33,25 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "preload_shuffle.h"
-
 #include <arpa/inet.h>
 #include <assert.h>
 #include <ifaddrs.h>
-#include <mercury_config.h>
-#include <pdlfs-common/xxhash.h>
+
+#include "preload_internal.h"
+#include "preload_mon.h"
+#include "preload_shuffle.h"
 
 #include "nn_shuffler.h"
 #include "nn_shuffler_internal.h"
-#include "preload_internal.h"
-#include "preload_mon.h"
-#include "carp/preload_range.h"
-#include "carp/rtp.h"
 #include "xn_shuffle.h"
+
+#include <mercury_config.h>
+#include <pdlfs-common/xxhash.h>
 #ifdef PRELOAD_HAS_CH_PLACEMENT
 #include <ch-placement.h>
 #endif
 
 #include "common.h"
-#include "carp/msgfmt.h"
-
-char buf_type_buf[256];
-
-char* print_buf_type(buf_type_t bt) {
-  switch (bt) {
-    case buf_type_t::RB_BUF_OOB:
-      snprintf(buf_type_buf, 256, "RB_BUF_OOB");
-      break;
-    case buf_type_t::RB_NO_BUF:
-      snprintf(buf_type_buf, 256, "RB_NO_BUF");
-      break;
-    case buf_type_t::RB_UNDECIDED:
-      snprintf(buf_type_buf, 256, "RB_UNDECIDED");
-      break;
-    default:
-      snprintf(buf_type_buf, 256, "RB_BUF_TYPE UNKNOWN!");
-      break;
-  }
-
-  return buf_type_buf;
-}
 
 namespace {
 void shuffle_prepare_sm_uri(char* buf, const char* proto) {
@@ -171,19 +148,6 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
 }
 
 }  // namespace
-
-char _common_buf[255];
-/* Print a string as hex
- * XXX: NOT THREAD SAFE
- */
-char* print_hexstr(const char* s, int slen) {
-  assert(slen < 100);
-  for (int i = 0; i < slen; i++) {
-    sprintf(&_common_buf[i * 2], "%02x", static_cast<unsigned int>(s[i]));
-  }
-  _common_buf[slen * 2] = '\0';
-  return _common_buf;
-}
 
 void shuffle_prepare_uri(char* buf) {
   int port;
