@@ -146,10 +146,9 @@ static void must_getnextdlsym(void** result, const char* symbol) {
 }
 
 /* signal handler to print shuffler info for debug */
-void sigusr1(int foo) {
-  fprintf(stderr, "Received SIGUSR at Rank %d\n", pctx.my_rank);
-  xn_ctx_t* xctx = static_cast<xn_ctx_t*>(pctx.sctx.rep);
-  shuffle_statedump(xctx->sh, 0);
+static void sigusr1(int foo) {
+  fprintf(stderr, "Received SIGUSR1 at Rank %d\n", pctx.my_rank);
+  shuffle_dump_state(&pctx.sctx, 0);
 }
 
 /*

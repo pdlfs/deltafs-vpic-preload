@@ -213,3 +213,8 @@ void shuffle_msg_replied(void* arg1, void* arg2);
  * an rpc request.
  */
 void shuffle_msg_received();
+
+/*
+ * shuffle_dump_state: dump shuffle state (if supported)
+ */
+void shuffle_dump_state(shuffle_ctx_t* ctx, int tostderr);
