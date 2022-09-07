@@ -39,6 +39,7 @@
 #include <errno.h>
 #include <execinfo.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
@@ -497,9 +498,10 @@ static void preload_init() {
      *
      * so we need to resize the key/value sizes to match
      */
-    pctx.preload_invalue_size += pctx.preload_inkey_size;
-    pctx.preload_outvalue_size += pctx.preload_outkey_size;
-    pctx.preload_inkey_size = pctx.preload_outkey_size = sizeof(float);
+    pctx.preload_inkey_size = pctx.opts->index_attr_size;
+    pctx.preload_outkey_size = pctx.preload_inkey_size;
+    pctx.preload_invalue_size += pctx.filename_size;
+    pctx.preload_outvalue_size += pctx.filename_size;
     pctx.key_size = pctx.preload_outkey_size;
     pctx.value_size = pctx.preload_outvalue_size;
   }
@@ -2171,7 +2173,7 @@ int opendir_impl(const char* dir) {
 
   if (!pctx.nomon) {
     mon_reinit(&pctx.mctx); /* clear mon stats */
-    /* reset epoch id */
+    /* Reset epoch id */
     pctx.mctx.epoch_seq = num_eps;
 
     pctx.epoch_start = start; /* record epoch start */
