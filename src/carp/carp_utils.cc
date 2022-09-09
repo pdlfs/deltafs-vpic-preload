@@ -365,7 +365,6 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
 
   double our_bin_start = pivots[pctx.my_rank];
   double our_bin_end = pivots[pctx.my_rank + 1];
-  pctx.range_backend->UpdateBounds(our_bin_start, our_bin_end);
   deltafs_plfsdir_range_update(pctx.plfshdl, our_bin_start, our_bin_end);
 
   return 0;

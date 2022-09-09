@@ -40,7 +40,6 @@ endif ()
 set(RANGE_SOURCES
         perfstats/perfstats.cc
         perfstats/stat.cc
-        perfstats/manifest_analytics.cc
         )
 
 set(CARP_SOURCES
@@ -48,7 +47,6 @@ set(CARP_SOURCES
         carp/carp_preload.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
-        carp/mock_backend.cc
         carp/msgfmt.cc
         carp/oob_buffer.cc
         carp/policy.cc

@@ -16,7 +16,6 @@
 #include "policy.h"
 #include "preload_shuffle.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
-#include "mock_backend.h"
 #include "rtp.h"
 
 #include "shuffle_write_range.h"

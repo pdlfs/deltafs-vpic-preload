@@ -43,7 +43,6 @@
 #include <limits.h>
 #include <math.h>
 #include <mpi.h>
-#include <perfstats/manifest_analytics.h>
 #include <pthread.h>
 #include <signal.h>
 #include <string.h>
@@ -1067,9 +1066,6 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
-  pctx.range_backend =
-      new pdlfs::MockBackend(pctx.my_rank, pctx.local_root, 1023 * 1024, 48);
-
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {
       logf(LOG_INFO, "app particle filename: %d bytes, filedata: %d bytes",
@@ -1965,8 +1961,6 @@ int MPI_Finalize(void) {
                                         pctx.my_rank);
   }
 
-  pctx.range_backend->Finish();
-
   /* extra stats */
   MPI_Reduce(&num_bytes_writ, &sum_bytes_writ, 1, MPI_UNSIGNED_LONG_LONG,
              MPI_SUM, 0, MPI_COMM_WORLD);
@@ -1986,9 +1980,6 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "final stats...");
     logf(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
 
-    pdlfs::ManifestAnalytics manifest_analytics(pctx.range_backend);
-    manifest_analytics.PrintStats(&(pctx.perf_ctx));
-
     logf(LOG_INFO, "== dir data compaction");
     logf(LOG_INFO,
          "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
@@ -2005,9 +1996,6 @@ int MPI_Finalize(void) {
   if (pctx.carp_on) {
     pdlfs::carp::preload_finalize_carp(&pctx);
   }
-
-  delete pctx.range_backend;
-  pctx.range_backend = nullptr;
 
   /* close testing log file */
   if (pctx.trace != NULL) {
@@ -2430,10 +2418,6 @@ int closedir_impl(DIR* dirp) {
             ABORT("fail to sync plfsdir side io");
           if (deltafs_plfsdir_sync(pctx.plfshdl) != 0)
             ABORT("fail to sync plfsdir");
-        }
-
-        if (pctx.carp_on) {
-          pctx.range_backend->EpochFinish();
         }
 
         if (pctx.my_rank == 0) {
@@ -2964,9 +2948,6 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
   }
 
   pthread_mtx_lock(&write_mtx);
-
-  // XXX carp only mock backend
-  pctx.range_backend->Write(pkey, pkey_len, pvalue, pvalue_len);
 
   if (pctx.paranoid_checks) {
     if (pkey_len   != pctx.preload_inkey_size ||

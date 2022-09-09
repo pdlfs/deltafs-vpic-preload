@@ -9,7 +9,6 @@
 #include "carp/carp.h"
 #include "pdlfs-common/testharness.h"
 #include "pdlfs-common/testutil.h"
-#include "perfstats/manifest_analytics.h"
 #include "carp/range_common.h"
 
 namespace {

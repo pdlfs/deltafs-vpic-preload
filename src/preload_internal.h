@@ -186,8 +186,6 @@ typedef struct preload_ctx {
   /* Contains main thread state for range queries */
   pdlfs::carp::Carp* carp;
   pdlfs::carp::CarpOptions* opts;
-
-  pdlfs::MockBackend* range_backend;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;
