@@ -2170,8 +2170,8 @@ int opendir_impl(const char* dir) {
     dump_mon(&pctx.mctx, &tmp_dir_stat, &pctx.last_dir_stat);
   }
 
-  /* epoch count is incremented at the beginning of each epoch */
-  num_eps++;
+  /* epoch count is increased before the beginning of each epoch */
+  num_eps++; /* must go before the barrier below */
 
   if (!pctx.nomon) {
     mon_reinit(&pctx.mctx); /* clear mon stats */
