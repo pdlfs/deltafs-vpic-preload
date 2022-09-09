@@ -1364,11 +1364,11 @@ int MPI_Init(int* argc, char*** argv) {
   if (pctx.carp_on) {
     pdlfs::carp::preload_mpiinit_carpopts(&pctx, pctx.opts, stripped);
     pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
+    PRELOAD_Barrier(MPI_COMM_WORLD);  /* XXX may not be necessary? */
   }
 
   srand(pctx.my_rank);
 
-  PRELOAD_Barrier(MPI_COMM_WORLD);
   return rv;
 }
 
@@ -2236,14 +2236,16 @@ int opendir_impl(const char* dir) {
   /* epoch count is increased before the beginning of each epoch */
   num_eps++; /* must go before the barrier below */
 
-  pctx.carp->AdvanceEpoch();
-
-  if (pctx.paranoid_post_barrier) {
-    /*
-     * this ensures all writes made for the next epoch
-     * will go to a new write buffer.
-     */
-    PRELOAD_Barrier(MPI_COMM_WORLD);
+  if (pctx.carp_on) {
+    pctx.carp->AdvanceEpoch();
+    if (pctx.paranoid_post_barrier) {
+      /*
+       * for carp: ensure writes for next epoch go to new write buffer.
+       * XXX: we are close to having two barriers in a row (see below,
+       * after the mon/papi code).  can we just have one?
+       */
+      PRELOAD_Barrier(MPI_COMM_WORLD);
+    }
   }
 
   if (!pctx.nomon) {
