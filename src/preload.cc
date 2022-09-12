@@ -1978,7 +1978,9 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "final stats...");
-    logf(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
+    if (pctx.carp_on) {
+      logf(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
+    }
 
     logf(LOG_INFO, "== dir data compaction");
     logf(LOG_INFO,
