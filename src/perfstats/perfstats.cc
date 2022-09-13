@@ -11,10 +11,6 @@
 #include "perfstats/stat.h"
 #include "preload_internal.h"
 
-#ifdef PRELOAD_HAS_BLKID
-#include "perfstats/stat_blkid.h"
-#endif
-
 /* Local Definitions */
 namespace {
 uint64_t get_timestamp(pdlfs::perfstats_ctx_t* perf_ctx) {
@@ -92,11 +88,6 @@ int perfstats_init(perfstats_ctx_t* perf_ctx, int my_rank, const char* dir_path,
 
   rv = pthread_create(&(perf_ctx->stats_thread), NULL, perfstats_worker,
                       static_cast<void*>(perf_ctx));
-
-#ifdef PRELOAD_HAS_BLKID
-  StatBlkid* statBlkid = new StatBlkid(local_root);
-  perf_ctx->all_loggers_.push_back(statBlkid);
-#endif
 
   if (rv) {
     logf(LOG_ERRO, "perfstats_init: failed to create pthread");

@@ -73,14 +73,6 @@ set(PRELOAD_SOURCES
         pthreadtap.cc
         )
 
-if (PRELOAD_BLKID)
-    find_package(BLKID)
-    if (BLKID_FOUND)
-        add_definitions(-DPRELOAD_HAS_BLKID)
-        set(PRELOAD_SOURCES ${PRELOAD_SOURCES} perfstats/stat_blkid.cc)
-    endif ()
-endif ()
-
 add_library(deltafs-preload
         ${RANGE_SOURCES}
         ${CARP_SOURCES}
@@ -106,12 +98,6 @@ endif ()
 if (PRELOAD_NUMA)
     if (NUMA_FOUND)
         target_link_libraries(deltafs-preload numa)
-    endif ()
-endif ()
-
-if (PRELOAD_BLKID)
-    if (BLKID_FOUND)
-        target_link_libraries(deltafs-preload blkid)
     endif ()
 endif ()
 
