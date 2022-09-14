@@ -2943,7 +2943,7 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
   char sideio_buf[12];  /* for transform#2 where we add src rank to offset */
   int rv;
 
-  pctx.perf_ctx.stat_hooks.bytes_written += pvalue_len;
+  pctx.perf_ctx.bytes_written += pvalue_len;
 
   if (epoch == -1) {
     epoch = num_eps - 1;

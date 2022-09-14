@@ -39,7 +39,6 @@ endif ()
 #
 set(RANGE_SOURCES
         perfstats/perfstats.cc
-        perfstats/stat.cc
         )
 
 set(CARP_SOURCES
