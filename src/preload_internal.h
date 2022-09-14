@@ -48,8 +48,8 @@
 #include <deltafs/deltafs_api.h>
 
 #include "carp/carp.h"
+#include "carp/perfstats.h"
 #include "common.h"
-#include "perfstats/perfstats.h"
 #include "preload.h"
 #include "preload_mon.h"
 #include "preload_shuffle.h"

@@ -1,7 +1,7 @@
 #include "carp/rtp.h"
 
 #include "msgfmt.h"
-#include "perfstats/perfstats.h"
+#include "perfstats.h"
 #include "preload_internal.h"
 
 // extern preload_ctx_t pctx;
