@@ -55,8 +55,16 @@
  */
 #pragma once
 
-#include <signal.h>
+#include <inttypes.h>
 #include <stddef.h>
+
+/*
+ * shuffle_priority_cb_t: pointer to a callback function used to
+ * deliver a priority msg.  this function is allowed to block
+ * (though that may trigger flow control).
+ */
+typedef void (*shuffle_priority_cb_t)(int src, int dst, uint32_t type,
+                                      void *d, uint32_t datalen);
 
 typedef struct shuffle_ctx {
   /* internal shuffle impl */
@@ -79,13 +87,14 @@ typedef struct shuffle_ctx {
   /* (rank & receiver_mask) -> receiver_rank */
   unsigned int receiver_mask;
   int is_receiver;
-  unsigned char fname_len;
+  unsigned char skey_len;
   unsigned char extra_data_len;
-  unsigned char data_len;
+  unsigned char svalue_len;
   /* shuffle type */
   int type;
 #define SHUFFLE_NN 0 /* default */
 #define SHUFFLE_XN 1
+  shuffle_priority_cb_t priority_cb;   /* NULL to disable priority shuffle */
 } shuffle_ctx_t;
 
 /*
@@ -107,18 +116,6 @@ int shuffle_rank(shuffle_ctx_t* ctx);
 int shuffle_world_sz(shuffle_ctx_t* ctx);
 
 /*
- * shuffle_write_mux: shuffle a write request through an underlying transport.
- *
- * a multiplexer function that may call shuffle_write or one of the utility
- * shuffles dedveloped for various benchmarks.
- *
- * return 0 on success, or EOF or errors.
- */
-int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
-                      unsigned char fname_len, char* data,
-                      unsigned char data_len, int epoch);
-
-/*
  * shuffle_write: shuffle a write request through an underlying transport.
  *
  * shuffle may be bypassed if destination is local.
@@ -129,9 +126,9 @@ int shuffle_write_mux(shuffle_ctx_t* ctx, const char* fname,
  *
  * return 0 on success, or EOF or errors.
  */
-int shuffle_write(shuffle_ctx_t* ctx, const char* fname,
-                  unsigned char fname_len, char* data, unsigned char data_len,
-                  int epoch);
+int shuffle_write(shuffle_ctx_t* ctx, const char* skey,
+                  unsigned char skey_len, char* svalue,
+                  unsigned char svalue_len, int epoch);
 
 /*
  * shuffle_epoch_start: perform necessary flushes at the
@@ -178,11 +175,6 @@ void shuffle_pause(shuffle_ctx_t* ctx);
 void shuffle_resume(shuffle_ctx_t* ctx);
 
 /*
- * shuffle_data_target: get shuffle target from indexed prop
- */
-int shuffle_data_target2(const float& indexed_prop);
-
-/*
  * shuffle_target: return the shuffle destination for a given req.
  */
 int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz);
@@ -221,3 +213,8 @@ void shuffle_msg_replied(void* arg1, void* arg2);
  * an rpc request.
  */
 void shuffle_msg_received();
+
+/*
+ * shuffle_dump_state: dump shuffle state (if supported)
+ */
+void shuffle_dump_state(shuffle_ctx_t* ctx, int tostderr);

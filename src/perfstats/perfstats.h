@@ -1,31 +1,23 @@
 #pragma once
 
-#include <assert.h>
 #include <limits.h>
-#include <mpi.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <time.h>
+#include <pthread.h>
 
-#include "carp/rtp.h"
-#include "common.h"
-#include "pdlfs-common/mutexlock.h"
-#include "range_common.h"
-#include "stat.h"
+#include <vector>
 
-#define PERFSTATS_MEM_SIZE 1
+#include <pdlfs-common/mutexlock.h>
+
 #define PERFSTATS_CAPTURE_FREQ 10
 
 namespace pdlfs {
-typedef struct perfstats_stats {
-  struct timespec stat_time;
-  long long bytes_written;
-  long long secs_written;
-} perfstats_stats_t;
+namespace carp {
+class Carp;       /* forward decl for pointer */
+};
+};
 
-typedef struct {
-  uint64_t bytes_written = 0;
-} stat_hooks_t;
+namespace pdlfs {
 
 typedef struct perfstats_ctx {
   /* All timestamps are relative to this time */
@@ -39,8 +31,7 @@ typedef struct perfstats_ctx {
   char stats_fpath[PATH_MAX];
 
   port::Mutex worker_mtx;
-  stat_hooks_t stat_hooks;
-  std::vector<StatLogger*> all_loggers_;
+  uint64_t bytes_written;
 } perfstats_ctx_t;
 
 /**
@@ -75,8 +66,8 @@ int perfstats_destroy(perfstats_ctx_t* perf_ctx);
  *
  * @return
  */
-int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
-                        int my_rank, int round_num);
+void perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
+                         int my_rank, int round_num);
 
 /**
  * @brief
@@ -86,8 +77,8 @@ int perfstats_log_reneg(perfstats_ctx_t* perf_ctx, pdlfs::carp::Carp* carp,
  * @param my_rank
  * @return
  */
-int perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
-                                 pdlfs::carp::Carp* carp, int my_rank);
+void perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
+                                  pdlfs::carp::Carp* carp, int my_rank);
 
 /**
  * @brief
@@ -98,8 +89,8 @@ int perfstats_log_aggr_bin_count(perfstats_ctx_t* perf_ctx,
  * @param pivot_label
  * @return
  */
-int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
-                           int num_pivots, const char* pivot_label);
+void perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
+                            int num_pivots, const char* pivot_label);
 
 /**
  * @brief
@@ -110,29 +101,8 @@ int perfstats_log_mypivots(perfstats_ctx_t* perf_ctx, double* pivots,
  * @param pivot_label
  * @return
  */
-int perfstats_log_vec(perfstats_ctx_t* perf_ctx, std::vector<uint64_t>& vec,
-                      const char* pivot_label);
-
-/**
- * @brief
- *
- * @param perf_ctx
- *
- * @return
- */
-int perfstats_log_carp(perfstats_ctx_t* perf_ctx);
-
-/**
- * @brief
- *
- * @param perf_ctx
- * @param event_label
- * @param event_desc
- *
- * @return
- */
-int perfstats_log_eventstr(perfstats_ctx_t* perf_ctx, const char* event_label,
-                           const char* event_desc);
+void perfstats_log_vec(perfstats_ctx_t* perf_ctx, std::vector<uint64_t>& vec,
+                       const char* pivot_label);
 
 /**
  * @brief
@@ -143,5 +113,5 @@ int perfstats_log_eventstr(perfstats_ctx_t* perf_ctx, const char* event_label,
  *
  * @return
  */
-int perfstats_printf(perfstats_ctx_t* perf_ctx, const char* fmt, ...);
+void perfstats_printf(perfstats_ctx_t* perf_ctx, const char* fmt, ...);
 }  // namespace pdlfs

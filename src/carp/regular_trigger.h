@@ -9,7 +9,7 @@ class RegularTrigger {
   RegularTrigger(int trigger_intvl, int my_rank)
       : trigger_intvl_(trigger_intvl), my_rank_(my_rank), cur_count_(0) {}
 
-  int Invoke() {
+  void Invoke() {
     cur_count_++;
 
     if (cur_count_ == trigger_intvl_) {

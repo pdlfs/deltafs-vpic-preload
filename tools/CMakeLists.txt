@@ -32,19 +32,12 @@ target_link_libraries(preload-runner-no-deltafs Threads::Threads)
 add_executable(range-runner-no-deltafs range_runner.cc workload_generator.cc)
 target_link_libraries(range-runner-no-deltafs Threads::Threads)
 
-add_executable(range-reader query_main.cc query_client/query_client.cc
-        query_client/sortable_buffer.cc ../src/range_backend/mock_backend.cc)
-
-target_include_directories(range-reader PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../src>
-        )
-
 #
 # make sure we link with MPI.  use "MPI_CXX_COMPILE_FLAGS_LIST"
 # prepared by the calling module.
 #
 foreach (tgt preload-runner range-runner preload-runner-no-deltafs 
-    range-runner-no-deltafs range-reader)
+    range-runner-no-deltafs)
 
     # mpich on ub14 gives a leading space that we need to trim off
     foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
@@ -79,7 +72,4 @@ install(TARGETS preload-plfsdir-reader
         RUNTIME DESTINATION bin)
 
 install(TARGETS preload-reader
-        RUNTIME DESTINATION bin)
-
-install(TARGETS range-reader
         RUNTIME DESTINATION bin)

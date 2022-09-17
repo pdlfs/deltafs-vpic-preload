@@ -178,8 +178,9 @@
 /*
  * preload_write: ship data to fs.
  */
-extern int preload_write(const char* id, unsigned char id_sz, char* data,
-                         unsigned char data_len, int epoch, int src);
+extern int preload_write(const char* pkey, unsigned char pkey_len,
+                         char* pvalue, unsigned char pvalue_len,
+                         int epoch, int src);
 
 /*
  * Default hash key size for encoding file names.
@@ -234,9 +235,3 @@ extern int preload_write(const char* id, unsigned char id_sz, char* data,
  * Specified as a string.
  */
 #define DEFAULT_LG_PARTS "2"
-
-/*
- * Default size of indexed type (for CARP)
- * sizeof(float) or sizeof(double)
- */
-#define DEFAULT_INDEXED_ATTR_SIZE sizeof(float)

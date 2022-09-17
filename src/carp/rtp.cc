@@ -195,11 +195,10 @@ Status RTP::InitRound() {
   return s;
 }
 
-Status RTP::HandleMessage(char* buf, unsigned int bufsz, int src) {
+Status RTP::HandleMessage(void* buf, unsigned int bufsz, int src,
+                          uint32_t type) {
   Status s = Status::OK();
-  char msg_type = msgfmt_get_rtp_msgtype(buf);
-
-  switch (msg_type) {
+  switch (type) {
     case MSGFMT_RTP_BEGIN:
       s = HandleBegin(buf, bufsz, src);
       break;
@@ -288,18 +287,19 @@ Status RTP::BroadcastBegin() {
 
   char buf[256];
   int buflen = msgfmt_encode_rtp_begin(buf, 256, my_rank_, round_num_);
-  SendToRank(buf, buflen, root_[3]);
+  SendToRank(buf, buflen, root_[3], MSGFMT_RTP_BEGIN);
 
   return s;
 }
 
-Status RTP::SendToRank(const char* buf, int bufsz, int rank) {
-  xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0, rank, my_rank_);
+Status RTP::SendToRank(const void* buf, int bufsz, int rank, uint32_t type) {
+  xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0/*XXXCDC remove epoch?*/,
+                           rank, my_rank_, type);
   return Status::OK();
 }
 
-Status RTP::SendToAll(int stage, const char* buf, int bufsz,
-                      bool exclude_self) {
+Status RTP::SendToAll(int stage, const void* buf, int bufsz,
+                      bool exclude_self, uint32_t type) {
   for (int rank_idx = 0; rank_idx < fanout_[stage]; rank_idx++) {
     int drank = peers_[stage][rank_idx];
 
@@ -308,25 +308,27 @@ Status RTP::SendToAll(int stage, const char* buf, int bufsz,
 
     logf(LOG_DBUG, "send_to_all: sending from %d to %d\n", my_rank_, drank);
 
-    xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0, drank, my_rank_);
+    xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0/*XXXCDC rm epoch?*/,
+                             drank, my_rank_, type);
   }
 
   return Status::OK();
 }
 
-Status RTP::SendToChildren(const char* buf, int bufsz, bool exclude_self) {
+Status RTP::SendToChildren(const void* buf, int bufsz, bool exclude_self,
+                           uint32_t type) {
   Status s = Status::OK();
 
 #define AMROOT(x) (my_rank_ == root_[(x)])
 
   if (AMROOT(3)) {
-    SendToAll(3, buf, bufsz, exclude_self);
+    SendToAll(3, buf, bufsz, exclude_self, type);
   }
   if (AMROOT(2)) {
-    SendToAll(2, buf, bufsz, exclude_self);
+    SendToAll(2, buf, bufsz, exclude_self, type);
   }
   if (AMROOT(1)) {
-    SendToAll(1, buf, bufsz, exclude_self);
+    SendToAll(1, buf, bufsz, exclude_self, type);
   }
 
 #undef AMROOT
@@ -334,7 +336,7 @@ Status RTP::SendToChildren(const char* buf, int bufsz, bool exclude_self) {
   return s;
 }
 
-Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
+Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
   Status s = Status::OK();
 
   int srank, msg_round_num;
@@ -380,7 +382,7 @@ Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
      *
      * Explicitly also send to self
      * */
-    SendToChildren(buf, bufsz, /* exclude_self */ false);
+    SendToChildren(buf, bufsz, /* exclude_self */ false, MSGFMT_RTP_BEGIN);
 
     /* send pivots to s1root now */
     const int stage_idx = 1;
@@ -398,7 +400,7 @@ Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
 
     pvt_buf_len = msgfmt_encode_rtp_pivots(
         pvt_buf, pvt_buf_sz, round_num_, stage_idx, my_rank_, carp_->my_pivots_,
-        carp_->my_pivot_width_, pvtcnt);
+        carp_->my_pivot_width_, pvtcnt, false);
 
     carp_->mutex_.Unlock();
 
@@ -409,13 +411,13 @@ Status RTP::HandleBegin(char* buf, unsigned int bufsz, int src) {
 
     perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_SEND");
 
-    SendToRank(pvt_buf, pvt_buf_len, root_[1]);
+    SendToRank(pvt_buf, pvt_buf_len, root_[1], MSGFMT_RTP_PIVOT);
   }
 
   return s;
 }
 
-Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
+Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   Status s = Status::OK();
 
   int msg_round_num, stage_num, sender_id, num_pivots;
@@ -423,10 +425,10 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
   double* pivots;
 
   logf(LOG_DBG2, "rtp_handle_reneg_pivot: bufsz: %u, bufhash, %u\n", bufsz,
-       ::hash_str(buf, bufsz));
+       ::hash_str((char*)buf, bufsz));
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &msg_round_num, &stage_num, &sender_id,
-                           &pivots, &pivot_width, &num_pivots);
+                           &pivots, &pivot_width, &num_pivots, false);
   /* stage_num refers to the stage the pivots were generated at.
    * merged_pvtcnt must correspond to the next stage
    */
@@ -500,7 +502,7 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
 
       int new_dest = stage_num == 1 ? root_[2] : root_[3];
 
-      SendToRank(next_buf, next_buf_len, new_dest);
+      SendToRank(next_buf, next_buf_len, new_dest, MSGFMT_RTP_PIVOT);
     } else {
       /* New pivots need to be broadcast from S3. We send them back to
        * ourself (s3root) so that the broadcast code can be cleanly
@@ -520,14 +522,14 @@ Status RTP::HandlePivots(char* buf, unsigned int bufsz, int src) {
       perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_MASS %f",
                        (merged_pvtcnt - 1) * merged_width);
 
-      SendToRank(next_buf, next_buf_len, root_[3]);
+      SendToRank(next_buf, next_buf_len, root_[3], MSGFMT_RTP_PVT_BCAST);
     }  // if
   }    // if
 
   return s;
 }
 
-Status RTP::HandlePivotBroadcast(char* buf, unsigned int bufsz, int src) {
+Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   /* You only expect to receive this message once per-round;
    * TODO: parse the round-num for a FATAL error verification
    * but no intermediate state change necessary here. Process
@@ -546,7 +548,7 @@ Status RTP::HandlePivotBroadcast(char* buf, unsigned int bufsz, int src) {
   mutex_.Unlock();
 
   /* send_to_all here excludes self */
-  SendToChildren(buf, bufsz, /* exclude_self */ true);
+  SendToChildren(buf, bufsz, /* exclude_self */ true, MSGFMT_RTP_PVT_BCAST);
 
   int round_num, stage_num, sender_id, num_pivots;
   double pivot_width;
@@ -628,7 +630,7 @@ Status RTP::ReplayBegin() {
   char buf[256];
   // TODO: round_num is correct?
   int bufsz = msgfmt_encode_rtp_begin(buf, 256, my_rank_, round_num_);
-  SendToRank(buf, bufsz, my_rank_);
+  SendToRank(buf, bufsz, my_rank_, MSGFMT_RTP_BEGIN);
 
   return s;
 }

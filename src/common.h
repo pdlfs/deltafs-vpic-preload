@@ -82,8 +82,10 @@ long my_maxrss();
 #define LOG_DBUG 2
 #define LOG_DBG2 1
 
-/* levels >= LOG_LEVEL are printed */
-#define LOG_LEVEL 3
+/* only levels >= LOG_LEVEL are printed */
+#ifndef LOG_LEVEL
+#define LOG_LEVEL LOG_INFO
+#endif
 
 int logf(int lvl, const char* fmt, ...);
 int loge(const char* op, const char* path);

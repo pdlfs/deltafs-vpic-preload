@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2019 Carnegie Mellon University,
- * Copyright (c) 2019 Triad National Security, LLC, as operator of
+ * Copyright (c) 2022 Carnegie Mellon University,
+ * Copyright (c) 2022 Triad National Security, LLC, as operator of
  *     Los Alamos National Laboratory.
  * All rights reserved.
  *
@@ -33,74 +33,37 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "preload_internal.h"
+/*
+ * carp_preload.h  preload library init interface to carp
+ * 01-Aug-2022  chuck@ece.cmu.edu
+ */
 
-#include <mpi.h>
+#include "carp.h"
 
-/* The global preload context */
-preload_ctx_t pctx = {0};
+namespace pdlfs {
+namespace carp {
 
-/* exotic_write: expects preload_inkey and preload_invalue */
-int exotic_write(const char* pkey, unsigned char pkey_len, char* pvalue,
-                 unsigned char pvalue_len, int epoch, int src) {
-  int rv;
+/*
+ * preload_init_carpopts: called from preload_init() when carp is enabled
+ * to allocate and fill out carp options based on environment variable
+ * settings.  we pass in the shuffle context so we can both put it in the
+ * options and set the priority callback function.  the returned option
+ * structure must be deleted by caller.
+ */
+struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx);
 
-  rv = preload_write(pkey, pkey_len, pvalue, pvalue_len, epoch, src);
+/*
+ * preload_mpiinit_carpopts: called from preload MPI_Init() function
+ * to init the MPI-related CarpOptions fields after MPI_Init() has
+ * run.
+ */
+void preload_mpiinit_carpopts(preload_ctx_t *pc, struct CarpOptions *copts,
+                              const char *strippedpath);
 
-  pctx.mctx.nfw++;
+/*
+ * preload_finalize_carp: clear out carp from a preload context.
+ */
+void preload_finalize_carp(preload_ctx_t *pc);
 
-  return rv;
-}
-
-/* native_write: expects preload_inkey and preload_invalue */
-int native_write(const char* pkey, unsigned char pkey_len, char* pvalue,
-                 unsigned char pvalue_len, int epoch) {
-  int rv;
-
-  rv = preload_write(pkey, pkey_len, pvalue, pvalue_len, epoch, pctx.my_rank);
-
-  pctx.mctx.nlw++;
-
-  return rv;
-}
-
-namespace {
-struct barrier_state {
-  double time;
-  int rank;
-};
-}  // namespace
-
-void PRELOAD_Barrier(MPI_Comm comm) {
-  struct barrier_state start;
-  struct barrier_state min;
-  double dura;
-  int ok;
-
-  if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "barrier ...\n   MPI Barrier");
-  }
-  start.time = MPI_Wtime();
-  start.rank = pctx.my_rank;
-  if (pctx.mpi_wait >= 0) {
-    MPI_Status status;
-    MPI_Request req;
-    MPI_Iallreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC, comm, &req);
-    for (ok = 0; !ok;) {
-      usleep(pctx.mpi_wait * 1000);
-      MPI_Test(&req, &ok, &status);
-    }
-  } else {
-    MPI_Allreduce(&start, &min, 1, MPI_DOUBLE_INT, MPI_MINLOC, comm);
-  }
-
-  if (pctx.my_rank == 0) {
-    dura = MPI_Wtime() - min.time;
-#ifdef PRELOAD_BARRIER_VERBOSE
-    logf(LOG_INFO, "barrier ok (\n /* rank %d waited longest */\n %s+\n)",
-         min.rank, pretty_dura(dura * 1000000).c_str());
-#else
-    logf(LOG_INFO, "barrier %s+", pretty_dura(dura * 1000000).c_str());
-#endif
-  }
-}
+}  // carp namespace
+}  // pdlfs namespace

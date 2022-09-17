@@ -5,10 +5,10 @@
 #pragma once
 
 #include <float.h>
-#include <msgfmt.h>
+#include "msgfmt.h"
 #include <pdlfs-common/status.h>
-#include <range_constants.h>
-#include <range_utils.h>
+#include "range_constants.h"
+#include "range_utils.h"
 
 #include "carp_utils.h"
 #include "oob_buffer.h"
@@ -16,8 +16,9 @@
 #include "policy.h"
 #include "preload_shuffle.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
-#include "range_backend/mock_backend.h"
 #include "rtp.h"
+
+#include "shuffle_write_range.h"
 
 namespace pdlfs {
 /* forward declaration */
@@ -25,20 +26,35 @@ struct rtp_ctx;
 
 namespace carp {
 
+/*
+ * CarpOptions: used to init carp via the Carp constructor.  for
+ * preload config via RANGE_* environment variables, the variable
+ * name is given.
+ */
 struct CarpOptions {
-  uint32_t my_rank;
-  uint32_t num_ranks;
-  uint32_t oob_sz;
-  uint64_t reneg_intvl;
-  int rtp_pvtcnt[4];
-  shuffle_ctx_t* sctx;
-  const char* reneg_policy;
-  uint32_t dynamic_intvl;
-  float dynamic_thresh;
-  std::string mount_path; // for stat_trigger only
-  Env* env;
-  bool mock_io_enabled;
-  bool io_enabled;
+  int index_attr_size;       /* sizeof indexed attr, default=sizeof(float) */
+                             /* note: currenly only float is supported */
+                             /* (PRELOAD_Particle_indexed_attr_size) */
+  int index_attr_offset;     /* offset in particle buf of indexed attr */
+                             /* default: 0 */
+                             /* (PRELOAD_Particle_indexed_attr_offset) */
+  uint32_t oob_sz;           /* max #particles in oob buf (RANGE_Oob_size) */
+  const char* reneg_policy;  /* InvocationDynamic, InvocationPeriodic (def), */
+                             /* InvocationOnce. (RANGE_Reneg_policy) */
+  uint64_t reneg_intvl;      /* periodic: reneg every reneg_intvl writes */
+                             /*   (RANGE_Reneg_interval) */
+  uint32_t dynamic_intvl;    /* stat: invoke every dynamic_intvl calls */
+                             /*   (RANGE_Reneg_interval) */
+  float dynamic_thresh;      /* stat: evaltrigger if load_skew > trigger */
+                             /*   (RANGE_Dynamic_threshold) */
+  int rtp_pvtcnt[4];         /* # of RTP pivots gen'd by each stage */
+                             /* RANGE_Pvtcnt_s{1,2,3} */
+  Env* env;                  /* stat: for GetFileSize() in StatFiles() */
+                             /* normally set to Env::Default() */
+  shuffle_ctx_t* sctx;       /* shuffle context */
+  uint32_t my_rank;          /* my MPI rank */
+  uint32_t num_ranks;        /* MPI world size */
+  std::string mount_path;    /* mount_path (set from preload MPI_Init) */
 };
 
 class Carp {
@@ -115,8 +131,8 @@ class Carp {
     return mts_mgr_.GetPrevState();
   }
 
-  Status HandleMessage(char* buf, unsigned int bufsz, int src) {
-    return rtp_.HandleMessage(buf, bufsz, src);
+  Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type) {
+    return rtp_.HandleMessage(buf, bufsz, src, type);
   }
 
   int NumRounds() const { return rtp_.NumRounds(); }
@@ -142,7 +158,7 @@ class Carp {
 
   static float GetIndexedAttr(const char* data_buf, unsigned int data_len) {
     const float* prop = reinterpret_cast<const float*>(data_buf);
-    return prop[0];
+    return prop[0];  // XXX hardwired.  use index_attr_offset.
   }
 
   static float GetIndexedAttrAlt(const char* data_buf, unsigned int data_len) {
@@ -156,7 +172,7 @@ class Carp {
   }
 
   /* Not called directly - up to the invocation policy */
-  bool Reset() {
+  void Reset() {
     mutex_.AssertHeld();
     mts_mgr_.Reset();
     range_min_ = 0;

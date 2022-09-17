@@ -38,25 +38,24 @@ endif ()
 # create the library target
 #
 set(RANGE_SOURCES
-        range_backend/mock_backend.cc
-        preload_range.cc
-        range_common.cc
-        range_utils.cc
         perfstats/perfstats.cc
-        perfstats/stat.cc
-        perfstats/manifest_analytics.cc
         )
 
 set(CARP_SOURCES
         carp/carp.cc
+        carp/carp_preload.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
+        carp/msgfmt.cc
         carp/oob_buffer.cc
         carp/policy.cc
+        carp/range_common.cc
+        carp/range_utils.cc
         carp/regular_trigger.cc
         carp/rtp.cc
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc
+        carp/shuffle_write_range.cc
         carp/stat_trigger.cc
         )
 
@@ -65,8 +64,6 @@ set(PRELOAD_SOURCES
         preload_internal.cc
         preload_mon.cc
         preload_shuffle.cc
-        shuffle_write_providers.cc
-        msgfmt.cc
         nn_shuffler.cc
         nn_shuffler_internal.cc
         xn_shuffle.cc
@@ -74,14 +71,6 @@ set(PRELOAD_SOURCES
         common.cc
         pthreadtap.cc
         )
-
-if (PRELOAD_BLKID)
-    find_package(BLKID)
-    if (BLKID_FOUND)
-        add_definitions(-DPRELOAD_HAS_BLKID)
-        set(PRELOAD_SOURCES ${PRELOAD_SOURCES} perfstats/stat_blkid.cc)
-    endif ()
-endif ()
 
 add_library(deltafs-preload
         ${RANGE_SOURCES}
@@ -108,12 +97,6 @@ endif ()
 if (PRELOAD_NUMA)
     if (NUMA_FOUND)
         target_link_libraries(deltafs-preload numa)
-    endif ()
-endif ()
-
-if (PRELOAD_BLKID)
-    if (BLKID_FOUND)
-        target_link_libraries(deltafs-preload blkid)
     endif ()
 endif ()
 

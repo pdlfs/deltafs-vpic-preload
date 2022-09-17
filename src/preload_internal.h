@@ -35,25 +35,24 @@
 
 #pragma once
 
-#include <deltafs/deltafs_api.h>
-#include <mpi.h>
 #include <pthread.h>
 #include <sys/resource.h>
 #include <sys/time.h>
+
+#include <mpi.h>
 
 #include <map>
 #include <set>
 #include <vector>
 
+#include <deltafs/deltafs_api.h>
+
 #include "carp/carp.h"
-#include "carp/rtp.h"
 #include "common.h"
 #include "perfstats/perfstats.h"
 #include "preload.h"
 #include "preload_mon.h"
-#include "preload_range.h"
 #include "preload_shuffle.h"
-#include "range_backend/mock_backend.h"
 
 /*
  * preload context:
@@ -94,18 +93,34 @@ typedef struct preload_ctx {
   int my_cpus; /* num of available cpu cores */
 
   int particle_buf_size;
-  int particle_size;       /* bytes in each particle */
-  int particle_extra_size; /* extra padding for each particle shuffled */
-  int particle_id_size;
-  int particle_count;
 
   /* params to drop writes - for load balancing experiments */
   unsigned long long epoch_wrcnt_max; /* max num-writes per-epoch */
   unsigned long long epoch_wrcnt_cur; /* num-writes for cur epoch */
   unsigned long long total_dropcnt;   /* total writes dropped */
 
+  /* this is what the preload's stdio API sees from the app */
+  int filename_size;        /* #bytes in particle filename (the id) */
+  int filedata_size;        /* #bytes fwrite puts in file (particle data) */
 
-  int particle_indexed_attr_size; /* if not indexing by particle ID, for CARP */
+  /* k/v produced from filename,filedata at preload input (transform#1) */
+  int preload_inkey_size;   /* #bytes in key (filename, index value, etc.) */
+  int preload_invalue_size; /* #bytes in value */
+
+  int serialized_size;      /* size of serialized k-v passed to shuffle */
+  int shuffle_extrabytes;   /* extra nulls shuffled w/serialized k-v pair */
+                            /* allows you to test increasing shuffle
+                               overhead without increasing storage costs */
+
+  /* k/v passed from preload to deltafs (transform#2) */
+  int preload_outkey_size;  /* #bytes in key (filename, index value, etc.) */
+  int preload_outvalue_size;/* #bytes in value */
+
+  /* k/v used for backend storage (transform#3) */
+  int key_size;            /* #bytes in key (could be hash of filename) */
+  int value_size;          /* size of value for backend k-v store */
+
+  int particle_count;
 
   /* since some ranks may be sender-only, so we have a dedicated MPI
    * communicator formed specifically for receivers. note that each receiver may
@@ -171,18 +186,11 @@ typedef struct preload_ctx {
 
   int carp_on; /* true if CARP enabled */
 
-  int carp_dynamic_reneg;
-  uint64_t carp_reneg_intvl; /* for fixed intvl reneg */
-
   pdlfs::perfstats_ctx_t perf_ctx;
-  /* TODO: clean up pvt common code from this ctx */
-  range_ctx_t rctx;
 
   /* Contains main thread state for range queries */
   pdlfs::carp::Carp* carp;
   pdlfs::carp::CarpOptions* opts;
-
-  pdlfs::MockBackend* range_backend;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;
@@ -191,15 +199,15 @@ extern preload_ctx_t pctx;
  * exotic_write: perform a write on behalf of a remote rank.
  * return 0 on success, or EOF on errors.
  */
-extern int exotic_write(const char* fname, unsigned char fname_len, char* data,
-                        unsigned char data_len, int epoch, int src);
+extern int exotic_write(const char* pkey, unsigned char pkey_len, char* pvalue,
+                        unsigned char pvalue_len, int epoch, int src);
 
 /*
  * native_write: perform a direct local write.
  * return 0 on success, or EOF on errors.
  */
-extern int native_write(const char* fname, unsigned char fname_len, char* data,
-                        unsigned char data_len, int epoch);
+extern int native_write(const char* pkey, unsigned char pkey_len, char* pvalue,
+                        unsigned char pvalue_len, int epoch);
 
 /*
  * PRELOAD_Barrier: perform a collective barrier operation
