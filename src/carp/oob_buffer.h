@@ -8,7 +8,9 @@
 
 #pragma once
 #include <assert.h>
+
 #include <vector>
+
 #include "range_constants.h"
 
 namespace pdlfs {
@@ -28,10 +30,10 @@ namespace carp {
  *       when researching KNL performance)
  */
 typedef struct particle_mem {
-  float indexed_prop;            // float key for range q (cfg via CarpOptions)
-  char buf[pdlfs::kMaxPartSize]; // buf w/encoded particle (key+filename+data)
-  int buf_sz;                    // total size of encoded data in buf[]
-  int shuffle_dest;              // rank# or -1 (unk), via AssignShuffleTarget
+  float indexed_prop;             // float key for range q (cfg via CarpOptions)
+  char buf[pdlfs::kMaxPartSize];  // buf w/encoded particle (key+filename+data)
+  int buf_sz;                     // total size of encoded data in buf[]
+  int shuffle_dest;               // rank# or -1 (unk), via AssignShuffleTarget
 } particle_mem_t;
 
 /*
@@ -49,16 +51,16 @@ class OobBuffer {
   //
   explicit OobBuffer(const size_t oob_max_sz)
       : oob_max_sz_(oob_max_sz), range_set_(false) {
-          buf_.reserve(oob_max_sz_);
-        }
+    buf_.reserve(oob_max_sz_);
+  }
 
   //
   // check if the key ("prop") lies outside the key range managed by
   // the local carp proc.  if so, we return true.
   //
   bool OutOfBounds(float prop) const {
-    if (!range_set_) return true;      // no in bounds range set?
-    return(prop < range_min_ || prop > range_max_);
+    if (!range_set_) return true;  // no in bounds range set?
+    return (prop < range_min_ || prop > range_max_);
   }
 
   //
@@ -77,8 +79,8 @@ class OobBuffer {
   // return true if the OobBuffer has reached its size limit
   //
   bool IsFull() const {
-     assert(buf_.size() <= oob_max_sz_);
-     return buf_.size() == oob_max_sz_;
+    assert(buf_.size() <= oob_max_sz_);
+    return buf_.size() == oob_max_sz_;
   }
 
   //
@@ -105,11 +107,17 @@ class OobBuffer {
   //
   void Reset() {
     range_set_ = false;
-    range_min_ = range_max_ = 0;     // just in case
+    range_min_ = range_max_ = 0;  // just in case
     buf_.clear();
   }
 
  private:
+  //
+  // Takes in a sorted array, removes duplicates (approx comparison), prints
+  // warnings if duplicates are dropped
+  //
+  void CopyWithoutDuplicates(std::vector<float>& in, std::vector<float>& out);
+
   const size_t oob_max_sz_;          // max# oob particles we hold (set by ctor)
   float range_min_;                  // local in-bounds range start (inclusive)
   float range_max_;                  // local in-bounds range end (inclusive)
@@ -117,7 +125,7 @@ class OobBuffer {
   std::vector<particle_mem_t> buf_;  // OOB buf particle array (prealloc'd)
 
   friend class OobFlushIterator;
-  friend class Carp;      // XXX: for carp.h MarkFlushableBufferedItems()
+  friend class Carp;  // XXX: for carp.h MarkFlushableBufferedItems()
 };
 
 /*
@@ -134,7 +142,7 @@ class OobFlushIterator {
   //
   explicit OobFlushIterator(OobBuffer& buf)
       : buf_(buf), flush_idx_(0), preserve_idx_(0) {
-          buf_len_ = buf_.buf_.size();
+    buf_len_ = buf_.buf_.size();
   }
 
   //
@@ -150,9 +158,7 @@ class OobFlushIterator {
   //
   // dtor.  empty out the buf_, except for any preserved entries.
   //
-  ~OobFlushIterator() {
-    buf_.buf_.resize(preserve_idx_);
-  }
+  ~OobFlushIterator() { buf_.buf_.resize(preserve_idx_); }
 
   //
   // return current oob particle
@@ -172,17 +178,13 @@ class OobFlushIterator {
   //
   // is our iterator index# equal to a given value (XXX: NOTUSED)
   //
-  bool operator==(size_t other) const {
-    return flush_idx_ == other;
-  }
+  bool operator==(size_t other) const { return flush_idx_ == other; }
 
   //
   // is our iterator index# !equal to a given value
   // (used in shuffle_flush_oob() )
   //
-  bool operator!=(size_t other) const {
-    return flush_idx_ != other;
-  }
+  bool operator!=(size_t other) const { return flush_idx_ != other; }
 
   //
   // preserve current oob particle in the OobBuffer rather than
@@ -190,19 +192,18 @@ class OobFlushIterator {
   // that shuffle_flush_oob() can send it to).  ret 0 if ok, -1 on error.
   //
   int PreserveCurrent() {
-    if (preserve_idx_ > flush_idx_)
-      return -1;    // shouldn't normally happen
-    if (preserve_idx_ != flush_idx_)    // do we need to compact buf_[] ?
+    if (preserve_idx_ > flush_idx_) return -1;  // shouldn't normally happen
+    if (preserve_idx_ != flush_idx_)  // do we need to compact buf_[] ?
       buf_.buf_[preserve_idx_] = buf_.buf_[flush_idx_];
     preserve_idx_++;
     return 0;
   }
 
  private:
-  OobBuffer& buf_;                   // OobBuffer we are flushing
-  size_t flush_idx_;                 // current index we are flushing
-  size_t preserve_idx_;              // # oob particles we are preserving
-  size_t buf_len_;                   // # oob particles in buf_
+  OobBuffer& buf_;       // OobBuffer we are flushing
+  size_t flush_idx_;     // current index we are flushing
+  size_t preserve_idx_;  // # oob particles we are preserving
+  size_t buf_len_;       // # oob particles in buf_
 };
 
 }  // namespace carp

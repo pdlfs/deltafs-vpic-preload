@@ -70,16 +70,31 @@ void RTPBench::InitParams() {
   SETENV("SHUFFLE_Use_multihop", "1");
   SETENV("NEXUS_ALT_LOCAL", "na+sm");
   SETENV("NEXUS_BYPASS_LOCAL", "0");
+  SETENV("PRELOAD_Log_home", "logs");
+  SETENV("PRELOAD_Local_root", "data");
 
-  pctx.carp_on = true;
-  pctx.particle_indexed_attr_size = 4;
-  pctx.particle_id_size = 8;
-  pctx.particle_size = 40;
-  pctx.particle_extra_size = 8;
+  /* CARP params */
+  SETENV("PRELOAD_Enable_CARP", "1");
+  SETENV("PRELOAD_Filename_size", "8")
+  SETENV("PRELOAD_Filedata_size", "48")
+  SETENV("PRELOAD_Particle_indexed_attr_size", "4");
+  SETENV("PRELOAD_Particle_indexed_attr_offset", "0");
+  SETENV("RANGE_Oob_size", "512");
+  SETENV("RANGE_Reneg_policy", "InvocationPeriodic");
+  SETENV("RANGE_Reneg_interval", "500000");
+  SETENV("RANGE_Pvtcnt_s1", "2048");
+  SETENV("RANGE_Pvtcnt_s2", "2048");
+  SETENV("RANGE_Pvtcnt_s3", "2048");
+
+  pctx.carp_on = 1;
+  pctx.opts = pdlfs::carp::preload_init_carpopts(&pctx.sctx);
+
+  pctx.deltafs_mntp = "particle";
+  pctx.len_deltafs_mntp = strlen("particle");
+  pctx.plfsdir = pctx.deltafs_mntp;
+  pctx.len_plfsdir = pctx.len_deltafs_mntp;
+
   pctx.my_cpus = my_cpu_cores();
-
-  pctx.log_home = "logs";
-  pctx.local_root = "data";
 
   MPI_Comm_rank(MPI_COMM_WORLD, &pctx.my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &pctx.comm_sz);
@@ -94,27 +109,8 @@ void RTPBench::InitParams() {
 
   my_rank_ = pctx.my_rank;
 
-  pctx.opts = new pdlfs::carp::CarpOptions();
-  pctx.opts->rtp_pvtcnt[1] = 256;
-  pctx.opts->rtp_pvtcnt[2] = 256;
-  pctx.opts->rtp_pvtcnt[3] = 256;
-  /* doesn't matter, not used */
-  pctx.opts->oob_sz = 256;
-  pctx.carp_dynamic_reneg = 0;
-  pctx.opts->reneg_policy = pdlfs::kDefaultRenegPolicy;
-  pctx.opts->reneg_intvl = pdlfs::kRenegInterval;
-  pctx.opts->dynamic_thresh = pdlfs::kDynamicThreshold;
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
-  pctx.opts->sctx = &(pctx.sctx);
-  pctx.opts->mock_io_enabled = false;
-  pctx.opts->io_enabled = false;
-
-  //  pctx.opts->mount_path = pctx.local_root; // XXX: local_root not set
-  //  pctx.opts->mount_path += "/";
-  //  pctx.opts->mount_path += "stripped"; // XXX: what is this?
-  //  pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
-  //
 
 #undef SETENV
 }

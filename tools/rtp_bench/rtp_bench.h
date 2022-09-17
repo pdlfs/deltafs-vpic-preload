@@ -7,6 +7,7 @@
 #include <pdlfs-common/status.h>
 #include <stdlib.h>
 
+#include "carp/carp_preload.h"
 #include "preload_internal.h"
 
 namespace pdlfs {
@@ -15,8 +16,8 @@ namespace carp {
 uint64_t sumsq(const uint64_t& total, const uint64_t& v);
 
 struct RTPBenchOpts {
-  int nrounds; // number of RTP rounds to run
-  int nwarmup; // number of untimed rounds to warm up with
+  int nrounds;  // number of RTP rounds to run
+  int nwarmup;  // number of untimed rounds to warm up with
 };
 
 class RTPBench {
@@ -48,7 +49,11 @@ class RTPBench {
     if (rv) {
       ABORT("perfstats_init");
     }
+
     shuffle_init(&pctx.sctx);
+
+    const char* stripped = pctx.plfsdir;
+    preload_mpiinit_carpopts(&pctx, pctx.opts, stripped);
     pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
   }
 
@@ -68,7 +73,7 @@ class RTPBench {
     sleep(1);
   }
 
-  void TriggerRound(bool untimed=false) {
+  void TriggerRound(bool untimed = false) {
     uint64_t rbeg_us = Now();
     pctx.carp->ForceRenegotiation();
     uint64_t rend_us = Now();
@@ -123,10 +128,7 @@ class RTPBench {
   }
 
   void DestroyCarp() {
-    delete pctx.carp;
-    pctx.carp = nullptr;
-    delete pctx.opts;
-    pctx.opts = nullptr;
+    preload_finalize_carp(&pctx);
     shuffle_finalize(&pctx.sctx);
 
     int rv = perfstats_destroy(&(pctx.perf_ctx));

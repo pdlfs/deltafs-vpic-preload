@@ -527,12 +527,6 @@ static void preload_init() {
 
   pctx.serialized_size = pctx.preload_inkey_size + pctx.preload_invalue_size;
 
-  /* Flags added for RTP-bench, storage is disabled in that mode
-   * In the regular invocation, storage is always enabled currently
-   */
-  pctx.opts->mock_io_enabled = true;
-  pctx.opts->io_enabled = true;
-
   /* additional init can go here or MPI_Init() */
   signal(SIGUSR1, sigusr1);
 }
@@ -1086,9 +1080,6 @@ int MPI_Init(int* argc, char*** argv) {
          ">> PRELOAD_Epoch_max_writes set! Writes beyond %lld will be dropped.",
          pctx.epoch_wrcnt_max);
   }
-
-  pctx.range_backend =
-      new pdlfs::MockBackend(pctx.my_rank, pctx.local_root, 1023 * 1024, 48);
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {

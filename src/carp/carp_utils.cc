@@ -349,8 +349,6 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
   double updbeg = pivots[0];
   double updend = pivots[num_pivots - 1];
 
-  // carp->range_min = pivots[0];
-  // carp->range_max = pivots[num_pivots_ - 1];
   if (!carp->mts_mgr_.FirstBlock()) {
     assert(float_lte(updbeg, pvtbeg));
     assert(float_gte(updend, pvtend));
@@ -367,7 +365,11 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
   double our_bin_start = pivots[pctx.my_rank];
   double our_bin_end = pivots[pctx.my_rank + 1];
 
-  deltafs_plfsdir_range_update(pctx.plfshdl, our_bin_start, our_bin_end);
+  // make safe to invoke CARP-RTP without a properly initiialized
+  // storage backend, such as for benchmarks
+  if (pctx.plfshdl != NULL) {
+    deltafs_plfsdir_range_update(pctx.plfshdl, our_bin_start, our_bin_end);
+  }
 
   return 0;
 }
