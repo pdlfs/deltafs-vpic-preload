@@ -10,13 +10,21 @@ uint64_t sumsq(const uint64_t& total, const uint64_t& v) {
 }
 
 void EnsureDir(const char* dpath) {
+  if (dpath == nullptr) {
+    logf(LOG_ERRO, "[EnsureDir] No directory path specificied.");
+    exit(-1);
+  }
+
+  logf(LOG_INFO, "[EnsureDir] Checking directory: %s\n", dpath);
+
   Env* env = pdlfs::Env::Default();
   Status s = env->CreateDir(dpath);
+
   if (s.ok() or s.IsAlreadyExists()) {
     // success;
     return;
   } else {
-    logf(LOG_ERRO, "Error creating directory %s (%s)\n", dpath,
+    logf(LOG_ERRO, "[EnsureDir] Error creating directory %s (%s)", dpath,
          s.ToString().c_str());
     exit(-1);
   }
@@ -89,10 +97,29 @@ void RTPBench::InitParams() {
   pctx.carp_on = 1;
   pctx.opts = pdlfs::carp::preload_init_carpopts(&pctx.sctx);
 
+  pctx.filename_size = 8;
+  pctx.filedata_size = 48;
+
+  pctx.preload_invalue_size = pctx.preload_outvalue_size = pctx.filedata_size;
+
+  pctx.preload_inkey_size = pctx.opts->index_attr_size;
+  pctx.preload_outkey_size = pctx.preload_inkey_size;
+  pctx.preload_invalue_size += pctx.filename_size;
+  pctx.preload_outvalue_size += pctx.filename_size;
+  pctx.key_size = pctx.preload_outkey_size;
+  pctx.value_size = pctx.preload_outvalue_size;
+  pctx.serialized_size = pctx.preload_inkey_size + pctx.preload_invalue_size;
+
+
   pctx.deltafs_mntp = "particle";
-  pctx.len_deltafs_mntp = strlen("particle");
+  pctx.len_deltafs_mntp = strlen(pctx.deltafs_mntp);
   pctx.plfsdir = pctx.deltafs_mntp;
   pctx.len_plfsdir = pctx.len_deltafs_mntp;
+
+  pctx.log_home = "logs";
+  pctx.len_log_home = strlen(pctx.log_home);
+  pctx.local_root = "data";
+  pctx.len_local_root = strlen(pctx.local_root);
 
   pctx.my_cpus = my_cpu_cores();
 
