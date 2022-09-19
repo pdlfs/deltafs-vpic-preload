@@ -29,7 +29,7 @@ int DataBuffer::StoreData(int stage, double* pivot_data, int dlen,
   }
 
   if (dlen != num_pivots_[stage]) {
-    logf(LOG_ERRO, "[DataBuffer] Expected %d, got %d\n", num_pivots_[stage],
+    logf(LOG_ERRO, "[DataBuffer] Expected %d, got %d", num_pivots_[stage],
          dlen);
     return -3;
   }
@@ -41,7 +41,7 @@ int DataBuffer::StoreData(int stage, double* pivot_data, int dlen,
   int new_size = ++data_len_[sidx][stage];
   assert(new_size > 0);
 
-  logf(LOG_INFO, "Rank %d: new store size %d\n", -1, new_size);
+  logf(LOG_INFO, "Rank %d: new store size %d", -1, new_size);
 
   return new_size;
 }

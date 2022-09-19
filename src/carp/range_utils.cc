@@ -197,7 +197,7 @@ int resample_bins_irregular(const std::vector<double>& bins,
   if (sidx != nsamples) {
     logf(LOG_ERRO,
          "rank %d,sidx expected to be equal to nsamples, %d-%d, accumulated: "
-         "%.1f\n",
+         "%.1f",
          pctx.my_rank, sidx, nsamples, accumulated);
   }
 

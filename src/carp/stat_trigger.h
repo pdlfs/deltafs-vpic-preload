@@ -108,12 +108,12 @@ class StatTrigger {
     if (load_skew > thresh_) {
       logf(LOG_WARN,
            "[StatTrigger] TRIGGER! Max: %" PRIu64 ", Avg: %" PRIu64
-           ", Skew: %.3f\n",
+           ", Skew: %.3f",
            load_max, load_avg, load_skew);
     } else {
       logf(LOG_WARN,
            "[StatTrigger] Max: %" PRIu64 ", Avg: %" PRIu64
-           ", Skew: %.3f\n",
+           ", Skew: %.3f",
            load_max, load_avg, load_skew);
     }
 
