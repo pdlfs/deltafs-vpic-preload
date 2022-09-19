@@ -339,8 +339,7 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
   carp->mutex_.AssertHeld();
   assert(num_pivots == pctx.comm_sz + 1);
 
-  perfstats_log_mypivots(&(pctx.perf_ctx), pivots, num_pivots,
-                         "RENEG_AGGR_PIVOTS");
+  carp->LogMyPivots(pivots, num_pivots, "RENEG_AGGR_PIVOTS");
 
   double& pvtbeg = carp->range_min_;
   double& pvtend = carp->range_max_;
@@ -371,15 +370,13 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
 }
 
 void PivotUtils::LogPivots(Carp* carp, int pvtcnt) {
-  perfstats_ctx_t* perf_ctx = &(pctx.perf_ctx);
-
-  if (!perf_ctx->output_file) return;
+  if (!carp->PerflogOn()) return;
 
   char label[64];
   snprintf(label, 64, "RENEG_PIVOTS_E%d", carp->epoch_);
-  perfstats_log_mypivots(perf_ctx, carp->my_pivots_, pvtcnt, label);
+  carp->LogMyPivots(carp->my_pivots_, pvtcnt, label);
   snprintf(label, 64, "RENEG_BINCNT_E%d", carp->epoch_);
-  perfstats_log_vec(perf_ctx, carp->rank_counts_aggr_, label);
+  carp->LogVec(carp->rank_counts_aggr_, label);
 }
 
 int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,

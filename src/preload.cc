@@ -1272,14 +1272,6 @@ int MPI_Init(int* argc, char*** argv) {
         logf(LOG_INFO, "in-mem epoch mon stats %d bytes",
              int(sizeof(mon_ctx_t)));
       }
-
-      /* Timeseries perf collection - functionality may overlap
-       * with other monitoring functions */
-      int rv = pdlfs::perfstats_init(&(pctx.perf_ctx), pctx.my_rank,
-                                     pctx.log_home, pctx.local_root);
-      if (rv) {
-        ABORT("perfstats_init");
-      }
     }
 
 #ifdef PRELOAD_HAS_PAPI
@@ -1956,9 +1948,8 @@ int MPI_Finalize(void) {
     }
   }
 
-  if (!pctx.nomon) {
-    pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.carp,
-                                        pctx.my_rank);
+  if (!pctx.nomon && pctx.carp_on) {
+    pctx.carp->LogAggrBinCount();
   }
 
   /* extra stats */
@@ -2003,14 +1994,6 @@ int MPI_Finalize(void) {
   if (pctx.trace != NULL) {
     fflush(pctx.trace);
     fclose(pctx.trace);
-  }
-
-  /* destroy time series monitor */
-  if (!pctx.nomon) {
-    int rv = pdlfs::perfstats_destroy(&(pctx.perf_ctx));
-    if (rv) {
-      ABORT("perfstats_destroy");
-    }
   }
 
   /* release the receiver communicator */
@@ -2943,8 +2926,6 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
   char sideio_buf[12];  /* for transform#2 where we add src rank to offset */
   int rv;
 
-  pctx.perf_ctx.bytes_written += pvalue_len;
-
   if (epoch == -1) {
     epoch = num_eps - 1;
   }
@@ -3010,6 +2991,7 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
        *      strlen/hash is done...
        */
       if (pctx.carp_on) {
+        pctx.carp->BackendWriteCounter(pvalue_len);
         n = deltafs_plfsdir_put(pctx.plfshdl, pkey, pkey_len, epoch,
                                    pvalue, pvalue_len);
       } else {

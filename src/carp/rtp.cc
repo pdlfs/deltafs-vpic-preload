@@ -1,7 +1,6 @@
 #include "carp/rtp.h"
 
 #include "msgfmt.h"
-#include "perfstats.h"
 #include "preload_internal.h"
 
 // extern preload_ctx_t pctx;
@@ -171,8 +170,6 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
     state_.UpdateState(RenegState::READY);
   }
 }
-
-RTP::~RTP() { PivotUtils::LogPivots(carp_, pvtcnt_[1]); }
 
 Status RTP::InitRound() {
   Status s = Status::OK();
@@ -409,7 +406,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
 
     logf(LOG_DBUG, "sending pivots, count: %d\n", pvtcnt);
 
-    perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_SEND");
+    carp_->LogPrintf("RENEG_RTP_PVT_SEND");
 
     SendToRank(pvt_buf, pvt_buf_len, root_[1], MSGFMT_RTP_PIVOT);
   }
@@ -519,7 +516,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
 
-      perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_MASS %f",
+      carp_->LogPrintf("RENEG_RTP_PVT_MASS %f",
                        (merged_pvtcnt - 1) * merged_width);
 
       SendToRank(next_buf, next_buf_len, root_[3], MSGFMT_RTP_PVT_BCAST);
@@ -576,7 +573,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   carp_->mutex_.Lock();
   mutex_.Lock();
 
-  perfstats_log_reneg(&(pctx.perf_ctx), carp_, my_rank_, round_num_);
+  carp_->LogReneg(round_num_);
 
   logf(LOG_DBG2, "Broadcast pivot count: %d, expected %d\n", num_pivots,
        num_ranks_ + 1);

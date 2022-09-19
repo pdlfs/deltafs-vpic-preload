@@ -39,12 +39,12 @@ endif ()
 #
 set(CARP_SOURCES
         carp/carp.cc
+        carp/carp_perflog.cc
         carp/carp_preload.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
         carp/msgfmt.cc
         carp/oob_buffer.cc
-        carp/perfstats.cc
         carp/policy.cc
         carp/range_common.cc
         carp/range_utils.cc
