@@ -15,23 +15,28 @@ static pdlfs::carp::RTPBenchOpts opts;
 void set_default_opts() {
   opts.nrounds = 1;
   opts.nwarmup = 0;
+  opts.pvtcnt = 256;
 }
 
 void usage() {
-  fprintf(stderr, "usage: %s [-w warmup_rounds] [-n num_rounds]\n", argv0);
+  fprintf(stderr, "usage: %s [-w warmup_rounds] [-n num_rounds] [-p pvtcnt]\n",
+          argv0);
   exit(1);
 }
 
 void parse_opts(int argc, char* argv[]) {
   int ch;
 
-  while ((ch = getopt(argc, argv, "n:w:")) != -1) {
+  while ((ch = getopt(argc, argv, "n:w:p:")) != -1) {
     switch (ch) {
       case 'n':
         opts.nrounds = atoi(optarg);
         break;
       case 'w':
         opts.nwarmup = atoi(optarg);
+        break;
+      case 'p':
+        opts.pvtcnt = atoi(optarg);
         break;
       default:
         usage();

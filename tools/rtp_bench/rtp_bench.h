@@ -18,6 +18,7 @@ uint64_t sumsq(const uint64_t& total, const uint64_t& v);
 struct RTPBenchOpts {
   int nrounds;  // number of RTP rounds to run
   int nwarmup;  // number of untimed rounds to warm up with
+  int pvtcnt;   // CARP pvt count
 };
 
 class RTPBench {
