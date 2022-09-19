@@ -59,7 +59,6 @@
 #include <papi.h>
 #endif
 
-#include "carp/range_common.h"
 #include "carp/carp_preload.h"
 
 /* setup tmpdir defns */
@@ -772,7 +771,11 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
     dirc.io_engine = *io_engine;
     return tmp;
   } else if (is_envset("PLFSDIR_Use_rangedb")) {
+#ifdef DELTAFS_PLFSDIR_RANGEDB
     *io_engine = DELTAFS_PLFSDIR_RANGEDB;
+#else
+    ABORT("PLFSDIR_Use_rangedb set, but not supported by linked deltafs");
+#endif
     return tmp;
   }
 

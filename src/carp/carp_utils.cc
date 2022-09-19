@@ -364,7 +364,11 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
 
   double our_bin_start = pivots[pctx.my_rank];
   double our_bin_end = pivots[pctx.my_rank + 1];
+#ifdef DELTAFS_PLFSDIR_RANGEDB
   deltafs_plfsdir_range_update(pctx.plfshdl, our_bin_start, our_bin_end);
+#else
+  ABORT("linked deltafs does not support rangedb");
+#endif
 
   return 0;
 }
