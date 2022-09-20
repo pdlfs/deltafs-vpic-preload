@@ -45,15 +45,9 @@ class RTPBench {
   void InitParams();
 
   void InitCarp() {
-    int rv = perfstats_init(&(pctx.perf_ctx), pctx.my_rank, pctx.log_home,
-                            pctx.local_root);
-    if (rv) {
-      ABORT("perfstats_init");
-    }
+    const char* stripped = pctx.plfsdir;
 
     shuffle_init(&pctx.sctx);
-
-    const char* stripped = pctx.plfsdir;
     preload_mpiinit_carpopts(&pctx, pctx.opts, stripped);
     pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
   }
@@ -131,11 +125,6 @@ class RTPBench {
   void DestroyCarp() {
     preload_finalize_carp(&pctx);
     shuffle_finalize(&pctx.sctx);
-
-    int rv = perfstats_destroy(&(pctx.perf_ctx));
-    if (rv) {
-      ABORT("perfstats_destroy");
-    }
 
     if (pctx.recv_comm != MPI_COMM_NULL && pctx.recv_comm != MPI_COMM_WORLD) {
       MPI_Comm_free(&pctx.recv_comm);

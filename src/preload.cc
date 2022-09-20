@@ -2970,8 +2970,6 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
     }
   }
 
-  pctx.perf_ctx.bytes_written += pvalue_len;
-
   if (epoch == -1) {
     epoch = num_eps - 1;
   }

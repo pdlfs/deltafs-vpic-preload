@@ -1,5 +1,6 @@
 set(CARP_SOURCES
         carp/carp.cc
+        carp/carp_perflog.cc
         carp/carp_preload.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
@@ -12,20 +13,20 @@ set(CARP_SOURCES
         carp/rtp.cc
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc
+        carp/shuffle_write_range.cc
         carp/stat_trigger.cc
         )
 
 set(PRELOAD_SOURCES
-        perfstats/perfstats.cc
+        common.cc
+        hstg.cc
+        nn_shuffler.cc
+        nn_shuffler_internal.cc
         preload_internal.cc
         preload_mon.cc
         preload_shuffle.cc
-        nn_shuffler.cc
-        nn_shuffler_internal.cc
-        xn_shuffle.cc
-        hstg.cc
-        common.cc
         pthreadtap.cc
+        xn_shuffle.cc
         )
 
 set(ALL_SOURCES "")
