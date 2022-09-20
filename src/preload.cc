@@ -1983,7 +1983,7 @@ int MPI_Finalize(void) {
     }
   }
 
-  if (!pctx.nomon) {
+  if (!pctx.nomon and pctx.carp_on) {
     pdlfs::perfstats_log_aggr_bin_count(&(pctx.perf_ctx), pctx.carp,
                                         pctx.my_rank);
   }
