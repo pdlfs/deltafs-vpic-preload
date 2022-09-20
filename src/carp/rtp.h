@@ -57,7 +57,6 @@ class RTPTest;
 class RTP {
  public:
   explicit RTP(Carp* carp, const CarpOptions& opts);
-  ~RTP();
 
   Status InitRound();
   Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type);

@@ -457,7 +457,6 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
 }
 
 void shuffle_finalize(shuffle_ctx_t* ctx) {
-  if (pctx.my_rank == 0) logf(LOG_INFO, "SHUFFLE SHUTDOWN BEGIN");
   assert(ctx != NULL);
   if (ctx->type == SHUFFLE_XN && ctx->rep != NULL) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(ctx->rep);
@@ -654,8 +653,6 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "shuffle format: K = %u bytes, V = %u bytes",
          ctx->skey_len, ctx->extra_data_len + ctx->svalue_len);
-    // XXXCDC: move this with sideft, sideio notification
-    logf(LOG_INFO, "CARP: %s", pctx.carp_on ? "ON" : "OFF");
   }
 
   ctx->receiver_rate = 1;

@@ -49,7 +49,6 @@
 
 #include "carp/carp.h"
 #include "common.h"
-#include "perfstats/perfstats.h"
 #include "preload.h"
 #include "preload_mon.h"
 #include "preload_shuffle.h"
@@ -184,11 +183,8 @@ typedef struct preload_ctx {
 
   FILE* trace;
 
-  int carp_on; /* true if CARP enabled */
-
-  pdlfs::perfstats_ctx_t perf_ctx;
-
   /* Contains main thread state for range queries */
+  int carp_on; /* true if CARP enabled */
   pdlfs::carp::Carp* carp;
   pdlfs::carp::CarpOptions* opts;
 } preload_ctx_t;

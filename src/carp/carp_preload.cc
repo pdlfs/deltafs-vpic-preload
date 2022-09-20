@@ -134,6 +134,8 @@ struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx) {
 
   /* final values of these are set at MPI_Init() time */
   opts->my_rank = opts->num_ranks = 0;
+  opts->enable_perflog = 0;
+  opts->log_home = NULL;
 
   return opts;
 }
@@ -150,11 +152,17 @@ void preload_mpiinit_carpopts(preload_ctx_t *pc, struct CarpOptions *copts,
   copts->mount_path = pc->local_root;
   copts->mount_path += "/";
   copts->mount_path += strippedpath;
+  /* use pctx.nomon to control perflog for now */
+  if (!pctx.nomon && pctx.log_home) {
+    copts->enable_perflog = 1;
+    copts->log_home = pctx.log_home;
+  }
 
   if (copts->my_rank == 0) {
-    logf(LOG_INFO, "[carp] CARP enabled!\n");
-    logf(LOG_INFO, "[carp] reneg_intvl: %" PRIu64 ", reneg_thresh: %.3f\n",
-         copts->reneg_intvl, copts->dynamic_thresh);
+    logf(LOG_INFO, "[carp] CARP enabled!");
+    logf(LOG_INFO, "[carp] reneg_intvl: %" PRIu64
+                   ", reneg_thresh: %.3f, perflog: %d",
+         copts->reneg_intvl, copts->dynamic_thresh, copts->enable_perflog);
   }
 
 }

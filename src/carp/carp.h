@@ -54,13 +54,22 @@ struct CarpOptions {
   shuffle_ctx_t* sctx;       /* shuffle context */
   uint32_t my_rank;          /* my MPI rank */
   uint32_t num_ranks;        /* MPI world size */
+  int enable_perflog;        /* non-zero to enable perflog */
+  const char *log_home;      /* where to put perflog (if enabled) */
   std::string mount_path;    /* mount_path (set from preload MPI_Init) */
+};
+
+struct perflog_state {
+  port::Mutex mtx;           /* mutex for perfstats */
+  FILE *fp;                  /* open FILE we write stats to */
+  pthread_t thread;          /* profiling thread making periodic output */
 };
 
 class Carp {
  public:
   Carp(const CarpOptions& options)
       : options_(options),
+        backend_wr_bytes_(0),
         rtp_(this, options_),
         epoch_(0),
         cv_(&mutex_),
@@ -76,6 +85,8 @@ class Carp {
     MutexLock ml(&mutex_);
     // necessary to set mts_state_ to READY
     Reset();
+    clock_gettime(CLOCK_MONOTONIC, &start_time_);
+    perflog_.fp = NULL;
 
 #define POLICY_IS(s) (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
 
@@ -90,6 +101,15 @@ class Carp {
     } else {
       policy_ = new InvocationPeriodic(*this, options_);
     }
+
+    if (options_.enable_perflog) {
+      this->PerflogStartup();
+    }
+  }
+
+  ~Carp() {
+    PivotUtils::LogPivots(this, options_.rtp_pvtcnt[1]);
+    this->PerflogDestroy();
   }
 
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
@@ -137,6 +157,31 @@ class Carp {
 
   int NumRounds() const { return rtp_.NumRounds(); }
 
+  void BackendWriteCounter(uint64_t b) {
+    backend_wr_bytes_ += b;  /* stat cnt, XXX assume ok w/o lock */
+  }
+
+  void LogReneg(int round_num) {
+    if (PerflogOn()) PerflogReneg(round_num);
+  }
+  void LogAggrBinCount() {
+    if (PerflogOn()) PerflogAggrBinCount();
+  }
+  void LogMyPivots(double *pivots, int num_pivots, const char *lab) {
+    if (PerflogOn()) PerflogMyPivots(pivots, num_pivots, lab);
+  }
+  void LogVec(std::vector<uint64_t>& vec, const char *vlabel) {
+    if (PerflogOn()) PerflogVec(vec, vlabel);
+  }
+  void LogPrintf(const char* fmt, ...) {
+    if (PerflogOn()) {
+      va_list ap;
+      va_start(ap, fmt);
+      PerflogVPrintf(fmt, ap);
+      va_end(ap);
+    }
+  }
+
  private:
   void AssignShuffleTarget(particle_mem_t& p) {
     int dest_rank = policy_->ComputeShuffleTarget(p);
@@ -182,9 +227,22 @@ class Carp {
     oob_buffer_.Reset();
   }
 
+  void PerflogStartup();
+  static void *PerflogMain(void *arg);
+  void PerflogDestroy();
+  int PerflogOn() { return perflog_.fp != NULL; }
+  void PerflogReneg(int round_num);
+  void PerflogAggrBinCount();
+  void PerflogMyPivots(double *pivots, int num_pivots, const char *lab);
+  void PerflogVec(std::vector<uint64_t>& vec, const char *vlabel);
+  void PerflogVPrintf(const char* fmt, va_list ap);
+
  private:
-  const CarpOptions& options_;
+  const CarpOptions& options_;    /* configuration options */
   MainThreadStateMgr mts_mgr_;
+  struct timespec start_time_;    /* time carp object was created */
+  uint64_t backend_wr_bytes_;     /* total #bytes written to backend */
+  struct perflog_state perflog_;  /* perfstats log (if enabled) */
 
   RTP rtp_;
   int epoch_;

@@ -199,9 +199,8 @@ int resample_bins_irregular(const std::vector<double>& bins,
 
   if (sidx != nsamples) {
     logf(LOG_ERRO,
-         "[Rank %d] [resample_bins_irregular] ASSERT FAIL sidx (%d) != "
-         "nsamples (%d) "
-         "(accumulated: %.1f)\n",
+         "rank %d, sidx expected to be equal to nsamples, %d-%d, accumulated: "
+         "%.1f",
          pctx.my_rank, sidx, nsamples, accumulated);
     ABORT("sidx != nsamples");
   }

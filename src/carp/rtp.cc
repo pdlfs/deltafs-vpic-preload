@@ -1,7 +1,6 @@
 #include "carp/rtp.h"
 
 #include "msgfmt.h"
-#include "perfstats/perfstats.h"
 #include "preload_internal.h"
 
 // extern preload_ctx_t pctx;
@@ -75,7 +74,7 @@ int compute_fanout_better(int world_sz, int* fo_arr) {
   assert(fo_arr[3] * fo_arr[2] * fo_arr[1] == world_sz);
 
   if (pctx.my_rank == 0)
-    logf(LOG_INFO, "RTP Fanout: %d/%d/%d\n", fo_arr[1], fo_arr[2], fo_arr[3]);
+    logf(LOG_INFO, "RTP Fanout: %d/%d/%d", fo_arr[1], fo_arr[2], fo_arr[3]);
 
   return rv;
 }
@@ -111,7 +110,7 @@ int compute_fanout(const int world_sz, int* fo_arr) {
   fo_arr[1] = world_sz / (fo_arr[2] * fo_arr[3]);
 
   if (pctx.my_rank == 0)
-    logf(LOG_INFO, "RTP Fanout: %d/%d/%d\n", fo_arr[1], fo_arr[2], fo_arr[3]);
+    logf(LOG_INFO, "RTP Fanout: %d/%d/%d", fo_arr[1], fo_arr[2], fo_arr[3]);
 
   return rv;
 }
@@ -127,12 +126,12 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
       my_rank_(opts.my_rank),
       num_ranks_(opts.num_ranks) {
   if (state_.GetState() != RenegState::INIT) {
-    logf(LOG_ERRO, "rtp_init: can initialize only in init stage\n");
+    logf(LOG_ERRO, "rtp_init: can initialize only in init stage");
     return;
   }
 
   if (opts.sctx->type != SHUFFLE_XN) {
-    logf(LOG_ERRO, "Only 3-hop is supported by the RTP protocol\n");
+    logf(LOG_ERRO, "Only 3-hop is supported by the RTP protocol");
     return;
   }
 
@@ -161,8 +160,8 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
   pvtcnt_[3] = opts.rtp_pvtcnt[3];
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "[rtp_init] pivot_count: %d/%d/%d, ranks: %d\n", pvtcnt_[1],
-         pvtcnt_[2], pvtcnt_[3], num_ranks_);
+    logf(LOG_INFO, "[rtp_init] pivot_count: %d/%d/%d", pvtcnt_[1], pvtcnt_[2],
+         pvtcnt_[3]);
   }
 
   Status s = InitTopology();
@@ -171,8 +170,6 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
     state_.UpdateState(RenegState::READY);
   }
 }
-
-RTP::~RTP() { PivotUtils::LogPivots(carp_, pvtcnt_[1]); }
 
 Status RTP::InitRound() {
   Status s = Status::OK();
@@ -224,7 +221,7 @@ Status RTP::InitTopology() {
   Status s = Status::OK();
 
   if (state_.GetState() != RenegState::INIT) {
-    logf(LOG_DBUG, "rtp_topology_init: can initialize only in init stage\n");
+    logf(LOG_DBUG, "rtp_topology_init: can initialize only in init stage");
     return Status::AssertionFailed("RTP: Not in INIT state");
   }
 
@@ -282,7 +279,7 @@ Status RTP::BroadcastBegin() {
   Status s = Status::OK();
   mutex_.AssertHeld();
 
-  logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d\n", my_rank_,
+  logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d", my_rank_,
        root_[3]);
 
   char buf[256];
@@ -306,7 +303,7 @@ Status RTP::SendToAll(int stage, const void* buf, int bufsz,
     /*  Not enabled by default; my_rank is set to -1 unless overridden */
     if (drank == my_rank_ && exclude_self) continue;
 
-    logf(LOG_DBUG, "send_to_all: sending from %d to %d\n", my_rank_, drank);
+    logf(LOG_DBUG, "send_to_all: sending from %d to %d", my_rank_, drank);
 
     xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0/*XXXCDC rm epoch?*/,
                              drank, my_rank_, type);
@@ -342,7 +339,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
   int srank, msg_round_num;
   msgfmt_decode_rtp_begin(buf, bufsz, &srank, &msg_round_num);
 
-  logf(LOG_DBUG, "Received RTP_BEGIN_%d at Rank %d from %d\n", msg_round_num,
+  logf(LOG_DBUG, "Received RTP_BEGIN_%d at Rank %d from %d", msg_round_num,
        my_rank_, src);
 
   bool activated_now = false;
@@ -353,7 +350,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
   if (msg_round_num < round_num_) {
     logf(LOG_DBG2,
          "Stale RENEG_BEGIN received at Rank %d, dropping"
-         "(theirs: %d, ours: %d)\n",
+         "(theirs: %d, ours: %d)",
          my_rank_, msg_round_num, round_num_);
   } else if (state_.GetState() == RenegState::READY ||
              state_.GetState() == RenegState::READYBLOCK) {
@@ -404,12 +401,12 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
 
     carp_->mutex_.Unlock();
 
-    logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u\n",
+    logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u",
          pctx.my_rank, pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
 
-    logf(LOG_DBUG, "sending pivots, count: %d\n", pvtcnt);
+    logf(LOG_DBUG, "sending pivots, count: %d", pvtcnt);
 
-    perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_SEND");
+    carp_->LogPrintf("RENEG_RTP_PVT_SEND");
 
     SendToRank(pvt_buf, pvt_buf_len, root_[1], MSGFMT_RTP_PIVOT);
   }
@@ -424,7 +421,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   double pivot_width;
   double* pivots;
 
-  logf(LOG_DBG2, "rtp_handle_reneg_pivot: bufsz: %u, bufhash, %u\n", bufsz,
+  logf(LOG_DBG2, "rtp_handle_reneg_pivot: bufsz: %u, bufhash, %u", bufsz,
        ::hash_str((char*)buf, bufsz));
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &msg_round_num, &stage_num, &sender_id,
@@ -437,11 +434,11 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
 
   assert(num_pivots <= kMaxPivots);
 
-  logf(LOG_DBUG, "rtp_handle_reneg_pivot: S%d %d pivots from %d\n", stage_num,
+  logf(LOG_DBUG, "rtp_handle_reneg_pivot: S%d %d pivots from %d", stage_num,
        num_pivots, sender_id);
 
   if (num_pivots >= 4) {
-    logf(LOG_DBG2, "rtp_handle_reneg_pivot: %.2f %.2f %.2f %.2f ...\n",
+    logf(LOG_DBG2, "rtp_handle_reneg_pivot: %.2f %.2f %.2f %.2f ...",
          pivots[0], pivots[1], pivots[2], pivots[3]);
   }
 
@@ -472,7 +469,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   mutex_.Unlock();
 
   logf(LOG_INFO,
-       "rtp_handle_reneg_pivot: S%d at Rank %d, item from %d. Total: %d\n",
+       "rtp_handle_reneg_pivot: S%d at Rank %d, item from %d. Total: %d",
        stage_num, my_rank_, src, stage_pivot_count);
 
   if (EXPECTED_ITEMS_FOR_STAGE(stage_num, stage_pivot_count)) {
@@ -482,17 +479,17 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
     ComputeAggregatePivots(stage_num, merged_pvtcnt, merged_pivots,
                            merged_width);
 
-    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)\n", my_rank_,
+    logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)", my_rank_,
          ARR2STR(merged_pivots, merged_pvtcnt), merged_width, merged_pvtcnt);
 
-    logf(LOG_INFO, "rtp_handle_reneg_pivot: S%d at Rank %d, collected\n",
+    logf(LOG_INFO, "rtp_handle_reneg_pivot: S%d at Rank %d, collected",
          stage_num, my_rank_);
 
     size_t next_buf_sz = msgfmt_bufsize_rtp_pivots(merged_pvtcnt);
     char next_buf[next_buf_sz];
 
     if (stage_num < STAGES_MAX) {
-      logf(LOG_DBUG, "rtp_handle_reneg_pivot: choice 1\n");
+      logf(LOG_DBUG, "rtp_handle_reneg_pivot: choice 1");
 
       // char next_buf[2048];
 
@@ -508,7 +505,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
        * ourself (s3root) so that the broadcast code can be cleanly
        * contained in rtp_handle_pivot_bcast
        */
-      logf(LOG_DBUG, "rtp_handle_reneg_pivot: choice 2 @ %d\n", root_[3]);
+      logf(LOG_DBUG, "rtp_handle_reneg_pivot: choice 2 @ %d", root_[3]);
 
       assert(my_rank_ == root_[3]);
 
@@ -519,7 +516,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
           merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
 
-      perfstats_printf(&(pctx.perf_ctx), "RENEG_RTP_PVT_MASS %f",
+      carp_->LogPrintf("RENEG_RTP_PVT_MASS %f",
                        (merged_pvtcnt - 1) * merged_width);
 
       SendToRank(next_buf, next_buf_len, root_[3], MSGFMT_RTP_PVT_BCAST);
@@ -557,14 +554,14 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   msgfmt_decode_rtp_pivots(buf, bufsz, &round_num, &stage_num, &sender_id,
                            &pivots, &pivot_width, &num_pivots, true);
 
-  logf(LOG_DBUG, "rtp_handle_pivot_bcast: received pivots at %d from %d\n",
+  logf(LOG_DBUG, "rtp_handle_pivot_bcast: received pivots at %d from %d",
        my_rank_, src);
 
   if (my_rank_ == 0) {
-    logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)\n", my_rank_,
+    logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
          ARR2STR(pivots, num_pivots), pivot_width);
 
-    logf(LOG_INFO, "-- carp round %d completed at rank 0 --\n", round_num_);
+    logf(LOG_INFO, "-- carp round %d completed at rank 0 --", round_num_);
   }
 
   /* Install pivots, Reset state, and signal back to the main thread */
@@ -576,9 +573,9 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   carp_->mutex_.Lock();
   mutex_.Lock();
 
-  perfstats_log_reneg(&(pctx.perf_ctx), carp_, my_rank_, round_num_);
+  carp_->LogReneg(round_num_);
 
-  logf(LOG_DBG2, "Broadcast pivot count: %d, expected %d\n", num_pivots,
+  logf(LOG_DBG2, "Broadcast pivot count: %d, expected %d", num_pivots,
        num_ranks_ + 1);
   assert(num_pivots == num_ranks_ + 1);
 
@@ -592,13 +589,13 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
     replay_rtp_begin_flag = true;
     state_.UpdateState(RenegState::READYBLOCK);
     carp_->UpdateState(MainThreadState::MT_REMAIN_BLOCKED);
-    logf(LOG_DBUG, "[CARP] Rank %d: continuing to round %d\n", my_rank_,
+    logf(LOG_DBUG, "[CARP] Rank %d: continuing to round %d", my_rank_,
          round_num_);
   } else {
     /* Next round has not started yet, we're READY */
     state_.UpdateState(RenegState::READY);
     carp_->UpdateState(MainThreadState::MT_READY);
-    logf(LOG_DBUG, "[CARP] Rank %d: RTP finished, READY\n", my_rank_);
+    logf(LOG_DBUG, "[CARP] Rank %d: RTP finished, READY", my_rank_);
   }
 
   mutex_.Unlock();
@@ -612,7 +609,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   if (replay_rtp_begin_flag) {
     /* Not supposed to access without lock, but logging statement so ok */
-    logf(LOG_DBG2, "Rank %d: continuing to round %d\n", my_rank_, round_num_);
+    logf(LOG_DBG2, "Rank %d: continuing to round %d", my_rank_, round_num_);
     /* Send rtp_begin to self, to resume pivot send etc */
     ReplayBegin();
   }
@@ -625,7 +622,7 @@ Status RTP::ReplayBegin() {
   // mutex_.AssertHeld();
   Status s = Status::OK();
 
-  logf(LOG_DBUG, "replay_rtp_begin: at rank %d\n", my_rank_);
+  logf(LOG_DBUG, "replay_rtp_begin: at rank %d", my_rank_);
 
   char buf[256];
   // TODO: round_num is correct?
@@ -660,7 +657,7 @@ void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
   resample_bins_irregular(unified_bins, unified_bin_counts, merged_pivot_vec,
                           sample_width, num_merged);
 
-  logf(LOG_DBG2, "resampled pivot count: s%d cnt: %zu\n", stage_num,
+  logf(LOG_DBG2, "resampled pivot count: s%d cnt: %zu", stage_num,
        merged_pivot_vec.size());
 
   merged_width = sample_width;

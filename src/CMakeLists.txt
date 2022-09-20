@@ -37,12 +37,9 @@ endif ()
 #
 # create the library target
 #
-set(RANGE_SOURCES
-        perfstats/perfstats.cc
-        )
-
 set(CARP_SOURCES
         carp/carp.cc
+        carp/carp_perflog.cc
         carp/carp_preload.cc
         carp/carp_utils.cc
         carp/data_buffer.cc
@@ -73,7 +70,6 @@ set(PRELOAD_SOURCES
         )
 
 add_library(deltafs-preload
-        ${RANGE_SOURCES}
         ${CARP_SOURCES}
         ${PRELOAD_SOURCES})
 
