@@ -17,7 +17,6 @@
 cmake_minimum_required (VERSION 3.1)
 project (deltafs-preload C CXX)
 set (CMAKE_CXX_STANDARD 11)
-enable_testing ()
 
 # add our cmake module directory to the path
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
@@ -29,6 +28,10 @@ set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # preload library is always shared, force on and hide it as an advanced var
 set (BUILD_SHARED_LIBS On CACHE STRING "Build shared libs (must be on)." FORCE)
 mark_as_advanced (BUILD_SHARED_LIBS)
+
+# tests
+enable_testing ()
+set (BUILD_TESTS "OFF" CACHE BOOL "Build test programs")
 
 # setup cache variables for ccmake
 if (NOT CMAKE_BUILD_TYPE)
@@ -87,7 +90,9 @@ set (PRELOAD_PAPI "ON" CACHE BOOL "Build with libpapi if present")
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
 
 add_subdirectory (src)
-add_subdirectory (tests)
+if (BUILD_TESTS)
+  add_subdirectory (tests)
+endif()
 if (BUILD_TOOLS)
     add_subdirectory (tools)
 endif ()
