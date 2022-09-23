@@ -166,6 +166,7 @@ jobs:
                 -DCMAKE_PREFIX_PATH=/tmp/cache \
                 -DCMAKE_BUILD_TYPE="$CI_BUILDTYPE" \
                 -DBUILD_SHARED_LIBS=ON \
+                -DBUILD_TESTS=ON \
                 ..
           echo "cmake done"
 
@@ -177,7 +178,6 @@ jobs:
 
       #
       # run tests
-      # XXX: currently none, add -DBUILD_TESTS=ON code for this?
       #
-      #- name: run tests
-      #  run: date && cd b && ctest -VV --output-on-failure && date
+      - name: run tests
+        run: date && cd b && ctest -VV --output-on-failure && date
