@@ -144,7 +144,7 @@ jobs:
               -DMERCURY_NA_INITIALLY_ON="bmi;sm" \
               -DMERCURY_SELF_FORWARD=ON \
               -DMERCURY_CHECKSUM=ON \
-              -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DCMAKE_BUILD_TYPE="$CI_BUILDTYPE" \
               ..
           make ch-placement mssg deltafs-shuffle deltafs
 
