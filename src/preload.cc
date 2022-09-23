@@ -59,6 +59,8 @@
 #include <papi.h>
 #endif
 
+#include "carp/carp_preload.h"
+
 /* setup tmpdir defns */
 #define PRELOAD_TMPDIR_FMT "/tmp/vpic-deltafs-run-%u"
 #define PRELOAD_TMPDIR_BSIZE (sizeof(PRELOAD_TMPDIR_FMT) + 10) /* pad for %u */
@@ -212,6 +214,8 @@ static void preload_init() {
   pctx.recv_comm = MPI_COMM_NULL;
   pctx.recv_rank = -1;
   pctx.recv_sz = -1;
+
+  pctx.carp_on = 0;
 
   /* obtain deltafs mount point */
   pctx.deltafs_mntp = maybe_getenv("PRELOAD_Deltafs_mntp");
@@ -447,11 +451,16 @@ static void preload_init() {
   if (is_envset("PRELOAD_No_sys_probing")) pctx.noscan = 1;
   if (is_envset("PRELOAD_Testing")) pctx.testin = 1;
 
+  if (is_envset("PRELOAD_Enable_CARP")) {
+    pctx.carp_on = 1;
+    pctx.opts = pdlfs::carp::preload_init_carpopts(&pctx.sctx);
+  }
+
   /*
    * sanity check mode and derive transform sizes based on filename_size,
    * filedata_size, and the mode.
    */
-  if (pctx.sideft + pctx.sideio /* + pctx.carpon */ > 1)
+  if (pctx.sideft + pctx.sideio + pctx.carp_on > 1)
     ABORT("config err: only one special I/O mode can be enabled at a time");
 
   /* normal (default) mode */
@@ -490,8 +499,7 @@ static void preload_init() {
     pctx.preload_invalue_size = sizeof(uint64_t);
     pctx.preload_outvalue_size = pctx.preload_invalue_size + sizeof(uint32_t);
     pctx.value_size = pctx.preload_outvalue_size;  /* update for change */
-  } else if (0 /*pctx.carpon*/) {
-#if 0
+  } else if (pctx.carp_on) {
     /*
      * in carp mode (range-query) we:
      *  1. move the filename to the filedata
@@ -505,7 +513,6 @@ static void preload_init() {
     pctx.preload_outvalue_size += pctx.filename_size;
     pctx.key_size = pctx.preload_outkey_size;
     pctx.value_size = pctx.preload_outvalue_size;
-#endif
   }
 
   pctx.serialized_size = pctx.preload_inkey_size + pctx.preload_invalue_size;
@@ -722,9 +729,16 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
 
   n = snprintf(tmp, sizeof(tmp), "rank=%d", rank);
 
-  dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
-  if (dirc.key_size == NULL) {
-    dirc.key_size = DEFAULT_KEY_SIZE;
+  if (pctx.carp_on) {
+    static char carp_key_size_str[32];  /* storing fixed value in static buf */
+    snprintf(carp_key_size_str, sizeof(carp_key_size_str),
+             "%d", pctx.opts->index_attr_size);
+    dirc.key_size = carp_key_size_str;
+  } else {
+    dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
+    if (dirc.key_size == NULL) {
+      dirc.key_size = DEFAULT_KEY_SIZE;
+    }
   }
 
   dirc.bits_per_key = maybe_getenv("PLFSDIR_Filter_bits_per_key");
@@ -755,6 +769,13 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
     if (is_envset("PLFSDIR_Ldb_use_bf"))
       *io_engine = DELTAFS_PLFSDIR_LEVELDB_L0ONLY_BF;
     dirc.io_engine = *io_engine;
+    return tmp;
+  } else if (is_envset("PLFSDIR_Use_rangedb")) {
+#ifdef DELTAFS_PLFSDIR_RANGEDB
+    *io_engine = DELTAFS_PLFSDIR_RANGEDB;
+#else
+    ABORT("PLFSDIR_Use_rangedb set, but not supported by linked deltafs");
+#endif
     return tmp;
   }
 
@@ -1331,6 +1352,12 @@ int MPI_Init(int* argc, char*** argv) {
     }
   }
 
+  if (pctx.carp_on) {
+    pdlfs::carp::preload_mpiinit_carpopts(&pctx, pctx.opts, stripped);
+    pctx.carp = new pdlfs::carp::Carp(*pctx.opts);
+    PRELOAD_Barrier(MPI_COMM_WORLD);  /* XXX may not be necessary? */
+  }
+
   srand(pctx.my_rank);
 
   return rv;
@@ -1478,7 +1505,7 @@ int MPI_Finalize(void) {
             fprintf(f0, "fmt=bloomy\n");
           else if (pctx.sideio)
             fprintf(f0, "fmt=wisc\n");
-          else if (0 /* pctx.carpon */)
+          else if (pctx.carp_on)
             fprintf(f0, "fmt=carp\n");
 
           fflush(f0);
@@ -1924,6 +1951,10 @@ int MPI_Finalize(void) {
     }
   }
 
+  if (!pctx.nomon && pctx.carp_on) {
+    pctx.carp->LogAggrBinCount();
+  }
+
   /* extra stats */
   MPI_Reduce(&num_bytes_writ, &sum_bytes_writ, 1, MPI_UNSIGNED_LONG_LONG,
              MPI_SUM, 0, MPI_COMM_WORLD);
@@ -1941,6 +1972,10 @@ int MPI_Finalize(void) {
 
   if (pctx.my_rank == 0) {
     logf(LOG_INFO, "final stats...");
+    if (pctx.carp_on) {
+      logf(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
+    }
+
     logf(LOG_INFO, "== dir data compaction");
     logf(LOG_INFO,
          "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
@@ -1952,6 +1987,10 @@ int MPI_Finalize(void) {
     logf(LOG_INFO, "== ALL epochs");
     logf(LOG_INFO, "       > %.1f per rank",
          double(sum_pthreads) / pctx.comm_sz);
+  }
+
+  if (pctx.carp_on) {
+    pdlfs::carp::preload_finalize_carp(&pctx);
   }
 
   /* close testing log file */
@@ -2172,6 +2211,18 @@ int opendir_impl(const char* dir) {
 
   /* epoch count is increased before the beginning of each epoch */
   num_eps++; /* must go before the barrier below */
+
+  if (pctx.carp_on) {
+    pctx.carp->AdvanceEpoch();
+    if (pctx.paranoid_post_barrier) {
+      /*
+       * for carp: ensure writes for next epoch go to new write buffer.
+       * XXX: we are close to having two barriers in a row (see below,
+       * after the mon/papi code).  can we just have one?
+       */
+      PRELOAD_Barrier(MPI_COMM_WORLD);
+    }
+  }
 
   if (!pctx.nomon) {
     mon_reinit(&pctx.mctx); /* clear mon stats */
@@ -2584,6 +2635,7 @@ int fclose(FILE* stream) {
   const char *preload_inkey;
   char *preload_invalue;
   size_t inkey_size, invalue_size;
+  char vbuf[255];   /* tmp scratch buf for transform (XXX: def/const size) */
 
   rv = pthread_once(&init_once, preload_init);
   if (rv) ABORT("pthread_once");
@@ -2658,6 +2710,22 @@ int fclose(FILE* stream) {
     invalue_size = sizeof(sideio_off);
     sideio_off += n;
 
+  } else if (pctx.carp_on) {
+    if (!IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
+      ABORT("not implemented");
+    }
+
+    /*
+     * for carp we extract the key from the filedata and create
+     * the invalue by prepending the filename to the filedata.
+     */
+    preload_inkey = ff->data() + pctx.opts->index_attr_offset;
+    inkey_size = pctx.opts->index_attr_size;
+    memcpy(vbuf, filename, filename_size);               /* filename */
+    memcpy(vbuf+filename_size, ff->data(), ff->size());  /* append filedata */
+    preload_invalue = vbuf;    /* use transformed info in vbuf as invalue */
+    invalue_size = filename_size + ff->size();
+
   } else { /* use the default fmt */
     /* send the key and value as-is to remote */
     preload_inkey = filename;         /* key is filename */
@@ -2670,8 +2738,13 @@ int fclose(FILE* stream) {
   assert(invalue_size == pctx.preload_invalue_size);
 
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
-    rv = shuffle_write(&pctx.sctx, preload_inkey, inkey_size,
-                       preload_invalue, invalue_size, num_eps - 1);
+    if (pctx.carp_on) {
+      rv = shuffle_write_range(&pctx.sctx, preload_inkey, inkey_size,
+                               preload_invalue, invalue_size, num_eps - 1);
+    } else {
+      rv = shuffle_write(&pctx.sctx, preload_inkey, inkey_size,
+                         preload_invalue, invalue_size, num_eps - 1);
+    }
     if (rv) {
       ABORT("plfsdir shuffler write failed");
     }
@@ -2909,8 +2982,26 @@ int preload_write(const char* pkey, unsigned char pkey_len, char* pvalue,
         pvalue = sideio_buf;
       }
 
-      /* XXX we drop pkey_len here... plfsdir_append() does strlen() on pkey */
-      n = deltafs_plfsdir_append(pctx.plfshdl, pkey, epoch, pvalue, pvalue_len);
+      /*
+       * XXX: plfsdir_append() does an additional transform where it
+       *      does a strlen(pkey) and hashes the result to generate
+       *      the key it uses for storing data.  this works fine if
+       *      pkey is a filename, but in the case of carp the key is
+       *      a float rather than a string so the strlen/hash doesn't
+       *      make sense in that context.  for now, route carp via
+       *      plfsdir_put() instead of plfsdir_append() to bypass
+       *      the strlen/hash step.  might need to rethink how the
+       *      strlen/hash is done...
+       */
+      if (pctx.carp_on) {
+        pctx.carp->BackendWriteCounter(pvalue_len);
+        n = deltafs_plfsdir_put(pctx.plfshdl, pkey, pkey_len, epoch,
+                                   pvalue, pvalue_len);
+      } else {
+        /* XXX we drop pkey_len here... plfsdir_append() does strlen(pkey) */
+        n = deltafs_plfsdir_append(pctx.plfshdl, pkey, epoch,
+                                   pvalue, pvalue_len);
+      }
       if (n != pvalue_len) {
         rv = EOF;
       }

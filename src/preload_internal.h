@@ -47,6 +47,7 @@
 
 #include <deltafs/deltafs_api.h>
 
+#include "carp/carp.h"
 #include "common.h"
 #include "preload.h"
 #include "preload_mon.h"
@@ -151,8 +152,8 @@ typedef struct preload_ctx {
 
   shuffle_ctx_t sctx; /* shuffle context */
 
-  int testin;    /* developer mode - for debug use only */
-  int noscan;    /* do not probe sys info */
+  int testin; /* developer mode - for debug use only */
+  int noscan; /* do not probe sys info */
 
   /* rank# less than this will get tapped */
   int pthread_tap;
@@ -177,6 +178,10 @@ typedef struct preload_ctx {
 
   FILE* trace;
 
+  /* Contains main thread state for range queries */
+  int carp_on; /* true if CARP enabled */
+  pdlfs::carp::Carp* carp;
+  pdlfs::carp::CarpOptions* opts;
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;

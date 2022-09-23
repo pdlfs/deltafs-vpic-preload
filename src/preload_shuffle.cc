@@ -441,7 +441,7 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
 
   /* XXXCDC: xn gives us NULL, nn should give pctx.sctx, make uniform? */
   if (ctx == NULL) {
-  ctx = &pctx.sctx;
+    ctx = &pctx.sctx;
   } else {
     assert(ctx == &pctx.sctx);
   }

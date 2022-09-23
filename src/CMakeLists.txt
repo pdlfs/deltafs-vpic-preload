@@ -13,33 +13,71 @@
 # from a normal library config...
 #
 
+set(CMAKE_CXX_STANDARD 11)
+
 # configure/load in standard modules we plan to use
-set (CMAKE_THREAD_PREFER_PTHREAD TRUE)
-set (THREADS_PREFER_PTHREAD_FLAG TRUE)
-find_package (Threads REQUIRED)
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
 
 if (PRELOAD_PAPI)
-    find_package (PAPI MODULE)
+    find_package(PAPI MODULE)
     if (PAPI_FOUND)
-        add_definitions (-DPRELOAD_HAS_PAPI)
+        add_definitions(-DPRELOAD_HAS_PAPI)
     endif ()
 endif ()
 
 if (PRELOAD_NUMA)
-    find_package (NUMA MODULE)
+    find_package(NUMA MODULE)
     if (NUMA_FOUND)
-        add_definitions (-DPRELOAD_HAS_NUMA)
+        add_definitions(-DPRELOAD_HAS_NUMA)
     endif ()
 endif ()
 
 #
 # create the library target
 #
-add_library (deltafs-preload preload.cc preload_internal.cc preload_mon.cc
-        preload_shuffle.cc nn_shuffler.cc nn_shuffler_internal.cc
-        xn_shuffle.cc hstg.cc common.cc pthreadtap.cc)
+set(CARP_SOURCES
+        carp/carp.cc
+        carp/carp_perflog.cc
+        carp/carp_preload.cc
+        carp/carp_utils.cc
+        carp/data_buffer.cc
+        carp/msgfmt.cc
+        carp/oob_buffer.cc
+        carp/policy.cc
+        carp/range_common.cc
+        carp/range_utils.cc
+        carp/regular_trigger.cc
+        carp/rtp.cc
+        carp/rtp_state_mgr.cc
+        carp/rtp_util.cc
+        carp/shuffle_write_range.cc
+        carp/stat_trigger.cc
+        )
 
-target_link_libraries (deltafs-preload deltafs mercury mssg
+set(PRELOAD_SOURCES
+        preload.cc
+        preload_internal.cc
+        preload_mon.cc
+        preload_shuffle.cc
+        nn_shuffler.cc
+        nn_shuffler_internal.cc
+        xn_shuffle.cc
+        hstg.cc
+        common.cc
+        pthreadtap.cc
+        )
+
+add_library(deltafs-preload
+        ${CARP_SOURCES}
+        ${PRELOAD_SOURCES})
+
+target_include_directories(deltafs-preload PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        )
+
+target_link_libraries(deltafs-preload deltafs mercury mssg
         deltafs-nexus deltafs-shuffle Threads::Threads ${CMAKE_DL_LIBS})
 
 if (PRELOAD_CH_PLACEMENT)
@@ -67,14 +105,14 @@ foreach (tgt deltafs-preload)
     # mpich on ub14 gives a leading space that we need to trim off
     foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
         if (NOT ${lcv} STREQUAL "")
-            target_compile_options (${tgt}
+            target_compile_options(${tgt}
                     PUBLIC $<BUILD_INTERFACE:${lcv}>)
         endif ()
     endforeach ()
 
     # XXX: have to do this one dir at a time
     foreach (lcv ${MPI_CXX_INCLUDE_PATH})
-        target_include_directories (${tgt}
+        target_include_directories(${tgt}
                 PUBLIC $<BUILD_INTERFACE:${lcv}>)
     endforeach ()
 
@@ -82,7 +120,7 @@ foreach (tgt deltafs-preload)
         target_link_libraries(${tgt} $<BUILD_INTERFACE:${lcv}>)
     endforeach ()
 
-    set_property (TARGET ${tgt} APPEND PROPERTY LINK_FLAGS
+    set_property(TARGET ${tgt} APPEND PROPERTY LINK_FLAGS
             ${MPI_CXX_LINK_FLAGS})
 
 endforeach ()
@@ -92,5 +130,5 @@ endforeach ()
 #
 
 # "make install" rules...
-install (TARGETS deltafs-preload
+install(TARGETS deltafs-preload
         ARCHIVE DESTINATION lib LIBRARY DESTINATION lib)

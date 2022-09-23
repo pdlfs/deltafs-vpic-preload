@@ -17,6 +17,7 @@
 cmake_minimum_required (VERSION 3.1)
 project (deltafs-preload C CXX)
 set (CMAKE_CXX_STANDARD 11)
+enable_testing ()
 
 # add our cmake module directory to the path
 set (CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
@@ -45,8 +46,10 @@ set (CMAKE_PREFIX_PATH "" CACHE STRING "External dependencies path")
 # sanitizer config (XXX: does not probe compiler to see if sanitizer flags
 # are supported... )
 #
-set (as_flags "-fsanitize=address -O1 -fno-omit-frame-pointer")
+set (as_flags
+  "-fsanitize=address -fsanitize=bounds-strict -O1 -fno-omit-frame-pointer")
 set (ts_flags "-fsanitize=thread  -O1 -fno-omit-frame-pointer")
+
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     if (${DEBUG_SANITIZER} STREQUAL "Address")
         set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${as_flags}")
@@ -84,6 +87,7 @@ set (PRELOAD_PAPI "ON" CACHE BOOL "Build with libpapi if present")
 set (BUILD_TOOLS "ON" CACHE BOOL "Build tools")
 
 add_subdirectory (src)
+add_subdirectory (tests)
 if (BUILD_TOOLS)
     add_subdirectory (tools)
 endif ()
