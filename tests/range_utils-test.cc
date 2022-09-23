@@ -34,14 +34,20 @@ class RangeUtilsTest {
   shuffle_ctx_t sh_ctx;
 
   RangeUtilsTest() {
+    ro.index_attr_size = sizeof(float);
+    ro.index_attr_offset = 0;   /* XXX */
+    ro.reneg_policy = "";       /* XXX for POLICY_IS() macro */
     ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
     ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
     ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
     ro.oob_sz = DEFAULT_OOBSZ;
+    ro.env = NULL;
     ro.sctx = &sh_ctx;
     ro.sctx->type = SHUFFLE_XN;
     ro.my_rank = 0;
     ro.num_ranks = 512;
+    ro.enable_perflog = 0;
+    ro.log_home = NULL;
 
     carp = new carp::Carp(ro);
 
