@@ -34,7 +34,7 @@
  */
 
 /*
- * carp_preload.h  preload library init interface to carp
+ * carp_preload.h  preload library interface to carp
  * 01-Aug-2022  chuck@ece.cmu.edu
  */
 

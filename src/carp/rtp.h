@@ -6,7 +6,6 @@
 #include "data_buffer.h"
 #include "pdlfs-common/port.h"
 #include "pdlfs-common/status.h"
-#include "preload_range.h"
 #include "preload_shuffle.h"
 #include "range_utils.h"
 #include "rtp_state_mgr.h"

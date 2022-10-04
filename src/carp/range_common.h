@@ -20,14 +20,6 @@ typedef struct rb_item {
   bool is_start;
 } rb_item_t;  // rank-bin item
 
-enum class buf_type_t {
-  RB_NO_BUF,
-  RB_BUF_OOB,
-  RB_UNDECIDED,
-  RB_BUF_LEFT,
-  RB_BUF_RIGHT
-};
-
 bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
 
 enum MainThreadState {

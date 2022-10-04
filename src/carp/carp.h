@@ -222,21 +222,6 @@ class Carp {
     }
   }
 
-  static float GetIndexedAttr(const char* data_buf, unsigned int data_len) {
-    const float* prop = reinterpret_cast<const float*>(data_buf);
-    return prop[0];  // XXX hardwired.  use index_attr_offset.
-  }
-
-  static float GetIndexedAttrAlt(const char* data_buf, unsigned int data_len) {
-    assert(data_len >= 7 * sizeof(float));
-    const float* p_ar = reinterpret_cast<const float*>(data_buf);
-    const float ux = p_ar[4];
-    const float uy = p_ar[5];
-    const float uz = p_ar[6];
-
-    return sqrt(ux * ux + uy * uy + uz * uz);
-  }
-
   /* Not called directly - up to the invocation policy */
   void Reset() {
     mutex_.AssertHeld();
