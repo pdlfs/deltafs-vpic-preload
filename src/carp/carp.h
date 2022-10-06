@@ -24,9 +24,10 @@ namespace pdlfs {
 namespace carp {
 
 /*
- * CarpOptions: used to init carp via the Carp constructor.  for
- * preload config via RANGE_* environment variables, the variable
- * name is given.
+ * CarpOptions: used to init carp via the Carp constructor.  allocated
+ * and loaded by preload_init_carpopts() -- see that function for default
+ * values.  for preload config via environment variables, the variable
+ * name is listed below.
  */
 struct CarpOptions {
   int index_attr_size;       /* sizeof indexed attr, default=sizeof(float) */
@@ -40,9 +41,9 @@ struct CarpOptions {
                              /* InvocationOnce. (RANGE_Reneg_policy) */
   uint64_t reneg_intvl;      /* periodic: reneg every reneg_intvl writes */
                              /*   (RANGE_Reneg_interval) */
-  uint32_t dynamic_intvl;    /* stat: invoke every dynamic_intvl calls */
+  uint32_t dynamic_intvl;    /* stat trig: invoke every dynamic_intvl calls */
                              /*   (RANGE_Reneg_interval) */
-  float dynamic_thresh;      /* stat: evaltrigger if load_skew > trigger */
+  float dynamic_thresh;      /* stat trig: evaltrig if load_skew > trigger */
                              /*   (RANGE_Dynamic_threshold) */
   int rtp_pvtcnt[4];         /* # of RTP pivots gen'd by each stage */
                              /* RANGE_Pvtcnt_s{1,2,3} */
@@ -54,12 +55,6 @@ struct CarpOptions {
   int enable_perflog;        /* non-zero to enable perflog */
   const char *log_home;      /* where to put perflog (if enabled) */
   std::string mount_path;    /* mount_path (set from preload MPI_Init) */
-};
-
-struct perflog_state {
-  port::Mutex mtx;           /* mutex for perfstats */
-  FILE *fp;                  /* open FILE we write stats to */
-  pthread_t thread;          /* profiling thread making periodic output */
 };
 
 class Carp {
@@ -221,7 +216,12 @@ class Carp {
   MainThreadStateMgr mts_mgr_;
   struct timespec start_time_;    /* time carp object was created */
   uint64_t backend_wr_bytes_;     /* total #bytes written to backend */
-  struct perflog_state perflog_;  /* perfstats log (if enabled) */
+
+  struct perflog_state {
+    port::Mutex mtx;              /* mutex for perfstats */
+    FILE *fp;                     /* open FILE we write stats to */
+    pthread_t thread;             /* profiling thread making periodic output */
+  } perflog_;
 
   RTP rtp_;
   int epoch_;

@@ -120,6 +120,7 @@ struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx) {
     (arr)[(idx)] = DEFAULT_PVTCNT;           \
   }
 
+  opts->rtp_pvtcnt[0] = 0;          /* note: first element is not used */
   INIT_PVTCNT(opts->rtp_pvtcnt, 1);
   INIT_PVTCNT(opts->rtp_pvtcnt, 2);
   INIT_PVTCNT(opts->rtp_pvtcnt, 3);
