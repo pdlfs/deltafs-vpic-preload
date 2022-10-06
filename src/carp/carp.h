@@ -25,9 +25,10 @@ namespace pdlfs {
 namespace carp {
 
 /*
- * CarpOptions: used to init carp via the Carp constructor.  for
- * preload config via RANGE_* environment variables, the variable
- * name is given.
+ * CarpOptions: used to init carp via the Carp constructor.  allocated
+ * and loaded by preload_init_carpopts() -- see that function for default
+ * values.  for preload config via environment variables, the variable
+ * name is listed below.
  */
 struct CarpOptions {
   int index_attr_size;      /* sizeof indexed attr, default=sizeof(float) */
@@ -52,12 +53,6 @@ struct CarpOptions {
   int enable_perflog;       /* non-zero to enable perflog */
   const char* log_home;     /* where to put perflog (if enabled) */
   std::string mount_path;   /* mount_path (set from preload MPI_Init) */
-};
-
-struct perflog_state {
-  port::Mutex mtx;  /* mutex for perfstats */
-  FILE* fp;         /* open FILE we write stats to */
-  pthread_t thread; /* profiling thread making periodic output */
 };
 
 class Carp {
@@ -239,14 +234,27 @@ class Carp {
   void PerflogVPrintf(const char* fmt, va_list ap);
 
  private:
-  const CarpOptions& options_; /* configuration options */
-  MainThreadStateMgr mts_mgr_;
+  /* these values do not change after ctor */
+  const CarpOptions& options_;   /* ref to config options from ctor */
   struct timespec start_time_;   /* time carp object was created */
+
+  /* protected by mutex_ */
+  MainThreadStateMgr mts_mgr_;   /* to block shuffle write during reneg */
   uint64_t backend_wr_bytes_;    /* total #bytes written to backend */
-  struct perflog_state perflog_; /* perfstats log (if enabled) */
+  int epoch_;                    /* current epoch#, update w/AdvanceEpoch() */
+
+  struct perflog_state {
+    /*
+     * perflog is only enabled if the enable_perflog option is set.
+     * if enabled, perflog creates a profiling thread to generate periodic
+     * output.  the profiling thread exits when fp is set to null by dtor.
+     */
+    FILE *fp;                     /* open log: only updated by ctor/dtor */
+    port::Mutex mtx;              /* serialize threads writing to fp */
+    pthread_t thread;             /* profiling thread making periodic output */
+  } perflog_;
 
   RTP rtp_;
-  int epoch_;
 
  public:
   /* XXX: temporary, refactor RTP/perfstats as friend classes */
