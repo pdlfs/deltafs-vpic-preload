@@ -3,6 +3,7 @@
  */
 
 #include <assert.h>
+#include <mpi.h>
 
 #include "carp.h"
 
