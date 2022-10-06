@@ -4,26 +4,24 @@
 
 #pragma once
 
-#include <float.h>
+
+#include <pdlfs-common/env.h>
+#include <pdlfs-common/mutexlock.h>
 #include <pdlfs-common/status.h>
+
+#include "../preload_shuffle.h"
 
 #include "carp_containers.h"
 #include "carp_utils.h"
-#include "msgfmt.h"
 #include "oob_buffer.h"
-#include "pdlfs-common/mutexlock.h"
 #include "policy.h"
-#include "preload_shuffle.h"
-#include "range_constants.h"
-#include "range_utils.h"
-/* XXX: temporarily for range-utils, refactor ultimately */
-#include "rtp.h"
+#include "range_common.h"
 #include "shuffle_write_range.h"
 
-namespace pdlfs {
-/* forward declaration */
-struct rtp_ctx;
+/* XXX: temporarily for range-utils, refactor ultimately */
+#include "rtp.h"
 
+namespace pdlfs {
 namespace carp {
 
 /*
