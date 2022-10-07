@@ -58,13 +58,9 @@ bool pmt_comp(const pdlfs::carp::particle_mem_t& a, const pdlfs::carp::particle_
 }  // namespace
 
 MainThreadStateMgr::MainThreadStateMgr()
-    : current_state_{MT_INIT}, prev_state_{MT_INIT}, first_block_(true) {};
+    : current_state_{MT_INIT}, first_block_(true) {};
 
 MainThreadState MainThreadStateMgr::GetState() { return this->current_state_; }
-
-MainThreadState MainThreadStateMgr::GetPrevState() {
-  return this->prev_state_;
-}
 
 MainThreadState MainThreadStateMgr::UpdateState(MainThreadState new_state) {
   MainThreadState cur_state = this->current_state_;
@@ -97,14 +93,12 @@ MainThreadState MainThreadStateMgr::UpdateState(MainThreadState new_state) {
   }
 #undef IS_TRANS
 
-  this->prev_state_ = this->current_state_;
   this->current_state_ = new_state;
 
-  return this->prev_state_;
+  return cur_state;
 }
 
 void MainThreadStateMgr::Reset() {
-  this->prev_state_ = this->current_state_;
   this->current_state_ = MainThreadState::MT_READY;
   first_block_ = true;
 }

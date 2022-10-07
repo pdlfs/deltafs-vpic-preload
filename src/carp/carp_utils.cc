@@ -389,7 +389,6 @@ int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
    * i.e., if range_min is 0.63, and OOBs are empty, then
    * oob_min (= 0) needs to be ignored
    */
-  // if (prev_state_ == MainThreadState::MT_INIT) {
   if (pvt_ctx->FirstBlock()) {
     range_start = oob_min;
   } else if (oob_left__sz) {
