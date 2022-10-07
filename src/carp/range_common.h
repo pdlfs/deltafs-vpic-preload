@@ -30,13 +30,11 @@ enum MainThreadState {
 class MainThreadStateMgr {
  private:
   MainThreadState current_state_;
-  MainThreadState prev_state_;
   bool first_block_;
 
  public:
   MainThreadStateMgr();
   MainThreadState GetState();
-  MainThreadState GetPrevState();
   MainThreadState UpdateState(MainThreadState new_state);
   void Reset();
   bool FirstBlock() const;

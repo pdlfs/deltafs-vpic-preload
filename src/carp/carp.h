@@ -149,11 +149,6 @@ class Carp {
     return mts_mgr_.GetState();
   }
 
-  MainThreadState GetPrevState() {
-    mutex_.AssertHeld();
-    return mts_mgr_.GetPrevState();
-  }
-
   Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type) {
     return rtp_.HandleMessage(buf, bufsz, src, type);
   }

@@ -71,7 +71,6 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
 
   int rv = 0;
 
-  const MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
   const MainThreadState cur_state = carp->mts_mgr_.GetState();
 
   carp->my_pivot_width_ = 0;
@@ -409,14 +408,11 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
     assert(oobl_max <= oobr_max);
   }
 
-  MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
-
   /* Since our default value is zero, min needs to obtained
    * complex-ly, while max is just max
    * i.e., if range_min is 0.63, and OOBs are empty, then
    * oob_min (= 0) needs to be ignored
    */
-  // if (prev_state_ == MainThreadState::MT_INIT) {
   if (carp->mts_mgr_.FirstBlock()) {
     range_start = oob_min;
   } else if (oobl_sz) {
