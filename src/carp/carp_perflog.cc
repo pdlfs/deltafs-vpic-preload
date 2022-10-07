@@ -95,12 +95,15 @@ void* Carp::PerflogMain(void* arg) {
     fprintf(sfp, "Timestamp (ms),Stat Type, Stat Value\n");
 
   while (1) {
+    uint64_t bewrbytes;
     if (carp->perflog_.fp == NULL) /* signals us to shutdown */
       break;
 
     timestamp = get_timestamp(&carp->start_time_);
-    fprintf(sfp, "%lu,LOGICAL_BYTES_WRITTEN,%lu\n", timestamp,
-            carp->backend_wr_bytes_);
+    carp->mutex_.Lock();
+    bewrbytes = carp->backend_wr_bytes_;
+    carp->mutex_.Unlock();
+    fprintf(sfp, "%lu,LOGICAL_BYTES_WRITTEN,%lu\n", timestamp, bewrbytes);
 
     carp->perflog_.mtx.Unlock(); /* drop lock during sleep */
     usleep(1e6 / PERFLOG_CAPTURE_FREQ);
@@ -135,6 +138,7 @@ void Carp::PerflogDestroy() {
 void Carp::PerflogReneg(int round_num) {
   uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
+  mutex_.AssertHeld();    /* accessing carp fields */
   assert(perflog_.fp);
 
   fprintf(perflog_.fp, "%lu,RENEG_COUNTS,RANK%d_R%d: ", timestamp,

@@ -52,7 +52,7 @@ struct CarpOptions {
   uint64_t reneg_intvl;     /* periodic: reneg every reneg_intvl writes */
                             /*   (RANGE_Reneg_interval) */
   int rtp_pvtcnt[4];        /* # of RTP pivots gen'd by each stage */
-                            /* RANGE_Pvtcnt_s{1,2,3} */
+                            /* RANGE_Pvtcnt_s{1,2,3}; pvtcnt[0] not used */
   Env* env;                 /* stat: for GetFileSize() in StatFiles() */
                             /* normally set to Env::Default() */
   shuffle_ctx_t* sctx;      /* shuffle context */
@@ -152,19 +152,41 @@ class Carp {
 
   int NumRounds() const { return rtp_.NumRounds(); }
 
+  /*
+   * BackendWriteCounter is called from preload_write() to track
+   * the number of bytes written to the backend so it can be reported
+   * as a stat (e.g. by the perflog profile thread).  We need this
+   * hook for preload_write() as it does not make any calls to carp
+   * (it passes data directly to the backend).  Caller should not
+   * be holding mutex_, as we grab it.
+   */
   void BackendWriteCounter(uint64_t b) {
-    backend_wr_bytes_ += b; /* stat cnt, XXX assume ok w/o lock */
+    MutexLock ml(&mutex_);
+    backend_wr_bytes_ += b;
   }
 
+  /*
+   * Top-level Log*() perflog functions.  Centralizes checking
+   * if perflog is on and if so, pass control to the corresponding
+   * Perflog*() function.
+   */
+
+  /* called from HandlePivotBroadcast() w/caller holding mutex_ */
   void LogReneg(int round_num) {
     if (PerflogOn()) PerflogReneg(round_num);
   }
+
+  /* collective call at shutdown from preload MPI_Finalize() wrapper */
   void LogAggrBinCount() {
     if (PerflogOn()) PerflogAggrBinCount();
   }
+
+  /* called from UpdatePivots + HandleBegin w/caller holding mutex_ */
+  /* also called from carp dtor during shutdown */
   void LogMyPivots(double* pivots, int num_pivots, const char* lab) {
     if (PerflogOn()) PerflogMyPivots(pivots, num_pivots, lab);
   }
+
   void LogVec(std::vector<uint64_t>& vec, const char* vlabel) {
     if (PerflogOn()) PerflogVec(vec, vlabel);
   }
