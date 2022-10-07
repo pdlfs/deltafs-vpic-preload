@@ -28,6 +28,20 @@ namespace carp {
  * and loaded by preload_init_carpopts() -- see that function for default
  * values.  for preload config via environment variables, the variable
  * name is listed below.
+ *
+ * the reneg_policy controls when we start a reneg.  the options are:
+ *   InvocationPeriodic: trigger if oob full on any rank or if rank 0
+ *                       has written reneg_intvl times in the current epoch.
+ *                       this is the default policy.
+ *
+ *   InvocationDynamic: trigger if oob full or the stat_trigger fires.
+ *                      the stat trigger is invoked on rank 0 every
+ *                      dynamic_intvl writes.  when it fires it serially
+ *                      stats the backing files to compute a skew.
+ *                      if the skew is > dynamic_thresh, then rank 0
+ *                      will trigger a reneg.
+ *
+ *   InvocationOnce: rank 0 triggers the first time its oob is full
  */
 struct CarpOptions {
   int index_attr_size;       /* sizeof indexed attr, default=sizeof(float) */
