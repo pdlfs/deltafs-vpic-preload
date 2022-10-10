@@ -13,7 +13,7 @@ Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
                        unsigned char svalue_len, unsigned char extra_data_len,
                        particle_mem_t& p) {
   Status s = Status::OK();
-  char *bp;
+  char* bp;
 
   memcpy(&p.indexed_prop, skey, sizeof(p.indexed_prop));
   p.buf_sz = skey_len + svalue_len + extra_data_len;
@@ -25,7 +25,7 @@ Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
   if (extra_data_len) {
     memset(bp + svalue_len, 0, extra_data_len);
   }
-  p.shuffle_dest = -1;    /* default to -1 (i.e. 'unknown') */
+  p.shuffle_dest = -1; /* default to -1 (i.e. 'unknown') */
 
   logf(LOG_DBG2, "Carp::Serialize: bufsz: %d", p.buf_sz);
   return s;

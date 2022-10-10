@@ -14,7 +14,6 @@ set(CARP_SOURCES
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc
         carp/shuffle_write_range.cc
-        carp/stat_trigger.cc
         )
 
 set(PRELOAD_SOURCES

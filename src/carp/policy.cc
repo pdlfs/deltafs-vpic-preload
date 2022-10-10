@@ -9,7 +9,11 @@
 namespace pdlfs {
 namespace carp {
 InvocationPolicy::InvocationPolicy(Carp& carp, const CarpOptions& options)
-    : epoch_(0), num_writes_(0), carp_(carp), options_(options) {}
+    : options_(options),
+      carp_(carp),
+      invoke_intvl_(options_.reneg_intvl),
+      epoch_(0),
+      num_writes_(0) {}
 
 bool InvocationPolicy::BufferInOob(particle_mem_t& p) {
   // XXX: should ideally be the same as consulting
@@ -32,34 +36,20 @@ int InvocationPolicy::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
   return 0;
 }
 
-bool InvocationPolicy::IsOobFull() {
-  // logf(LOG_WARN, "OOB size: %zu\n", carp_.oob_buffer_.Size());
-  return carp_.oob_buffer_.IsFull();
-}
+bool InvocationPolicy::IsOobFull() { return carp_.oob_buffer_.IsFull(); }
 
-InvocationPeriodic::InvocationPeriodic(Carp& carp, const CarpOptions& options)
-    : InvocationPolicy(carp, options), invoke_intvl_(options_.reneg_intvl) {}
+InvocationIntraEpoch::InvocationIntraEpoch(Carp& carp,
+                                           const CarpOptions& options)
+    : InvocationPolicy(carp, options) {}
 
-bool InvocationPeriodic::TriggerReneg() {
+bool InvocationIntraEpoch::TriggerReneg() {
   num_writes_++;
   bool intvl_trigger =
       (options_.my_rank == 0) && (num_writes_ % invoke_intvl_ == 0);
   return intvl_trigger || IsOobFull();
 }
 
-InvocationDynamic::InvocationDynamic(Carp& carp, const CarpOptions& options)
-    : InvocationPeriodic(carp, options), stat_trigger_(options) {}
-
-bool InvocationDynamic::TriggerReneg() {
-  num_writes_++;
-  bool intvl_trigger = stat_trigger_.Invoke();
-  return intvl_trigger || IsOobFull();
-}
-
-/* don't reset */
-void InvocationDynamic::AdvanceEpoch() { epoch_++; }
-
-bool InvocationPerEpoch::TriggerReneg() {
+bool InvocationInterEpoch::TriggerReneg() {
   if ((options_.my_rank == 0) && !reneg_triggered_ &&
       InvocationPolicy::IsOobFull()) {
     reneg_triggered_ = true;
@@ -71,7 +61,7 @@ bool InvocationPerEpoch::TriggerReneg() {
   return false;
 }
 
-int InvocationPerEpoch::ComputeShuffleTarget(particle_mem_t& p) {
+int InvocationInterEpoch::ComputeShuffleTarget(particle_mem_t& p) {
   int rank;
   InvocationPolicy::ComputeShuffleTarget(p, rank);
   /* dump all unseen particles into the last rank */

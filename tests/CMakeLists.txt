@@ -1,7 +1,7 @@
 #
 # test programs
 #
-set (tests range_utils rtp stat_trigger)
+set (tests range_utils rtp)
 
 foreach (tst ${tests})
 
