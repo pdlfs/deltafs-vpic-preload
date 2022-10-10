@@ -347,16 +347,6 @@ int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
   return 0;
 }
 
-void PivotUtils::LogPivots(Carp* carp, int pvtcnt) {
-  if (!carp->PerflogOn()) return;
-
-  char label[64];
-  snprintf(label, 64, "RENEG_PIVOTS_E%d", carp->epoch_);
-  carp->LogMyPivots(carp->pivots_.pivots_.data(), pvtcnt, label);
-  snprintf(label, 64, "RENEG_BINCNT_E%d", carp->epoch_);
-  carp->LogVec(carp->bins_.counts_aggr_, label);
-}
-
 int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                                float& range_end) {
   int rv = 0;

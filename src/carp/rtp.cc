@@ -309,7 +309,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
     int pvt_buf_len;
 
     carp_->CalculatePivots(pvtcnt);
-    PivotUtils::LogPivots(carp_, pvtcnt);
+    carp_->LogPivots(pvtcnt);
 
     pvt_buf_len =
         PivotUtils::EncodePivots(pvt_buf, pvt_buf_sz, round_num_, stage_idx,

@@ -55,8 +55,6 @@ class PivotUtils {
    */
   static int UpdatePivots(Carp* carp, Pivots* pivots);
 
-  static void LogPivots(Carp* carp, int pvtcnt);
-
   static int EncodePivots(void* buf, int buf_sz, int round_num, int stage_num,
                           int sender_id, Pivots* pivots, bool bcast) {
     double* pivots_arr = pivots->pivots_.data();
