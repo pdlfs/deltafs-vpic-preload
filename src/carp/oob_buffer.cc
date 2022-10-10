@@ -12,7 +12,9 @@ namespace pdlfs {
 namespace carp {
 
 /*
- * copy/append item to our out of bounds buffer (if there is room)
+ * copy/append item to our out of bounds buffer
+ * inserts will be accepted beyond configured size, but IsFull
+ * will return true in the "overflow state"
  */
 int OobBuffer::Insert(particle_mem_t& item) {
   int rv = 0;
@@ -26,8 +28,7 @@ int OobBuffer::Insert(particle_mem_t& item) {
   }
 
   if (buf_.size() >= oob_max_sz_) {
-    logf(LOG_WARN, "[OOB] Overflow alert");
-    return -1;
+    logf(LOG_DBUG, "[OOB] Overflow alert");
   }
 
   buf_.push_back(item);

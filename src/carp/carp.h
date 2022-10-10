@@ -40,7 +40,7 @@ struct CarpOptions {
                              /* (PRELOAD_Particle_indexed_attr_offset) */
   uint32_t oob_sz;           /* max #particles in oob buf (RANGE_Oob_size) */
   const char* reneg_policy;  /* InvocationDynamic, InvocationPeriodic (def), */
-                             /* InvocationOnce. (RANGE_Reneg_policy) */
+                             /* InvocationOncePerEpoch, InvocationOnce. */                             /* (RANGE_Reneg_policy) */
   uint64_t reneg_intvl;      /* periodic: reneg every reneg_intvl writes */
                              /*   (RANGE_Reneg_interval) */
   uint32_t dynamic_intvl;    /* stat: invoke every dynamic_intvl calls */
@@ -96,6 +96,8 @@ class Carp {
       policy_ = new InvocationDynamic(*this, options_);
     } else if (POLICY_IS("InvocationPeriodic")) {
       policy_ = new InvocationPeriodic(*this, options_);
+    } else if (POLICY_IS("InvocationPerEpoch")) {
+      policy_ = new InvocationPerEpoch(*this, options_);
     } else if (POLICY_IS("InvocationOnce")) {
       policy_ = new InvocationOnce(*this, options_);
     } else {

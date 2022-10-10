@@ -71,12 +71,25 @@ class InvocationDynamic : public InvocationPeriodic {
   StatTrigger stat_trigger_;
 };
 
+/* InvocationPerEpoch: buffer in OOB until first reneg of the epoch
+ * is triggered. First reneg of the epoch is triggered as soon as
+ * OobBuffer fills up on Rank 0. OOB buffers on other ranks may be
+ * sent into the overflow state by then.
+ *
+ * Once a reneg has been triggered, a shuffle target will always be
+ * returned, and no rank will be asked to buffer any particle in an
+ * OobBuffer
+ */
 class InvocationPerEpoch : public InvocationPolicy {
  public:
   InvocationPerEpoch(Carp& carp, const CarpOptions& options)
       : InvocationPolicy(carp, options), reneg_triggered_(false) {}
 
-  bool BufferInOob(particle_mem_t& p) override { return !reneg_triggered_; }
+  bool BufferInOob(particle_mem_t& p) override {
+    // reneg_triggered_ reflects this rank's policy decision
+    // FirstRenegCompleted() checks whether any rank triggered a reneg
+    return !FirstRenegCompleted();
+  }
 
   bool TriggerReneg() override;
 

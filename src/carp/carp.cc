@@ -43,7 +43,8 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
     /* XXX: check RV */
     int rv = oob_buffer_.Insert(p);
     if (rv < 0) {
-      logf(LOG_INFO, "OOB Insert failed: %d", options_.my_rank);
+      logf(LOG_ERRO, "OOB Insert failed: %d", options_.my_rank);
+      ABORT("Oob insert failed!");
     }
   }
 
