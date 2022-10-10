@@ -114,7 +114,7 @@ class Carp {
   }
 
   ~Carp() {
-    PivotUtils::LogPivots(this, options_.rtp_pvtcnt[1]);
+    LogPivots(options_.rtp_pvtcnt[1]);
     this->PerflogDestroy();
   }
 
@@ -184,15 +184,19 @@ class Carp {
     if (PerflogOn()) PerflogAggrBinCount();
   }
 
-  /* called from UpdatePivots + HandleBegin w/caller holding mutex_ */
-  /* also called from carp dtor during shutdown */
+  /* called from UpdatePivots w/caller holding mutex_ */
   void LogMyPivots(double *pivots, int num_pivots, const char *lab) {
     if (PerflogOn()) PerflogMyPivots(pivots, num_pivots, lab);
   }
 
-  void LogVec(std::vector<uint64_t>& vec, const char *vlabel) {
-    if (PerflogOn()) PerflogVec(vec, vlabel);
+  /* LogPivots logs both my_pivots_ and rank_counts_aggr_ */
+  /* called from HandleBegin w/caller holding mutex_ */
+  /* also called from carp dtor during shutdown */
+  void LogPivots(int pvtcnt) {
+    if (PerflogOn()) PerflogPivots(pvtcnt);
   }
+
+  /* called from HandleBegin and HandlePivots */
   void LogPrintf(const char* fmt, ...) {
     if (PerflogOn()) {
       va_list ap;
@@ -232,14 +236,16 @@ class Carp {
     oob_buffer_.Reset();
   }
 
-  void PerflogStartup();
-  static void *PerflogMain(void *arg);
-  void PerflogDestroy();
-  int PerflogOn() { return perflog_.fp != NULL; }
+  /* internal (private) perflog rountes (only call if perlog enabled) */
+  void PerflogStartup();                           // open perflog
+  static void *PerflogMain(void *arg);             // periodic thread main
+  void PerflogDestroy();                           // shut perflog down
+  int PerflogOn() { return perflog_.fp != NULL; }  // is perflog on?
+  /* internal interface for top-level Log* calls, see above */
   void PerflogReneg(int round_num);
   void PerflogAggrBinCount();
   void PerflogMyPivots(double *pivots, int num_pivots, const char *lab);
-  void PerflogVec(std::vector<uint64_t>& vec, const char *vlabel);
+  void PerflogPivots(int pvtcnt);
   void PerflogVPrintf(const char* fmt, va_list ap);
 
  private:

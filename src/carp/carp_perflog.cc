@@ -204,16 +204,23 @@ void Carp::PerflogMyPivots(double *pivots, int num_pivots, const char *lab) {
 }
 
 /*
- * Carp::PerflogVec: log u64 vec
+ * Carp::PerflogPivots: logs pivots and rank_count_aggr_
  */
-void Carp::PerflogVec(std::vector<uint64_t>& vec, const char *vlabel) {
+void Carp::PerflogPivots(int pvtcnt) {
   uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
-
   assert(perflog_.fp);
-  fprintf(perflog_.fp, "%lu,%s,", timestamp, vlabel);
-  for (int i = 0 ; i < vec.size() ; i++) {
-    fprintf(perflog_.fp, "%lu ", vec[i]);
+  mutex_.AssertHeld();    /* accessing carp fields */
+
+  fprintf(perflog_.fp, "%lu,RENEG_PIVOTS_E%d,", timestamp, epoch_);
+  for (int i = 0 ; i < pvtcnt ; i++) {
+    fprintf(perflog_.fp, "%.4lf ", my_pivots_[i]);
+  }
+  fprintf(perflog_.fp, "\n");
+
+  fprintf(perflog_.fp, "%lu,RENEG_BINCNT_E%d,", timestamp, epoch_);
+  for (int i = 0 ; i < rank_counts_aggr_.size() ; i++) {
+    fprintf(perflog_.fp, "%lu ", rank_counts_aggr_[i]);
   }
   fprintf(perflog_.fp, "\n");
 }

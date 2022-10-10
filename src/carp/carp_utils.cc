@@ -372,16 +372,6 @@ int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
   return 0;
 }
 
-void PivotUtils::LogPivots(Carp* carp, int pvtcnt) {
-  if (!carp->PerflogOn()) return;
-
-  char label[64];
-  snprintf(label, 64, "RENEG_PIVOTS_E%d", carp->epoch_);
-  carp->LogMyPivots(carp->my_pivots_, pvtcnt, label);
-  snprintf(label, 64, "RENEG_BINCNT_E%d", carp->epoch_);
-  carp->LogVec(carp->rank_counts_aggr_, label);
-}
-
 int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
                                std::vector<float>& oobr, float& range_start,
                                float& range_end) {

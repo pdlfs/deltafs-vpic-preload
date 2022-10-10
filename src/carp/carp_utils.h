@@ -54,8 +54,6 @@ class PivotUtils {
    */
   static int UpdatePivots(Carp* carp, double* pivots, int num_pivots);
 
-  static void LogPivots(Carp* carp, int pvtcnt);
-
  private:
   static int CalculatePivotsFromOob(Carp* carp, int num_pivots);
 
