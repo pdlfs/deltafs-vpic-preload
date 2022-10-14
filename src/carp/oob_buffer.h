@@ -40,6 +40,8 @@ typedef struct particle_mem {
  * out of bounds particles can either be before the minimum value of
  * our range (i.e. to the "left" of our range on a floating point
  * number line) or past the maximum value of out range (to the right).
+ *
+ * we expect higher-level code to provide any needed locking for OobBuffer.
  */
 class OobBuffer {
  public:
@@ -58,7 +60,7 @@ class OobBuffer {
   //
   bool OutOfBounds(float prop) const {
     if (!range_set_) return true;      // no in bounds range set?
-    return(prop < range_min_ || prop > range_max_);
+    return(prop < range_min_ || prop >= range_max_);
   }
 
   //
@@ -82,8 +84,9 @@ class OobBuffer {
   }
 
   //
-  // set the in-bounds range of the OobBuffer.  in-bounds ranges are
-  // inclusive.  we only want to store particles outside of this range.
+  // set the in-bounds range of the OobBuffer from rmin (inclusive)
+  // to rmax (exclusive).  we only want to store particles outside
+  // of this range.
   //
   void SetRange(float range_min, float range_max) {
     range_min_ = range_min;
@@ -95,7 +98,8 @@ class OobBuffer {
   // walk the set of out of bounds partciles we are currently storing.
   // for each particle we determine if its key is to the left or right
   // of the in-bounds range and append the key to the appropriate vector.
-  // we then sort the left and right vectors before returning.
+  // we then sort the left and right vectors before returning.   if no
+  // range is set, then we return all keys in left.
   //
   int GetPartitionedProps(std::vector<float>& left, std::vector<float>& right);
 
@@ -112,7 +116,7 @@ class OobBuffer {
  private:
   const size_t oob_max_sz_;          // max# oob particles we hold (set by ctor)
   float range_min_;                  // local in-bounds range start (inclusive)
-  float range_max_;                  // local in-bounds range end (inclusive)
+  float range_max_;                  // local in-bounds range end (exclusive)
   bool range_set_;                   // has SetRange() set the range yet?
   std::vector<particle_mem_t> buf_;  // OOB buf particle array (prealloc'd)
 
