@@ -49,6 +49,8 @@ typedef struct particle_mem {
  * overflowed state. It is up to the user of this class to ensure that the OOB
  * Buffer does not go into the overflow state if a constant memory footprint is
  * desired.
+ *
+ * we expect higher-level code to provide any needed locking for OobBuffer.
  */
 class OobBuffer {
  public:
@@ -63,11 +65,11 @@ class OobBuffer {
 
   //
   // check if the key ("prop") lies outside the key range managed by
-  // the local carp proc.  if so, we return true.
+  // the local carp proc.  if so, we return true.  we also return true
+  // if the range is not set.
   //
   bool OutOfBounds(float prop) const {
-    // OOB should return true if range is not set, or if prop is OOB wrt range
-    // range.Inside returns false if range is not set, so this is correct
+    // note: if range not set, Inside() returns false (and !Inside() == true)
     return !range_.Inside(prop);
   }
 
@@ -91,8 +93,9 @@ class OobBuffer {
   }
 
   //
-  // set the in-bounds range of the OobBuffer.  in-bounds ranges are
-  // inclusive.  we only want to store particles outside of this range.
+  // set the in-bounds range of the OobBuffer from rmin (inclusive)
+  // to rmax (exclusive).  we only want to store particles outside
+  // of this range.
   //
   void SetRange(float range_min, float range_max) {
     // TODO: double/float mismatch
@@ -111,7 +114,8 @@ class OobBuffer {
   // walk the set of out of bounds partciles we are currently storing.
   // for each particle we determine if its key is to the left or right
   // of the in-bounds range and append the key to the appropriate vector.
-  // we then sort the left and right vectors before returning.
+  // we then sort the left and right vectors before returning.   if no
+  // range is set, then we return all keys in left.
   //
   int GetPartitionedProps(std::vector<float>& left, std::vector<float>& right);
 
@@ -144,6 +148,7 @@ class OobBuffer {
   }
 
   const size_t oob_max_sz_;          // max# oob particles we hold (set by ctor)
+  // XXX: Inclusive vs. regular
   InclusiveRange range_;             // range represented by the OOB buffer
   std::vector<particle_mem_t> buf_;  // OOB buf particle array (prealloc'd)
 

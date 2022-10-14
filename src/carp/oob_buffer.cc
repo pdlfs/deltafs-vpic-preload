@@ -46,7 +46,7 @@ int OobBuffer::GetPartitionedProps(std::vector<float>& left,
     float prop = it->indexed_prop;
     if ((not range_.IsSet()) or (range_.IsSet() and prop < range_.rmin())) {
       left.push_back(prop);
-    } else if (prop > range_.rmax()) {
+    } else if (prop > range_.rmax()) {  /* XXXCDC: > vs >=, inclusive */
       right.push_back(prop);
     }
   }
