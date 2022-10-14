@@ -272,21 +272,38 @@ class Carp {
   RTP rtp_;
 
  public:
-  /* XXX: temporary, refactor RTP/perfstats as friend classes */
-  port::Mutex mutex_;
-  port::CondVar cv_;
+  /* XXX: temporary, refactor RTP as friend class */
+  port::Mutex mutex_;             /* protects fields in Carp class */
+  port::CondVar cv_;              /* tied to mutex_ (above).  RTP InitRound */
+                                  /* uses cv_ to wait for MT_READY state */
 
+  /* XXX: redundant with OOB range_min_/range_max_?  do we need both? */
   double range_min_;
   double range_max_;
 
-  std::vector<float> rank_bins_;
-  std::vector<float> rank_counts_;
-  std::vector<uint64_t> rank_counts_aggr_;
+  /* protected by mutex_ */
+  /*
+   * note: rank "r"'s bin range starts at rank_bins_[r] (inclusive)
+   * and ends at rank_bins[r+1] (exclusive).  points less than
+   * rank_bins_[0] or greater than rank_bins_[nranks] are out of
+   * bounds.  for bootstrapping, all values of rank_bins_[] are set to 0
+   * putting everything out of bounds.
+   *
+   * each time we assign a particle to rank "r" we increment both
+   * rank_counts_[r] and rank_counts_aggr_[r].  rank_counts_[]
+   * is reset to zero by UpdatePivots(), rank_counts_aggr_[] is not.
+   *
+   * rank_bins_[] and rank_counts_[] are used by the reneg protocol
+   * to calculate a new set of pivots.
+   */
+  std::vector<float> rank_bins_;            /* defines each rank's bin range */
+  std::vector<float> rank_counts_;          /* cnt #times we assign to rank */
+  std::vector<uint64_t> rank_counts_aggr_;  /* cnt, !cleared by pivot upd */
 
-  OobBuffer oob_buffer_;
+  OobBuffer oob_buffer_;                    /* out of bounds data */
 
-  double my_pivots_[pdlfs::kMaxPivots];
-  size_t my_pivot_count_;
+  double my_pivots_[pdlfs::kMaxPivots];     /* my reneg calculated pivots */
+  size_t my_pivot_count_;                   /* pivot size ( <= kMaxPivots) */
   double my_pivot_width_;
 
  private:
