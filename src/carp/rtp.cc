@@ -489,7 +489,8 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
                            merged_width);
 
     logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)", my_rank_,
-         darr2str(merged_pivots, merged_pvtcnt), merged_width, merged_pvtcnt);
+         darr2str(merged_pivots, merged_pvtcnt).c_str(),
+         merged_width, merged_pvtcnt);
 
     logf(LOG_INFO, "rtp_handle_reneg_pivot: S%d at Rank %d, collected",
          stage_num, my_rank_);
@@ -568,7 +569,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   if (my_rank_ == 0) {
     logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
-         darr2str(pivots, num_pivots), pivot_width);
+         darr2str(pivots, num_pivots).c_str(), pivot_width);
 
     logf(LOG_INFO, "-- carp round %d completed at rank 0 --", round_num_);
   }
