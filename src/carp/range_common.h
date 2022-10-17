@@ -20,8 +20,6 @@ typedef struct rb_item {
   bool is_start;
 } rb_item_t;  // rank-bin item
 
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
-
 enum MainThreadState {
   MT_INIT,
   MT_READY,

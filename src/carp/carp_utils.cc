@@ -10,23 +10,7 @@
 #include "preload_internal.h"
 #include "range_common.h"
 
-/**** FOR DEBUGGING ****/
-/* local functions */
-
-/* return true if a is smaller - we prioritize smaller bin_val
- * and for same bin_val, we prioritize ending items (is_start == false)
- * first */
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
-  return (a.bin_val < b.bin_val) ||
-         ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
-}
-
 namespace {
-bool pmt_comp(const pdlfs::carp::particle_mem_t& a,
-              const pdlfs::carp::particle_mem_t& b) {
-  return a.indexed_prop < b.indexed_prop;
-}
-
 void assert_monotonicity(pdlfs::carp::Range& rold, pdlfs::carp::Range& rnew) {
   if (!rold.IsSet()) {
     assert(rnew.IsSet());
@@ -40,40 +24,6 @@ void assert_monotonicity(pdlfs::carp::Range& rold, pdlfs::carp::Range& rnew) {
 
 namespace pdlfs {
 namespace carp {
-template <typename T>
-std::string PivotUtils::SerializeVector(std::vector<T>& v) {
-  std::string s;
-  for (size_t i = 0; i < v.size(); i++) {
-    T elem = v[i];
-    if (i == 0) {
-      s += std::to_string(elem);
-    } else {
-      s += "," + std::to_string(elem);
-    }
-  }
-
-  return s;
-}
-
-template <typename T>
-std::string PivotUtils::SerializeVector(T* v, size_t vsz) {
-  std::string s;
-  for (size_t i = 0; i < vsz; i++) {
-    T elem = v[i];
-    if (i == 0) {
-      s += std::to_string(elem);
-    } else {
-      s += "," + std::to_string(elem);
-    }
-  }
-
-  return s;
-}
-
-template std::string PivotUtils::SerializeVector<float>(std::vector<float>& v);
-template std::string PivotUtils::SerializeVector<double>(
-    std::vector<double>& v);
-template std::string PivotUtils::SerializeVector<double>(double* v, size_t vsz);
 
 int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                 size_t num_pivots) {
@@ -170,22 +120,6 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     pivots->FillZeros();
     return 0;
   }
-
-#if 0
-  /**********************/
-  std::vector<float>& ff = carp->rank_counts_;
-  std::vector<float>& gg = carp->rank_bins_;
-  // fprintf(stderr,
-  // "rank%d get_local_pivots state_dump "
-  // "oob_count_left: %d, oob_count_right: %d\n"
-  // "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
-  // "rbc: %s (%zu)\n"
-  // "bin: %s (%zu)\n",
-  // pctx.my_rank, pvt_ctx->oob_left__sz, pvt_ctx->oob_right__sz, range_start, range_end,
-  // particle_count, SerializeVector(ff).c_str(), ff.size(),
-  // SerializeVector(gg).c_str(), gg.size());
-  /**********************/
-#endif
 
   float accumulated_ppp = 0;
   float particles_carried_over = 0;

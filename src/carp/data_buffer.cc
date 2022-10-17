@@ -4,6 +4,15 @@
 #include "rtp.h"
 
 namespace pdlfs {
+
+/* return true if a is smaller - we prioritize smaller bin_val
+ * and for same bin_val, we prioritize ending items (is_start == false)
+ * first */
+static bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
+  return (a.bin_val < b.bin_val) ||
+         ((a.bin_val == b.bin_val) && (!a.is_start && b.is_start));
+}
+
 DataBuffer::DataBuffer(const int num_pivots[STAGES_MAX + 1]) {
   memset(data_len_, 0, sizeof(data_len_));
 
