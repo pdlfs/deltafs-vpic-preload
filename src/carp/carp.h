@@ -294,7 +294,8 @@ class Carp {
    * is reset to zero by UpdatePivots(), rank_counts_aggr_[] is not.
    *
    * rank_bins_[] and rank_counts_[] are used by the reneg protocol
-   * to calculate a new set of pivots.
+   * to calculate a new set of pivots.  rank_counts_aggr_[] is only
+   * used for perflog reporting (not used in reneg protocol).
    */
   std::vector<float> rank_bins_;            /* defines each rank's bin range */
   std::vector<float> rank_counts_;          /* cnt #times we assign to rank */
