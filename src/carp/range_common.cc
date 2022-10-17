@@ -46,17 +46,6 @@ static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
 
 /* local functions */
 
-/* return true if a is smaller - we prioritize smaller bin_val
- * and for same bin_val, we prioritize ending items (is_start == false)
- * first */
-bool rb_item_lt(const rb_item_t& a, const rb_item_t& b);
-
-namespace {
-bool pmt_comp(const pdlfs::carp::particle_mem_t& a, const pdlfs::carp::particle_mem_t& b) {
-  return a.indexed_prop < b.indexed_prop;
-}
-}  // namespace
-
 MainThreadStateMgr::MainThreadStateMgr()
     : current_state_{MT_INIT}, first_block_(true) {};
 

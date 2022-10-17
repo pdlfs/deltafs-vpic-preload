@@ -3,11 +3,20 @@
 #include "msgfmt.h"
 #include "preload_internal.h"
 
-// extern preload_ctx_t pctx;
-#define ARR2STR(arr, sz) PivotUtils::SerializeVector(arr, sz).c_str()
-#define VEC2STR(v) PivotUtils::SerializeVector(v).c_str()
-
 namespace {
+
+/* convert double array to string (only used for printing in debug log) */
+std::string darr2str(double *v, size_t vsz) {
+  std::string rv;
+  for (size_t i = 0 ; i < vsz ; i++) {
+    if (i == 0) {
+      rv = std::to_string(v[i]);
+    } else {
+      rv += "," + std::to_string(v[i]);
+    }
+  }
+  return rv;
+}
 
 /* Hash function, from
  * https://stackoverflow.com/questions/8317508/hash-function-for-a-string
@@ -480,7 +489,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
                            merged_width);
 
     logf(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)", my_rank_,
-         ARR2STR(merged_pivots, merged_pvtcnt), merged_width, merged_pvtcnt);
+         darr2str(merged_pivots, merged_pvtcnt), merged_width, merged_pvtcnt);
 
     logf(LOG_INFO, "rtp_handle_reneg_pivot: S%d at Rank %d, collected",
          stage_num, my_rank_);
@@ -559,7 +568,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   if (my_rank_ == 0) {
     logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
-         ARR2STR(pivots, num_pivots), pivot_width);
+         darr2str(pivots, num_pivots), pivot_width);
 
     logf(LOG_INFO, "-- carp round %d completed at rank 0 --", round_num_);
   }
