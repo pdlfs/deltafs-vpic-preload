@@ -79,6 +79,7 @@ Status Carp::ForceRenegotiation() {
   MutexLock ml(&mutex_);
   Status s = Status::OK();
   rtp_.InitRound();
+  rtp_.PrintStats();
   return s;
 }
 }  // namespace carp

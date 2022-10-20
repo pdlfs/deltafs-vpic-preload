@@ -189,6 +189,8 @@ Status RTP::InitRound() {
     carp_->cv_.Wait();
   }
 
+  reneg_bench_.MarkFinished();
+
   return s;
 }
 
@@ -278,6 +280,8 @@ Status RTP::InitTopology() {
 Status RTP::BroadcastBegin() {
   Status s = Status::OK();
   mutex_.AssertHeld();
+
+  reneg_bench_.MarkStart();
 
   logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d", my_rank_,
        root_[3]);
@@ -473,6 +477,8 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
        stage_num, my_rank_, src, stage_pivot_count);
 
   if (EXPECTED_ITEMS_FOR_STAGE(stage_num, stage_pivot_count)) {
+    reneg_bench_.MarkStageComplete(stage_num);
+
     double merged_pivots[merged_pvtcnt];
     double merged_width;
 
