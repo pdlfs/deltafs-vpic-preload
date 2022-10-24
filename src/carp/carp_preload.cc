@@ -39,9 +39,11 @@
  */
 
 #include <assert.h>
-#include "carp.h"
+#include <pdlfs-common/env.h>
+
 #include "../common.h"
 #include "../preload_internal.h"
+#include "carp.h"
 
 namespace pdlfs {
 namespace carp {
@@ -50,8 +52,8 @@ namespace carp {
  * carp_priority_callback: carp priority shuffle callback function.
  * we bounce this out to the preload's carp object.
  */
-static void carp_priority_callback(int src, int dst, uint32_t type,
-                                   void *d, uint32_t datalen) {
+static void carp_priority_callback(int src, int dst, uint32_t type, void* d,
+                                   uint32_t datalen) {
   pctx.carp->HandleMessage(d, datalen, src, type);
 }
 
@@ -60,8 +62,8 @@ static void carp_priority_callback(int src, int dst, uint32_t type,
  * to allocate and fill out carp options based on environment variable
  * settings.  returned option structure must be deleted by caller.
  */
-struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx) {
-  struct CarpOptions *opts = new pdlfs::carp::CarpOptions();
+struct CarpOptions* preload_init_carpopts(shuffle_ctx_t* sx) {
+  struct CarpOptions* opts = new pdlfs::carp::CarpOptions();
   const char* tmp;
 
   tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_size");
@@ -98,17 +100,8 @@ struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx) {
   tmp = maybe_getenv("RANGE_Reneg_interval");
   if (tmp != NULL) {
     opts->reneg_intvl = atoi(tmp);
-    opts->dynamic_intvl = atoi(tmp);
   } else {
     opts->reneg_intvl = pdlfs::kRenegInterval;
-    opts->dynamic_intvl = pdlfs::kRenegInterval;
-  }
-
-  tmp = maybe_getenv("RANGE_Dynamic_threshold");
-  if (tmp != NULL) {
-    opts->dynamic_thresh = atof(tmp);
-  } else {
-    opts->dynamic_thresh = pdlfs::kDynamicThreshold;
   }
 
 #define INIT_PVTCNT(arr, idx)                \
@@ -145,8 +138,8 @@ struct CarpOptions *preload_init_carpopts(shuffle_ctx_t *sx) {
  * to init the MPI-related CarpOptions fields after MPI_Init() has
  * run.
  */
-void preload_mpiinit_carpopts(preload_ctx_t *pc, struct CarpOptions *copts,
-                              const char *strippedpath) {
+void preload_mpiinit_carpopts(preload_ctx_t* pc, struct CarpOptions* copts,
+                              const char* strippedpath) {
   copts->my_rank = pc->my_rank;
   copts->num_ranks = pc->comm_sz;
   copts->mount_path = pc->local_root;
@@ -160,26 +153,25 @@ void preload_mpiinit_carpopts(preload_ctx_t *pc, struct CarpOptions *copts,
 
   if (copts->my_rank == 0) {
     logf(LOG_INFO, "[carp] CARP enabled!");
-    logf(LOG_INFO, "[carp] reneg_intvl: %" PRIu64
-                   ", reneg_thresh: %.3f, perflog: %d",
-         copts->reneg_intvl, copts->dynamic_thresh, copts->enable_perflog);
+    logf(LOG_INFO,
+         "[carp] reneg_policy: %s, reneg_intvl: %" PRIu64 ", perflog: %d",
+         copts->reneg_policy, copts->reneg_intvl, copts->enable_perflog);
   }
-
 }
 
 /*
  * preload_finalize_carp: clear out carp from a preload context.
  * called at MPI_Finalize time.
  */
-void preload_finalize_carp(preload_ctx_t *pc) {
+void preload_finalize_carp(preload_ctx_t* pc) {
   delete pc->carp;
   pc->carp = nullptr;
 
   delete pc->opts;
   pc->opts = nullptr;
 
-  pc->carp_on = 0;   /* to be safe */
+  pc->carp_on = 0; /* to be safe */
 }
 
-}  // carp namespace
-}  // pdlfs namespace
+}  // namespace carp
+}  // namespace pdlfs

@@ -13,7 +13,7 @@ Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
                        unsigned char svalue_len, unsigned char extra_data_len,
                        particle_mem_t& p) {
   Status s = Status::OK();
-  char *bp;
+  char* bp;
 
   memcpy(&p.indexed_prop, skey, sizeof(p.indexed_prop));
   p.buf_sz = skey_len + svalue_len + extra_data_len;
@@ -25,7 +25,7 @@ Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
   if (extra_data_len) {
     memset(bp + svalue_len, 0, extra_data_len);
   }
-  p.shuffle_dest = -1;    /* default to -1 (i.e. 'unknown') */
+  p.shuffle_dest = -1; /* default to -1 (i.e. 'unknown') */
 
   logf(LOG_DBG2, "Carp::Serialize: bufsz: %d", p.buf_sz);
   return s;
@@ -43,7 +43,8 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
     /* XXX: check RV */
     int rv = oob_buffer_.Insert(p);
     if (rv < 0) {
-      logf(LOG_INFO, "OOB Insert failed: %d", options_.my_rank);
+      logf(LOG_ERRO, "OOB Insert failed: %d", options_.my_rank);
+      ABORT("Oob insert failed!");
     }
   }
 
@@ -78,6 +79,7 @@ Status Carp::ForceRenegotiation() {
   MutexLock ml(&mutex_);
   Status s = Status::OK();
   rtp_.InitRound();
+  rtp_.PrintStats();
   return s;
 }
 }  // namespace carp

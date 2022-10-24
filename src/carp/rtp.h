@@ -38,6 +38,7 @@ class RenegBench {
  private:
   struct timespec round_start_;
   struct timespec activated_;
+  struct timespec stage_completed_[4];
   struct timespec pvt_bcast_;
   struct timespec round_end_;
 
@@ -47,9 +48,10 @@ class RenegBench {
   RenegBench();
   void MarkStart();
   void MarkActive();
+  void MarkStageComplete(int stage_num);
   void MarkPvtBcast();
   void MarkFinished();
-  void PrintStderr();
+  void PrintStats();
 };
 
 class RTPTest;
@@ -61,6 +63,9 @@ class RTP {
   Status InitRound();
   Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type);
   int NumRounds() const;
+  void PrintStats() {
+    reneg_bench_.PrintStats();
+  }
 
  private:
   Status InitTopology();

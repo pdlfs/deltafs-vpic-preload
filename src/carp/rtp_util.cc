@@ -26,34 +26,38 @@ void RenegBench::MarkStart() { clock_gettime(CLOCK_MONOTONIC, &round_start_); }
 
 void RenegBench::MarkActive() { clock_gettime(CLOCK_MONOTONIC, &activated_); }
 
+void RenegBench::MarkStageComplete(int stage_num) {
+  assert(stage_num <= 3);
+  clock_gettime(CLOCK_MONOTONIC, &stage_completed_[stage_num]);
+}
+
 void RenegBench::MarkPvtBcast() {
   is_root_ = true;
-  clock_gettime(CLOCK_MONOTONIC, &activated_);
+  clock_gettime(CLOCK_MONOTONIC, &pvt_bcast_);
 }
 
 void RenegBench::MarkFinished() { clock_gettime(CLOCK_MONOTONIC, &round_end_); }
 
-void RenegBench::PrintStderr() {
-  uint64_t start_to_end = calc_diff_us(&round_start_, &round_end_);
+void RenegBench::PrintStats() {
+  if (!is_root_) return;
 
-  uint64_t start_to_active = calc_diff_us(&round_start_, &activated_);
+  uint64_t ts_tmp;
+#define PRINT_TS(ts, msg)                 \
+  ts_tmp = calc_diff_us(&round_start_, &ts); \
+  logf(LOG_INFO, "%lu us: %s", ts_tmp, msg);
 
-  if (is_root_) {
-    uint64_t active_to_pvt = calc_diff_us(&activated_, &pvt_bcast_);
-    uint64_t pvt_to_end = calc_diff_us(&pvt_bcast_, &round_end_);
+  logf(LOG_INFO, "\n\nRTP Benchmark... printing timeline");
+  PRINT_TS(activated_, "RTP_BEGIN received");
+  PRINT_TS(stage_completed_[1], "Stage 1 completed");
+  PRINT_TS(stage_completed_[2], "Stage 2 completed");
+  PRINT_TS(stage_completed_[3], "Stage 3 completed");
+  PRINT_TS(pvt_bcast_, "Pivot Broadcast begun");
+  PRINT_TS(round_end_, "Round completed on RTP root\n");
 
-    fprintf(stderr,
-            "[[ BENCHMARK_RTP_ROOT ]] Time taken: "
-            "%lu us/%lu us/%lu us (%lu us)\n",
-            start_to_active, active_to_pvt, pvt_to_end, start_to_end);
-  } else {
-    uint64_t active_to_end = calc_diff_us(&activated_, &round_end_);
-
-    fprintf(stderr,
-            "[[ BENCHMARK_RTP ]] Time taken: "
-            "%lu us/%lu us (%lu us)\n",
-            start_to_active, active_to_end, start_to_end);
-  }
+  // logf(LOG_INFO,
+       // "[[ BENCHMARK_RTP_ROOT ]] Time taken: "
+       // "%lu us/%lu us/%lu us (%lu us)\n",
+       // start_to_active, active_to_pvt, pvt_to_end, start_to_end);
 }
 }  // namespace carp
 }  // namespace pdlfs

@@ -42,6 +42,12 @@ typedef struct particle_mem {
  * out of bounds particles can either be before the minimum value of
  * our range (i.e. to the "left" of our range on a floating point
  * number line) or past the maximum value of out range (to the right).
+ *
+ * Semantics: OobBuffer is initialized with a maximum size, but will accept
+ * inserted beyond its configured size, but will report IsFull=true if in
+ * overflowed state. It is up to the user of this class to ensure that the OOB
+ * Buffer does not go into the overflow state if a constant memory footprint is
+ * desired.
  */
 class OobBuffer {
  public:
@@ -65,8 +71,8 @@ class OobBuffer {
 
   //
   // copy/append the particle "item" to the oob buffer.  the particle
-  // should be OutOfBounds().  return 0 on success, -1 if OobBuffer full
-  // or the particle is !OutOfBounds().
+  // should be OutOfBounds().  return 0 on success, -1 if the
+  // particle is !OutOfBounds().
   //
   int Insert(particle_mem_t& item);
 
@@ -76,11 +82,10 @@ class OobBuffer {
   size_t Size() const { return buf_.size(); }
 
   //
-  // return true if the OobBuffer has reached its size limit
+  // return true if the OobBuffer has reached/exceeded its size limit
   //
   bool IsFull() const {
-    assert(buf_.size() <= oob_max_sz_);
-    return buf_.size() == oob_max_sz_;
+    return buf_.size() >= oob_max_sz_;
   }
 
   //
@@ -112,6 +117,24 @@ class OobBuffer {
   }
 
  private:
+  //
+  // Resizes OobBuffer, relinquishing extra memory.
+  // Only used by the destructor of OobFlushIterator, where it can
+  // never grow in size.
+  //
+  void Resize(size_t new_size) {
+    assert(new_size <= buf_.size());
+    buf_.resize(new_size);
+    // arbitrary heuristic for relinquishing memory
+    // create a new vector with buf_ data and swap it in
+    // can also use shrink_to_fit (c++11)
+    if ((buf_.capacity() > 2*oob_max_sz_) and (new_size < oob_max_sz_)) {
+      std::vector<particle_mem_t> tmp(buf_);
+      tmp.reserve(oob_max_sz_);
+      buf_.swap(tmp);
+    }
+  }
+
   //
   // Takes in a sorted array, removes duplicates (approx comparison), prints
   // warnings if duplicates are dropped
@@ -158,7 +181,7 @@ class OobFlushIterator {
   //
   // dtor.  empty out the buf_, except for any preserved entries.
   //
-  ~OobFlushIterator() { buf_.buf_.resize(preserve_idx_); }
+  ~OobFlushIterator() { buf_.Resize(preserve_idx_); }
 
   //
   // return current oob particle

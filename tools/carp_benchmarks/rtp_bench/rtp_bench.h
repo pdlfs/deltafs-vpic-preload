@@ -56,6 +56,7 @@ class RTPBench {
     if (my_rank_ == 0) {
       for (size_t n = 0; n < opts_.nwarmup; n++) {
         TriggerRound(/* untimed */ true);
+        usleep(100000); // to allow pivots to be received by other ranks
       }
 
       for (size_t n = 0; n < opts_.nrounds; n++) {

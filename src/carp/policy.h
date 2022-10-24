@@ -4,11 +4,12 @@
 
 #pragma once
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 
+#include "common.h"
 #include "oob_buffer.h"
-#include "stat_trigger.h"
 
 namespace pdlfs {
 namespace carp {
@@ -31,15 +32,20 @@ class InvocationPolicy {
 
   bool IsOobFull();
 
+  const CarpOptions& options_;
+  Carp& carp_;
+
+  const uint64_t invoke_intvl_;
   uint32_t epoch_;
   uint64_t num_writes_;
-  Carp& carp_;
-  const CarpOptions& options_;
 };
 
-class InvocationPeriodic : public InvocationPolicy {
+/* InvocationIntraEpoch: triggers every reneg_intvl writes
+ * OR if OOB buffer is full
+ */
+class InvocationIntraEpoch : public InvocationPolicy {
  public:
-  InvocationPeriodic(Carp& carp, const CarpOptions& options);
+  InvocationIntraEpoch(Carp& carp, const CarpOptions& options);
 
   bool TriggerReneg() override;
 
@@ -54,50 +60,48 @@ class InvocationPeriodic : public InvocationPolicy {
     InvocationPolicy::ComputeShuffleTarget(p, rank);
     return rank;
   }
-
- private:
-  const uint64_t invoke_intvl_;
 };
 
-class InvocationDynamic : public InvocationPeriodic {
+/* InvocationInterEpoch: triggers ONCE every reneg_intvl epochs
+ * buffer in OOB until first reneg of the epoch
+ *
+ * This policy only triggers on Rank 0. If a reneg is to be
+ * triggered in the current epoch, writes for that epoch will be
+ * buffered in OOB buffers on all ranks until the OOB on Rank 0
+ * fills up and triggers a reneg. OOBs on other ranks may be in
+ * overflow state by then.
+ *
+ * Once a reneg has been triggered, a shuffle target will always be
+ * returned, and no rank will be asked to buffer any particle in an
+ * OobBuffer
+ */
+class InvocationInterEpoch : public InvocationPolicy {
  public:
-  InvocationDynamic(Carp& carp, const CarpOptions& options);
-
-  bool TriggerReneg() override;
-
-  void AdvanceEpoch() override;
-
- private:
-  StatTrigger stat_trigger_;
-};
-
-class InvocationPerEpoch : public InvocationPolicy {
- public:
-  InvocationPerEpoch(Carp& carp, const CarpOptions& options)
+  InvocationInterEpoch(Carp& carp, const CarpOptions& options)
       : InvocationPolicy(carp, options), reneg_triggered_(false) {}
 
-  bool BufferInOob(particle_mem_t& p) override { return !reneg_triggered_; }
+  bool BufferInOob(particle_mem_t& p) override {
+    // reneg_triggered_ reflects this rank's policy decision
+    // FirstRenegCompleted() checks whether any rank triggered a reneg
+    return !FirstRenegCompleted();
+  }
 
   bool TriggerReneg() override;
 
   void AdvanceEpoch() override {
-    Reset();
     epoch_++;
-    reneg_triggered_ = false;
+
+    // epochs are 1-indexed, comparison is 0-indexed
+    if ((epoch_ - 1) % invoke_intvl_ == 0) {
+      Reset();
+      reneg_triggered_ = false;
+    }
   }
 
   int ComputeShuffleTarget(particle_mem_t& p) override;
 
  private:
   bool reneg_triggered_;
-};
-
-class InvocationOnce : public InvocationPerEpoch {
- public:
-  InvocationOnce(Carp& carp, const CarpOptions& options)
-      : InvocationPerEpoch(carp, options) {}
-  // Don't Reset
-  void AdvanceEpoch() override { epoch_++; }
 };
 }  // namespace carp
 }  // namespace pdlfs

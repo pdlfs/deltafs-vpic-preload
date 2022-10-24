@@ -5,19 +5,18 @@
 #pragma once
 
 #include <float.h>
-#include "msgfmt.h"
 #include <pdlfs-common/status.h>
-#include "range_constants.h"
-#include "range_utils.h"
 
 #include "carp_utils.h"
+#include "msgfmt.h"
 #include "oob_buffer.h"
 #include "pdlfs-common/mutexlock.h"
 #include "policy.h"
 #include "preload_shuffle.h"
+#include "range_constants.h"
+#include "range_utils.h"
 /* XXX: temporarily for range-utils, refactor ultimately */
 #include "rtp.h"
-
 #include "shuffle_write_range.h"
 
 namespace pdlfs {
@@ -32,37 +31,34 @@ namespace carp {
  * name is given.
  */
 struct CarpOptions {
-  int index_attr_size;       /* sizeof indexed attr, default=sizeof(float) */
-                             /* note: currenly only float is supported */
-                             /* (PRELOAD_Particle_indexed_attr_size) */
-  int index_attr_offset;     /* offset in particle buf of indexed attr */
-                             /* default: 0 */
-                             /* (PRELOAD_Particle_indexed_attr_offset) */
-  uint32_t oob_sz;           /* max #particles in oob buf (RANGE_Oob_size) */
-  const char* reneg_policy;  /* InvocationDynamic, InvocationPeriodic (def), */
-                             /* InvocationOnce. (RANGE_Reneg_policy) */
-  uint64_t reneg_intvl;      /* periodic: reneg every reneg_intvl writes */
-                             /*   (RANGE_Reneg_interval) */
-  uint32_t dynamic_intvl;    /* stat: invoke every dynamic_intvl calls */
-                             /*   (RANGE_Reneg_interval) */
-  float dynamic_thresh;      /* stat: evaltrigger if load_skew > trigger */
-                             /*   (RANGE_Dynamic_threshold) */
-  int rtp_pvtcnt[4];         /* # of RTP pivots gen'd by each stage */
-                             /* RANGE_Pvtcnt_s{1,2,3} */
-  Env* env;                  /* stat: for GetFileSize() in StatFiles() */
-                             /* normally set to Env::Default() */
-  shuffle_ctx_t* sctx;       /* shuffle context */
-  uint32_t my_rank;          /* my MPI rank */
-  uint32_t num_ranks;        /* MPI world size */
-  int enable_perflog;        /* non-zero to enable perflog */
-  const char *log_home;      /* where to put perflog (if enabled) */
-  std::string mount_path;    /* mount_path (set from preload MPI_Init) */
+  int index_attr_size;      /* sizeof indexed attr, default=sizeof(float) */
+                            /* note: currenly only float is supported */
+                            /* (PRELOAD_Particle_indexed_attr_size) */
+  int index_attr_offset;    /* offset in particle buf of indexed attr */
+                            /* default: 0 */
+                            /* (PRELOAD_Particle_indexed_attr_offset) */
+  uint32_t oob_sz;          /* max #particles in oob buf (RANGE_Oob_size) */
+  const char* reneg_policy; /* InvocationIntraEpoch, */
+                            /* InvocationInterEpoch (def) */
+                            /*   (RANGE_Reneg_policy) */
+  uint64_t reneg_intvl;     /* periodic: reneg every reneg_intvl writes */
+                            /*   (RANGE_Reneg_interval) */
+  int rtp_pvtcnt[4];        /* # of RTP pivots gen'd by each stage */
+                            /* RANGE_Pvtcnt_s{1,2,3} */
+  Env* env;                 /* stat: for GetFileSize() in StatFiles() */
+                            /* normally set to Env::Default() */
+  shuffle_ctx_t* sctx;      /* shuffle context */
+  uint32_t my_rank;         /* my MPI rank */
+  uint32_t num_ranks;       /* MPI world size */
+  int enable_perflog;       /* non-zero to enable perflog */
+  const char* log_home;     /* where to put perflog (if enabled) */
+  std::string mount_path;   /* mount_path (set from preload MPI_Init) */
 };
 
 struct perflog_state {
-  port::Mutex mtx;           /* mutex for perfstats */
-  FILE *fp;                  /* open FILE we write stats to */
-  pthread_t thread;          /* profiling thread making periodic output */
+  port::Mutex mtx;  /* mutex for perfstats */
+  FILE* fp;         /* open FILE we write stats to */
+  pthread_t thread; /* profiling thread making periodic output */
 };
 
 class Carp {
@@ -88,18 +84,13 @@ class Carp {
     clock_gettime(CLOCK_MONOTONIC, &start_time_);
     perflog_.fp = NULL;
 
-#define POLICY_IS(s) (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
+#define POLICY_IS(s) \
+  (s != nullptr) and (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
 
-    if (options_.reneg_policy == nullptr) {
-      policy_ = new InvocationPeriodic(*this, options_);
-    } else if(POLICY_IS("InvocationDynamic")) {
-      policy_ = new InvocationDynamic(*this, options_);
-    } else if (POLICY_IS("InvocationPeriodic")) {
-      policy_ = new InvocationPeriodic(*this, options_);
-    } else if (POLICY_IS("InvocationOnce")) {
-      policy_ = new InvocationOnce(*this, options_);
+    if (POLICY_IS(pdlfs::kRenegPolicyIntraEpoch)) {
+      policy_ = new InvocationIntraEpoch(*this, options);
     } else {
-      policy_ = new InvocationPeriodic(*this, options_);
+      policy_ = new InvocationInterEpoch(*this, options);
     }
 
     if (options_.enable_perflog) {
@@ -158,7 +149,7 @@ class Carp {
   int NumRounds() const { return rtp_.NumRounds(); }
 
   void BackendWriteCounter(uint64_t b) {
-    backend_wr_bytes_ += b;  /* stat cnt, XXX assume ok w/o lock */
+    backend_wr_bytes_ += b; /* stat cnt, XXX assume ok w/o lock */
   }
 
   void LogReneg(int round_num) {
@@ -167,10 +158,10 @@ class Carp {
   void LogAggrBinCount() {
     if (PerflogOn()) PerflogAggrBinCount();
   }
-  void LogMyPivots(double *pivots, int num_pivots, const char *lab) {
+  void LogMyPivots(double* pivots, int num_pivots, const char* lab) {
     if (PerflogOn()) PerflogMyPivots(pivots, num_pivots, lab);
   }
-  void LogVec(std::vector<uint64_t>& vec, const char *vlabel) {
+  void LogVec(std::vector<uint64_t>& vec, const char* vlabel) {
     if (PerflogOn()) PerflogVec(vec, vlabel);
   }
   void LogPrintf(const char* fmt, ...) {
@@ -228,21 +219,21 @@ class Carp {
   }
 
   void PerflogStartup();
-  static void *PerflogMain(void *arg);
+  static void* PerflogMain(void* arg);
   void PerflogDestroy();
   int PerflogOn() { return perflog_.fp != NULL; }
   void PerflogReneg(int round_num);
   void PerflogAggrBinCount();
-  void PerflogMyPivots(double *pivots, int num_pivots, const char *lab);
-  void PerflogVec(std::vector<uint64_t>& vec, const char *vlabel);
+  void PerflogMyPivots(double* pivots, int num_pivots, const char* lab);
+  void PerflogVec(std::vector<uint64_t>& vec, const char* vlabel);
   void PerflogVPrintf(const char* fmt, va_list ap);
 
  private:
-  const CarpOptions& options_;    /* configuration options */
+  const CarpOptions& options_; /* configuration options */
   MainThreadStateMgr mts_mgr_;
-  struct timespec start_time_;    /* time carp object was created */
-  uint64_t backend_wr_bytes_;     /* total #bytes written to backend */
-  struct perflog_state perflog_;  /* perfstats log (if enabled) */
+  struct timespec start_time_;   /* time carp object was created */
+  uint64_t backend_wr_bytes_;    /* total #bytes written to backend */
+  struct perflog_state perflog_; /* perfstats log (if enabled) */
 
   RTP rtp_;
   int epoch_;
