@@ -1,3 +1,27 @@
+# Copy MPI hacks from parent CMakeLists. Is there a cleaner way?
+function(link_with_mpi_manual tgt)
+    message("Target ${tgt}")
+    foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
+        if (NOT ${lcv} STREQUAL "")
+            target_compile_options(${tgt}
+                    PUBLIC $<BUILD_INTERFACE:${lcv}>)
+        endif ()
+    endforeach ()
+
+    # XXX: have to do this one dir at a time
+    foreach (lcv ${MPI_CXX_INCLUDE_PATH})
+        target_include_directories(${tgt}
+                PUBLIC $<BUILD_INTERFACE:${lcv}>)
+    endforeach ()
+
+    foreach (lcv ${MPI_CXX_LIBRARIES})
+        target_link_libraries(${tgt} $<BUILD_INTERFACE:${lcv}>)
+    endforeach ()
+
+    set_property(TARGET ${tgt} APPEND PROPERTY LINK_FLAGS
+            ${MPI_CXX_LINK_FLAGS})
+endfunction()
+
 set(CARP_SOURCES
         carp/carp.cc
         carp/carp_perflog.cc
@@ -50,29 +74,5 @@ target_link_libraries(carp-base
 target_include_directories(carp-base PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/>)
 
-add_executable(rtp-bench-runner rtp_bench_runner.cc rtp_bench.cc)
-target_link_libraries(rtp-bench-runner carp-base)
-
-# Copy MPI hacks from parent CMakeLists. Is there a cleaner way?
-foreach (lcv ${MPI_CXX_COMPILE_FLAGS_LIST})
-    if (NOT ${lcv} STREQUAL "")
-        target_compile_options(rtp-bench-runner
-                PUBLIC $<BUILD_INTERFACE:${lcv}>)
-    endif ()
-endforeach ()
-
-# XXX: have to do this one dir at a time
-foreach (lcv ${MPI_CXX_INCLUDE_PATH})
-    target_include_directories(rtp-bench-runner
-            PUBLIC $<BUILD_INTERFACE:${lcv}>)
-endforeach ()
-
-foreach (lcv ${MPI_CXX_LIBRARIES})
-    target_link_libraries(rtp-bench-runner $<BUILD_INTERFACE:${lcv}>)
-endforeach ()
-
-set_property(TARGET rtp-bench-runner APPEND PROPERTY LINK_FLAGS
-        ${MPI_CXX_LINK_FLAGS})
-
-install(TARGETS rtp-bench-runner
-        RUNTIME DESTINATION bin)
+add_subdirectory(pivot_bench)
+add_subdirectory(rtp_bench)
