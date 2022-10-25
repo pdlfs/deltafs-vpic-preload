@@ -719,6 +719,7 @@ struct plfsdir_conf {
   int force_leveldb_format;
   int unordered_storage;
   int skip_checksums;
+  int skip_sort;
   int io_engine;
 };
 
@@ -760,12 +761,18 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
     dirc.memtable_size = DEFAULT_MEMTABLE_SIZE;
   }
 
+  if (is_envset("PLFSDIR_Skip_sort")) {
+    dirc.skip_sort = 1;
+  }
+
   n += snprintf(tmp + n, sizeof(tmp) - n, "&key_size=%s", dirc.key_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&value_size=%d", pctx.value_size);
-  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
-                dirc.memtable_size);
   n += snprintf(tmp + n, sizeof(tmp) - n, "&bf_bits_per_key=%s",
                 dirc.bits_per_key);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&memtable_size=%s",
+                dirc.memtable_size);
+  n += snprintf(tmp + n, sizeof(tmp) - n, "&skip_sort=%d",
+                dirc.skip_sort);
 
   if (is_envset("PLFSDIR_Use_plaindb")) {
     *io_engine = DELTAFS_PLFSDIR_PLAINDB;
