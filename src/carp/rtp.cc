@@ -25,95 +25,6 @@ uint32_t hash_str(const char* data, int slen) {
   }
   return h % C;
 }
-
-inline int cube(int x) { return x * x * x; }
-
-inline int square(int x) { return x * x; }
-
-int compute_fanout_better(int world_sz, int* fo_arr) {
-  int rv = 0;
-
-  /* Init fanout of the tree for each stage */
-  if (world_sz % 4) {
-    ABORT("RTP world size must be a multiple of 4");
-  }
-
-  /* base setup */
-  fo_arr[1] = 1;
-  fo_arr[2] = 1;
-  fo_arr[3] = world_sz;
-
-  int wsz_remain = world_sz;
-  double root = pow(wsz_remain, 1.0 / 3);
-  int f1_cand = (int)root;
-
-  while (f1_cand < wsz_remain) {
-    if (wsz_remain % f1_cand == 0) {
-      fo_arr[1] = f1_cand;
-      wsz_remain /= f1_cand;
-      break;
-    }
-
-    f1_cand++;
-  }
-
-  root = pow(wsz_remain, 1.0 / 2);
-  int f2_cand = (int)root;
-
-  while (f2_cand < wsz_remain) {
-    if (wsz_remain % f2_cand == 0) {
-      fo_arr[2] = f2_cand;
-      wsz_remain /= f2_cand;
-      break;
-    }
-
-    f2_cand++;
-  }
-
-  fo_arr[3] = world_sz / (fo_arr[1] * fo_arr[2]);
-  assert(fo_arr[3] * fo_arr[2] * fo_arr[1] == world_sz);
-
-  if (pctx.my_rank == 0)
-    logf(LOG_INFO, "RTP Fanout: %d/%d/%d", fo_arr[1], fo_arr[2], fo_arr[3]);
-
-  return rv;
-}
-
-int compute_fanout(const int world_sz, int* fo_arr) {
-  int rv = 0;
-
-  /* Init fanout of the tree for each stage */
-  if (world_sz % 4) {
-    ABORT("RTP world size must be a multiple of 4");
-  }
-
-  int wsz_remain = world_sz;
-
-  int fo_tmp = 1;
-  while (cube(fo_tmp + 1) <= world_sz) {
-    fo_tmp++;
-    if (wsz_remain % fo_tmp == 0) {
-      fo_arr[3] = fo_tmp;
-    }
-  }
-  assert(fo_arr[3] >= 2);
-  wsz_remain = world_sz / fo_arr[3];
-  fo_tmp = 1;
-
-  while (square(fo_tmp + 1) <= world_sz) {
-    fo_tmp++;
-    if (wsz_remain % fo_tmp == 0) {
-      fo_arr[2] = fo_tmp;
-    }
-  }
-
-  fo_arr[1] = world_sz / (fo_arr[2] * fo_arr[3]);
-
-  if (pctx.my_rank == 0)
-    logf(LOG_INFO, "RTP Fanout: %d/%d/%d", fo_arr[1], fo_arr[2], fo_arr[3]);
-
-  return rv;
-}
 }  // namespace
 
 namespace pdlfs {
@@ -231,7 +142,9 @@ Status RTP::InitTopology() {
   grank = my_rank_;
   gsz = num_ranks_;
 
-  compute_fanout_better(gsz, fanout_);
+  RTPUtil::ComputeTreeFanout(gsz, fanout_);
+  if (my_rank_ == 0)
+    logf(LOG_INFO, "RTP Fanout: %d/%d/%d", fanout_[1], fanout_[2], fanout_[3]);
 
   /* Init peers for each stage */
   int s1mask = ~(fanout_[1] - 1);
@@ -644,9 +557,6 @@ void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
 
   std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
-
-  std::vector<double> samples;
-  std::vector<int> sample_counts;
 
   std::vector<double> pivot_widths;
 

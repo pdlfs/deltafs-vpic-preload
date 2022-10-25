@@ -32,6 +32,14 @@ namespace carp {
 class Carp;
 struct CarpOptions;
 /**
+ * @brief RTP Utility class - currently only for fanout compute code
+ */
+class RTPUtil {
+ public:
+  static int ComputeTreeFanout(int world_sz, int* fanout_arr);
+};
+
+/**
  * @brief Benchmarking utility.
  */
 class RenegBench {
