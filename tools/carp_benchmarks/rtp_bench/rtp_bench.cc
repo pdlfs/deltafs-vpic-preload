@@ -139,6 +139,10 @@ void RTPBench::InitParams() {
   pctx.opts->num_ranks = pctx.comm_sz;
   pctx.opts->my_rank = pctx.my_rank;
 
+  pctx.opts->rtp_pvtcnt[1] = opts_.pvtcnt;
+  pctx.opts->rtp_pvtcnt[2] = opts_.pvtcnt;
+  pctx.opts->rtp_pvtcnt[3] = opts_.pvtcnt;
+
 #undef SETENV
 }
 }  // namespace carp
