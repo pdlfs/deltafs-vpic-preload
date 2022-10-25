@@ -189,7 +189,37 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
 
   shuffle_opts_init(&so);
   shuffle_prepare_uri(uri);     /* uri is an 'out', XXX: uri fixed sized */
-  hgcls = HG_Init(uri, HG_TRUE);
+
+  /* can't use HG_INIT_INFO_INTIIALIZER; does not work with g++ */
+  struct hg_init_info initinfo;
+  initinfo.na_init_info.ip_subnet = NULL;
+  initinfo.na_init_info.auth_key = NULL;
+  initinfo.na_init_info.max_unexpected_size = 0;
+  initinfo.na_init_info.max_expected_size = 0;
+  initinfo.na_init_info.max_contexts = 0;
+  initinfo.na_init_info.thread_mode = 0;
+
+  initinfo.na_class = NULL;
+  initinfo.request_post_init = 0;
+  initinfo.request_post_incr = 0;
+  initinfo.auto_sm = HG_FALSE;
+  initinfo.sm_info_string = NULL;
+  initinfo.no_bulk_eager = HG_FALSE;
+  initinfo.no_loopback = HG_FALSE;
+  initinfo.stats = HG_FALSE;
+
+  env = maybe_getenv("XX_HG_POLL");
+  if (env == NULL || atoi(env) == 0) {
+    initinfo.na_init_info.progress_mode = 0;
+    if (pctx.my_rank == 0)
+      logf(LOG_INFO, "shuffle: polling mode OFF");
+  } else {
+    initinfo.na_init_info.progress_mode = NA_NO_BLOCK;
+    if (pctx.my_rank == 0)
+      logf(LOG_INFO, "shuffle: polling mode ON");
+  }
+
+  hgcls = HG_Init_opt(uri, HG_TRUE, &initinfo);
   if (!hgcls) {
     ABORT("xn_shuffle_init:HG_Init net");
   }
@@ -215,7 +245,7 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
   } else if ((env = maybe_getenv("NEXUS_ALT_LOCAL")) != NULL) {
 
     /* use an alternate local mercury */
-    hgcls = HG_Init(env, HG_TRUE);
+    hgcls = HG_Init_opt(env, HG_TRUE, &initinfo);
     if (!hgcls) {
       ABORT("xn_shuffle_init:HG_Init alt-local");
     }
