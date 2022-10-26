@@ -222,7 +222,7 @@ static void* rpc_work(void* arg) {
   todo.reserve(MAX_WORK_ITEM);
 #ifndef NDEBUG
   if (pctx.verbose || pctx.my_rank == 0) {
-    logf(LOG_INFO, "[bg] rpc worker up (rank %d)", pctx.my_rank);
+    flog(LOG_INFO, "[bg] rpc worker up (rank %d)", pctx.my_rank);
   }
 #endif
 
