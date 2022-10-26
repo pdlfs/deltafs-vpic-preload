@@ -75,88 +75,57 @@ template std::string PivotUtils::SerializeVector<double>(
     std::vector<double>& v);
 template std::string PivotUtils::SerializeVector<double>(double* v, size_t vsz);
 
-int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
-  carp->mutex_.AssertHeld();
-
-  Pivots& pivots = carp->pivots_;
-  pivots.Resize(num_pivots);
-  // TODO: do we really need kMaxPivots any more
-  assert(num_pivots <= pdlfs::kMaxPivots);
-
+int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
+                                size_t num_pivots) {
   int rv = 0;
 
-  const MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
-  const MainThreadState cur_state = carp->mts_mgr_.GetState();
-
-  pivots.width_ = 0;
-
-  assert(cur_state == MainThreadState::MT_BLOCK);
-
-  if (carp->mts_mgr_.FirstBlock()) {
-    rv = CalculatePivotsFromOob(carp, num_pivots);
+  assert(pivots->Size() == num_pivots);
+  if (pvt_ctx->first_block) {
+    rv = CalculatePivotsFromOob(pvt_ctx, pivots, num_pivots);
   } else {
-    rv = CalculatePivotsFromAll(carp, num_pivots);
+    rv = CalculatePivotsFromAll(pvt_ctx, pivots, num_pivots);
   }
 
-  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank, pivots.width_);
-
-  if (pivots.width_ < 1e-3) {
-    float mass_per_pivot = 1.0f / (num_pivots - 1);
-    pivots.width_ = mass_per_pivot;
-
-    for (int pidx = 0; pidx < num_pivots; pidx++) {
-      pivots.pivots_[pidx] = mass_per_pivot * pidx;
-    }
-  }
-
-  for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
-    assert(pivots.pivots_[pidx] <= pivots.pivots_[pidx + 1]);
-  }
+  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
+       pivots->width_);
 
   return rv;
 }
 
-int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
-  carp->mutex_.AssertHeld();
-  Pivots& pivots = carp->pivots_;
-
+int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
+                                       size_t num_pivots) {
   int rv = 0;
 
-  std::vector<float> oobl, oobr;
+  assert(pvt_ctx->oob_right.size() == 0);
+  const int oob_left_sz = pvt_ctx->oob_left.size();
 
-  pdlfs::carp::OobBuffer* oob = &(carp->oob_buffer_);
-  carp->oob_buffer_.GetPartitionedProps(oobl, oobr);
+  if (oob_left_sz < 2) return 0;
 
-  assert(oobr.size() == 0);
-  const int oobl_sz = oobl.size();
+  const float range_min = pvt_ctx->oob_left[0];
+  const float range_max = pvt_ctx->oob_left[oob_left_sz - 1];
 
-  if (oobl_sz < 2) return 0;
+  pivots->pivots_[0] = range_min;
+  pivots->pivots_[num_pivots - 1] = range_max;
 
-  const float range_min = oobl[0];
-  const float range_max = oobl[oobl_sz - 1];
-
-  pivots.pivots_[0] = range_min;
-  pivots.pivots_[num_pivots - 1] = range_max;
-
-  pivots.width_ = oobl_sz * 1.0 / num_pivots;
+  pivots->width_ = oob_left_sz * 1.0 / num_pivots;
 
   /* for computation purposes, we need to reserve one, so as to always have
    * two points of interpolation */
 
-  float part_per_pivot = (oobl_sz - 1) * 1.0 / num_pivots;
+  float part_per_pivot = (oob_left_sz - 1) * 1.0 / num_pivots;
 
   for (int pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
     float oob_idx = part_per_pivot * pvt_idx;
     int oob_idx_trunc = (int)oob_idx;
 
-    assert(oob_idx_trunc + 1 < oobl_sz);
+    assert(oob_idx_trunc + 1 < oob_left_sz);
 
-    float val_a = oobl[oob_idx_trunc];
-    float val_b = oobl[oob_idx_trunc + 1];
+    float val_a = pvt_ctx->oob_left[oob_idx_trunc];
+    float val_b = pvt_ctx->oob_left[oob_idx_trunc + 1];
 
     float frac_a = oob_idx - (float)oob_idx_trunc;
     float pvt = WeightedAverage(val_a, val_b, frac_a);
-    pivots.pivots_[pvt_idx] = pvt;
+    pivots->pivots_[pvt_idx] = pvt;
   }
 
   return rv;
@@ -168,42 +137,34 @@ int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
  * case even if there's only one pivot. XXX: We're not sure whether
  * that's currently the case
  * */
-int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
-  carp->mutex_.AssertHeld();
-
-  Pivots& pivots = carp->pivots_;
-  OrderedBins& bins = carp->bins_;
-
+int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
+                                       size_t num_pivots) {
+  OrderedBins* bins = pvt_ctx->bins;
   assert(num_pivots <= pdlfs::kMaxPivots);
 
-  const float prev_range_begin = carp->GetRange().rmin();
-  const float prev_range_end = carp->GetRange().rmax();
+  const float prev_range_begin = pvt_ctx->range.rmin();
+  const float prev_range_end = pvt_ctx->range.rmax();
 
   float range_start, range_end;
-  std::vector<float> oobl, oobr;
 
-  pdlfs::carp::OobBuffer* oob = &(carp->oob_buffer_);
-  oob->GetPartitionedProps(oobl, oobr);
-
-  GetRangeBounds(carp, oobl, oobr, range_start, range_end);
+  GetRangeBounds(pvt_ctx, range_start, range_end);
   assert(range_end >= range_start);
 
-  int oobl_sz = oobl.size(), oobr_sz = oobr.size();
+  int oob_left_sz = pvt_ctx->oob_left.size(),
+      oob_right_sz = pvt_ctx->oob_right.size();
 
-  float particle_count = bins.GetTotalMass();
+  float particle_count = bins->GetTotalMass();
 
-  int my_rank = pctx.my_rank;
+  pivots->pivots_[0] = range_start;
+  pivots->pivots_[num_pivots - 1] = range_end;
 
-  pivots.pivots_[0] = range_start;
-  pivots.pivots_[num_pivots - 1] = range_end;
-
-  particle_count += (oobl_sz + oobr_sz);
+  particle_count += (oob_left_sz + oob_right_sz);
 
   int cur_pivot = 1;
   float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
 
   if (part_per_pivot < 1e-5) {
-    pivots.FillZeros();
+    pivots->FillZeros();
     return 0;
   }
 
@@ -217,7 +178,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
   // "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
   // "rbc: %s (%zu)\n"
   // "bin: %s (%zu)\n",
-  // pctx.my_rank, oobl_sz, oobr_sz, range_start, range_end,
+  // pctx.my_rank, pvt_ctx->oob_left_sz, pvt_ctx->oob_right_sz, range_start, range_end,
   // particle_count, SerializeVector(ff).c_str(), ff.size(),
   // SerializeVector(gg).c_str(), gg.size());
   /**********************/
@@ -231,7 +192,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
 
   float oob_idx = 0;
   while (1) {
-    float part_left = oobl_sz - oob_idx;
+    float part_left = oob_left_sz - oob_idx;
     if (part_per_pivot < 1e-5 || part_left < part_per_pivot) {
       particles_carried_over += part_left;
       break;
@@ -242,15 +203,16 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     float part_idx = accumulated_ppp;
     int part_idx_trunc = (int)accumulated_ppp;
 
-    if (part_idx_trunc >= oobl_sz) break;
+    if (part_idx_trunc >= oob_left_sz) break;
 
     float frac_a = part_idx - (float)part_idx_trunc;
-    float val_a = oobl[part_idx_trunc];
-    float val_b = (part_idx_trunc + 1 < oobl_sz) ? oobl[part_idx_trunc + 1]
-                                                 : prev_range_begin;
+    float val_a = pvt_ctx->oob_left[part_idx_trunc];
+    float val_b = (part_idx_trunc + 1 < oob_left_sz)
+                      ? pvt_ctx->oob_left[part_idx_trunc + 1]
+                      : prev_range_begin;
     assert(val_b > val_a);
 
-    pivots.pivots_[cur_pivot] = (1 - frac_a) * val_a + (frac_a)*val_b;
+    pivots->pivots_[cur_pivot] = (1 - frac_a) * val_a + (frac_a)*val_b;
     cur_pivot++;
 
     oob_idx = accumulated_ppp;
@@ -258,12 +220,12 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
 
   int bin_idx = 0;
 
-  for (int bidx = 0; bidx < bins.Size() - 1; bidx++) {
-    const double cur_bin_total = bins.counts_[bidx];
-    double cur_bin_left = bins.counts_[bidx];
+  for (int bidx = 0; bidx < bins->Size() - 1; bidx++) {
+    const double cur_bin_total = bins->counts_[bidx];
+    double cur_bin_left = bins->counts_[bidx];
 
-    double bin_start = bins.bins_[bidx];
-    double bin_end = bins.bins_[bidx + 1];
+    double bin_start = bins->bins_[bidx];
+    double bin_end = bins->bins_[bidx + 1];
     const double bin_width_orig = bin_end - bin_start;
 
     while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
@@ -274,7 +236,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
       double width_to_remove = take_from_bin / cur_bin_total * bin_width_orig;
 
       bin_start += width_to_remove;
-      pivots.pivots_[cur_pivot] = bin_start;
+      pivots->pivots_[cur_pivot] = bin_start;
 
       cur_pivot++;
 
@@ -295,7 +257,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
   oob_idx = 0;
 
   while (1) {
-    float part_left = oobr_sz - oob_idx;
+    float part_left = oob_right_sz - oob_idx;
     if (part_per_pivot < 1e-5 ||
         part_left + particles_carried_over < part_per_pivot + 1e-5) {
       particles_carried_over += part_left;
@@ -306,7 +268,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     int next_idx_trunc = (int)next_idx;
     particles_carried_over = 0;
 
-    if (next_idx_trunc >= oobr_sz) break;
+    if (next_idx_trunc >= oob_right_sz) break;
 
     /* Current pivot is computed from fractional index weighted average,
      * we interpolate between current index and next, if next index is out of
@@ -315,11 +277,11 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     float frac_b = next_idx - next_idx_trunc;
     assert(frac_b >= 0);
 
-    float val_b = oobr[next_idx_trunc];
+    float val_b = pvt_ctx->oob_right[next_idx_trunc];
     float val_a;
 
     if (next_idx_trunc > 0) {
-      val_a = oobr[next_idx_trunc - 1];
+      val_a = pvt_ctx->oob_right[next_idx_trunc - 1];
     } else if (next_idx_trunc == 0) {
       val_a = prev_range_end;
     } else {
@@ -327,7 +289,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     }
 
     float next_pivot = (1 - frac_b) * val_a + frac_b * val_b;
-    pivots.pivots_[cur_pivot++] = next_pivot;
+    pivots->pivots_[cur_pivot++] = next_pivot;
     oob_idx = next_idx;
   }
 
@@ -343,8 +305,8 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     assert(false);
   }
 
-  pivots.pivots_[num_pivots - 1] = range_end;
-  pivots.width_ = part_per_pivot;
+  pivots->pivots_[num_pivots - 1] = range_end;
+  pivots->width_ = part_per_pivot;
 
   return 0;
 }
@@ -389,35 +351,32 @@ void PivotUtils::LogPivots(Carp* carp, int pvtcnt) {
   carp->LogVec(carp->bins_.counts_aggr_, label);
 }
 
-int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
-                               std::vector<float>& oobr, float& range_start,
+int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                                float& range_end) {
   int rv = 0;
 
-  size_t oobl_sz = oobl.size();
-  size_t oobr_sz = oobr.size();
+  size_t oob_left_sz = pvt_ctx->oob_left.size();
+  size_t oob_right_sz = pvt_ctx->oob_right.size();
 
-  double oobl_min = oobl_sz ? oobl[0] : 0;
-  double oobr_min = oobr_sz ? oobr[0] : 0;
+  double oob_left_min = oob_left_sz ? pvt_ctx->oob_left[0] : 0;
+  double oob_right_min = oob_right_sz ? pvt_ctx->oob_right[0] : 0;
   /* If both OOBs are filled, their minimum, otherwise, the non-zero val */
-  double oob_min =
-      (oobl_sz && oobr_sz) ? std::min(oobl_min, oobr_min) : oobl_min + oobr_min;
+  double oob_min = (oob_left_sz && oob_right_sz)
+                       ? std::min(oob_left_min, oob_right_min)
+                       : oob_left_min + oob_right_min;
 
-  double oobl_max = oobl_sz ? oobl[oobl_sz - 1] : 0;
-  double oobr_max = oobr_sz ? oobr[oobr_sz - 1] : 0;
-  double oob_max = std::max(oobl_max, oobr_max);
+  double oob_left_max = oob_left_sz ? pvt_ctx->oob_left[oob_left_sz - 1] : 0;
+  double oob_right_max =
+      oob_right_sz ? pvt_ctx->oob_right[oob_right_sz - 1] : 0;
+  double oob_max = std::max(oob_left_max, oob_right_max);
 
-  assert(oobl_min <= oobl_max);
-  assert(oobr_min <= oobr_max);
+  assert(oob_left_min <= oob_left_max);
+  assert(oob_right_min <= oob_right_max);
 
-  if (oobl_sz and oobr_sz) {
-    assert(oobl_min <= oobr_min);
-    assert(oobl_max <= oobr_max);
+  if (oob_left_sz and oob_right_sz) {
+    assert(oob_left_min <= oob_right_min);
+    assert(oob_left_max <= oob_right_max);
   }
-
-  MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
-  double carp_min = carp->GetRange().rmin();
-  double carp_max = carp->GetRange().rmax();
 
   /* Since our default value is zero, min needs to obtained
    * complex-ly, while max is just max
@@ -425,15 +384,15 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
    * oob_min (= 0) needs to be ignored
    */
   // if (prev_state_ == MainThreadState::MT_INIT) {
-  if (carp->mts_mgr_.FirstBlock()) {
+  if (pvt_ctx->first_block) {
     range_start = oob_min;
-  } else if (oobl_sz) {
-    range_start = std::min(oob_min, carp_min);
+  } else if (oob_left_sz) {
+    range_start = std::min(oob_min, pvt_ctx->range.rmin());
   } else {
-    range_start = carp_min;
+    range_start = pvt_ctx->range.rmin();
   }
 
-  range_end = std::max(oob_max, carp_max);
+  range_end = std::max(oob_max, pvt_ctx->range.rmax());
 
   return rv;
 }

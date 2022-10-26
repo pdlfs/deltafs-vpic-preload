@@ -41,7 +41,8 @@ class PivotUtils {
    *
    * @return
    */
-  static int CalculatePivots(Carp* carp, size_t num_pivots);
+  static int CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
+                             size_t num_pivots);
 
   /**
    * @brief Update pivots after renegotiation. This *does not* manipulate the
@@ -82,13 +83,13 @@ class PivotUtils {
   }
 
  private:
-  static int CalculatePivotsFromOob(Carp* carp, int num_pivots);
+  static int CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
+                                    size_t num_pivots);
 
-  static int CalculatePivotsFromAll(Carp* carp, int num_pivots);
+  static int CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
+                                    size_t num_pivots);
 
-  static int GetRangeBounds(Carp* carp, std::vector<float>& oobl,
-                            std::vector<float>& oobr, float& range_start,
-                            float& range_end);
+  static int GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start, float& range_end);
 
   static float WeightedAverage(float a, float b, float frac);
 

@@ -181,7 +181,32 @@ class Carp {
     }
   }
 
+  void CalculatePivots(const size_t num_pivots) {
+    mutex_.AssertHeld();
+    assert(mts_mgr_.GetState() == MainThreadState::MT_BLOCK);
+
+    pivots_.Resize(num_pivots);
+    pivots_.FillZeros();
+
+    PivotCalcCtx pvt_ctx;
+    PopulatePivotCalcState(&pvt_ctx);
+    PivotUtils::CalculatePivots(&pvt_ctx, &pivots_, num_pivots);
+
+    if (pivots_.width_ < 1e-3) { // arbitrary limit for null pivots
+      pivots_.MakeUpEpsilonPivots();
+    }
+
+    pivots_.AssertMonotonicity();
+  }
+
  private:
+  void PopulatePivotCalcState(PivotCalcCtx* pvt_ctx) {
+    pvt_ctx->first_block = mts_mgr_.FirstBlock();
+    pvt_ctx->range = oob_buffer_.range_;
+    oob_buffer_.GetPartitionedProps(pvt_ctx->oob_left, pvt_ctx->oob_right);
+    pvt_ctx->bins = &bins_;
+  }
+
   void AssignShuffleTarget(particle_mem_t& p) {
     int dest_rank = policy_->ComputeShuffleTarget(p);
     if (dest_rank >= 0 and dest_rank < options_.num_ranks) {

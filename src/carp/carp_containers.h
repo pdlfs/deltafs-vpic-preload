@@ -106,17 +106,43 @@ class Pivots {
     *pvtcnt = pivots_.size();
   }
 
+  double GetPivotWidth() const { return width_; }
+
+  void MakeUpEpsilonPivots() {
+    int num_pivots = pivots_.size();
+
+    float mass_per_pivot = 1.0f / (num_pivots - 1);
+    width_ = mass_per_pivot;
+
+    for (int pidx = 0; pidx < num_pivots; pidx++) {
+      pivots_[pidx] = mass_per_pivot * pidx;
+    }
+
+    is_set_ = true;
+  }
+
+  void AssertMonotonicity() {
+    if (!is_set_) {
+      logf(LOG_WARN, "No pivots set for monotonicity check!");
+      return;
+    }
+
+    int num_pivots = pivots_.size();
+    for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
+      assert(pivots_[pidx] <= pivots_[pidx + 1]);
+    }
+  }
+
  private:
   //
   // To be called by friends only
   //
-  void Resize(int npivots) {
-    pivots_.resize(npivots);
-  }
+  void Resize(size_t npivots) { pivots_.resize(npivots); }
   std::vector<double> pivots_;
   double width_;
   bool is_set_;
 
+  friend class Carp;
   friend class OrderedBins;
   friend class PivotUtils;
 };
@@ -167,12 +193,17 @@ class OrderedBins {
     is_set_ = true;
   }
 
-  void GetCountsArr(const uint64_t** counts, int* countsz) {
+  void GetBinsArr(const float** bins, int* binsz) const {
+    *bins = bins_.data();
+    *binsz = bins_.size();
+  }
+
+  void GetCountsArr(const uint64_t** counts, int* countsz) const {
     *counts = counts_.data();
     *countsz = counts_.size();
   }
 
-  void GetAggrCountsArr(const uint64_t** counts, int* countsz) {
+  void GetAggrCountsArr(const uint64_t** counts, int* countsz) const {
     *counts = counts_aggr_.data();
     *countsz = counts_aggr_.size();
   }
@@ -209,6 +240,14 @@ class OrderedBins {
   bool is_set_;
 
   friend class PivotUtils;
+};
+
+struct PivotCalcCtx {
+  bool first_block;
+  Range range;
+  std::vector<float> oob_left;
+  std::vector<float> oob_right;
+  OrderedBins* bins;
 };
 }  // namespace carp
 }  // namespace pdlfs

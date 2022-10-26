@@ -76,16 +76,9 @@ class RangeUtilsTest {
   void LoadData(const int num_ranks, const float range_min,
                 const float range_max, const float* rank_bin_counts,
                 const float* rank_bins) {
-    carp->range_min_ = range_min;
-    carp->range_max_ = range_max;
-
+    carp->UpdateRange({range_min, range_max});
     carp->oob_buffer_.SetRange(range_min, range_max);
-
-    carp->rank_bins_.resize(num_ranks + 1);
-    carp->rank_counts_.resize(num_ranks);
-    std::copy(rank_bins, rank_bins + num_ranks + 1, carp->rank_bins_.begin());
-    std::copy(rank_bin_counts, rank_bin_counts + num_ranks,
-              carp->rank_counts_.begin());
+    carp->bins_.UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
   }
 
   float WeightedAverage(float a, float b, float frac) {
@@ -137,12 +130,18 @@ TEST(RangeUtilsTest, PivotCalc) {
 
   int num_pivots = 8;
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+
   for (int pvt_idx = 1; pvt_idx < num_pivots; pvt_idx++) {
-    float a = carp->my_pivots_[pvt_idx];
-    float b = carp->my_pivots_[pvt_idx - 1];
+    float a = carp_pivots[pvt_idx];
+    float b = carp_pivots[pvt_idx - 1];
     ASSERT_GT(a, b);
   }
 }
@@ -167,11 +166,17 @@ TEST(RangeUtilsTest, PivotCalc2) {
 
   int num_pivots = 8;
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+
   for (int pvt_idx = 0; pvt_idx < num_pivots; pvt_idx++) {
-    float pvt = carp->my_pivots_[pvt_idx];
+    float pvt = carp_pivots[pvt_idx];
     float ref = pivots_ref[pvt_idx];
 
     ASSERT_TRUE(float_eq(pvt, ref));
@@ -201,9 +206,15 @@ TEST(RangeUtilsTest, PivotCalc3) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, 8);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, 8);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, 8);
 }
 
 TEST(RangeUtilsTest, PivotCalc4) {
@@ -212,9 +223,15 @@ TEST(RangeUtilsTest, PivotCalc4) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, num_pivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc5) {
@@ -223,9 +240,15 @@ TEST(RangeUtilsTest, PivotCalc5) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, num_pivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc6) {
@@ -234,18 +257,30 @@ TEST(RangeUtilsTest, PivotCalc6) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, num_pivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc7) {
 #include "pivot_calc_7_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, num_pivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc8) {
@@ -254,9 +289,15 @@ TEST(RangeUtilsTest, PivotCalc8) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, num_pivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 
 #if 0 /* XXX */
@@ -285,18 +326,30 @@ TEST(RangeUtilsTest, PivotCalc10) {
   LoadData(oob_data, oob_data_sz);
   int npivots = 2048;
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, npivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, npivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 
 TEST(RangeUtilsTest, PivotCalc11) {
 #include "pivot_calc_11_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(carp, num_pivots);
+  carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
-  ::assert_monotonic(carp->my_pivots_, num_pivots);
+
+  const double* carp_pivots;
+  int carp_pvtcnt;
+  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+
+  assert(carp_pvtcnt == num_pivots);
+  ::assert_monotonic(carp_pivots, num_pivots);
 }
 }  // namespace carp
 }  // namespace pdlfs
