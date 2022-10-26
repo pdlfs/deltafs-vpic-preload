@@ -1,5 +1,6 @@
+#pragma once
+
 #include "range_common.h"
-#include "carp/rtp.h"
 #include "carp/rtp_internal.h"
 
 namespace pdlfs {

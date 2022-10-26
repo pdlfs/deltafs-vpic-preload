@@ -6,7 +6,7 @@
 
 #include "carp.h"
 
-#define PERFLOG_CAPTURE_FREQ 10    /* currently hardwired */
+#define PERFLOG_CAPTURE_FREQ 10 /* currently hardwired */
 
 namespace pdlfs {
 namespace carp {
@@ -14,13 +14,12 @@ namespace carp {
 /*
  * get_timestamp: generate a timestamp relative to a start time
  */
-static uint64_t get_timestamp(struct timespec *start_time) {
+static uint64_t get_timestamp(struct timespec* start_time) {
   struct timespec stat_time;
   clock_gettime(CLOCK_MONOTONIC, &stat_time);
 
-  uint64_t time_delta_ms =
-      (stat_time.tv_sec - start_time->tv_sec) * 1e3 +
-      (stat_time.tv_nsec - start_time->tv_nsec) / 1e6;
+  uint64_t time_delta_ms = (stat_time.tv_sec - start_time->tv_sec) * 1e3 +
+                           (stat_time.tv_nsec - start_time->tv_nsec) / 1e6;
 
   return time_delta_ms;
 }
@@ -56,7 +55,7 @@ static float get_norm_std(uint64_t* arr, size_t sz) {
 void Carp::PerflogStartup() {
   std::string logfile;
   char rankstr[16];
-  FILE *fp;
+  FILE* fp;
   int rv;
 
   assert(options_.enable_perflog && options_.log_home != NULL);
@@ -85,24 +84,24 @@ void Carp::PerflogStartup() {
 /*
  * Carp::PerflogMain: main routine of perflog thread
  */
-void *Carp::PerflogMain(void *arg) {
-  Carp *carp = static_cast<Carp *>(arg);
-  FILE *sfp = carp->perflog_.fp;   /* safe local copy of fp, use for I/O */
+void* Carp::PerflogMain(void* arg) {
+  Carp* carp = static_cast<Carp*>(arg);
+  FILE* sfp = carp->perflog_.fp; /* safe local copy of fp, use for I/O */
   uint64_t timestamp;
 
   carp->perflog_.mtx.Lock();
-  if (carp->perflog_.fp)        /* to be safe */
+  if (carp->perflog_.fp) /* to be safe */
     fprintf(sfp, "Timestamp (ms),Stat Type, Stat Value\n");
 
   while (1) {
-    if (carp->perflog_.fp == NULL)   /* signals us to shutdown */
+    if (carp->perflog_.fp == NULL) /* signals us to shutdown */
       break;
 
     timestamp = get_timestamp(&carp->start_time_);
-    fprintf(sfp, "%lu,LOGICAL_BYTES_WRITTEN,%lu\n",
-            timestamp, carp->backend_wr_bytes_);
+    fprintf(sfp, "%lu,LOGICAL_BYTES_WRITTEN,%lu\n", timestamp,
+            carp->backend_wr_bytes_);
 
-    carp->perflog_.mtx.Unlock();    /* drop lock during sleep */
+    carp->perflog_.mtx.Unlock(); /* drop lock during sleep */
     usleep(1e6 / PERFLOG_CAPTURE_FREQ);
     carp->perflog_.mtx.Lock();
   }
@@ -120,11 +119,11 @@ void *Carp::PerflogMain(void *arg) {
  * should be complete before you distruct the carp object).
  */
 void Carp::PerflogDestroy() {
-  FILE *fp = perflog_.fp;
+  FILE* fp = perflog_.fp;
 
   if (fp) {
-    perflog_.fp = NULL;                   /* tell worker to shutdown now */
-    pthread_join(perflog_.thread, NULL);  /* wait for shutdown to complete */
+    perflog_.fp = NULL;                  /* tell worker to shutdown now */
+    pthread_join(perflog_.thread, NULL); /* wait for shutdown to complete */
     fclose(fp);
   }
 }
@@ -139,14 +138,21 @@ void Carp::PerflogReneg(int round_num) {
 
   fprintf(perflog_.fp, "%lu,RENEG_COUNTS,RANK%d_R%d: ", timestamp,
           options_.my_rank, round_num);
-  for (int i = 0 ; i < rank_counts_.size() ; i++) {
-    fprintf(perflog_.fp, "%.lf ", rank_counts_[i]);
+
+  const uint64_t* rankcnt;
+  int rankcntsz;
+  bins_.GetCountsArr(&rankcnt, &rankcntsz);
+  for (int i = 0; i < rankcntsz; i++) {
+    fprintf(perflog_.fp, "%" PRIu64 " ", rankcnt[i]);
   }
   fprintf(perflog_.fp, ": OOB (%zu)\n", this->OobSize());
 
   fprintf(perflog_.fp, "%lu,RENEG_PIVOTS,", timestamp);
-  for (int i = 0 ; i < my_pivot_count_ ; i++) {
-    fprintf(perflog_.fp, "%.4lf ", my_pivots_[i]);
+  const double* pivots;
+  int pvtcnt;
+  pivots_.GetPivotsArr(&pivots, &pvtcnt);
+  for (int i = 0; i < pvtcnt; i++) {
+    fprintf(perflog_.fp, "%.4lf ", pivots[i]);
   }
   fprintf(perflog_.fp, "\n");
 }
@@ -155,27 +161,29 @@ void Carp::PerflogReneg(int round_num) {
  * Carp::PerflogAggrBinCount: log bin count (a MPI collective call)
  */
 void Carp::PerflogAggrBinCount() {
-  size_t bin_sz = rank_counts_aggr_.size();
-  uint64_t send_buf[bin_sz], recv_buf[bin_sz];
+  const uint64_t* rankcntaggr;
+  int rankcntaggrsz;
+  bins_.GetAggrCountsArr(&rankcntaggr, &rankcntaggrsz);
+  uint64_t send_buf[rankcntaggrsz], recv_buf[rankcntaggrsz];
 
   assert(perflog_.fp);
-  std::copy(rank_counts_aggr_.begin(), rank_counts_aggr_.end(), send_buf);
-  MPI_Reduce(send_buf, recv_buf, bin_sz, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0,
-             MPI_COMM_WORLD); /* XXX: snd directly from rank_counts_aggr_? */
+  std::copy(rankcntaggr, rankcntaggr + rankcntaggrsz, send_buf);
+  MPI_Reduce(send_buf, recv_buf, rankcntaggrsz, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
+             0, MPI_COMM_WORLD); /* XXX: snd directly from rank_counts_aggr_? */
   if (options_.my_rank != 0) return;
 
   uint64_t timestamp = get_timestamp(&start_time_);
-  float aggr_std_val = get_norm_std(recv_buf, bin_sz);
+  float aggr_std_val = get_norm_std(recv_buf, rankcntaggrsz);
 
   perflog_.mtx.Lock();
 
   fprintf(perflog_.fp, "%lu,RENEG_AGGR_BINCNT,", timestamp);
-  for (int i = 0 ; i < bin_sz ; i++) {
+  for (int i = 0; i < rankcntaggrsz; i++) {
     fprintf(perflog_.fp, "%lu ", recv_buf[i]);
   }
   fprintf(perflog_.fp, "\n");
   fprintf(perflog_.fp, "%lu,RENEG_AGGR_STD,%.2f\n", timestamp, aggr_std_val);
-  
+
   perflog_.mtx.Unlock();
 
   if (options_.my_rank == 0) {
@@ -186,13 +194,13 @@ void Carp::PerflogAggrBinCount() {
 /*
  * Carp::PerflogMyPivots: log my pivots
  */
-void Carp::PerflogMyPivots(double *pivots, int num_pivots, const char *lab) {
+void Carp::PerflogMyPivots(double* pivots, int num_pivots, const char* lab) {
   uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
 
   assert(perflog_.fp);
   fprintf(perflog_.fp, "%lu,%s,", timestamp, lab);
-  for (int i = 0 ; i < num_pivots ; i++) {
+  for (int i = 0; i < num_pivots; i++) {
     fprintf(perflog_.fp, "%.4lf ", pivots[i]);
   }
   fprintf(perflog_.fp, "\n");
@@ -201,13 +209,13 @@ void Carp::PerflogMyPivots(double *pivots, int num_pivots, const char *lab) {
 /*
  * Carp::PerflogVec: log u64 vec
  */
-void Carp::PerflogVec(std::vector<uint64_t>& vec, const char *vlabel) {
+void Carp::PerflogVec(std::vector<uint64_t>& vec, const char* vlabel) {
   uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
 
   assert(perflog_.fp);
   fprintf(perflog_.fp, "%lu,%s,", timestamp, vlabel);
-  for (int i = 0 ; i < vec.size() ; i++) {
+  for (int i = 0; i < vec.size(); i++) {
     fprintf(perflog_.fp, "%lu ", vec[i]);
   }
   fprintf(perflog_.fp, "\n");
@@ -225,5 +233,5 @@ void Carp::PerflogVPrintf(const char* fmt, va_list ap) {
   fprintf(perflog_.fp, "\n");
 }
 
-}  /* namespace carp */
-}  /* namespace pdlfs */
+} /* namespace carp */
+} /* namespace pdlfs */

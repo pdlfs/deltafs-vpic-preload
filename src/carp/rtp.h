@@ -29,8 +29,11 @@
 
 namespace pdlfs {
 namespace carp {
+
+// Forward declarations
 class Carp;
 struct CarpOptions;
+
 /**
  * @brief RTP Utility class - currently only for fanout compute code
  */

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <numeric>
 
+#include "carp_containers.h"
 #include "common.h"
 #include "preload_internal.h"
 #include "range_common.h"
@@ -24,6 +25,16 @@ namespace {
 bool pmt_comp(const pdlfs::carp::particle_mem_t& a,
               const pdlfs::carp::particle_mem_t& b) {
   return a.indexed_prop < b.indexed_prop;
+}
+
+void assert_monotonicity(pdlfs::carp::Range& rold, pdlfs::carp::Range& rnew) {
+  if (!rold.IsSet()) {
+    assert(rnew.IsSet());
+    return;
+  }
+
+  assert(float_lte(rnew.rmin(), rold.rmin()));
+  assert(float_gte(rnew.rmax(), rold.rmax()));
 }
 }  // namespace
 
@@ -67,6 +78,9 @@ template std::string PivotUtils::SerializeVector<double>(double* v, size_t vsz);
 int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
   carp->mutex_.AssertHeld();
 
+  Pivots& pivots = carp->pivots_;
+  pivots.Resize(num_pivots);
+  // TODO: do we really need kMaxPivots any more
   assert(num_pivots <= pdlfs::kMaxPivots);
 
   int rv = 0;
@@ -74,7 +88,7 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
   const MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
   const MainThreadState cur_state = carp->mts_mgr_.GetState();
 
-  carp->my_pivot_width_ = 0;
+  pivots.width_ = 0;
 
   assert(cur_state == MainThreadState::MT_BLOCK);
 
@@ -84,20 +98,19 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
     rv = CalculatePivotsFromAll(carp, num_pivots);
   }
 
-  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
-       carp->my_pivot_width_);
+  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank, pivots.width_);
 
-  if (carp->my_pivot_width_ < 1e-3) {
+  if (pivots.width_ < 1e-3) {
     float mass_per_pivot = 1.0f / (num_pivots - 1);
-    carp->my_pivot_width_ = mass_per_pivot;
+    pivots.width_ = mass_per_pivot;
 
     for (int pidx = 0; pidx < num_pivots; pidx++) {
-      carp->my_pivots_[pidx] = mass_per_pivot * pidx;
+      pivots.pivots_[pidx] = mass_per_pivot * pidx;
     }
   }
 
   for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
-    assert(carp->my_pivots_[pidx] <= carp->my_pivots_[pidx + 1]);
+    assert(pivots.pivots_[pidx] <= pivots.pivots_[pidx + 1]);
   }
 
   return rv;
@@ -105,6 +118,7 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
 
 int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
   carp->mutex_.AssertHeld();
+  Pivots& pivots = carp->pivots_;
 
   int rv = 0;
 
@@ -121,10 +135,10 @@ int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
   const float range_min = oobl[0];
   const float range_max = oobl[oobl_sz - 1];
 
-  carp->my_pivots_[0] = range_min;
-  carp->my_pivots_[num_pivots - 1] = range_max;
+  pivots.pivots_[0] = range_min;
+  pivots.pivots_[num_pivots - 1] = range_max;
 
-  carp->my_pivot_width_ = oobl_sz * 1.0 / num_pivots;
+  pivots.width_ = oobl_sz * 1.0 / num_pivots;
 
   /* for computation purposes, we need to reserve one, so as to always have
    * two points of interpolation */
@@ -142,7 +156,7 @@ int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
 
     float frac_a = oob_idx - (float)oob_idx_trunc;
     float pvt = WeightedAverage(val_a, val_b, frac_a);
-    carp->my_pivots_[pvt_idx] = pvt;
+    pivots.pivots_[pvt_idx] = pvt;
   }
 
   return rv;
@@ -157,12 +171,13 @@ int PivotUtils::CalculatePivotsFromOob(Carp* carp, int num_pivots) {
 int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
   carp->mutex_.AssertHeld();
 
+  Pivots& pivots = carp->pivots_;
+  OrderedBins& bins = carp->bins_;
+
   assert(num_pivots <= pdlfs::kMaxPivots);
 
-  carp->my_pivot_count_ = num_pivots;
-
-  const float prev_range_begin = carp->range_min_;
-  const float prev_range_end = carp->range_max_;
+  const float prev_range_begin = carp->GetRange().rmin();
+  const float prev_range_end = carp->GetRange().rmax();
 
   float range_start, range_end;
   std::vector<float> oobl, oobr;
@@ -175,13 +190,12 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
 
   int oobl_sz = oobl.size(), oobr_sz = oobr.size();
 
-  float particle_count = std::accumulate(carp->rank_counts_.begin(),
-                                         carp->rank_counts_.end(), 0.f);
+  float particle_count = bins.GetTotalMass();
 
   int my_rank = pctx.my_rank;
 
-  carp->my_pivots_[0] = range_start;
-  carp->my_pivots_[num_pivots - 1] = range_end;
+  pivots.pivots_[0] = range_start;
+  pivots.pivots_[num_pivots - 1] = range_end;
 
   particle_count += (oobl_sz + oobr_sz);
 
@@ -189,8 +203,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
   float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
 
   if (part_per_pivot < 1e-5) {
-    std::fill(carp->my_pivots_, carp->my_pivots_ + num_pivots, 0);
-    carp->my_pivot_width_ = 0;
+    pivots.FillZeros();
     return 0;
   }
 
@@ -237,7 +250,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
                                                  : prev_range_begin;
     assert(val_b > val_a);
 
-    carp->my_pivots_[cur_pivot] = (1 - frac_a) * val_a + (frac_a)*val_b;
+    pivots.pivots_[cur_pivot] = (1 - frac_a) * val_a + (frac_a)*val_b;
     cur_pivot++;
 
     oob_idx = accumulated_ppp;
@@ -245,12 +258,12 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
 
   int bin_idx = 0;
 
-  for (int bidx = 0; bidx < carp->rank_bins_.size() - 1; bidx++) {
-    const double cur_bin_total = carp->rank_counts_[bidx];
-    double cur_bin_left = carp->rank_counts_[bidx];
+  for (int bidx = 0; bidx < bins.Size() - 1; bidx++) {
+    const double cur_bin_total = bins.counts_[bidx];
+    double cur_bin_left = bins.counts_[bidx];
 
-    double bin_start = carp->rank_bins_[bidx];
-    double bin_end = carp->rank_bins_[bidx + 1];
+    double bin_start = bins.bins_[bidx];
+    double bin_end = bins.bins_[bidx + 1];
     const double bin_width_orig = bin_end - bin_start;
 
     while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
@@ -261,7 +274,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
       double width_to_remove = take_from_bin / cur_bin_total * bin_width_orig;
 
       bin_start += width_to_remove;
-      carp->my_pivots_[cur_pivot] = bin_start;
+      pivots.pivots_[cur_pivot] = bin_start;
 
       cur_pivot++;
 
@@ -314,7 +327,7 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     }
 
     float next_pivot = (1 - frac_b) * val_a + frac_b * val_b;
-    carp->my_pivots_[cur_pivot++] = next_pivot;
+    pivots.pivots_[cur_pivot++] = next_pivot;
     oob_idx = next_idx;
   }
 
@@ -330,45 +343,34 @@ int PivotUtils::CalculatePivotsFromAll(Carp* carp, int num_pivots) {
     assert(false);
   }
 
-  carp->my_pivots_[num_pivots - 1] = range_end;
-  carp->my_pivot_width_ = part_per_pivot;
+  pivots.pivots_[num_pivots - 1] = range_end;
+  pivots.width_ = part_per_pivot;
 
   return 0;
 }
 
-int PivotUtils::UpdatePivots(Carp* carp, double* pivots, int num_pivots) {
+int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
   carp->mutex_.AssertHeld();
+  int num_pivots = pivots->Size();
   assert(num_pivots == pctx.comm_sz + 1);
+  double* pivots_arr = pivots->pivots_.data();
 
-  carp->LogMyPivots(pivots, num_pivots, "RENEG_AGGR_PIVOTS");
+  // since Pivots are protected, the class needs to be unwrapped here
+  carp->LogMyPivots(pivots_arr, num_pivots, "RENEG_AGGR_PIVOTS");
 
-  double& pvtbeg = carp->range_min_;
-  double& pvtend = carp->range_max_;
-
-  double updbeg = pivots[0];
-  double updend = pivots[num_pivots - 1];
-
-  if (!carp->mts_mgr_.FirstBlock()) {
-    assert(float_lte(updbeg, pvtbeg));
-    assert(float_gte(updend, pvtend));
-  }
-
-  pvtbeg = updbeg;
-  pvtend = updend;
-
-  std::copy(pivots, pivots + num_pivots, carp->rank_bins_.begin());
-  std::fill(carp->rank_counts_.begin(), carp->rank_counts_.end(), 0);
-
-  carp->oob_buffer_.SetRange(carp->range_min_, carp->range_max_);
-
-  double our_bin_start = pivots[pctx.my_rank];
-  double our_bin_end = pivots[pctx.my_rank + 1];
+  // casting inclusive to exclusive, but ok for the purpose used
+  Range carp_range = carp->GetRange();
+  Range pivot_bounds = pivots->GetPivotBounds();
+  assert_monotonicity(carp_range, pivot_bounds);
+  carp->UpdateRange(pivot_bounds);
+  carp->bins_.UpdateFromPivots(*pivots);
 
 #ifdef DELTAFS_PLFSDIR_RANGEDB
   // make safe to invoke CARP-RTP without a properly initiialized
   // storage backend, such as for benchmarks
   if (pctx.plfshdl != NULL) {
-    deltafs_plfsdir_range_update(pctx.plfshdl, our_bin_start, our_bin_end);
+    Range our_bin = carp->bins_.GetBin(pctx.my_rank);
+    deltafs_plfsdir_range_update(pctx.plfshdl, our_bin.rmin(), our_bin.rmax());
   }
 #else
   ABORT("linked deltafs does not support rangedb");
@@ -382,9 +384,9 @@ void PivotUtils::LogPivots(Carp* carp, int pvtcnt) {
 
   char label[64];
   snprintf(label, 64, "RENEG_PIVOTS_E%d", carp->epoch_);
-  carp->LogMyPivots(carp->my_pivots_, pvtcnt, label);
+  carp->LogMyPivots(carp->pivots_.pivots_.data(), pvtcnt, label);
   snprintf(label, 64, "RENEG_BINCNT_E%d", carp->epoch_);
-  carp->LogVec(carp->rank_counts_aggr_, label);
+  carp->LogVec(carp->bins_.counts_aggr_, label);
 }
 
 int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
@@ -414,6 +416,8 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
   }
 
   MainThreadState prev_state = carp->mts_mgr_.GetPrevState();
+  double carp_min = carp->GetRange().rmin();
+  double carp_max = carp->GetRange().rmax();
 
   /* Since our default value is zero, min needs to obtained
    * complex-ly, while max is just max
@@ -424,12 +428,12 @@ int PivotUtils::GetRangeBounds(Carp* carp, std::vector<float>& oobl,
   if (carp->mts_mgr_.FirstBlock()) {
     range_start = oob_min;
   } else if (oobl_sz) {
-    range_start = std::min(oob_min, carp->range_min_);
+    range_start = std::min(oob_min, carp_min);
   } else {
-    range_start = carp->range_min_;
+    range_start = carp_min;
   }
 
-  range_end = std::max(oob_max, carp->range_max_);
+  range_end = std::max(oob_max, carp_max);
 
   return rv;
 }

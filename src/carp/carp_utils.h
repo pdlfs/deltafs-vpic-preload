@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "carp/oob_buffer.h"
+#include "msgfmt.h"
 #include "range_constants.h"
 
 namespace pdlfs {
@@ -49,12 +50,36 @@ class PivotUtils {
    *
    * @param carp
    * @param pivots
-   * @param num_pivots
    * @return
    */
-  static int UpdatePivots(Carp* carp, double* pivots, int num_pivots);
+  static int UpdatePivots(Carp* carp, Pivots* pivots);
 
   static void LogPivots(Carp* carp, int pvtcnt);
+
+  static int EncodePivots(void* buf, int buf_sz, int round_num, int stage_num,
+                          int sender_id, Pivots* pivots, bool bcast) {
+    double* pivots_arr = pivots->pivots_.data();
+    double pivot_width = pivots->width_;
+    int num_pivots = pivots->pivots_.size();
+
+    return msgfmt_encode_rtp_pivots(buf, buf_sz, round_num, stage_num,
+                                    sender_id, pivots_arr, pivot_width,
+                                    num_pivots, bcast);
+  }
+
+  static void DecodePivots(void* buf, int buf_sz, int* round_num,
+                           int* stage_num, int* sender_id, Pivots* pivots,
+                           bool bcast) {
+    int num_pivots_from_buf;
+    double* pvts_from_buf;
+    msgfmt_decode_rtp_pivots(buf, buf_sz, round_num, stage_num, sender_id,
+                             &pvts_from_buf, &pivots->width_,
+                             &num_pivots_from_buf, bcast);
+    int pvtvecsz = pivots->Size();
+    assert(pvtvecsz == num_pivots_from_buf);
+    std::copy(pvts_from_buf, pvts_from_buf + num_pivots_from_buf,
+              pivots->pivots_.begin());
+  }
 
  private:
   static int CalculatePivotsFromOob(Carp* carp, int num_pivots);

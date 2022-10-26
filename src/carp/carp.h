@@ -7,6 +7,7 @@
 #include <float.h>
 #include <pdlfs-common/status.h>
 
+#include "carp_containers.h"
 #include "carp_utils.h"
 #include "msgfmt.h"
 #include "oob_buffer.h"
@@ -69,14 +70,9 @@ class Carp {
         rtp_(this, options_),
         epoch_(0),
         cv_(&mutex_),
-        range_min_(0),
-        range_max_(0),
-        rank_bins_(options_.num_ranks + 1, 0),
-        rank_counts_(options_.num_ranks, 0),
-        rank_counts_aggr_(options_.num_ranks, 0),
+        bins_(options.num_ranks),
         oob_buffer_(options.oob_sz),
-        my_pivot_count_(0),
-        my_pivot_width_(0),
+        pivots_(options.num_ranks),
         policy_(nullptr) {
     MutexLock ml(&mutex_);
     // necessary to set mts_state_ to READY
@@ -85,7 +81,7 @@ class Carp {
     perflog_.fp = NULL;
 
 #define POLICY_IS(s) \
-  (s != nullptr) and (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
+  ((s) != nullptr) and (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
 
     if (POLICY_IS(pdlfs::kRenegPolicyIntraEpoch)) {
       policy_ = new InvocationIntraEpoch(*this, options);
@@ -109,12 +105,15 @@ class Carp {
 
   Status AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush);
 
-  /* Only for benchmarks, not for actual data runs */
+  //
+  // Only for benchmarks, not for actual data runs
+  //
   Status ForceRenegotiation();
 
-  /* AdvanceEpoch is also called before the first epoch,
-   * so it can't be assumed that the first epoch is e0
-   */
+  //
+  // AdvanceEpoch is also called before the first epoch,
+  // so it can't be assumed that the first epoch is e0
+  //
   void AdvanceEpoch() {
     MutexLock ml(&mutex_);
     MainThreadState cur_state = mts_mgr_.GetState();
@@ -126,6 +125,15 @@ class Carp {
   OobFlushIterator OobIterator() { return OobFlushIterator(oob_buffer_); }
 
   size_t OobSize() const { return oob_buffer_.Size(); }
+
+  //
+  // Return currently negotiated range, held by oob_buffer
+  //
+  InclusiveRange GetRange() const { return oob_buffer_.range_; }
+
+  void UpdateRange(Range range) {
+    oob_buffer_.SetRange(InclusiveRange(range.rmin(), range.rmax()));
+  }
 
   void UpdateState(MainThreadState new_state) {
     mutex_.AssertHeld();
@@ -178,8 +186,7 @@ class Carp {
     int dest_rank = policy_->ComputeShuffleTarget(p);
     if (dest_rank >= 0 and dest_rank < options_.num_ranks) {
       p.shuffle_dest = dest_rank;
-      rank_counts_[dest_rank]++;
-      rank_counts_aggr_[dest_rank]++;
+      bins_.IncrementBin(dest_rank);
     } else {
       p.shuffle_dest = -1;
     }
@@ -211,10 +218,7 @@ class Carp {
   void Reset() {
     mutex_.AssertHeld();
     mts_mgr_.Reset();
-    range_min_ = 0;
-    range_max_ = 0;
-    std::fill(rank_counts_.begin(), rank_counts_.end(), 0);
-    std::fill(rank_counts_aggr_.begin(), rank_counts_aggr_.end(), 0);
+    bins_.Reset();
     oob_buffer_.Reset();
   }
 
@@ -243,18 +247,9 @@ class Carp {
   port::Mutex mutex_;
   port::CondVar cv_;
 
-  double range_min_;
-  double range_max_;
-
-  std::vector<float> rank_bins_;
-  std::vector<float> rank_counts_;
-  std::vector<uint64_t> rank_counts_aggr_;
-
+  OrderedBins bins_;
   OobBuffer oob_buffer_;
-
-  double my_pivots_[pdlfs::kMaxPivots];
-  size_t my_pivot_count_;
-  double my_pivot_width_;
+  Pivots pivots_;
 
  private:
   friend class InvocationPolicy;

@@ -196,8 +196,7 @@ Status RTP::BroadcastBegin() {
 
   reneg_bench_.MarkStart();
 
-  logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d", my_rank_,
-       root_[3]);
+  logf(LOG_DBUG, "broadcast_rtp_begin: at rank %d, to %d", my_rank_, root_[3]);
 
   char buf[256];
   int buflen = msgfmt_encode_rtp_begin(buf, 256, my_rank_, round_num_);
@@ -207,13 +206,13 @@ Status RTP::BroadcastBegin() {
 }
 
 Status RTP::SendToRank(const void* buf, int bufsz, int rank, uint32_t type) {
-  xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0/*XXXCDC remove epoch?*/,
+  xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0 /*XXXCDC remove epoch?*/,
                            rank, my_rank_, type);
   return Status::OK();
 }
 
-Status RTP::SendToAll(int stage, const void* buf, int bufsz,
-                      bool exclude_self, uint32_t type) {
+Status RTP::SendToAll(int stage, const void* buf, int bufsz, bool exclude_self,
+                      uint32_t type) {
   for (int rank_idx = 0; rank_idx < fanout_[stage]; rank_idx++) {
     int drank = peers_[stage][rank_idx];
 
@@ -222,7 +221,7 @@ Status RTP::SendToAll(int stage, const void* buf, int bufsz,
 
     logf(LOG_DBUG, "send_to_all: sending from %d to %d", my_rank_, drank);
 
-    xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0/*XXXCDC rm epoch?*/,
+    xn_shuffle_priority_send(sh_, (void*)buf, bufsz, 0 /*XXXCDC rm epoch?*/,
                              drank, my_rank_, type);
   }
 
@@ -312,14 +311,14 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
     PivotUtils::CalculatePivots(carp_, pvtcnt);
     PivotUtils::LogPivots(carp_, pvtcnt);
 
-    pvt_buf_len = msgfmt_encode_rtp_pivots(
-        pvt_buf, pvt_buf_sz, round_num_, stage_idx, my_rank_, carp_->my_pivots_,
-        carp_->my_pivot_width_, pvtcnt, false);
+    pvt_buf_len =
+        PivotUtils::EncodePivots(pvt_buf, pvt_buf_sz, round_num_, stage_idx,
+                                 my_rank_, &carp_->pivots_, false);
 
     carp_->mutex_.Unlock();
 
-    logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u",
-         pctx.my_rank, pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
+    logf(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u", pctx.my_rank,
+         pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
 
     logf(LOG_DBUG, "sending pivots, count: %d", pvtcnt);
 
@@ -355,8 +354,8 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
        num_pivots, sender_id);
 
   if (num_pivots >= 4) {
-    logf(LOG_DBG2, "rtp_handle_reneg_pivot: %.2f %.2f %.2f %.2f ...",
-         pivots[0], pivots[1], pivots[2], pivots[3]);
+    logf(LOG_DBG2, "rtp_handle_reneg_pivot: %.2f %.2f %.2f %.2f ...", pivots[0],
+         pivots[1], pivots[2], pivots[3]);
   }
 
   mutex_.Lock();
@@ -467,18 +466,16 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   SendToChildren(buf, bufsz, /* exclude_self */ true, MSGFMT_RTP_PVT_BCAST);
 
   int round_num, stage_num, sender_id, num_pivots;
-  double pivot_width;
-  double* pivots;
+  Pivots pivots_aggr(num_pivots);
 
-  msgfmt_decode_rtp_pivots(buf, bufsz, &round_num, &stage_num, &sender_id,
-                           &pivots, &pivot_width, &num_pivots, true);
+  PivotUtils::DecodePivots(buf, bufsz, &round_num, &stage_num, &sender_id, &pivots_aggr, true);
 
   logf(LOG_DBUG, "rtp_handle_pivot_bcast: received pivots at %d from %d",
        my_rank_, src);
 
   if (my_rank_ == 0) {
-    logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
-         ARR2STR(pivots, num_pivots), pivot_width);
+//    logf(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
+//         ARR2STR(pivots, num_pivots), pivot_width);
 
     logf(LOG_INFO, "-- carp round %d completed at rank 0 --", round_num_);
   }
@@ -498,7 +495,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
        num_ranks_ + 1);
   assert(num_pivots == num_ranks_ + 1);
 
-  PivotUtils::UpdatePivots(carp_, pivots, num_pivots);
+  PivotUtils::UpdatePivots(carp_, &pivots_aggr);
 
   data_buffer_.AdvanceRound();
   round_num_++;

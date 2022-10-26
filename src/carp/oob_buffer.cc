@@ -21,7 +21,7 @@ int OobBuffer::Insert(particle_mem_t& item) {
 
   float prop = item.indexed_prop;
 
-  if (range_set_ and prop > range_min_ and prop < range_max_) {
+  if (range_.Inside(prop)) {
     rv = -1;
     logf(LOG_WARN, "[OOB] Buffering of in-bounds item attempted");
     return rv;
@@ -47,9 +47,9 @@ int OobBuffer::GetPartitionedProps(std::vector<float>& left,
 
   for (auto it = buf_.cbegin(); it != buf_.cend(); it++) {
     float prop = it->indexed_prop;
-    if ((not range_set_) or (range_set_ and prop < range_min_)) {
+    if ((not range_.IsSet()) or (range_.IsSet() and prop < range_.rmin())) {
       temp_left.push_back(prop);
-    } else if (prop > range_max_) {
+    } else if (prop > range_.rmax()) {
       temp_right.push_back(prop);
     }
   }

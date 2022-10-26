@@ -11,6 +11,7 @@
 
 #include <vector>
 
+#include "carp_containers.h"
 #include "range_constants.h"
 
 namespace pdlfs {
@@ -56,7 +57,7 @@ class OobBuffer {
   // it can store (in buf_) set to oob_max_sz and the range unset.
   //
   explicit OobBuffer(const size_t oob_max_sz)
-      : oob_max_sz_(oob_max_sz), range_set_(false) {
+      : oob_max_sz_(oob_max_sz) {
     buf_.reserve(oob_max_sz_);
   }
 
@@ -65,8 +66,9 @@ class OobBuffer {
   // the local carp proc.  if so, we return true.
   //
   bool OutOfBounds(float prop) const {
-    if (!range_set_) return true;  // no in bounds range set?
-    return (prop < range_min_ || prop > range_max_);
+    // OOB should return true if range is not set, or if prop is OOB wrt range
+    // range.Inside returns false if range is not set, so this is correct
+    return !range_.Inside(prop);
   }
 
   //
@@ -93,9 +95,15 @@ class OobBuffer {
   // inclusive.  we only want to store particles outside of this range.
   //
   void SetRange(float range_min, float range_max) {
-    range_min_ = range_min;
-    range_max_ = range_max;
-    range_set_ = true;
+    // TODO: double/float mismatch
+    range_.Set(range_min, range_max);
+  }
+
+  //
+  // Set the range that's considered inside for OOB purposes
+  //
+  void SetRange(InclusiveRange range) {
+    range_ = range;
   }
 
   //
@@ -111,8 +119,7 @@ class OobBuffer {
   // unset the in-bounds range).
   //
   void Reset() {
-    range_set_ = false;
-    range_min_ = range_max_ = 0;  // just in case
+    range_.Reset();
     buf_.clear();
   }
 
@@ -142,9 +149,7 @@ class OobBuffer {
   void CopyWithoutDuplicates(std::vector<float>& in, std::vector<float>& out);
 
   const size_t oob_max_sz_;          // max# oob particles we hold (set by ctor)
-  float range_min_;                  // local in-bounds range start (inclusive)
-  float range_max_;                  // local in-bounds range end (inclusive)
-  bool range_set_;                   // has SetRange() set the range yet?
+  InclusiveRange range_;             // range represented by the OOB buffer
   std::vector<particle_mem_t> buf_;  // OOB buf particle array (prealloc'd)
 
   friend class OobFlushIterator;
