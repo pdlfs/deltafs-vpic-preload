@@ -67,8 +67,8 @@ void Carp::PerflogStartup() {
 
   fp = fopen(logfile.c_str(), "w");
   if (fp == NULL) {
-    logf(LOG_ERRO, "PerflogStartup: fopen failed: %s", logfile.c_str());
-    logf(LOG_ERRO, "PerflogStartup: log disabled");
+    flog(LOG_ERRO, "PerflogStartup: fopen failed: %s", logfile.c_str());
+    flog(LOG_ERRO, "PerflogStartup: log disabled");
     return;
   }
   setvbuf(fp, NULL, _IOLBF, 0);
@@ -78,7 +78,7 @@ void Carp::PerflogStartup() {
   if (rv) {
     perflog_.fp = NULL;
     fprintf(fp, "PerflogStartup: failed to create pthread!\n");
-    logf(LOG_ERRO, "PerflogStartup: failed to create pthread!");
+    flog(LOG_ERRO, "PerflogStartup: failed to create pthread!");
     return;
   }
 }
@@ -113,7 +113,7 @@ void *Carp::PerflogMain(void *arg) {
 
   carp->perflog_.mtx.Unlock();
   if (carp->options_.my_rank == 0)
-    logf(LOG_INFO, "perfstats_worker: done, shutting down");
+    flog(LOG_INFO, "perfstats_worker: done, shutting down");
 
   return NULL;
 }
@@ -184,7 +184,7 @@ void Carp::PerflogAggrBinCount() {
   perflog_.mtx.Unlock();
 
   if (options_.my_rank == 0) {
-    logf(LOG_INFO, "[perfstats] normalized load stddev: %.3f", aggr_std_val);
+    flog(LOG_INFO, "[perfstats] normalized load stddev: %.3f", aggr_std_val);
   }
 }
 

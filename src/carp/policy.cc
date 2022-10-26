@@ -33,7 +33,7 @@ int InvocationPolicy::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
 }
 
 bool InvocationPolicy::IsOobFull() {
-  // logf(LOG_WARN, "OOB size: %zu\n", carp_.oob_buffer_.Size());
+  // flog(LOG_WARN, "OOB size: %zu\n", carp_.oob_buffer_.Size());
   return carp_.oob_buffer_.IsFull();
 }
 

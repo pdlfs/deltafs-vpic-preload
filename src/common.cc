@@ -105,12 +105,12 @@ void check_clockres() {
   struct timespec res;
   n = clock_getres(CLOCK_MONOTONIC_COARSE, &res);
   if (n == 0) {
-    logf(LOG_INFO, "[clock] CLOCK_MONOTONIC_COARSE: %d us",
+    flog(LOG_INFO, "[clock] CLOCK_MONOTONIC_COARSE: %d us",
          int(res.tv_sec * 1000 * 1000 + res.tv_nsec / 1000));
   }
   n = clock_getres(CLOCK_MONOTONIC, &res);
   if (n == 0) {
-    logf(LOG_INFO, "[clock] CLOCK_MONOTONIC: %d ns",
+    flog(LOG_INFO, "[clock] CLOCK_MONOTONIC: %d ns",
          int(res.tv_sec * 1000 * 1000 * 1000 + res.tv_nsec));
   }
 #endif
@@ -135,14 +135,14 @@ void check_sse42() {
   int sse42;
   CHECK_SSE42(sse42);
   if (sse42) {
-    logf(LOG_INFO, "[sse] SSE4_2 extension is available");
+    flog(LOG_INFO, "[sse] SSE4_2 extension is available");
 #if defined(__GUNC__) && defined(__SSE4_2__)
     fputs(">>> __SSE4_2__ is defined\n", stderr);
 #else
     fputs(">>> __SSE4_2__ is not defined\n", stderr);
 #endif
   } else {
-    logf(LOG_INFO, "[sse] SSE4_2 is not available");
+    flog(LOG_INFO, "[sse] SSE4_2 is not available");
   }
 }
 
@@ -262,7 +262,7 @@ void try_scan_sysfs() {
     closedir(d);
   }
 
-  logf(LOG_INFO,
+  flog(LOG_INFO,
        "[sys] %d NUMA nodes / %d CPU cores (L1: %s + %s, L2: %s, L3: %s)",
        nnodes, ncpus, idx[0].c_str(), idx[1].c_str(), idx[2].c_str(),
        idx[3].c_str());
@@ -299,7 +299,7 @@ void try_scan_sysfs() {
           closedir(dd);
         }
         nnics++;
-        logf(LOG_INFO,
+        flog(LOG_INFO,
              "[if] speed %5s Mbps, tx_queue_len "
              "%5s, mtu %5s, rx-irq: %3d, tx-irq: %3d (%s)",
              speed.c_str(), txqlen.c_str(), mtu.c_str(), rx, tx, nic.c_str());
@@ -326,7 +326,7 @@ void try_scan_sysfs() {
               snprintf(path, sizeof(path), "%s/%s/%s/mems", dirname,
                        dent->d_name, ddent->d_name);
               jobmemset = readline(path);
-              logf(LOG_INFO,
+              flog(LOG_INFO,
                    "[slurm] job cgroup cpuset: %s, memset: %s\n>>> %s/%s",
                    jobcpuset.c_str(), jobmemset.c_str(), dent->d_name,
                    ddent->d_name);
@@ -384,7 +384,7 @@ void try_scan_procfs() {
     }
     fclose(cpuinfo);
     if (num_cpus != 0) {
-      logf(LOG_INFO, "[cpu] %d x %s (L2/L3 cache: %s)", num_cpus,
+      flog(LOG_INFO, "[cpu] %d x %s (L2/L3 cache: %s)", num_cpus,
            cpu_type.c_str(), L1_cache_size.c_str());
     }
   }
@@ -392,7 +392,7 @@ void try_scan_procfs() {
   overcommit_memory = readline("/proc/sys/vm/overcommit_memory");
   overcommit_ratio = readline("/proc/sys/vm/overcommit_ratio");
 
-  logf(LOG_INFO, "[vm] page size: %d bytes (overcommit memory: %s, ratio: %s)",
+  flog(LOG_INFO, "[vm] page size: %d bytes (overcommit memory: %s, ratio: %s)",
        getpagesize(), overcommit_memory.c_str(), overcommit_ratio.c_str());
 
   os = readline("/proc/version_signature");
@@ -400,7 +400,7 @@ void try_scan_procfs() {
     os = readline("/proc/version");
   }
 
-  logf(LOG_INFO, "[os] %s", os.c_str());
+  flog(LOG_INFO, "[os] %s", os.c_str());
 #endif
 }
 
@@ -424,7 +424,7 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
       hardnofile = rl.rlim_max;
     else
       hardnofile = -1;
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "[ulimit] max open files per process: %lld soft, %lld hard, %lld "
          "suggested",
          softnofile, hardnofile, oknofile);
@@ -440,7 +440,7 @@ void maybe_warn_rlimit(int myrank, int worldsz) {
       hardmemlock = rl.rlim_max;
     else
       hardmemlock = -1;
-    logf(LOG_INFO, "[ulimit] max memlock size: %lld soft, %lld hard",
+    flog(LOG_INFO, "[ulimit] max memlock size: %lld soft, %lld hard",
          softmemlock, hardmemlock);
   }
 }
@@ -467,7 +467,7 @@ void maybe_warn_numa() {
     }
     numa_free_cpumask(bits);
   }
-  logf(LOG_INFO, "[numa] cpu: %d/%d cores:", my, os);
+  flog(LOG_INFO, "[numa] cpu: %d/%d cores:", my, os);
   fputs(cpu.c_str(), stderr);
   fputc('\n', stderr);
 
@@ -481,7 +481,7 @@ void maybe_warn_numa() {
       mem[i] = 'x';
     }
   }
-  logf(LOG_INFO, "[numa] mem: %d/%d nodes:", my, os);
+  flog(LOG_INFO, "[numa] mem: %d/%d nodes:", my, os);
   fputs(mem.c_str(), stderr);
   fputc('\n', stderr);
 
@@ -555,8 +555,8 @@ int my_cpu_cores() {
   return ncpus;
 }
 
-int logf(int lvl, const char* fmt, ...) {
-  if (lvl < LOG_LEVEL) return 0;  /* filter level set at compile in common.h */
+int flog_io(int lvl, const char* fmt, ...) {
+  /* flog() macro should have already filtered on LOG_LEVEL */
 
   const char* prefix;
   va_list ap;
@@ -588,7 +588,8 @@ int logf(int lvl, const char* fmt, ...) {
 }
 
 int loge(const char* op, const char* path) {
-  return logf(LOG_ERRO, "!%s(%s): %s", strerror(errno), op, path);
+  flog(LOG_ERRO, "!%s(%s): %s", strerror(errno), op, path);
+  return 0;
 }
 
 void msg_abort(int err, const char* msg, const char* func, const char* file,

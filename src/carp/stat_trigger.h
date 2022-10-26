@@ -106,12 +106,12 @@ class StatTrigger {
     float load_skew = load_max * 1.0f / load_avg;
 
     if (load_skew > thresh_) {
-      logf(LOG_WARN,
+      flog(LOG_WARN,
            "[StatTrigger] TRIGGER! Max: %" PRIu64 ", Avg: %" PRIu64
            ", Skew: %.3f",
            load_max, load_avg, load_skew);
     } else {
-      logf(LOG_WARN,
+      flog(LOG_WARN,
            "[StatTrigger] Max: %" PRIu64 ", Avg: %" PRIu64
            ", Skew: %.3f",
            load_max, load_avg, load_skew);

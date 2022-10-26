@@ -31,7 +31,7 @@ int PivotUtils::CalculatePivots(Carp* carp, const size_t num_pivots) {
     rv = CalculatePivotsFromAll(carp, num_pivots);
   }
 
-  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
+  flog(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
        carp->my_pivot_width_);
 
   if (carp->my_pivot_width_ < 1e-3) {

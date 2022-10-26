@@ -87,7 +87,14 @@ long my_maxrss();
 #define LOG_LEVEL LOG_INFO
 #endif
 
-int logf(int lvl, const char* fmt, ...);
+/* flog: macro to apply filtering before evaluating log args */
+#define flog(LEVEL, ...) do {                                       \
+    if ((LEVEL) >= LOG_LEVEL)                                       \
+        flog_io((LEVEL), __VA_ARGS__);                              \
+    } while (0)
+
+
+int flog_io(int lvl, const char* fmt, ...);
 int loge(const char* op, const char* path);
 
 /*

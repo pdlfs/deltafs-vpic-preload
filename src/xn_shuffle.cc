@@ -352,7 +352,7 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
   if (ctx->sh == NULL) {
     ABORT("shuffler_init");
   } else if (pctx.my_rank == 0) {
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "3-HOP confs: sndlim(l/r)=%d/%d, maxrpc(lo/lr/r)=%d/%d/%d, "
          "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
          so.localsenderlimit, so.remotesenderlimit, so.lomaxrpc, so.lrmaxrpc,
@@ -369,7 +369,7 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
   if (!psh_callback) {
     ctx->psh = NULL;
      if (pctx.my_rank == 0) {
-       logf(LOG_INFO, "PRIORITY 3-HOP inactive");
+       flog(LOG_INFO, "PRIORITY 3-HOP inactive");
      }
   } else {
    /*
@@ -388,7 +388,7 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
    if (ctx->psh == NULL) {
      ABORT("priority_shuffler_init");
    } else if (pctx.my_rank == 0) {
-     logf(LOG_INFO,
+     flog(LOG_INFO,
           "PRIORITY 3-HOP active; confs: sndlim(l/r)=%d/%d, "
           "maxrpc(lo/lr/r)=%d/%d/%d, "
           "buftgt(lo/lr/r)=%d/%d/%d, dq(min/max)=%d/%d",
@@ -407,7 +407,7 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
   if (is_envset("SHUFFLE_Force_global_barrier")) {
     ctx->force_global_barrier = 1;
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "force global barriers");
+      flog(LOG_INFO, "force global barriers");
     }
   }
 }

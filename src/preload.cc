@@ -680,14 +680,14 @@ static void dump_mon(mon_ctx_t* mon, dir_stat_t* tmp_stat,
 
     if (pctx.monfd != -1) {
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "saving epoch statistics ... (rank 0)");
+        flog(LOG_INFO, "saving epoch statistics ... (rank 0)");
         ts = now_micros();
       }
       memcpy(buf, mon, sizeof(mon_ctx_t));
       if (write(pctx.monfd, buf, sizeof(mon_ctx_t)) != sizeof(mon_ctx_t))
         ABORT("!write");
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "saving ok %s (rank 0)",
+        flog(LOG_INFO, "saving ok %s (rank 0)",
              pretty_dura(now_micros() - ts).c_str());
       }
     }
@@ -716,7 +716,7 @@ struct plfsdir_conf {
 static struct plfsdir_conf dirc = {0};
 
 static void plfsdir_error_printer(const char* msg, void*) {
-  logf(LOG_ERRO, msg);
+  flog(LOG_ERRO, msg);
 }
 
 /*
@@ -905,10 +905,10 @@ int MPI_Init(int* argc, char*** argv) {
         deltafs_major = deltafs_version_major();
         deltafs_minor = deltafs_version_minor();
         deltafs_patch = deltafs_version_patch();
-        logf(LOG_INFO, "deltafs %d.%d.%d", deltafs_major, deltafs_minor,
+        flog(LOG_INFO, "deltafs %d.%d.%d", deltafs_major, deltafs_minor,
              deltafs_patch);
       }
-      logf(LOG_INFO, "LIB initializing ... %s MPI ranks (MPI wait=%d ms)",
+      flog(LOG_INFO, "LIB initializing ... %s MPI ranks (MPI wait=%d ms)",
            pretty_num(pctx.comm_sz).c_str(), pctx.mpi_wait);
       if (pctx.print_meminfo) {
         print_meminfo();
@@ -920,7 +920,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.my_rank == 0) {
 #if MPI_VERSION < 3
-    logf(LOG_WARN,
+    flog(LOG_WARN,
          "using non-recent MPI release: some features disabled\n>>> "
          "MPI ver 3 is suggested in production mode");
 #else
@@ -938,7 +938,7 @@ int MPI_Init(int* argc, char*** argv) {
       mpi_info[120] = 0;
       strcat(mpi_info, " ...");
     }
-    logf(LOG_INFO, mpi_info);
+    flog(LOG_INFO, mpi_info);
 #endif
   }
 
@@ -948,21 +948,21 @@ int MPI_Init(int* argc, char*** argv) {
                       &flag);
     if (flag != 0) {
       if (mpi_wtime_is_global == 0) {
-        logf(LOG_WARN,
+        flog(LOG_WARN,
              "MPI_Wtime() is NOT globally synchronized\n>>> "
              "MPI_WTIME_IS_GLOBAL is 0");
       } else {
-        logf(LOG_INFO,
+        flog(LOG_INFO,
              "MPI_Wtime() is globally synchronized\n>>> "
              "MPI_WTIME_IS_GLOBAL is 1");
       }
     } else {
-      logf(LOG_WARN,
+      flog(LOG_WARN,
            "cannot determine if MPI_Wtime() is global\n>>> "
            "MPI_WTIME_IS_GLOBAL not set");
     }
 #else
-    logf(LOG_WARN,
+    flog(LOG_WARN,
          "cannot determine if MPI_Wtime() is global\n>>> "
          "MPI_WTIME_IS_GLOBAL undefined");
 #endif
@@ -970,7 +970,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.my_rank == 0) {
 #if defined(__INTEL_COMPILER)
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "[cc] compiled by Intel (icc/icpc) %d.%d.%d %d on %s %s "
          "(__cplusplus: %ld)",
          __INTEL_COMPILER / 100, __INTEL_COMPILER % 100,
@@ -978,20 +978,20 @@ int MPI_Init(int* argc, char*** argv) {
          __TIME__, __cplusplus);
 
 #elif defined(_CRAYC)
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "[cc] compiled by Cray (crayc/crayc++) %d.%d on %s %s "
          "(__cplusplus: %ld)",
          _RELEASE, _RELEASE_MINOR, __DATE__, __TIME__, __cplusplus);
 
 #elif defined(__clang__)
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "[cc] compiled by LLVM/Clang (clang/clang++) %d.%d.%d on %s %s "
          "(__cplusplus: %ld)",
          __clang_major__, __clang_minor__, __clang_patchlevel__, __DATE__,
          __TIME__, __cplusplus);
 
 #elif defined(__GNUC__)
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "[cc] compiled by GNU (gcc/g++) %d.%d.%d on %s %s "
          "(__cplusplus: %ld)",
          __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __DATE__, __TIME__,
@@ -999,12 +999,12 @@ int MPI_Init(int* argc, char*** argv) {
 
 #endif
 #if defined(__GNUC__) && !defined(__OPTIMIZE__)
-    logf(LOG_WARN,
+    flog(LOG_WARN,
          "c/c++ OPTIMIZATION disabled: benchmarks unnecessarily slow\n>>> "
          "recompile with -O1, -O2, or -O3 to enable optimization");
 #endif
 #ifndef NDEBUG
-    logf(LOG_WARN,
+    flog(LOG_WARN,
          "c/c++ ASSERTIONS enabled: benchmarks unnecessarily slow\n>>> "
          "recompile with \"-DNDEBUG\" to disable assertions");
 #endif
@@ -1012,7 +1012,7 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.testin) {
     if (pctx.my_rank == 0) {
-      logf(LOG_WARN,
+      flog(LOG_WARN,
            "testing mode: benchmarks unnecessarily slow\n>>> rerun with "
            "\"export PRELOAD_Testing=0\" to "
            "disable testing");
@@ -1053,9 +1053,9 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.my_rank == 0) {
     if (pctx.len_deltafs_mntp != 0) {
-      logf(LOG_INFO, "deltafs is mounted at \"%s\"", pctx.deltafs_mntp);
+      flog(LOG_INFO, "deltafs is mounted at \"%s\"", pctx.deltafs_mntp);
     } else {
-      logf(LOG_INFO, "deltafs is not mounted");
+      flog(LOG_INFO, "deltafs is not mounted");
     }
     if (pctx.num_ignore_dirs != 0) {
       fputs(">>> ignore dirs: ", stderr);
@@ -1071,15 +1071,15 @@ int MPI_Init(int* argc, char*** argv) {
 
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "app particle filename: %d bytes, filedata: %d bytes",
+      flog(LOG_INFO, "app particle filename: %d bytes, filedata: %d bytes",
            pctx.filename_size, pctx.filedata_size);
-      logf(LOG_INFO, "preload in key_size: %d bytes, value_size %d bytes",
+      flog(LOG_INFO, "preload in key_size: %d bytes, value_size %d bytes",
            pctx.preload_inkey_size, pctx.preload_invalue_size);
-      logf(LOG_INFO, "preload out key_size: %d bytes, value_size %d bytes",
+      flog(LOG_INFO, "preload out key_size: %d bytes, value_size %d bytes",
            pctx.preload_outkey_size, pctx.preload_outvalue_size);
-      logf(LOG_INFO, "shuffle serialized_size: %d bytes (+ %d extra)",
+      flog(LOG_INFO, "shuffle serialized_size: %d bytes (+ %d extra)",
            pctx.serialized_size, pctx.shuffle_extrabytes);
-      logf(LOG_INFO, "backend key_size: %d bytes, value_size %d bytes",
+      flog(LOG_INFO, "backend key_size: %d bytes, value_size %d bytes",
            pctx.key_size, pctx.value_size);
     }
 
@@ -1089,7 +1089,7 @@ int MPI_Init(int* argc, char*** argv) {
 
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "shuffle starting ... (rank 0)");
+        flog(LOG_INFO, "shuffle starting ... (rank 0)");
         if (pctx.print_meminfo) {
           print_meminfo();
         }
@@ -1098,7 +1098,7 @@ int MPI_Init(int* argc, char*** argv) {
       /* ensures all peers have the shuffle ready */
       PRELOAD_Barrier(MPI_COMM_WORLD);
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "shuffle started (rank 0)");
+        flog(LOG_INFO, "shuffle started (rank 0)");
         if (pctx.print_meminfo) {
           print_meminfo();
         }
@@ -1119,7 +1119,7 @@ int MPI_Init(int* argc, char*** argv) {
       }
     } else {
       if (pctx.my_rank == 0) {
-        logf(LOG_WARN, "shuffle bypassed");
+        flog(LOG_WARN, "shuffle bypassed");
       }
     }
 
@@ -1133,7 +1133,7 @@ int MPI_Init(int* argc, char*** argv) {
        * receiver group */
       assert(pctx.recv_rank == 0);
       assert(pctx.recv_sz != -1);
-      logf(LOG_INFO, "recv MPI_Comm formed ---> sz=%d (world_sz=%d)",
+      flog(LOG_INFO, "recv MPI_Comm formed ---> sz=%d (world_sz=%d)",
            pctx.recv_sz, pctx.comm_sz);
     }
 
@@ -1167,7 +1167,7 @@ int MPI_Init(int* argc, char*** argv) {
         if (rv != 0) {
           ABORT("cannot make plfsdir");
         } else {
-          logf(LOG_INFO, "plfsdir created (rank 0)");
+          flog(LOG_INFO, "plfsdir created (rank 0)");
         }
       }
 
@@ -1207,7 +1207,7 @@ int MPI_Init(int* argc, char*** argv) {
             ABORT("cannot open plfsdir");
           } else {
             if (pctx.my_rank == 0) {
-              logf(LOG_INFO,
+              flog(LOG_INFO,
                    "plfsdir (via deltafs-LT, env=%s, io_engine=%d, "
                    "unordered=%d, leveldb_fmt=%d) opened (rank 0)\n>>> bg "
                    "thread pool size: %d",
@@ -1221,7 +1221,7 @@ int MPI_Init(int* argc, char*** argv) {
               ABORT("cannot open plfsdir filter");
             } else {
               if (pctx.my_rank == 0) {
-                logf(LOG_INFO, "plfsdir side filter opened\n>>> num keys: %s",
+                flog(LOG_INFO, "plfsdir side filter opened\n>>> num keys: %s",
                      pretty_num(pctx.particle_count).c_str());
               }
             }
@@ -1233,7 +1233,7 @@ int MPI_Init(int* argc, char*** argv) {
               ABORT("cannot open plfsdir io");
             } else {
               if (pctx.my_rank == 0) {
-                logf(LOG_INFO, "plfsdir side io opened\n>>> io buf size: %s",
+                flog(LOG_INFO, "plfsdir side io opened\n>>> io buf size: %s",
                      pretty_size(pctx.particle_buf_size).c_str());
               }
             }
@@ -1242,7 +1242,7 @@ int MPI_Init(int* argc, char*** argv) {
           if (pctx.my_rank == 0) {
             if (pctx.verbose) {
               pretty_plfsdir_conf(conf);
-              logf(LOG_INFO, conf.c_str());
+              flog(LOG_INFO, conf.c_str());
             }
           }
         } else if (!IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode) &&
@@ -1251,7 +1251,7 @@ int MPI_Init(int* argc, char*** argv) {
           if (pctx.plfsfd == -1) {
             ABORT("cannot open plfsdir");
           } else if (pctx.my_rank == 0) {
-            logf(LOG_INFO, "plfsdir opened (rank 0)");
+            flog(LOG_INFO, "plfsdir opened (rank 0)");
           }
         }
       }
@@ -1272,7 +1272,7 @@ int MPI_Init(int* argc, char*** argv) {
       }
 
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "in-mem epoch mon stats %d bytes",
+        flog(LOG_INFO, "in-mem epoch mon stats %d bytes",
              int(sizeof(mon_ctx_t)));
       }
     }
@@ -1282,7 +1282,7 @@ int MPI_Init(int* argc, char*** argv) {
       assert(pctx.papi_events != NULL);
       if (pctx.papi_events->size() > MAX_PAPI_EVENTS) {
         if (pctx.my_rank == 0)
-          logf(LOG_WARN, "too many papi events so some are ignored");
+          flog(LOG_WARN, "too many papi events so some are ignored");
         pctx.papi_events->resize(MAX_PAPI_EVENTS);
       }
 
@@ -1299,7 +1299,7 @@ int MPI_Init(int* argc, char*** argv) {
                pctx.papi_events->begin();
            it != pctx.papi_events->end(); ++it) {
         if (pctx.my_rank == 0) {
-          logf(LOG_INFO, "add papi event: %s", *it);
+          flog(LOG_INFO, "add papi event: %s", *it);
         }
         rv = PAPI_event_name_to_code(const_cast<char*>(*it), &n);
         if (rv == PAPI_OK) rv = PAPI_add_event(pctx.papi_set, n);
@@ -1312,33 +1312,33 @@ int MPI_Init(int* argc, char*** argv) {
 
     if (pctx.my_rank == 0) {
       if (pctx.sampling) {
-        logf(LOG_INFO, "particle sampling enabled: %s in %s",
+        flog(LOG_INFO, "particle sampling enabled: %s in %s",
              pretty_num(pctx.sthres).c_str(), pretty_num(1000000).c_str());
       } else {
-        logf(LOG_WARN, "particle sampling skipped");
+        flog(LOG_WARN, "particle sampling skipped");
       }
       if (pctx.paranoid_checks)
-        logf(LOG_WARN,
+        flog(LOG_WARN,
              "paranoid checks enabled: benchmarks unnecessarily slow "
              "and memory usage unnecessarily high\n>>> "
              "rerun with \"export PRELOAD_No_paranoid_checks=1\" to disable");
-      if (pctx.nomon) logf(LOG_WARN, "mon off: some stats not available");
+      if (pctx.nomon) flog(LOG_WARN, "mon off: some stats not available");
 
       if (IS_BYPASS_WRITE(pctx.mode)) {
-        logf(LOG_WARN, "particle writes bypassed");
+        flog(LOG_WARN, "particle writes bypassed");
       } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
-        logf(LOG_WARN, "deltafs metadata bypassed");
+        flog(LOG_WARN, "deltafs metadata bypassed");
       } else if (IS_BYPASS_DELTAFS_PLFSDIR(pctx.mode)) {
-        logf(LOG_WARN, "deltafs plfsdir bypassed");
+        flog(LOG_WARN, "deltafs plfsdir bypassed");
       } else if (IS_BYPASS_DELTAFS(pctx.mode)) {
-        logf(LOG_WARN, "deltafs bypassed");
+        flog(LOG_WARN, "deltafs bypassed");
       }
     }
 
     /* force background activities to stop */
     if (pctx.bgpause) {
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "pausing background activities ... (rank 0)");
+        flog(LOG_INFO, "pausing background activities ... (rank 0)");
       }
       if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
         shuffle_pause(&pctx.sctx);
@@ -1347,7 +1347,7 @@ int MPI_Init(int* argc, char*** argv) {
         deltafs_tp_pause(pctx.plfstp);
       }
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "pausing done (rank 0)");
+        flog(LOG_INFO, "pausing done (rank 0)");
       }
     }
   }
@@ -1439,7 +1439,7 @@ int MPI_Finalize(void) {
   if (rv) ABORT("pthread_once");
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "LIB finalizing ... (%d epochs)", num_eps);
+    flog(LOG_INFO, "LIB finalizing ... (%d epochs)", num_eps);
     if (pctx.print_meminfo) {
       print_meminfo();
     }
@@ -1448,7 +1448,7 @@ int MPI_Finalize(void) {
   /* resuming background activities */
   if (pctx.bgpause) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "resuming background activities ... (rank 0)");
+      flog(LOG_INFO, "resuming background activities ... (rank 0)");
     }
     if (pctx.plfstp != NULL) {
       deltafs_tp_rerun(pctx.plfstp);
@@ -1457,7 +1457,7 @@ int MPI_Finalize(void) {
       shuffle_resume(&pctx.sctx);
     }
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "resuming done (rank 0)");
+      flog(LOG_INFO, "resuming done (rank 0)");
     }
   }
 
@@ -1520,19 +1520,19 @@ int MPI_Finalize(void) {
   if (pctx.len_deltafs_mntp != 0 && pctx.len_plfsdir != 0) {
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "shuffle shutting down ...");
+        flog(LOG_INFO, "shuffle shutting down ...");
       }
       /* ensures all peer messages are received */
       PRELOAD_Barrier(MPI_COMM_WORLD);
       /* shuffle flush */
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
-        logf(LOG_INFO, "flushing shuffle ... (rank 0)");
+        flog(LOG_INFO, "flushing shuffle ... (rank 0)");
       }
       shuffle_epoch_start(&pctx.sctx);
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
-        logf(LOG_INFO, "flushing done %s",
+        flog(LOG_INFO, "flushing done %s",
              pretty_dura(flush_end - flush_start).c_str());
       }
       /*
@@ -1542,7 +1542,7 @@ int MPI_Finalize(void) {
       PRELOAD_Barrier(MPI_COMM_WORLD);
       shuffle_finalize(&pctx.sctx);
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "shuffle off");
+        flog(LOG_INFO, "shuffle off");
       }
     }
 
@@ -1552,14 +1552,14 @@ int MPI_Finalize(void) {
     if (pctx.plfshdl != NULL) {
       finish_start = now_micros();
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "finalizing plfsdir ... (rank 0)");
+        flog(LOG_INFO, "finalizing plfsdir ... (rank 0)");
       }
       if (pctx.sideft) deltafs_plfsdir_filter_finish(pctx.plfshdl);
       if (pctx.sideio) deltafs_plfsdir_io_finish(pctx.plfshdl);
       deltafs_plfsdir_finish(pctx.plfshdl);
       finish_end = now_micros();
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "finalizing done %s",
+        flog(LOG_INFO, "finalizing done %s",
              pretty_dura(finish_end - finish_start).c_str());
       }
       finish_dura = double(finish_end - finish_start) / 1000.0 / 1000.0;
@@ -1589,7 +1589,7 @@ int MPI_Finalize(void) {
       pctx.plfshdl = NULL;
 
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "plfsdir (via deltafs-LT) closed (rank 0)");
+        flog(LOG_INFO, "plfsdir (via deltafs-LT) closed (rank 0)");
       }
     } else if (pctx.plfsfd != -1) {
       if (num_eps != 0) {
@@ -1599,7 +1599,7 @@ int MPI_Finalize(void) {
       pctx.plfsfd = -1;
 
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "plfsdir closed (rank 0)");
+        flog(LOG_INFO, "plfsdir closed (rank 0)");
       }
     } else {
       if (num_eps != 0) {
@@ -1628,7 +1628,7 @@ int MPI_Finalize(void) {
       MPI_Reduce(num_samples, sum_samples, 2, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
                  0, pctx.recv_comm);
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "total particles sampled: %s (%s valid)",
+        flog(LOG_INFO, "total particles sampled: %s (%s valid)",
              pretty_num(sum_samples[0]).c_str(),
              pretty_num(sum_samples[1]).c_str());
       }
@@ -1637,7 +1637,7 @@ int MPI_Finalize(void) {
         snprintf(path, sizeof(path), "%s/NAMES-%07d.txt", pctx.log_home,
                  pctx.recv_rank);
         if (pctx.my_rank == 0) {
-          logf(LOG_INFO, "dumping valid particle names to ...");
+          flog(LOG_INFO, "dumping valid particle names to ...");
           fputs(path, stderr);
           fputc('\n', stderr);
         }
@@ -1674,7 +1674,7 @@ int MPI_Finalize(void) {
         MPI_Reduce(&num_names, &sum_names, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
                    0, pctx.recv_comm);
         if (pctx.my_rank == 0) {
-          logf(LOG_INFO, "dumping ok (%s names)",
+          flog(LOG_INFO, "dumping ok (%s names)",
                pretty_num(sum_names).c_str());
         }
       }
@@ -1687,7 +1687,7 @@ int MPI_Finalize(void) {
 
         if (pctx.my_rank == 0) {
           fd1 = fd2 = -1;
-          logf(LOG_INFO, "merging and saving epoch mon stats to ...");
+          flog(LOG_INFO, "merging and saving epoch mon stats to ...");
           ts = now_micros();
           if (mon_dump_bin) {
             snprintf(path, sizeof(path), "%s/DUMP-mon.bin", pctx.log_home);
@@ -1735,7 +1735,7 @@ int MPI_Finalize(void) {
 
           if (!go) {
             if (pctx.my_rank == 0) {
-              logf(LOG_WARN, "unable to merge epoch stats");
+              flog(LOG_WARN, "unable to merge epoch stats");
             }
           } else {
             /* per-rank total writes = local writes + foreign writes */
@@ -1753,12 +1753,12 @@ int MPI_Finalize(void) {
           if (go) {
             if (pctx.my_rank == 0) {
               if (glob.nlw + glob.nfw != glob.nw)
-                logf(LOG_WARN,
+                flog(LOG_WARN,
                      "total local and remote writes != total num particles !?");
               if (glob.nms != glob.nmd)
-                logf(LOG_WARN, "num msg sent != num msg delivered !?");
+                flog(LOG_WARN, "num msg sent != num msg delivered !?");
               if (glob.nms != glob.nmr)
-                logf(LOG_WARN, "num msg sent != num msg recv'ed !?");
+                flog(LOG_WARN, "num msg sent != num msg recv'ed !?");
               io_time += glob.max_dura / 1000.0 / 1000.0;
               if (mon_dump_txt) mon_dumpstate(fd2, &glob);
               if (mon_dump_bin) {
@@ -1774,22 +1774,22 @@ int MPI_Finalize(void) {
                        glob.cpu_stat.micros;
                 scpu = 100 * double(glob.cpu_stat.sys_micros) /
                        glob.cpu_stat.micros;
-                logf(LOG_INFO,
+                flog(LOG_INFO,
                      " @ epoch #%-3d  %s - %s  (%d%% - %d%% cpu usage)",
                      epoch + 1, pretty_dura(glob.min_dura).c_str(),
                      pretty_dura(glob.max_dura).c_str(), glob.cpu_stat.min_cpu,
                      glob.cpu_stat.max_cpu);
-                logf(LOG_INFO,
+                flog(LOG_INFO,
                      "       > avg cpu: %.2f%% user + %.2f%% system ="
                      " %.2f%% total",
                      ucpu, scpu, ucpu + scpu);
-                logf(LOG_INFO, "           > %s v/cs, %s i/cs",
+                flog(LOG_INFO, "           > %s v/cs, %s i/cs",
                      pretty_num(glob.cpu_stat.vcs).c_str(),
                      pretty_num(glob.cpu_stat.ics).c_str());
 #ifdef PRELOAD_HAS_PAPI
                 for (size_t ix = 0; ix < pctx.papi_events->size(); ix++) {
                   if (glob.mem_stat.num[ix] != 0) {
-                    logf(LOG_INFO, "         > %s: %s (min: %s, max: %s)",
+                    flog(LOG_INFO, "         > %s: %s (min: %s, max: %s)",
                          pctx.papi_events->at(ix),
                          pretty_num(glob.mem_stat.num[ix]).c_str(),
                          pretty_num(glob.mem_stat.min[ix]).c_str(),
@@ -1797,25 +1797,25 @@ int MPI_Finalize(void) {
                   }
                 }
 #endif
-                logf(LOG_INFO,
+                flog(LOG_INFO,
                      "   > %s particle writes (%s collisions), %s per rank "
                      "(min: %s, max: %s)",
                      pretty_num(glob.nw).c_str(), pretty_num(glob.ncw).c_str(),
                      pretty_num(double(glob.nw) / pctx.comm_sz).c_str(),
                      pretty_num(glob.min_nw).c_str(),
                      pretty_num(glob.max_nw).c_str());
-                logf(LOG_INFO,
+                flog(LOG_INFO,
                      "         > %s foreign + %s local = %s total writes",
                      pretty_num(glob.nfw).c_str(), pretty_num(glob.nlw).c_str(),
                      pretty_num(glob.nfw + glob.nlw).c_str());
-                logf(LOG_INFO,
+                flog(LOG_INFO,
                      "               > %s per rank (min: %s, max: %s)",
                      pretty_num(double(glob.nfw + glob.nlw) / pctx.comm_sz)
                          .c_str(),
                      pretty_num(min_writes).c_str(),
                      pretty_num(max_writes).c_str());
                 if (glob.dir_stat.num_sstables != 0) {
-                  logf(LOG_INFO,
+                  flog(LOG_INFO,
                        "     > %s sst data (+%.3f%%), %s sst indexes (+%.3f%%),"
                        " %s bloom filter (+%.3f%%)",
                        pretty_size(glob.dir_stat.total_dblksz).c_str(),
@@ -1837,7 +1837,7 @@ int MPI_Finalize(void) {
                               glob.dir_stat.total_datasz) *
                                  100.0
                            : 0);
-                  logf(LOG_INFO,
+                  flog(LOG_INFO,
                        "           > %s sst, %s per rank, %.1f per mem "
                        "partition",
                        pretty_num(glob.dir_stat.num_sstables).c_str(),
@@ -1849,7 +1849,7 @@ int MPI_Finalize(void) {
                                       : 0);
                 }
                 if (glob.dir_stat.num_keys != 0) {
-                  logf(LOG_INFO,
+                  flog(LOG_INFO,
                        "     > %s keys (%s dropped),"
                        " %s per rank (min: %s, max %s)",
                        pretty_num(glob.dir_stat.num_keys).c_str(),
@@ -1858,7 +1858,7 @@ int MPI_Finalize(void) {
                            .c_str(),
                        pretty_num(glob.dir_stat.min_num_keys).c_str(),
                        pretty_num(glob.dir_stat.max_num_keys).c_str());
-                  logf(LOG_INFO, "         > %s table data, %s, %s per rank",
+                  flog(LOG_INFO, "         > %s table data, %s, %s per rank",
                        pretty_size(glob.dir_stat.total_datasz).c_str(),
                        pretty_bw(glob.dir_stat.total_datasz, glob.max_dura)
                            .c_str(),
@@ -1866,13 +1866,13 @@ int MPI_Finalize(void) {
                            double(glob.dir_stat.total_datasz) / pctx.comm_sz,
                            glob.max_dura)
                            .c_str());
-                  logf(LOG_INFO, "             > %s per op",
+                  flog(LOG_INFO, "             > %s per op",
                        pretty_dura(double(glob.max_dura) /
                                    glob.dir_stat.num_keys * pctx.comm_sz)
                            .c_str());
                 }
                 if (glob.nlms + glob.nms != 0) {
-                  logf(LOG_INFO,
+                  flog(LOG_INFO,
                        "   > %s + %s rpc sent (%s + %s replied), %s + %s "
                        "per rank (min: %s | %s, max: %s | %s)",
                        pretty_num(glob.nlms).c_str(),
@@ -1885,7 +1885,7 @@ int MPI_Finalize(void) {
                        pretty_num(glob.min_nms).c_str(),
                        pretty_num(glob.max_nlms).c_str(),
                        pretty_num(glob.max_nms).c_str());
-                  logf(LOG_INFO, "       > %s + %s, %s + %s per rank",
+                  flog(LOG_INFO, "       > %s + %s, %s + %s per rank",
                        pretty_tput(glob.nlms, glob.max_dura).c_str(),
                        pretty_tput(glob.nms, glob.max_dura).c_str(),
                        pretty_tput(double(glob.nlms) / pctx.comm_sz,
@@ -1896,7 +1896,7 @@ int MPI_Finalize(void) {
                            .c_str());
                 }
                 if (glob.nlmr + glob.nmr != 0) {
-                  logf(LOG_INFO,
+                  flog(LOG_INFO,
                        "   > %s + %s rpc recv, %s + %s per rank (min: %s | %s, "
                        "max: %s | %s)",
                        pretty_num(glob.nlmr).c_str(),
@@ -1907,7 +1907,7 @@ int MPI_Finalize(void) {
                        pretty_num(glob.min_nmr).c_str(),
                        pretty_num(glob.max_nlmr).c_str(),
                        pretty_num(glob.max_nmr).c_str());
-                  logf(LOG_INFO, "       > %s + %s, %s + %s per rank",
+                  flog(LOG_INFO, "       > %s + %s, %s + %s per rank",
                        pretty_tput(glob.nlmr, glob.max_dura).c_str(),
                        pretty_tput(glob.nmr, glob.max_dura).c_str(),
                        pretty_tput(double(glob.nlmr) / pctx.comm_sz,
@@ -1916,7 +1916,7 @@ int MPI_Finalize(void) {
                        pretty_tput(double(glob.nmr) / pctx.comm_sz,
                                    glob.max_dura)
                            .c_str());
-                  logf(LOG_INFO, "           > %s | %s per rpc",
+                  flog(LOG_INFO, "           > %s | %s per rpc",
                        pretty_dura(double(glob.max_dura) / glob.nlmr *
                                    pctx.comm_sz)
                            .c_str(),
@@ -1941,7 +1941,7 @@ int MPI_Finalize(void) {
             close(fd2);
           }
           diff = now_micros() - ts;
-          logf(LOG_INFO, "merging ok (%d epochs) %s", epoch,
+          flog(LOG_INFO, "merging ok (%d epochs) %s", epoch,
                pretty_dura(diff).c_str());
         }
       }
@@ -1971,21 +1971,21 @@ int MPI_Finalize(void) {
              MPI_COMM_WORLD);
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "final stats...");
+    flog(LOG_INFO, "final stats...");
     if (pctx.carp_on) {
-      logf(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
+      flog(LOG_INFO, "num renegotiations: %d\n", pctx.carp->NumRounds());
     }
 
-    logf(LOG_INFO, "== dir data compaction");
-    logf(LOG_INFO,
+    flog(LOG_INFO, "== dir data compaction");
+    flog(LOG_INFO,
          "   > %llu bytes written (%llu files), %llu bytes read (%llu files)",
          sum_bytes_writ, sum_files_writ, sum_bytes_read, sum_files_read);
-    logf(LOG_INFO, "       > final compaction draining: %.6f secs",
+    flog(LOG_INFO, "       > final compaction draining: %.6f secs",
          max_finish_dura);
     io_time += max_finish_dura;
-    logf(LOG_INFO, "           > total io time: %.6f secs", io_time);
-    logf(LOG_INFO, "== ALL epochs");
-    logf(LOG_INFO, "       > %.1f per rank",
+    flog(LOG_INFO, "           > total io time: %.6f secs", io_time);
+    flog(LOG_INFO, "== ALL epochs");
+    flog(LOG_INFO, "       > %.1f per rank",
          double(sum_pthreads) / pctx.comm_sz);
   }
 
@@ -2007,12 +2007,12 @@ int MPI_Finalize(void) {
   /* !!! OK !!! */
   rv = nxt.MPI_Finalize();
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "all done!");
+    flog(LOG_INFO, "all done!");
     if (pctx.print_meminfo) {
       print_meminfo();
     }
 
-    logf(LOG_INFO, "BYE");
+    flog(LOG_INFO, "BYE");
   }
 
   return rv;
@@ -2092,7 +2092,7 @@ int opendir_impl(const char* dir) {
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "epoch %d begins (rank 0)", num_eps + 1);
+    flog(LOG_INFO, "epoch %d begins (rank 0)", num_eps + 1);
     if (pctx.print_meminfo) {
       print_meminfo();
     }
@@ -2101,7 +2101,7 @@ int opendir_impl(const char* dir) {
   /* resuming background activities */
   if (pctx.bgpause) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "resuming background activities ... (rank 0)");
+      flog(LOG_INFO, "resuming background activities ... (rank 0)");
     }
     if (pctx.plfstp != NULL) {
       deltafs_tp_rerun(pctx.plfstp);
@@ -2110,7 +2110,7 @@ int opendir_impl(const char* dir) {
       shuffle_resume(&pctx.sctx);
     }
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "resuming done (rank 0)");
+      flog(LOG_INFO, "resuming done (rank 0)");
     }
   }
 
@@ -2134,12 +2134,12 @@ int opendir_impl(const char* dir) {
     if (num_eps != 0) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
-        logf(LOG_INFO, "flushing shuffle receivers ... (rank 0)");
+        flog(LOG_INFO, "flushing shuffle receivers ... (rank 0)");
       }
       shuffle_epoch_start(&pctx.sctx); /* shuffle receiver flush */
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
-        logf(LOG_INFO, "receiver flushing done %s",
+        flog(LOG_INFO, "receiver flushing done %s",
              pretty_dura(flush_end - flush_start).c_str());
       }
     }
@@ -2165,7 +2165,7 @@ int opendir_impl(const char* dir) {
       if (pctx.plfshdl != NULL) {
         if (pctx.my_rank == 0) {
           flush_start = now_micros();
-          logf(LOG_INFO, "flushing plfsdir ... (rank 0)");
+          flog(LOG_INFO, "flushing plfsdir ... (rank 0)");
         }
 
         if (pctx.sideft && deltafs_plfsdir_filter_flush(pctx.plfshdl) != 0)
@@ -2176,7 +2176,7 @@ int opendir_impl(const char* dir) {
           ABORT("fail to flush plfsdir");
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
-          logf(LOG_INFO, "flushing done %s",
+          flog(LOG_INFO, "flushing done %s",
                pretty_dura(flush_end - flush_start).c_str());
         }
       } else {
@@ -2188,7 +2188,7 @@ int opendir_impl(const char* dir) {
       if (pctx.plfsfd != -1) {
         deltafs_epoch_flush(pctx.plfsfd, NULL); /* XXX */
         if (pctx.my_rank == 0) {
-          logf(LOG_INFO, "plfsdir flushed (rank 0)");
+          flog(LOG_INFO, "plfsdir flushed (rank 0)");
         }
       } else {
         ABORT("plfsdir not opened");
@@ -2242,7 +2242,7 @@ int opendir_impl(const char* dir) {
 #ifdef PRELOAD_HAS_PAPI
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "starting papi ... (rank 0)");
+      flog(LOG_INFO, "starting papi ... (rank 0)");
     }
     if ((rv = PAPI_reset(pctx.papi_set)) != PAPI_OK) {
       ABORT(PAPI_strerror(rv));
@@ -2251,7 +2251,7 @@ int opendir_impl(const char* dir) {
       ABORT(PAPI_strerror(rv));
     }
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "papi on");
+      flog(LOG_INFO, "papi on");
     }
   }
 #endif
@@ -2266,7 +2266,7 @@ int opendir_impl(const char* dir) {
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "dumping particles ... (rank 0)");
+    flog(LOG_INFO, "dumping particles ... (rank 0)");
   }
 
   /*
@@ -2313,7 +2313,7 @@ int closedir_impl(DIR* dirp) {
   double cpu;
   int rv;
 
-  if (pctx.my_rank == 0) logf(LOG_INFO, "dumping done!!!");
+  if (pctx.my_rank == 0) flog(LOG_INFO, "dumping done!!!");
 
   if (pctx.paranoid_checks) {
     assert(pctx.isdeltafs != NULL);
@@ -2330,12 +2330,12 @@ int closedir_impl(DIR* dirp) {
   if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
-      logf(LOG_INFO, "flushing shuffle senders ... (rank 0)");
+      flog(LOG_INFO, "flushing shuffle senders ... (rank 0)");
     }
     shuffle_epoch_end(&pctx.sctx); /* shuffle sender flush */
     if (pctx.my_rank == 0) {
       flush_end = now_micros();
-      logf(LOG_INFO, "sender flushing done %s",
+      flog(LOG_INFO, "sender flushing done %s",
            pretty_dura(flush_end - flush_start).c_str());
     }
   }
@@ -2358,12 +2358,12 @@ int closedir_impl(DIR* dirp) {
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       if (pctx.my_rank == 0) {
         flush_start = now_micros();
-        logf(LOG_INFO, "pre-flushing shuffle receivers ... (rank 0)");
+        flog(LOG_INFO, "pre-flushing shuffle receivers ... (rank 0)");
       }
       shuffle_epoch_pre_start(&pctx.sctx); /* shuffle receiver pre-flush */
       if (pctx.my_rank == 0) {
         flush_end = now_micros();
-        logf(LOG_INFO, "receiver pre-flushing done %s",
+        flog(LOG_INFO, "receiver pre-flushing done %s",
              pretty_dura(flush_end - flush_start).c_str());
       }
     }
@@ -2383,7 +2383,7 @@ int closedir_impl(DIR* dirp) {
       if (pctx.plfshdl != NULL) {
         if (pctx.my_rank == 0) {
           flush_start = now_micros();
-          logf(LOG_INFO, "pre-flushing plfsdir ... (rank 0)");
+          flog(LOG_INFO, "pre-flushing plfsdir ... (rank 0)");
         }
 
         if (pctx.sideio && deltafs_plfsdir_io_flush(pctx.plfshdl) != 0)
@@ -2410,7 +2410,7 @@ int closedir_impl(DIR* dirp) {
 
         if (pctx.my_rank == 0) {
           flush_end = now_micros();
-          logf(LOG_INFO, "pre-flushing done %s",
+          flog(LOG_INFO, "pre-flushing done %s",
                pretty_dura(flush_end - flush_start).c_str());
         }
       } else {
@@ -2425,7 +2425,7 @@ int closedir_impl(DIR* dirp) {
 #ifdef PRELOAD_HAS_PAPI
   if (pctx.papi_set != PAPI_NULL) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "stopping papi (rank 0)");
+      flog(LOG_INFO, "stopping papi (rank 0)");
     }
     if ((rv = PAPI_stop(pctx.papi_set, pctx.mctx.mem_stat.num)) != PAPI_OK) {
       ABORT(PAPI_strerror(rv));
@@ -2435,7 +2435,7 @@ int closedir_impl(DIR* dirp) {
     memcpy(pctx.mctx.mem_stat.max, pctx.mctx.mem_stat.num,
            sizeof(pctx.mctx.mem_stat.num));
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "papi off");
+      flog(LOG_INFO, "papi off");
     }
   }
 #endif
@@ -2470,7 +2470,7 @@ int closedir_impl(DIR* dirp) {
   /* force background activities to stop */
   if (pctx.bgpause) {
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "pausing background activities ... (rank 0)");
+      flog(LOG_INFO, "pausing background activities ... (rank 0)");
     }
     if (!IS_BYPASS_SHUFFLE(pctx.mode)) {
       shuffle_pause(&pctx.sctx);
@@ -2479,7 +2479,7 @@ int closedir_impl(DIR* dirp) {
       deltafs_tp_pause(pctx.plfstp);
     }
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "pausing done (rank 0)");
+      flog(LOG_INFO, "pausing done (rank 0)");
     }
   }
 
@@ -2488,13 +2488,13 @@ int closedir_impl(DIR* dirp) {
     pctx.mctx.max_dura = now_micros() - pctx.epoch_start;
     pctx.mctx.min_dura = pctx.mctx.max_dura;
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "epoch %s (rank 0)",
+      flog(LOG_INFO, "epoch %s (rank 0)",
            pretty_dura(pctx.mctx.max_dura).c_str());
     }
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "epoch ends (rank 0)");
+    flog(LOG_INFO, "epoch ends (rank 0)");
     if (pctx.print_meminfo) {
       print_meminfo();
     }
@@ -2563,7 +2563,7 @@ FILE* fopen(const char* fpath, const char* mode) {
   pctx.mctx.nw++;
   if (stock_file == NULL) {
     rv = reinterpret_cast<FILE*>(new fake_file(stripped));
-    logf(LOG_WARN, "VPIS IS OPENING MULTIPLE PLFSDIR FILES SIMULTANEOUSLY!");
+    flog(LOG_WARN, "VPIS IS OPENING MULTIPLE PLFSDIR FILES SIMULTANEOUSLY!");
     assert(pctx.isdeltafs != NULL);
     pctx.isdeltafs->insert(rv);
   } else {

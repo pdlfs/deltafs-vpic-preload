@@ -27,7 +27,7 @@ Status Carp::Serialize(const char* skey, unsigned char skey_len, char* svalue,
   }
   p.shuffle_dest = -1;    /* default to -1 (i.e. 'unknown') */
 
-  logf(LOG_DBG2, "Carp::Serialize: bufsz: %d", p.buf_sz);
+  flog(LOG_DBG2, "Carp::Serialize: bufsz: %d", p.buf_sz);
   return s;
 }
 
@@ -43,7 +43,7 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush) {
     /* XXX: check RV */
     int rv = oob_buffer_.Insert(p);
     if (rv < 0) {
-      logf(LOG_INFO, "OOB Insert failed: %d", options_.my_rank);
+      flog(LOG_INFO, "OOB Insert failed: %d", options_.my_rank);
     }
   }
 

@@ -78,7 +78,7 @@ void PRELOAD_Barrier(MPI_Comm comm) {
   int ok;
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "barrier ...\n   MPI Barrier");
+    flog(LOG_INFO, "barrier ...\n   MPI Barrier");
   }
   start.time = MPI_Wtime();
   start.rank = pctx.my_rank;
@@ -97,10 +97,10 @@ void PRELOAD_Barrier(MPI_Comm comm) {
   if (pctx.my_rank == 0) {
     dura = MPI_Wtime() - min.time;
 #ifdef PRELOAD_BARRIER_VERBOSE
-    logf(LOG_INFO, "barrier ok (\n /* rank %d waited longest */\n %s+\n)",
+    flog(LOG_INFO, "barrier ok (\n /* rank %d waited longest */\n %s+\n)",
          min.rank, pretty_dura(dura * 1000000).c_str());
 #else
-    logf(LOG_INFO, "barrier %s+", pretty_dura(dura * 1000000).c_str());
+    flog(LOG_INFO, "barrier %s+", pretty_dura(dura * 1000000).c_str());
 #endif
   }
 }
