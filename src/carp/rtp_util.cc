@@ -91,9 +91,9 @@ void RenegBench::PrintStats() {
   uint64_t ts_tmp;
 #define PRINT_TS(ts, msg)                 \
   ts_tmp = calc_diff_us(&round_start_, &ts); \
-  logf(LOG_INFO, "%lu us: %s", ts_tmp, msg);
+  flog(LOG_INFO, "%lu us: %s", ts_tmp, msg);
 
-  logf(LOG_INFO, "\n\nRTP Benchmark... printing timeline");
+  flog(LOG_INFO, "\n\nRTP Benchmark... printing timeline");
   PRINT_TS(activated_, "RTP_BEGIN received");
   PRINT_TS(stage_completed_[1], "Stage 1 completed");
   PRINT_TS(stage_completed_[2], "Stage 2 completed");
@@ -101,7 +101,7 @@ void RenegBench::PrintStats() {
   PRINT_TS(pvt_bcast_, "Pivot Broadcast begun");
   PRINT_TS(round_end_, "Round completed on RTP root\n");
 
-  // logf(LOG_INFO,
+  // flog(LOG_INFO,
        // "[[ BENCHMARK_RTP_ROOT ]] Time taken: "
        // "%lu us/%lu us/%lu us (%lu us)\n",
        // start_to_active, active_to_pvt, pvt_to_end, start_to_end);

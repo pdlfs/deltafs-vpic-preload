@@ -115,7 +115,7 @@ TEST(RangeUtilsTest, DeduplicateVector) {
   size_t oldsz = v.size();
   pdlfs::carp::deduplicate_sorted_vector(v);
   size_t newsz = v.size();
-  logf(LOG_INFO, "Dedup, old size: %zu, new size: %zu", oldsz, newsz);
+  flog(LOG_INFO, "Dedup, old size: %zu, new size: %zu", oldsz, newsz);
   assert(v.size() == 4);
 }
 

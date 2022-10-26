@@ -38,7 +38,7 @@ int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   pivots->is_set_ = true;
 
-  logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
+  flog(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
        pivots->width_);
 
   pivots->AssertMonotonicity();

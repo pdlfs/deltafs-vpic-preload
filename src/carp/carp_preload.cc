@@ -153,8 +153,8 @@ void preload_mpiinit_carpopts(preload_ctx_t* pc, struct CarpOptions* copts,
   }
 
   if (copts->my_rank == 0) {
-    logf(LOG_INFO, "[carp] CARP enabled!");
-    logf(LOG_INFO,
+    flog(LOG_INFO, "[carp] CARP enabled!");
+    flog(LOG_INFO,
          "[carp] reneg_policy: %s, reneg_intvl: %" PRIu64 ", perflog: %d",
          copts->reneg_policy, copts->reneg_intvl, copts->enable_perflog);
   }

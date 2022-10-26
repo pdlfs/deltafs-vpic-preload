@@ -78,7 +78,7 @@ void shuffle_prepare_sm_uri(char* buf, const char* proto) {
   if (max_port > 65535) ABORT("bad max port");
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "using port range [%d,%d]", min_port, max_port);
+    flog(LOG_INFO, "using port range [%d,%d]", min_port, max_port);
   }
 
   /* finalize uri */
@@ -86,7 +86,7 @@ void shuffle_prepare_sm_uri(char* buf, const char* proto) {
   sprintf(buf, "%s://%d:%d", proto, int(getpid()), min_port);
 #ifndef NDEBUG
   if (pctx.verbose || pctx.my_rank == 0) {
-    logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
+    flog(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
 }
@@ -102,10 +102,10 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
   }
   if (pctx.my_rank == 0) {
     if (!subnet) {
-      logf(LOG_WARN,
+      flog(LOG_WARN,
            "subnet not specified\n>>> will use the 1st non-local ip...");
     } else {
-      logf(LOG_INFO, "using subnet %s*", subnet);
+      flog(LOG_INFO, "using subnet %s*", subnet);
     }
   }
 
@@ -130,7 +130,7 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
         } else {
 #ifndef NDEBUG
           if (pctx.verbose || pctx.my_rank == 0) {
-            logf(LOG_INFO, "[ip] skip %s (rank %d)", ip, pctx.my_rank);
+            flog(LOG_INFO, "[ip] skip %s (rank %d)", ip, pctx.my_rank);
           }
 #endif
         }
@@ -143,7 +143,7 @@ void shuffle_determine_ipaddr(char* ip, socklen_t iplen) {
   freeifaddrs(ifaddr);
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "using ip %s (rank 0)", ip);
+    flog(LOG_INFO, "using ip %s (rank 0)", ip);
   }
 }
 
@@ -171,7 +171,7 @@ void shuffle_prepare_uri(char* buf) {
     proto = DEFAULT_HG_PROTO;
   }
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "using %s", proto);
+    flog(LOG_INFO, "using %s", proto);
   }
 
   if (strstr(proto, "sm") != NULL) { /* special handling for sm addrs */
@@ -199,7 +199,7 @@ void shuffle_prepare_uri(char* buf) {
   if (max_port > 65535) ABORT("bad max port");
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "using port range [%d,%d]", min_port, max_port);
+    flog(LOG_INFO, "using port range [%d,%d]", min_port, max_port);
   }
 
 #if MPI_VERSION >= 3
@@ -240,7 +240,7 @@ void shuffle_prepare_uri(char* buf) {
 
   if (port > max_port) {
     port = 0;
-    logf(LOG_WARN,
+    flog(LOG_WARN,
          "no free ports available within the specified range\n>>> "
          "auto detecting ports ...");
     so = socket(PF_INET, SOCK_STREAM, 0);
@@ -276,7 +276,7 @@ void shuffle_prepare_uri(char* buf) {
   sprintf(buf, "%s://%s:%d", proto, ip, port);
 #ifndef NDEBUG
   if (pctx.verbose || pctx.my_rank == 0) {
-    logf(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
+    flog(LOG_INFO, "[hg] using %s (rank %d)", buf, pctx.my_rank);
   }
 #endif
 }
@@ -478,7 +478,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     MPI_Reduce(rpcs, max_rpcs, 2, MPI_UNSIGNED_LONG_LONG, MPI_MAX, 0,
                MPI_COMM_WORLD);
     if (pctx.my_rank == 0 && (sum_rpcs[0] + sum_rpcs[1]) != 0) {
-      logf(LOG_INFO,
+      flog(LOG_INFO,
            "[rpc] total sends: %s intra-node + %s inter-node = %s overall "
            ".....\n"
            " -> intra-node: %s per rank (min: %s, max: %s)\n"
@@ -510,8 +510,8 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       sleep(ctx->finalize_pause);
     }
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "[nn] per-thread cpu usage ... (s)");
-      logf(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_rank",
+      flog(LOG_INFO, "[nn] per-thread cpu usage ... (s)");
+      flog(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_rank",
            "SYS_per_rank", "TOTAL_per_rank");
     }
     for (size_t i = 0; i < NUM_RUSAGE; i++) {
@@ -521,7 +521,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage[i].sys_micros, 1,
                    MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
         if (pctx.my_rank == 0) {
-          logf(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
+          flog(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
                double(total_rusage[i].usr_micros) / 1000000 / pctx.comm_sz,
                double(total_rusage[i].sys_micros) / 1000000 / pctx.comm_sz,
                double(total_rusage[i].usr_micros + total_rusage[i].sys_micros) /
@@ -531,7 +531,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
     }
     if (!shuffle_is_everyone_receiver(ctx)) {
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_recv",
+        flog(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_recv",
              "SYS_per_recv", "TOTAL_per_recv");
       }
       for (size_t i = 0; i < NUM_RUSAGE; i++) {
@@ -541,7 +541,7 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
           MPI_Reduce(&nnctx.r[i].sys_micros, &total_rusage_recv[i].sys_micros,
                      1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, pctx.recv_comm);
           if (pctx.my_rank == 0) {
-            logf(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
+            flog(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
                  double(total_rusage_recv[i].usr_micros) / 1000000 /
                      pctx.recv_sz,
                  double(total_rusage_recv[i].sys_micros) / 1000000 /
@@ -553,13 +553,13 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
         }
       }
       if (pctx.my_rank == 0) {
-        logf(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_nonrecv",
+        flog(LOG_INFO, "                %-16s%-16s%-16s", "USR_per_nonrecv",
              "SYS_per_nonrecv", "TOTAL_per_nonrecv");
       }
       for (size_t i = 0; i < NUM_RUSAGE; i++) {
         if (nnctx.r[i].tag[0] != 0 && pctx.recv_comm != MPI_COMM_NULL) {
           if (pctx.my_rank == 0) {
-            logf(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
+            flog(LOG_INFO, "  %-8s CPU: %-16.3f%-16.3f%-16.3f", nnctx.r[i].tag,
                  double(total_rusage[i].usr_micros -
                         total_rusage_recv[i].usr_micros) /
                      1000000 / (pctx.comm_sz - pctx.recv_sz),
@@ -581,12 +581,12 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       hstg_reset_min(hg_intvl);
       hstg_reduce(nnctx.hg_intvl, hg_intvl, pctx.recv_comm);
       if (pctx.my_rank == 0 && hstg_num(hg_intvl) >= 1.0) {
-        logf(LOG_INFO, "[nn] hg_progress interval ... (ms)");
-        logf(LOG_INFO, "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
+        flog(LOG_INFO, "[nn] hg_progress interval ... (ms)");
+        flog(LOG_INFO, "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
              pretty_num(hstg_num(hg_intvl)).c_str(), hstg_avg(hg_intvl),
              hstg_min(hg_intvl), hstg_max(hg_intvl));
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          logf(LOG_INFO, "    - %d%% %-12.2f %.4f%% %.2f", p[i],
+          flog(LOG_INFO, "    - %d%% %-12.2f %.4f%% %.2f", p[i],
                hstg_ptile(hg_intvl, p[i]), d[i], hstg_ptile(hg_intvl, d[i]));
         }
       }
@@ -598,17 +598,17 @@ void shuffle_finalize(shuffle_ctx_t* ctx) {
       MPI_Reduce(&nnctx.total_msgsz, &total_msgsz, 1, MPI_UNSIGNED_LONG_LONG,
                  MPI_SUM, 0, pctx.recv_comm);
       if (pctx.my_rank == 0 && hstg_num(iq_dep) >= 1.0) {
-        logf(LOG_INFO,
+        flog(LOG_INFO,
              "[nn] avg rpc size: %s (%s writes per rpc, %s per write)",
              pretty_size(double(total_msgsz) / hstg_sum(iq_dep)).c_str(),
              pretty_num(double(total_writes) / hstg_sum(iq_dep)).c_str(),
              pretty_size(double(total_msgsz) / double(total_writes)).c_str());
-        logf(LOG_INFO, "[nn] rpc incoming queue depth ...");
-        logf(LOG_INFO, "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
+        flog(LOG_INFO, "[nn] rpc incoming queue depth ...");
+        flog(LOG_INFO, "  %s samples, avg: %.3f (min: %.0f, max: %.0f)",
              pretty_num(hstg_num(iq_dep)).c_str(), hstg_avg(iq_dep),
              hstg_min(iq_dep), hstg_max(iq_dep));
         for (size_t i = 0; i < sizeof(p) / sizeof(int); i++) {
-          logf(LOG_INFO, "    - %d%% %-12.2f %.4f%% %.2f", p[i],
+          flog(LOG_INFO, "    - %d%% %-12.2f %.4f%% %.2f", p[i],
                hstg_ptile(iq_dep, p[i]), d[i], hstg_ptile(iq_dep, d[i]));
         }
       }
@@ -651,7 +651,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "shuffle format: K = %u bytes, V = %u bytes",
+    flog(LOG_INFO, "shuffle format: K = %u bytes, V = %u bytes",
          ctx->skey_len, ctx->extra_data_len + ctx->svalue_len);
   }
 
@@ -668,7 +668,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   ctx->is_receiver = shuffle_is_rank_receiver(ctx, pctx.my_rank);
   if (pctx.my_rank == 0) {
-    logf(LOG_INFO, "%u shuffle senders per receiver\n>>> receiver mask is %#x",
+    flog(LOG_INFO, "%u shuffle senders per receiver\n>>> receiver mask is %#x",
          ctx->receiver_rate, ctx->receiver_mask);
   }
 
@@ -681,7 +681,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   if (pctx.my_rank == 0) {
     if (ctx->finalize_pause > 0) {
-      logf(LOG_INFO, "shuffle finalize pause: %d secs", ctx->finalize_pause);
+      flog(LOG_INFO, "shuffle finalize pause: %d secs", ctx->finalize_pause);
     }
   }
   if (is_envset("SHUFFLE_Force_rpc")) {
@@ -689,12 +689,12 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
   if (pctx.my_rank == 0) {
     if (!ctx->force_rpc) {
-      logf(LOG_WARN,
+      flog(LOG_WARN,
            "shuffle force_rpc is OFF (will skip shuffle if addr is "
            "local)\n>>> "
            "main thread may be blocked on writing");
     } else {
-      logf(LOG_INFO,
+      flog(LOG_INFO,
            "shuffle force_rpc is ON\n>>> "
            "will always invoke shuffle even addr is local");
     }
@@ -702,12 +702,12 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   if (is_envset("SHUFFLE_Use_multihop")) {
     ctx->type = SHUFFLE_XN;
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO, "using the scalable multi-hop shuffler");
+      flog(LOG_INFO, "using the scalable multi-hop shuffler");
     }
   } else {
     ctx->type = SHUFFLE_NN;
     if (pctx.my_rank == 0) {
-      logf(LOG_INFO,
+      flog(LOG_INFO,
            "using the default NN shuffler: code might not scale well\n>>> "
            "switch to the multi-hop shuffler for better scalability");
     }
@@ -748,19 +748,19 @@ void shuffle_init(shuffle_ctx_t* ctx) {
 
   if (pctx.my_rank == 0) {
     if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
-      logf(LOG_INFO,
+      flog(LOG_INFO,
            "ch-placement group size: %s (vir-factor: %s, proto: %s)\n>>> "
            "possible protocols are: "
            "static_modulo, hash_lookup3, xor, and ring",
            pretty_num(world_sz).c_str(), pretty_num(vf).c_str(), proto);
     } else {
-      logf(LOG_INFO, "ch-placement bypassed");
+      flog(LOG_INFO, "ch-placement bypassed");
     }
   }
 #endif
 
   if (pctx.my_rank == 0 && pctx.verbose) {
-    logf(LOG_INFO, "HG is configured as follows ...");
+    flog(LOG_INFO, "HG is configured as follows ...");
     fputs(" > HG_HAS_POST_LIMIT=", stderr);
 #ifdef HG_HAS_POST_LIMIT
     fputs("ON", stderr);

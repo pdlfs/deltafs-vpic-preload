@@ -32,7 +32,7 @@ std::string Pivots::ToString() const {
 
 void OrderedBins::UpdateFromPivots(Pivots& pivots) {
   if (pivots.Size() != Size() + 1) {
-    logf(LOG_ERRO, "[OrderedBins] SetFromPivots: size mismatch (%zu vs %zu)",
+    flog(LOG_ERRO, "[OrderedBins] SetFromPivots: size mismatch (%zu vs %zu)",
          pivots.Size(), Size() + 1);
     ABORT("OrderedBins - size mismatch!!");
     return;
@@ -89,7 +89,7 @@ double OrderedBins::PrintNormStd() {
     double norm_x2 = normbincnt * normbincnt;
     normx_sum += norm_x;
     normx2_sum += norm_x2;
-    logf(LOG_DBG2, "normbincnt: x: %lf, x2: %lf\n", normx_sum, normx2_sum);
+    flog(LOG_DBG2, "normbincnt: x: %lf, x2: %lf\n", normx_sum, normx2_sum);
   }
 
   normx_sum /= counts_.size();
@@ -98,7 +98,7 @@ double OrderedBins::PrintNormStd() {
   double normvar = normx2_sum - (normx_sum * normx_sum);
   double normstd = pow(normvar, 0.5);
 
-  logf(LOG_INFO, "OrderedBins, Normalized Stddev: %.3lf\n", normstd);
+  flog(LOG_INFO, "OrderedBins, Normalized Stddev: %.3lf\n", normstd);
   return normstd;
 }
 }  // namespace carp

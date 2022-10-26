@@ -117,7 +117,7 @@ class RTPBench {
     uint64_t rlatmax =
         std::accumulate(all_rtimes_.begin(), all_rtimes_.end(), 0ull, max);
 
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "Rounds: %zu, Latency: %.1lfus+-%.1lfus (Range: %" PRIu64 "us-%" PRIu64
          "us)\n",
          rlatcnt, rlatmean, rlatstd, rlatmin, rlatmax);

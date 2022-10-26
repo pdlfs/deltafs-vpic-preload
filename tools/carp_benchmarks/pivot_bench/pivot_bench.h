@@ -126,12 +126,12 @@ class PivotBench {
     std::vector<carp::Pivots> pivots(opts_.nranks);
 
     if (parallel) {
-      logf(LOG_ERRO, "Not implemented");
+      flog(LOG_ERRO, "Not implemented");
       ABORT("NOT IMPLEMENTED!!");
     } else {
       for (int r = 0; r < opts_.nranks; r++) {
         ranks_[r]->GetOobPivots(epoch, &pivots[r], num_pivots);
-        logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
+        flog(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
     }
 
@@ -139,7 +139,7 @@ class PivotBench {
     carp::PivotAggregator aggr(pvtcnt_vec_);
     aggr.AggregatePivots(pivots, merged_pivots);
 
-    logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
+    flog(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
   void GetPerfectPivots(int epoch, carp::Pivots& merged_pivots, int num_pivots,
@@ -151,7 +151,7 @@ class PivotBench {
     } else {
       for (int r = 0; r < opts_.nranks; r++) {
         ranks_[r]->GetPerfectPivots(epoch, &pivots[r], num_pivots);
-        logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
+        flog(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
     }
 
@@ -159,7 +159,7 @@ class PivotBench {
     carp::PivotAggregator aggr(pvtcnt_vec_);
     aggr.AggregatePivots(pivots, merged_pivots);
 
-    logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
+    flog(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
   void ReadEpochIntoBins(int epoch, carp::OrderedBins& merged_bins,
@@ -170,7 +170,7 @@ class PivotBench {
     } else {
       for (int r = 0; r < opts_.nranks; r++) {
         ranks_[r]->ReadEpochIntoBins(epoch, &bins[r]);
-        logf(LOG_INFO, "%s\n", bins[r].ToString().c_str());
+        flog(LOG_INFO, "%s\n", bins[r].ToString().c_str());
       }
     }
 
@@ -179,7 +179,7 @@ class PivotBench {
       merged_bins = merged_bins + bin;
     }
 
-    logf(LOG_INFO, "%s\n", merged_bins.ToString().c_str());
+    flog(LOG_INFO, "%s\n", merged_bins.ToString().c_str());
   }
 
   void InitAllRanks() {

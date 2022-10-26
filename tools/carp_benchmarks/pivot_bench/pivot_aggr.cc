@@ -43,7 +43,7 @@ void PivotAggregator::ChunkPivotsStage(std::vector<Pivots>& pivots,
                                        int nchunks) {
   int pvtsz = pivots.size();
   if (pvtsz % nchunks) {
-    logf(LOG_ERRO, "[ChunkPivots] pvtsz must be a multiple of nchunks (%d/%d",
+    flog(LOG_ERRO, "[ChunkPivots] pvtsz must be a multiple of nchunks (%d/%d",
          pvtsz, nchunks);
   }
   int chunksz = pvtsz / nchunks;
@@ -62,11 +62,11 @@ void PivotAggregator::AggregatePivotsStage(
   size_t allpvtsz = all_pivots.size();
   all_merged_pivots.resize(allpvtsz);
 
-  logf(LOG_INFO, "[AggregatePivots] Stage: %d, Merging %zu pivot sets\n", stage,
+  flog(LOG_INFO, "[AggregatePivots] Stage: %d, Merging %zu pivot sets\n", stage,
        allpvtsz);
 
   for (size_t pidx = 0; pidx < allpvtsz; pidx++) {
-    logf(LOG_INFO,
+    flog(LOG_INFO,
          "[AggregatePivots] Stage: %d, Merging %zu pivot sets to %d pivots \n",
          stage, all_pivots[pidx].size(), num_out);
 
@@ -100,7 +100,7 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
                           pvtwidth_tmp, num_out);
 
   merged_pivots.LoadPivots(pvt_tmp, pvtwidth_tmp);
-  logf(LOG_INFO, "[AggregatePivots] Stage: %d, %s\n", stage,
+  flog(LOG_INFO, "[AggregatePivots] Stage: %d, %s\n", stage,
        merged_pivots.ToString().c_str());
 }
 

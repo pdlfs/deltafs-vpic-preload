@@ -55,11 +55,11 @@ void parse_opts(int argc, char* argv[]) {
 }
 
 void print_opts() {
-  logf(LOG_INFO, "[NumRanks] %d", opts.nranks);
-  logf(LOG_INFO, "[PivotCount] %d", opts.pvtcnt);
-  logf(LOG_INFO, "[OOBSize] %d", opts.oobsz);
-  logf(LOG_INFO, "[TraceRoot] %s", opts.trace_root);
-  logf(LOG_INFO, "[LogFile] %s", opts.log_file);
+  flog(LOG_INFO, "[NumRanks] %d", opts.nranks);
+  flog(LOG_INFO, "[PivotCount] %d", opts.pvtcnt);
+  flog(LOG_INFO, "[OOBSize] %d", opts.oobsz);
+  flog(LOG_INFO, "[TraceRoot] %s", opts.trace_root);
+  flog(LOG_INFO, "[LogFile] %s", opts.log_file);
 }
 
 int main(int argc, char* argv[]) {

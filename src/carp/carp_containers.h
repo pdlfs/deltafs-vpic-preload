@@ -140,7 +140,7 @@ class Pivots {
 
   void AssertMonotonicity() {
     if (!is_set_) {
-      logf(LOG_WARN, "No pivots set for monotonicity check!");
+      flog(LOG_WARN, "No pivots set for monotonicity check!");
       return;
     }
 

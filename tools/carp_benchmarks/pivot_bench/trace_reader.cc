@@ -14,7 +14,7 @@ Status TraceReader::DiscoverEpochs(size_t& num_ep) {
   std::vector<std::string> trace_subdirs;
   s = env_->GetChildren(trace_root_.c_str(), &trace_subdirs);
   if (!s.ok()) {
-    logf(LOG_ERRO, "[TraceReader] DiscoverEpochs failed: %s",
+    flog(LOG_ERRO, "[TraceReader] DiscoverEpochs failed: %s",
          s.ToString().c_str());
     return s;
   }
@@ -28,7 +28,7 @@ Status TraceReader::DiscoverEpochs(size_t& num_ep) {
 
   std::sort(trace_epochs_.begin(), trace_epochs_.end());
 
-  logf(LOG_INFO, "[TraceReader] %zu epochs discovered.", trace_epochs_.size());
+  flog(LOG_INFO, "[TraceReader] %zu epochs discovered.", trace_epochs_.size());
 
   num_ep = trace_epochs_.size();
   return Status::OK();
@@ -83,7 +83,7 @@ Status TraceReader::ReadEpoch(size_t ep_idx, int rank, std::string& data) {
   Status s = Status::OK();
 
   if (ep_idx >= trace_epochs_.size()) {
-    logf(LOG_ERRO, "Epoch does not exist");
+    flog(LOG_ERRO, "Epoch does not exist");
     s = Status::InvalidArgument("Epoch dies not exist");
     return s;
   }

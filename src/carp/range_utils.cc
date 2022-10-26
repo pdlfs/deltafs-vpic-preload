@@ -118,7 +118,7 @@ void pivot_union(std::vector<rb_item_t> rb_items,
         int new_len = active_ranks.size();
 
         if (old_len != new_len + 1) {
-          logf(LOG_ERRO,
+          flog(LOG_ERRO,
                "[Rank %d] [pivot_calc] ASSERT FAIL old_len (%d) != new_len "
                "(%d) + 1",
                pctx.my_rank, old_len, new_len + 1);
@@ -198,7 +198,7 @@ int resample_bins_irregular(const std::vector<double>& bins,
   if (sidx == nsamples - 1) sidx++;
 
   if (sidx != nsamples) {
-    logf(LOG_ERRO,
+    flog(LOG_ERRO,
          "rank %d, sidx expected to be equal to nsamples, %d-%d, accumulated: "
          "%.1f",
          pctx.my_rank, sidx, nsamples, accumulated);

@@ -23,12 +23,12 @@ int OobBuffer::Insert(particle_mem_t& item) {
 
   if (range_.Inside(prop)) {
     rv = -1;
-    logf(LOG_WARN, "[OOB] Buffering of in-bounds item attempted");
+    flog(LOG_WARN, "[OOB] Buffering of in-bounds item attempted");
     return rv;
   }
 
   if (buf_.size() >= oob_max_sz_) {
-    logf(LOG_DBUG, "[OOB] Overflow alert");
+    flog(LOG_DBUG, "[OOB] Overflow alert");
   }
 
   buf_.push_back(item);
@@ -62,12 +62,12 @@ int OobBuffer::GetPartitionedProps(std::vector<float>& left,
   size_t newlsz = left.size(), newrsz = right.size();
 
   if (newlsz != oldlsz) {
-    logf(LOG_INFO, "[OOBBuffer, Left] Duplicates removed (%zu to %zu)", oldlsz,
+    flog(LOG_INFO, "[OOBBuffer, Left] Duplicates removed (%zu to %zu)", oldlsz,
          newlsz);
   }
 
   if (newrsz != oldrsz) {
-    logf(LOG_INFO, "[OOBBuffer, Right] Duplicates removed (%zu to %zu)", oldrsz,
+    flog(LOG_INFO, "[OOBBuffer, Right] Duplicates removed (%zu to %zu)", oldrsz,
          newrsz);
   }
 

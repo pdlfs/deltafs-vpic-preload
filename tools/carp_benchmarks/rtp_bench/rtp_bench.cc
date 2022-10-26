@@ -11,11 +11,11 @@ uint64_t sumsq(const uint64_t& total, const uint64_t& v) {
 
 void EnsureDir(const char* dpath) {
   if (dpath == nullptr) {
-    logf(LOG_ERRO, "[EnsureDir] No directory path specificied.");
+    flog(LOG_ERRO, "[EnsureDir] No directory path specificied.");
     exit(-1);
   }
 
-  logf(LOG_INFO, "[EnsureDir] Checking directory: %s\n", dpath);
+  flog(LOG_INFO, "[EnsureDir] Checking directory: %s\n", dpath);
 
   Env* env = pdlfs::Env::Default();
   Status s = env->CreateDir(dpath);
@@ -24,7 +24,7 @@ void EnsureDir(const char* dpath) {
     // success;
     return;
   } else {
-    logf(LOG_ERRO, "[EnsureDir] Error creating directory %s (%s)", dpath,
+    flog(LOG_ERRO, "[EnsureDir] Error creating directory %s (%s)", dpath,
          s.ToString().c_str());
     exit(-1);
   }

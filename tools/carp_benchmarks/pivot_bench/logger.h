@@ -18,7 +18,7 @@ class PivotLogger {
 
   void LogData(std::string& runtype,  int nranks, int pvtcnt, int ep_idx, double load_std) {
     LogHeader();
-    logf(LOG_INFO, "Logging run to: %s\n", log_file_.c_str());
+    flog(LOG_INFO, "Logging run to: %s\n", log_file_.c_str());
     FILE* f = fopen(log_file_.c_str(), "a+");
     fprintf(f, "%s,%d,%d,%d,%f\n", runtype.c_str(), nranks, pvtcnt, ep_idx, load_std);
     fclose(f);
