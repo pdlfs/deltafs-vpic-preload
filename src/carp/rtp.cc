@@ -301,10 +301,9 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
     /* Can reuse the same RTP_BEGIN buf. src_rank is anyway sent separately
      * If we're an S3 root, prioritize Stage 3 sending first, so as to
      * trigger other leaf broadcasts in parallel
-     *
-     * Explicitly also send to self
+     * No need to send it to ourself since we just got it....
      * */
-    SendToChildren(buf, bufsz, /* exclude_self */ false, MSGFMT_RTP_BEGIN);
+    SendToChildren(buf, bufsz, /* exclude_self */ true, MSGFMT_RTP_BEGIN);
 
     /* send pivots to s1root now */
     const int stage_idx = 1;
