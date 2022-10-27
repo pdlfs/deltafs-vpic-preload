@@ -34,9 +34,12 @@ class PivotBench {
     };
 
     carp::Pivots merged_pivots;
+    merged_pivots.FillZeros();
 
     carp::PivotAggregator aggr(aggr_num_pivots);
-    aggr.AggregatePivotsRoot(pivots, merged_pivots, 1, 32);
+    // aggr.AggregatePivotsRoot(pivots, merged_pivots, 1, 32);
+    aggr.AggregatePivots(pivots, merged_pivots);
+
     logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
 
     return Status::OK();

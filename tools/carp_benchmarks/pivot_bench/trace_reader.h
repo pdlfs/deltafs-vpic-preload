@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <algorithm>
+
 #include "carp/carp_utils.h"
 #include "pdlfs-common/env.h"
 #include "pivot_bench.h"

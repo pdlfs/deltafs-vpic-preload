@@ -21,6 +21,8 @@ void set_default_opts() {
   opts.pvtcnt = 512;
   opts.trace_root =
       "/Users/schwifty/Repos/workloads/data/particle.compressed.uniform.mini";
+
+  opts.trace_root = "/mnt/lustre/carp-big-run/particle.compressed.uniform.mini";
 }
 
 void parse_opts(int argc, char* argv[]) {

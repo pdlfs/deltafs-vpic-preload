@@ -22,7 +22,7 @@ class PivotAggregator {
   }
 
   void AggregatePivots(std::vector<Pivots>& pivots, Pivots& merged_pivots) {
-    const int pvtcnt = 256;
+    const int pvtcnt = 32;
 
     int nranks = pivots.size();
     int fanout_arr[STAGES_MAX + 1];
@@ -31,15 +31,30 @@ class PivotAggregator {
     std::vector<PvtVec> chunked_pvts_s1, chunked_pvts_s2, chunked_pvts_s3;
     PvtVec merged_pvts_s1, merged_pvts_s2, merged_pvts_s3;
 
-    ChunkPivotsStage(pivots, chunked_pvts_s1, fanout_arr[1]);
+    /* Example: nranks = 256. Fanout = 8/8/4
+     * merge 256 -> 32 -> 4 -> 1
+     * nchunks_s1 = 8*4
+     * nchunks_s2 = 4
+     * nchunks_s3 = 1 always
+     */
+
+    int nchunks_s1 = fanout_arr[2] * fanout_arr[3];
+    int nchunks_s2 = fanout_arr[3];
+    /* int nchunks_s3 = 1; we do a single merge manually */
+
+    // pivots=256, chunked_pvts=32, nchunks=32
+    ChunkPivotsStage(pivots, chunked_pvts_s1, nchunks_s1);
     AggregatePivotsStage(chunked_pvts_s1, merged_pvts_s1, 1, pvtcnt);
-    ChunkPivotsStage(merged_pvts_s1, chunked_pvts_s2, fanout_arr[2]);
+
+    // pivots=32, chunked_pvts=4, nchunks=4
+    ChunkPivotsStage(merged_pvts_s1, chunked_pvts_s2, nchunks_s2);
     AggregatePivotsStage(chunked_pvts_s2, merged_pvts_s2, 2, pvtcnt);
+
     assert(merged_pvts_s2.size() == fanout_arr[3]);
     AggregatePivotsRoot(merged_pvts_s2, merged_pivots, 3, nranks + 1);
   }
 
-// private:
+  // private:
   void ChunkPivotsStage(std::vector<Pivots>& pivots,
                         std::vector<PvtVec>& chunked_pivots, int nchunks) {
     int pvtsz = pivots.size();
@@ -63,17 +78,22 @@ class PivotAggregator {
     size_t allpvtsz = all_pivots.size();
     all_merged_pivots.resize(allpvtsz);
 
-//    for (size_t pidx = 0; pidx < allpvtsz; pidx++) {
-//      AggregatePivotsRoot(all_pivots[pidx], all_merged_pivots[pidx], stage,
-//                          num_out);
-//    }
-//    Pivots tmp;
-//    AggregatePivotsRoot(all_pivots[0], tmp, 1, 256);
+    logf(LOG_INFO, "[AggregatePivots] Stage: %d, Merging %zu pivot sets\n",
+         stage, allpvtsz);
+
+    for (size_t pidx = 0; pidx < allpvtsz; pidx++) {
+      logf(
+          LOG_INFO,
+          "[AggregatePivots] Stage: %d, Merging %zu pivot sets to %d pivots \n",
+          stage, all_pivots[pidx].size(), num_out);
+
+      AggregatePivotsRoot(all_pivots[pidx], all_merged_pivots[pidx], stage,
+                          num_out);
+    }
   }
 
   void AggregatePivotsRoot(std::vector<Pivots>& pivots, Pivots& merged_pivots,
                            int stage, int num_out) {
-    return;
     DataBuffer dbuf(num_pivots_);
 
     for (size_t pidx = 0; pidx < pivots.size(); pidx++) {
@@ -97,6 +117,8 @@ class PivotAggregator {
                             pvtwidth_tmp, num_out);
 
     merged_pivots.LoadPivots(pvt_tmp, pvtwidth_tmp);
+    logf(LOG_INFO, "[AggregatePivots] Stage: %d, %s\n", stage,
+         merged_pivots.ToString().c_str());
   }
 
   void BufferPivots(DataBuffer& dbuf, int stage, Pivots& p) {
