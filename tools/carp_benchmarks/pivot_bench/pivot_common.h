@@ -8,8 +8,9 @@ namespace pdlfs {
 struct PivotBenchOpts {
   Env* env;
   int nranks;
-  const char* trace_root;
   int pvtcnt;
   int oobsz;
+  const char* trace_root;
+  const char* log_file;
 };
 }  // namespace pdlfs

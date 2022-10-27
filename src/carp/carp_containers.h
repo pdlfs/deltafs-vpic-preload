@@ -5,6 +5,7 @@
 #pragma once
 
 #include <float.h>
+#include <math.h>
 
 #include <numeric>
 #include <sstream>
@@ -227,6 +228,8 @@ class OrderedBins {
 
   Range GetBin(int bidx) const { return Range(bins_[bidx], bins_[bidx + 1]); }
 
+  Range GetRange() const { return Range(bins_[0], bins_[Size()]); }
+
   uint64_t GetTotalMass() const {
     return std::accumulate(counts_.begin(), counts_.end(), 0ull);
   }
@@ -304,7 +307,7 @@ class OrderedBins {
     return binstr.str();
   }
 
-  void PrintNormStd() {
+  double PrintNormStd() {
     uint64_t total_sz = std::accumulate(counts_.begin(), counts_.end(), 0ull);
     double avg_binsz = total_sz * 1.0 / counts_.size();
 
@@ -317,7 +320,7 @@ class OrderedBins {
       double norm_x2 = normbincnt * normbincnt;
       normx_sum += norm_x;
       normx2_sum += norm_x2;
-      logf(LOG_INFO, "normbincnt: x: %lf, x2: %lf\n", normx_sum, normx2_sum);
+      logf(LOG_DBG2, "normbincnt: x: %lf, x2: %lf\n", normx_sum, normx2_sum);
     }
 
     normx_sum /= counts_.size();
@@ -327,6 +330,7 @@ class OrderedBins {
     double normstd = pow(normvar, 0.5);
 
     logf(LOG_INFO, "OrderedBins, Normalized Stddev: %.3lf\n", normstd);
+    return normstd;
   }
 
  private:

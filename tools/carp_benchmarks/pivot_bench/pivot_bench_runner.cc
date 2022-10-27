@@ -22,6 +22,7 @@ void set_default_opts() {
   opts.oobsz = 256;
   opts.trace_root =
       "/Users/schwifty/Repos/workloads/data/particle.compressed.uniform.mini";
+  opts.log_file = "tmp.txt";
 
 //  opts.trace_root = "/mnt/lustre/carp-big-run/particle.compressed.uniform.mini";
 }
@@ -29,14 +30,19 @@ void set_default_opts() {
 void parse_opts(int argc, char* argv[]) {
   int ch;
 
-  while ((ch = getopt(argc, argv, "n:p:t:")) != -1) {
+  while ((ch = getopt(argc, argv, "l:n:p:o:t:")) != -1) {
     switch (ch) {
+      case 'l':
+        opts.log_file = optarg;
+        break;
       case 'n':
         opts.nranks = atoi(optarg);
         break;
       case 'p':
         opts.pvtcnt = atoi(optarg);
         break;
+      case 'o':
+        opts.oobsz = atoi(optarg);
       case 't':
         opts.trace_root = optarg;
         break;
@@ -47,11 +53,20 @@ void parse_opts(int argc, char* argv[]) {
   }
 }
 
+void print_opts() {
+  logf(LOG_INFO, "[NumRanks] %d", opts.nranks);
+  logf(LOG_INFO, "[PivotCount] %d", opts.pvtcnt);
+  logf(LOG_INFO, "[OOBSize] %d", opts.oobsz);
+  logf(LOG_INFO, "[TraceRoot] %s", opts.trace_root);
+  logf(LOG_INFO, "[LogFile] %s", opts.log_file);
+}
+
 int main(int argc, char* argv[]) {
   argv0 = argv[0];
 
   set_default_opts();
-//  parse_opts(argc, argv);
+  parse_opts(argc, argv);
+  print_opts();
 
   pdlfs::PivotBench pvt_bench(opts);
   pvt_bench.Run();

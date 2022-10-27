@@ -17,7 +17,7 @@ class TraceReader {
       : env_(opts.env), trace_root_(opts.trace_root), nranks_(opts.nranks) {}
 
   // Copied from range_runner
-  Status DiscoverEpochs() {
+  Status DiscoverEpochs(size_t& num_ep) {
     Status s = Status::OK();
 
     std::vector<std::string> trace_subdirs;
@@ -39,6 +39,8 @@ class TraceReader {
 
     logf(LOG_INFO, "[TraceReader] %zu epochs discovered.",
          trace_epochs_.size());
+
+    num_ep = trace_epochs_.size();
     return Status::OK();
   }
 
@@ -61,6 +63,38 @@ class TraceReader {
     return s;
   }
 
+  Status UpdateCtxWithRank(size_t ep_idx, int rank,
+                           carp::PivotCalcCtx* pvt_ctx,
+                           std::vector<float>& oobl_tmp,
+                           std::vector<float>& oobr_tmp) {
+    Status s = Status::OK();
+    std::string data;
+    ReadEpoch(ep_idx, rank, data);
+
+    int val_sz = data.size() / sizeof(float);
+
+    const float* vals = reinterpret_cast<const float*>(data.c_str());
+    double bin_lb = pvt_ctx->range.rmin();
+    double bin_ub = pvt_ctx->range.rmax();
+    int nbins = pvt_ctx->bins->Size();
+
+    for (int vi = 0; vi < val_sz; vi++) {
+      float v = vals[vi];
+      if (v < bin_lb) {
+        oobl_tmp.push_back(v);
+      } else if (v > bin_ub) {
+        oobr_tmp.push_back(v);
+      } else {
+        int bidx = pvt_ctx->bins->SearchBins(v);
+        if (bidx < 0) bidx = 0;
+        if (bidx >= nbins) bidx = nbins - 1;
+        pvt_ctx->bins->IncrementBin(bidx);
+      }
+    }
+
+    return s;
+  }
+
   Status ReadRankIntoBins(size_t ep_idx, int rank, carp::OrderedBins& bins) {
     Status s = Status::OK();
     std::string data;
@@ -71,7 +105,7 @@ class TraceReader {
 
     int nbins = bins.Size();
 
-    for (size_t vi = 0; vi < valsz; vi++)  {
+    for (size_t vi = 0; vi < valsz; vi++) {
       float vkey = vals[vi];
       int bidx = bins.SearchBins(vkey);
       if (bidx < 0) bidx = 0;
