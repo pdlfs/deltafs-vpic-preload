@@ -37,7 +37,7 @@ class DataBuffer {
    *
    * @return errno if < 0, else num_items in store for the stage
    */
-  int StoreData(int stage, double* pivot_data, int dlen, double pivot_width,
+  int StoreData(int stage, const double* pivot_data, int dlen, double pivot_width,
                  bool isnext);
 
   /**

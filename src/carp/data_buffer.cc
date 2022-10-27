@@ -15,7 +15,7 @@ DataBuffer::DataBuffer(const int num_pivots[STAGES_MAX + 1]) {
   return;
 }
 
-int DataBuffer::StoreData(int stage, double* pivot_data, int dlen,
+int DataBuffer::StoreData(int stage, const double* pivot_data, int dlen,
                            double pivot_width, bool isnext) {
   int sidx = this->cur_store_idx_;
   if (isnext) sidx = !sidx;

@@ -78,13 +78,15 @@ template std::string PivotUtils::SerializeVector<double>(double* v, size_t vsz);
 int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                 size_t num_pivots) {
   int rv = 0;
+  pivots->Resize(num_pivots);
 
-  assert(pivots->Size() == num_pivots);
   if (pvt_ctx->first_block) {
     rv = CalculatePivotsFromOob(pvt_ctx, pivots, num_pivots);
   } else {
     rv = CalculatePivotsFromAll(pvt_ctx, pivots, num_pivots);
   }
+
+  pivots->is_set_ = true;
 
   logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
        pivots->width_);

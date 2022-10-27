@@ -226,8 +226,8 @@ TEST(RangeUtilsTest, PivotCalc4) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
   carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
 
   assert(carp_pvtcnt == num_pivots);
@@ -243,9 +243,8 @@ TEST(RangeUtilsTest, PivotCalc5) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
-  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
 
   assert(carp_pvtcnt == num_pivots);
   ::assert_monotonic(carp_pivots, num_pivots);
@@ -260,9 +259,8 @@ TEST(RangeUtilsTest, PivotCalc6) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
-  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
 
   assert(carp_pvtcnt == num_pivots);
   ::assert_monotonic(carp_pivots, num_pivots);
@@ -275,9 +273,8 @@ TEST(RangeUtilsTest, PivotCalc7) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
-  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
 
   assert(carp_pvtcnt == num_pivots);
   ::assert_monotonic(carp_pivots, num_pivots);
@@ -292,9 +289,8 @@ TEST(RangeUtilsTest, PivotCalc8) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
-  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
 
   assert(carp_pvtcnt == num_pivots);
   ::assert_monotonic(carp_pivots, num_pivots);
@@ -329,9 +325,8 @@ TEST(RangeUtilsTest, PivotCalc10) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
-  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
 
   assert(carp_pvtcnt == num_pivots);
   ::assert_monotonic(carp_pivots, num_pivots);
@@ -344,9 +339,8 @@ TEST(RangeUtilsTest, PivotCalc11) {
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
-  const double* carp_pivots;
-  int carp_pvtcnt;
-  carp->pivots_.GetPivotsArr(&carp_pivots, &carp_pvtcnt);
+  const double* carp_pivots = carp->pivots_.GetPivotData();
+  int carp_pvtcnt = carp->pivots_.Size();
 
   assert(carp_pvtcnt == num_pivots);
   ::assert_monotonic(carp_pivots, num_pivots);

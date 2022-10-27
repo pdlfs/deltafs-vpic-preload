@@ -148,9 +148,8 @@ void Carp::PerflogReneg(int round_num) {
   fprintf(perflog_.fp, ": OOB (%zu)\n", this->OobSize());
 
   fprintf(perflog_.fp, "%lu,RENEG_PIVOTS,", timestamp);
-  const double* pivots;
-  int pvtcnt;
-  pivots_.GetPivotsArr(&pivots, &pvtcnt);
+  const double* pivots = pivots_.GetPivotData();
+  int pvtcnt = pivots_.Size();
   for (int i = 0; i < pvtcnt; i++) {
     fprintf(perflog_.fp, "%.4lf ", pivots[i]);
   }

@@ -7,6 +7,7 @@
 #include <float.h>
 
 #include <numeric>
+#include <sstream>
 #include <vector>
 
 #include "common.h"
@@ -80,11 +81,42 @@ class PivotUtils;
 
 class Pivots {
  public:
+  Pivots() : pivots_(0), width_(0), is_set_(false) {}
+
   Pivots(int npivots) : pivots_(npivots, 0), width_(0), is_set_(false) {}
 
   size_t Size() const { return pivots_.size(); }
 
-  float GetPivot(int idx) const { return pivots_[idx]; }
+  std::string ToString() const {
+    if (!is_set_) {
+      return "[PivotWidth]: unset [Pivots]: unset";
+    }
+
+    std::ostringstream pvtstr;
+    pvtstr.precision(3);
+
+    pvtstr << "PivotWidth: " << width_;
+    pvtstr << ", [PivotCount] " << pivots_.size();
+    pvtstr << ", [Pivots]:";
+
+    for (size_t pvt_idx = 0; pvt_idx < pivots_.size(); pvt_idx++) {
+      if (pvt_idx % 16 == 0) {
+        pvtstr << "\n\t";
+      }
+
+      double pivot = pivots_[pvt_idx];
+      pvtstr << pivot << ", ";
+    }
+
+    return pvtstr.str();
+  }
+
+  void LoadPivots(std::vector<double>& pvtvec, double pvtwidth) {
+      Resize(pvtvec.size());
+      std::copy(pvtvec.begin(), pvtvec.end(), pivots_.begin());
+      width_ = pvtwidth;
+      is_set_ = true;
+  }
 
   Range GetPivotBounds() {
     if (!is_set_) {
@@ -105,6 +137,10 @@ class Pivots {
     *pivots = pivots_.data();
     *pvtcnt = pivots_.size();
   }
+
+  float GetPivot(int idx) const { return pivots_[idx]; }
+
+  const double* GetPivotData() const { return pivots_.data(); }
 
   double GetPivotWidth() const { return width_; }
 
@@ -138,6 +174,12 @@ class Pivots {
   // To be called by friends only
   //
   void Resize(size_t npivots) { pivots_.resize(npivots); }
+
+  //
+  // Pivots are doubles because we need them to be (for pivotcalc)
+  // Everything is a double except rank_bins
+  // As we don't need them to be, and they scale linearly with ranks
+  //
   std::vector<double> pivots_;
   double width_;
   bool is_set_;
