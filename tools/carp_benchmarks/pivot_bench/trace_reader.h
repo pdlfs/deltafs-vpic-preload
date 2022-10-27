@@ -61,6 +61,37 @@ class TraceReader {
     return s;
   }
 
+  Status ReadRankIntoBins(size_t ep_idx, int rank, carp::OrderedBins& bins) {
+    Status s = Status::OK();
+    std::string data;
+    ReadEpoch(ep_idx, rank, data);
+
+    size_t valsz = data.size() / sizeof(float);
+    const float* vals = reinterpret_cast<const float*>(data.c_str());
+
+    int nbins = bins.Size();
+
+    for (size_t vi = 0; vi < valsz; vi++)  {
+      float vkey = vals[vi];
+      int bidx = bins.SearchBins(vkey);
+      if (bidx < 0) bidx = 0;
+      if (bidx >= nbins) bidx = nbins - 1;
+      bins.IncrementBin(bidx);
+    }
+
+    return s;
+  }
+
+  Status ReadAllRanksIntoBins(size_t ep_idx, carp::OrderedBins& bins) {
+    Status s = Status::OK();
+    for (int rank = 0; rank < nranks_; rank++) {
+      s = ReadRankIntoBins(ep_idx, rank, bins);
+      if (!s.ok()) return s;
+    }
+
+    return s;
+  }
+
  private:
   Status ReadEpoch(size_t ep_idx, int rank, std::string& data) {
     Status s = Status::OK();

@@ -112,10 +112,10 @@ class Pivots {
   }
 
   void LoadPivots(std::vector<double>& pvtvec, double pvtwidth) {
-      Resize(pvtvec.size());
-      std::copy(pvtvec.begin(), pvtvec.end(), pivots_.begin());
-      width_ = pvtwidth;
-      is_set_ = true;
+    Resize(pvtvec.size());
+    std::copy(pvtvec.begin(), pvtvec.end(), pivots_.begin());
+    width_ = pvtwidth;
+    is_set_ = true;
   }
 
   Range GetPivotBounds() {
@@ -197,23 +197,11 @@ class OrderedBins {
         counts_aggr_(nbins, 0),
         is_set_(false) {}
 
-  Range GetBin(int bidx) const { return Range(bins_[bidx], bins_[bidx + 1]); }
-
-  void IncrementBin(int bidx) {
-    assert(bidx < (int)Size());
-    counts_[bidx]++;
-    counts_aggr_[bidx]++;
-  }
-
-  uint64_t GetTotalMass() const {
-    return std::accumulate(counts_.begin(), counts_.end(), 0ull);
-  }
-
   //
   // After a renegotiation is complete, our bins are updated from the pivots
   //
   void UpdateFromPivots(Pivots& pivots) {
-    if (pivots.Size() != Size()) {
+    if (pivots.Size() != Size() + 1) {
       logf(LOG_ERRO, "[OrderedBins] SetFromPivots: size mismatch (%zu vs %zu)",
            pivots.Size(), Size());
       ABORT("OrderedBins - size mismatch!!");
@@ -235,6 +223,29 @@ class OrderedBins {
     is_set_ = true;
   }
 
+  // Various accessors
+
+  Range GetBin(int bidx) const { return Range(bins_[bidx], bins_[bidx + 1]); }
+
+  uint64_t GetTotalMass() const {
+    return std::accumulate(counts_.begin(), counts_.end(), 0ull);
+  }
+
+  std::string GetTotalMassPretty() const {
+    uint64_t mass = GetTotalMass();
+    std::stringstream mstr;
+    mstr.precision(2);
+    if (mass > 1e9)
+      mstr << mass / 1e9 << "B";
+    else if (mass > 1e6)
+      mstr << mass / 1e6 << "M";
+    else if (mass > 1e3)
+      mstr << mass / 1e3 << "K";
+    else
+      mstr << mass;
+    return mstr.str();
+  }
+
   void GetBinsArr(const float** bins, int* binsz) const {
     *bins = bins_.data();
     *binsz = bins_.size();
@@ -251,6 +262,12 @@ class OrderedBins {
   }
 
   //
+  // size of OrderedBins is nbins == sizeof counts
+  // sizeof bins == nbins + 1
+  //
+  size_t Size() const { return counts_.size(); }
+
+  //
   // Reset all structs. Called at the end of epochs.
   //
   void Reset() {
@@ -259,8 +276,6 @@ class OrderedBins {
     std::fill(counts_aggr_.begin(), counts_aggr_.end(), 0);
     is_set_ = false;
   }
-
-  size_t Size() const { return bins_.size(); }
 
   //
   // semantics for SearchBins:
@@ -275,7 +290,61 @@ class OrderedBins {
     return idx - 1;
   }
 
+  void IncrementBin(int bidx) {
+    assert(bidx < (int)Size() and bidx >= 0);
+    counts_[bidx]++;
+    counts_aggr_[bidx]++;
+  }
+
+  std::string ToString() const {
+    std::ostringstream binstr;
+    binstr << "[BinMass] " << GetTotalMassPretty();
+    binstr << "\n[Bins] " << VecToString<float>(bins_);
+    binstr << "\n[BinCounts] " << VecToString<uint64_t>(counts_);
+    return binstr.str();
+  }
+
+  void PrintNormStd() {
+    uint64_t total_sz = std::accumulate(counts_.begin(), counts_.end(), 0ull);
+    double avg_binsz = total_sz * 1.0 / counts_.size();
+
+    double normx_sum = 0;
+    double normx2_sum = 0;
+
+    for (uint64_t bincnt : counts_) {
+      double normbincnt = bincnt / avg_binsz;
+      double norm_x = normbincnt;
+      double norm_x2 = normbincnt * normbincnt;
+      normx_sum += norm_x;
+      normx2_sum += norm_x2;
+      logf(LOG_INFO, "normbincnt: x: %lf, x2: %lf\n", normx_sum, normx2_sum);
+    }
+
+    normx_sum /= counts_.size();
+    normx2_sum /= counts_.size();
+
+    double normvar = normx2_sum - (normx_sum * normx_sum);
+    double normstd = pow(normvar, 0.5);
+
+    logf(LOG_INFO, "OrderedBins, Normalized Stddev: %.3lf\n", normstd);
+  }
+
  private:
+  template <typename T>
+  std::string VecToString(const std::vector<T>& vec) const {
+    std::ostringstream vecstr;
+    vecstr.precision(3);
+
+    for (size_t vecidx = 0; vecidx < vec.size(); vecidx++) {
+      if (vecidx % 10 == 0) {
+        vecstr << "\n\t";
+      }
+
+      vecstr << vec[vecidx] << ", ";
+    }
+
+    return vecstr.str();
+  }
   std::vector<float> bins_;
   std::vector<uint64_t> counts_;
   std::vector<uint64_t> counts_aggr_;

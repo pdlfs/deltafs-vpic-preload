@@ -17,12 +17,13 @@ void usage() {
 
 void set_default_opts() {
   opts.env = pdlfs::Env::Default();
-  opts.nranks = 512;
-  opts.pvtcnt = 512;
+  opts.nranks = 8;
+  opts.pvtcnt = 16;
+  opts.oobsz = 256;
   opts.trace_root =
       "/Users/schwifty/Repos/workloads/data/particle.compressed.uniform.mini";
 
-  opts.trace_root = "/mnt/lustre/carp-big-run/particle.compressed.uniform.mini";
+//  opts.trace_root = "/mnt/lustre/carp-big-run/particle.compressed.uniform.mini";
 }
 
 void parse_opts(int argc, char* argv[]) {

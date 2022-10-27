@@ -10,5 +10,6 @@ struct PivotBenchOpts {
   int nranks;
   const char* trace_root;
   int pvtcnt;
+  int oobsz;
 };
 }  // namespace pdlfs

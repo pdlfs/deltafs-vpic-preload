@@ -17,36 +17,43 @@
 namespace pdlfs {
 class PivotBench {
  public:
-  PivotBench(PivotBenchOpts& opts) : opts_(opts) {}
+  PivotBench(PivotBenchOpts& opts)
+      : opts_(opts), pvtcnt_vec_(STAGES_MAX + 1, opts_.pvtcnt) {}
+
   Status Run() {
-    logf(LOG_INFO, "hello world!");
     TraceReader tr(opts_);
     tr.DiscoverEpochs();
 
-    int nranks = 8;
-    std::vector<carp::Pivots> pivots(nranks);
-    for (int r = 0; r < nranks; r++) {
-      tr.GetOobPivots(0, r, 512, &pivots[r], 32);
-      logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
-    }
-    const int aggr_num_pivots[STAGES_MAX + 1] = {
-        -1, 32, 32, 32,
-    };
+    carp::Pivots oob_pivots;
+    GetOOBPivots(tr, 0, oob_pivots);
+    carp::OrderedBins bins(opts_.nranks);
+    bins.UpdateFromPivots(oob_pivots);
 
-    carp::Pivots merged_pivots;
-    merged_pivots.FillZeros();
-
-    carp::PivotAggregator aggr(aggr_num_pivots);
-    // aggr.AggregatePivotsRoot(pivots, merged_pivots, 1, 32);
-    aggr.AggregatePivots(pivots, merged_pivots);
-
-    logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
+//    tr.ReadRankIntoBins(0, 0, bins);
+    tr.ReadAllRanksIntoBins(0, bins);
+    logf(LOG_INFO, "%s", bins.ToString().c_str());
+    bins.PrintNormStd();
 
     return Status::OK();
-
   }
 
  private:
+  void GetOOBPivots(TraceReader& tr, int epoch, carp::Pivots& merged_pivots) {
+    std::vector<carp::Pivots> pivots(opts_.nranks);
+
+    for (int r = 0; r < opts_.nranks; r++) {
+      tr.GetOobPivots(0, r, opts_.oobsz, &pivots[r], pvtcnt_vec_[1]);
+      logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
+    }
+
+    merged_pivots.FillZeros();
+    carp::PivotAggregator aggr(pvtcnt_vec_);
+    //    aggr.AggregatePivotsRoot(pivots, merged_pivots, 1, opts_.nranks);
+    aggr.AggregatePivots(pivots, merged_pivots);
+
+    logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
+  }
   const PivotBenchOpts opts_;
+  const std::vector<int> pvtcnt_vec_;
 };
 }  // namespace pdlfs
