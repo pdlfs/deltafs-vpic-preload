@@ -222,7 +222,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   int bin_idx = 0;
 
-  for (int bidx = 0; bidx < bins->Size() - 1; bidx++) {
+  for (int bidx = 0; bidx < bins->Size(); bidx++) {
     const double cur_bin_total = bins->counts_[bidx];
     double cur_bin_left = bins->counts_[bidx];
 

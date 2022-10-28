@@ -74,7 +74,7 @@ class RangeUtilsTest {
   }
 
   void LoadData(const int num_ranks, const float range_min,
-                const float range_max, const float* rank_bin_counts,
+                const float range_max, const uint64_t* rank_bin_counts,
                 const float* rank_bins) {
     carp->UpdateRange({range_min, range_max});
     carp->oob_buffer_.SetRange(range_min, range_max);
@@ -123,6 +123,19 @@ TEST(RangeUtilsTest, DeduplicateVector) {
   size_t newsz = v.size();
   logf(LOG_INFO, "Dedup, old size: %zu, new size: %zu", oldsz, newsz);
   assert(v.size() == 4);
+}
+
+TEST(RangeUtilsTest, OrderedBinAddition) {
+  float bins[] = {1, 2, 3, 4, 5};
+  uint64_t counts1[] = {2, 3, 2, 3};
+  uint64_t counts2[] = {1, 2, 3, 4};
+
+  OrderedBins bins1(4), bins2(4);
+  bins1.UpdateFromArrays(4, bins, counts1);
+  bins2.UpdateFromArrays(4, bins, counts2);
+
+  ASSERT_EQ(bins1.GetTotalMass(), 10);
+  ASSERT_EQ(bins2.GetTotalMass(), 10);
 }
 
 TEST(RangeUtilsTest, PivotCalc) {
@@ -206,7 +219,7 @@ TEST(RangeUtilsTest, PivotCalc3) {
                              0.500766993, 0.735446155, 1.01613414,
                              1.4439038,   2.18780971,  4.48976707};
 
-  const float rank_bin_counts[] = {11, 10, 10, 6, 1, 3, 2, 1};
+  const uint64_t rank_bin_counts[] = {11, 10, 10, 6, 1, 3, 2, 1};
   const float range_min = 0.011929879, range_max = 4.48976707;
   const int oob_data_sz = 25;
   const int num_ranks = 8;

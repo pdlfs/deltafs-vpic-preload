@@ -183,12 +183,31 @@ class OrderedBins {
         counts_aggr_(nbins, 0),
         is_set_(false) {}
 
+  OrderedBins operator+(const OrderedBins& rhs) {
+    assert (Size() == rhs.Size());
+    OrderedBins tmp(Size());
+    std::copy(bins_.begin(), bins_.end(), tmp.bins_.begin());
+    std::copy(counts_.begin(), counts_.end(), tmp.counts_.begin());
+    std::copy(counts_aggr_.begin(), counts_aggr_.end(), tmp.counts_aggr_.begin());
+
+    for (size_t i = 0; i < Size(); i++) {
+      tmp.counts_[i] += rhs.counts_[i];
+      tmp.counts_aggr_[i] += rhs.counts_aggr_[i];
+    }
+
+    return tmp;
+  }
+
   //
   // After a renegotiation is complete, our bins are updated from the pivots
+  // aggr counts are not reset, everything else is
   //
   void UpdateFromPivots(Pivots& pivots);
 
-  void UpdateFromArrays(int nbins, const float* bins, const float* counts);
+  //
+  // Both counts_ and aggr_counts_ are set to counts
+  //
+  void UpdateFromArrays(int nbins, const float* bins, const uint64_t* counts);
 
   // Various accessors
 
@@ -227,7 +246,7 @@ class OrderedBins {
   size_t Size() const { return counts_.size(); }
 
   //
-  // Reset all structs. Called at the end of epochs.
+  // Reset all structs incl aggr counts. Called at the end of epochs.
   //
   void Reset();
 

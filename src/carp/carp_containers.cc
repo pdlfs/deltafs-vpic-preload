@@ -44,12 +44,13 @@ void OrderedBins::UpdateFromPivots(Pivots& pivots) {
 }
 
 void OrderedBins::UpdateFromArrays(int nbins, const float* bins,
-                                   const float* counts) {
+                                   const uint64_t* counts) {
   bins_.resize(nbins + 1);
   counts_.resize(nbins);
 
   std::copy(bins, bins + nbins + 1, bins_.begin());
   std::copy(counts, counts + nbins, counts_.begin());
+  std::copy(counts, counts + nbins, counts_aggr_.begin());
 
   is_set_ = true;
 }
