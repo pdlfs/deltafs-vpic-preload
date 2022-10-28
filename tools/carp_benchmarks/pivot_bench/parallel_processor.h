@@ -11,8 +11,8 @@
 #include "pivot_common.h"
 #include "trace_reader.h"
 
-static void read_rank_into_oob_pivots(void* args);
-static void read_rank_into_bins(void* args);
+void read_rank_into_oob_pivots(void* args);
+void read_rank_into_bins(void* args);
 
 namespace {
 struct PivotTask {

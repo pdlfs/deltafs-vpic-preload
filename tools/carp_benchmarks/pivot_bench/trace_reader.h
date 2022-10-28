@@ -8,7 +8,7 @@
 
 #include "carp/carp_utils.h"
 #include "pdlfs-common/env.h"
-#include "pivot_bench.h"
+#include "pivot_common.h"
 
 namespace pdlfs {
 class TraceReader {

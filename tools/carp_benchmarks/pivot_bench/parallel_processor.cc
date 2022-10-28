@@ -4,7 +4,7 @@
 
 #include "parallel_processor.h"
 
-static void read_rank_into_oob_pivots(void* args) {
+void read_rank_into_oob_pivots(void* args) {
   PivotTask* task = (PivotTask*)args;
   int* rc = task->jobs_rem;
 
@@ -23,7 +23,7 @@ static void read_rank_into_oob_pivots(void* args) {
   task->mutex->Unlock();
 }
 
-static void read_rank_into_bins(void* args) {
+void read_rank_into_bins(void* args) {
   PivotTask* task = (PivotTask*)args;
   int* rc = task->jobs_rem;
 
