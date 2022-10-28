@@ -295,13 +295,16 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     oob_idx = next_idx;
   }
 
-#define ERRLIM 1e0
+#define ERRLIM 1e-3
+
+  float norm_unalloc_mass = (particles_carried_over / part_per_pivot);
 
   if (cur_pivot == num_pivots) {
-    assert(fabs(particles_carried_over) < ERRLIM);
+    // all pivots allocated, unallocated mass should be ~0
+    assert(fabs(norm_unalloc_mass) <= ERRLIM);
   } else if (cur_pivot == num_pivots - 1) {
-    assert(fabs(particles_carried_over) < ERRLIM or
-           fabs(particles_carried_over - part_per_pivot) < ERRLIM);
+    // one pivot unallocated, unallocated mass should be ~1
+    assert(fabs(norm_unalloc_mass - 1.0f) < ERRLIM);
   } else {
     /* shouldn't happen */
     assert(false);
