@@ -1,10 +1,12 @@
 #pragma once
 
+#include <assert.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <vector>

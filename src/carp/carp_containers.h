@@ -7,6 +7,7 @@
 #include <float.h>
 #include <math.h>
 
+#include <algorithm>
 #include <numeric>
 #include <sstream>
 #include <vector>
