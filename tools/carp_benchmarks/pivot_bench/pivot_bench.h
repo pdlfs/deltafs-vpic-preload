@@ -63,19 +63,11 @@ class PivotBench {
     carp::OrderedBins bins(opts_.nranks);
     bins.UpdateFromPivots(oob_pivots);
     carp::PivotCalcCtx pvt_ctx;
-    pvt_ctx.first_block = false;
-    pvt_ctx.bins = &bins;
-    pvt_ctx.range = bins.GetRange();
-
-    std::vector<float> oobl_tmp;
-    std::vector<float> oobr_tmp;
+    pvt_ctx.SetBins(&bins);
 
     for (int r = 0; r < opts_.nranks; r++) {
-      tr.UpdateCtxWithRank(epoch, r, &pvt_ctx, oobl_tmp, oobr_tmp);
+      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx);
     }
-
-    ::SortAndCopyWithoutDuplicates(oobl_tmp, pvt_ctx.oob_left);
-    ::SortAndCopyWithoutDuplicates(oobr_tmp, pvt_ctx.oob_right);
 
     perfect_pivots.FillZeros();
     carp::PivotUtils::CalculatePivots(&pvt_ctx, &perfect_pivots,
@@ -90,7 +82,10 @@ class PivotBench {
     std::vector<carp::Pivots> pivots(opts_.nranks);
 
     for (int r = 0; r < opts_.nranks; r++) {
-      tr.GetOobPivots(0, r, opts_.oobsz, &pivots[r], pvtcnt_vec_[1]);
+      carp::PivotCalcCtx pvt_ctx;
+      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx);
+      carp::PivotUtils::CalculatePivots(&pvt_ctx, &pivots[r],
+                                        /* num_pivots */ pvtcnt_vec_[1]);
       logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
     }
 

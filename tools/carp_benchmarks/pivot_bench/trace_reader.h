@@ -44,23 +44,8 @@ class TraceReader {
     return Status::OK();
   }
 
-  Status GetOobPivots(size_t ep_idx, int rank, int oob_sz, carp::Pivots* pivots,
-                      int num_pivots) {
-    Status s = Status::OK();
-    std::string data;
-    ReadEpoch(ep_idx, rank, data);
-
-    const float* vals = reinterpret_cast<const float*>(data.c_str());
-    carp::PivotCalcCtx pvt_ctx;
-    pvt_ctx.AddData(vals, oob_sz);
-    carp::PivotUtils::CalculatePivots(&pvt_ctx, pivots, num_pivots);
-    return s;
-  }
-
-  Status UpdateCtxWithRank(size_t ep_idx, int rank,
-                           carp::PivotCalcCtx* pvt_ctx,
-                           std::vector<float>& oobl_tmp,
-                           std::vector<float>& oobr_tmp) {
+  Status ReadRankIntoPivotCtx(size_t ep_idx, int rank,
+                           carp::PivotCalcCtx* pvt_ctx) {
     Status s = Status::OK();
     std::string data;
     ReadEpoch(ep_idx, rank, data);
@@ -79,8 +64,6 @@ class TraceReader {
 
     size_t valsz = data.size() / sizeof(float);
     const float* vals = reinterpret_cast<const float*>(data.c_str());
-
-    int nbins = bins.Size();
 
     for (size_t vi = 0; vi < valsz; vi++) {
       bins.AddVal(vals[vi]);
@@ -115,8 +98,6 @@ class TraceReader {
              ts, rank);
 
     ReadFileToString(env_, fpath, &data);
-
-    const float* vals = reinterpret_cast<const float*>(data.c_str());
 
     return s;
   }
