@@ -70,7 +70,7 @@ class TraceReader {
     const float* vals = reinterpret_cast<const float*>(data.c_str());
 
     for (size_t vi = 0; vi < valsz; vi++) {
-      bins.AddVal(vals[vi]);
+      bins.AddVal(vals[vi], /* force */ true);
     }
 
     return s;

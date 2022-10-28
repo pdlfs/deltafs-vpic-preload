@@ -249,16 +249,27 @@ class OrderedBins {
   // Searches for the bin corresponding to a value
   // Adds it there. Undefined behavior if val is out of bounds
   //
-  void AddVal(float val) {
+  void AddVal(float val, bool force) {
     assert(IsSet());
-    assert(Range().Inside(val));
+    if (!force) assert(Range().Inside(val));
 
     int bidx = SearchBins(val);
-    if (bidx >= Size() or bidx < 0) {
-      ABORT("Check bounds before adding a bin");
-    } else {
-      IncrementBin(bidx);
+
+    if (bidx < 0) {
+      if (force)
+        bidx = 0;
+      else
+        ABORT("OrderedBins: bidx < 0");
     }
+
+    if (bidx >= Size()) {
+      if (force)
+        bidx = Size() - 1;
+      else
+        ABORT("OrderedBins: bidx >= Size()");
+    }
+
+    IncrementBin(bidx);
   }
 
   std::string ToString() const {
@@ -318,7 +329,7 @@ class PivotCalcCtx {
         oob_right_.push_back(val);
       } else {
         // This can't fail, since we've established bin bounds
-        bins_->AddVal(val);
+        bins_->AddVal(val, /* force */ false);
       }
     }
 
@@ -343,7 +354,7 @@ class PivotCalcCtx {
   OrderedBins* bins_;
 
   friend class PivotUtils;
-  friend class Carp; /// XXXAJ: tmp, ugly
+  friend class Carp;  /// XXXAJ: tmp, ugly
 };
 }  // namespace carp
 }  // namespace pdlfs
