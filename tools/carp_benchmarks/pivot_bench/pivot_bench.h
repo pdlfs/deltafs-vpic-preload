@@ -122,14 +122,18 @@ struct OOBPivotTask {
 
 static void get_oob_pivots(void* args) {
   OOBPivotTask* task = (OOBPivotTask*)args;
+  int* rc = task->rem_count;
+
+  logf(LOG_INFO, "Getting pivots for rank %d\n", task->rank);
+
   pdlfs::carp::PivotCalcCtx pvt_ctx;
   task->tr->ReadRankIntoPivotCtx(task->epoch, task->rank, &pvt_ctx,
                                  task->oobsz);
   pdlfs::carp::PivotUtils::CalculatePivots(&pvt_ctx, task->pivots,
                                            task->num_pivots);
   task->mutex->Lock();
-  task->rem_count--;
-  if (task->rem_count == 0) {
+  (*rc)--;
+  if (*rc == 0) {
     task->cv->SignalAll();
   }
   task->mutex->Unlock();

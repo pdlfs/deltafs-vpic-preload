@@ -7,7 +7,7 @@
 namespace pdlfs {
 void PivotBench::GetOobPivotsParallel(TraceReader& tr, int epoch,
                                       carp::Pivots& merged_pivots) {
-  ThreadPool* tp = ThreadPool::NewFixed(4, true, nullptr);
+  ThreadPool* tp = ThreadPool::NewFixed(16, true, nullptr);
   port::Mutex mutex;
   port::CondVar cv(&mutex);
   int rem_count = opts_.nranks;
