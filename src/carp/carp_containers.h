@@ -294,6 +294,7 @@ class PivotCalcCtx {
       return bins_->GetRange();
   }
 
+  // Hook for pvtbench, not used by the real CARP code
   void AddData(const float* data, size_t data_sz) {
     if (FirstBlock()) {
       std::copy(data, data + data_sz, oob_left_.begin());
@@ -314,8 +315,11 @@ class PivotCalcCtx {
         bins_->AddVal(val);
       }
     }
+
+    Prepare();
   }
 
+ private:
   void Prepare() {
     if (oob_left_.size() > 1) {
       std::sort(oob_left_.begin(), oob_left_.end());
@@ -328,7 +332,6 @@ class PivotCalcCtx {
     }
   }
 
- private:
   std::vector<float> oob_left_;
   std::vector<float> oob_right_;
   OrderedBins* bins_;
