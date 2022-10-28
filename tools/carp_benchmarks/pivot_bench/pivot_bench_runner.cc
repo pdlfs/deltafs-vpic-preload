@@ -20,6 +20,7 @@ void set_default_opts() {
   opts.nranks = 8;
   opts.pvtcnt = 16;
   opts.oobsz = 256;
+  opts.nthreads = 32;
   opts.trace_root =
       "/Users/schwifty/Repos/workloads/data/particle.compressed.uniform.mini";
   opts.log_file = "tmp.txt";
