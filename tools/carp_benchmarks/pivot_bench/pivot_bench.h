@@ -42,19 +42,15 @@ class PivotBench {
 
     bool parallel = true;
 
-    s = RunSuiteEp0PP(num_eps, parallel);
-    if (!s.ok()) return s;
-    s = RunSuiteEpXSub1PP(num_eps, parallel);
-    if (!s.ok()) return s;
-    s = RunSuiteEpXPP(num_eps, parallel);
-    if (!s.ok()) return s;
+    RunSuiteEp0PP(num_eps, parallel);
+    RunSuiteEpXSub1PP(num_eps, parallel);
+    RunSuiteEpXPP(num_eps, parallel);
 
     return s;
   }
 
-  Status RunSuiteExp(int epoch) {
-    Status s = Status::OK();
-    bool parallel = true;
+  void RunSuiteExp(int epoch) {
+    bool parallel = false;
 
     runtype = "tmp";
     carp::Pivots oob_pivots;
@@ -68,12 +64,9 @@ class PivotBench {
     double load_std = bins.PrintNormStd();
     printf("--------------\n");
     logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, epoch, load_std);
-
-    return s;
   }
 
-  Status RunSuiteEp0PP(const int num_eps, bool parallel) {
-    Status s= Status::OK();
+  void RunSuiteEp0PP(const int num_eps, bool parallel) {
     runtype = "ep0pp";
 
     carp::Pivots pp_ep0;
@@ -91,8 +84,7 @@ class PivotBench {
     }
   }
 
-  Status RunSuiteEpXSub1PP(const int num_eps, bool parallel) {
-    Status s= Status::OK();
+  void RunSuiteEpXSub1PP(const int num_eps, bool parallel) {
     runtype = "epxsub1pp";
 
     for (int ep = 1; ep < num_eps; ep++) {
@@ -110,8 +102,7 @@ class PivotBench {
     }
   }
 
-  Status RunSuiteEpXPP(const int num_eps, bool parallel) {
-    Status s= Status::OK();
+  void RunSuiteEpXPP(const int num_eps, bool parallel) {
     runtype = "epxpp";
 
     for (int ep = 0; ep < num_eps; ep++) {

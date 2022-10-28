@@ -276,7 +276,7 @@ class OrderedBins {
   //
   void AddVal(float val, bool force) {
     assert(IsSet());
-    if (!force) assert(Range().Inside(val));
+    if (!force) assert(GetRange().Inside(val));
 
     int bidx = SearchBins(val);
 
