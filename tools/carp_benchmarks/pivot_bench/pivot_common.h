@@ -10,6 +10,7 @@ struct PivotBenchOpts {
   int nranks;
   int pvtcnt;
   int oobsz;
+  int nthreads;
   const char* trace_root;
   const char* log_file;
 };
