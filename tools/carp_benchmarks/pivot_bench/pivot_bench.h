@@ -15,40 +15,6 @@
 #include "pivot_aggr.h"
 #include "trace_reader.h"
 
-namespace {
-void SortAndCopyWithoutDuplicates(std::vector<float>& in,
-                                  std::vector<float>& out) {
-  if (in.size() == 0) return;
-
-  std::sort(in.begin(), in.end());
-
-  out.push_back(in[0]);
-  float last_copied = in[0];
-
-  for (size_t idx = 1; idx < in.size(); idx++) {
-    float cur = in[idx];
-    float prev = in[idx - 1];
-
-    assert(cur >= prev);
-    assert(cur >= last_copied);
-
-    if (cur - last_copied > 1e-7) {
-      // arbitrary comparison threshold
-      out.push_back(cur);
-      last_copied = cur;
-    }
-  }
-
-  size_t in_sz = in.size(), out_sz = out.size();
-  if (in_sz != out_sz) {
-    logf(LOG_WARN,
-         "[OOB::RemoveDuplicates] Some elements dropped (orig: %zu, "
-         "dupl: %zu)",
-         in_sz, out_sz);
-  }
-}
-}  // namespace
-
 namespace pdlfs {
 class PivotBench {
  public:

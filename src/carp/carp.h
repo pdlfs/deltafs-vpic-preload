@@ -192,7 +192,7 @@ class Carp {
     PopulatePivotCalcState(&pvt_ctx);
     PivotUtils::CalculatePivots(&pvt_ctx, &pivots_, num_pivots);
 
-    if (pivots_.width_ < 1e-3) { // arbitrary limit for null pivots
+    if (pivots_.width_ < 1e-3) {  // arbitrary limit for null pivots
       pivots_.MakeUpEpsilonPivots();
     }
 
@@ -201,10 +201,8 @@ class Carp {
 
  private:
   void PopulatePivotCalcState(PivotCalcCtx* pvt_ctx) {
-    pvt_ctx->first_block = mts_mgr_.FirstBlock();
-    pvt_ctx->range = oob_buffer_.range_;
-    oob_buffer_.GetPartitionedProps(pvt_ctx->oob_left, pvt_ctx->oob_right);
-    pvt_ctx->bins = &bins_;
+    pvt_ctx->SetBins(&bins_);
+    oob_buffer_.GetPartitionedProps(pvt_ctx->oob_left_, pvt_ctx->oob_right_);
   }
 
   void AssignShuffleTarget(particle_mem_t& p) {

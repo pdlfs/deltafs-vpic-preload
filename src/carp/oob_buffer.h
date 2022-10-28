@@ -101,6 +101,7 @@ class OobBuffer {
 
   //
   // Set the range that's considered inside for OOB purposes
+  // XXXAJ: maybe this range should belong to OrderedBins in Carp
   //
   void SetRange(InclusiveRange range) {
     range_ = range;
@@ -141,12 +142,6 @@ class OobBuffer {
       buf_.swap(tmp);
     }
   }
-
-  //
-  // Takes in a sorted array, removes duplicates (approx comparison), prints
-  // warnings if duplicates are dropped
-  //
-  void CopyWithoutDuplicates(std::vector<float>& in, std::vector<float>& out);
 
   const size_t oob_max_sz_;          // max# oob particles we hold (set by ctor)
   InclusiveRange range_;             // range represented by the OOB buffer

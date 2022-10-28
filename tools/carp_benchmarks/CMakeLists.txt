@@ -24,6 +24,7 @@ endfunction()
 
 set(CARP_SOURCES
         carp/carp.cc
+        carp/carp_containers.cc
         carp/carp_perflog.cc
         carp/carp_preload.cc
         carp/carp_utils.cc

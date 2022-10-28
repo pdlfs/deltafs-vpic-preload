@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "common.h"
+#include "range_common.h"
 
 namespace pdlfs {
 namespace carp {
@@ -44,23 +45,28 @@ class Range {
     return (rmin_ != DBL_MAX) and (rmax_ != DBL_MIN);
   }
 
-  bool IsValid() const { /* is range valid?  (i.e. reset or set) */
-    return ((rmin_ == DBL_MAX && rmax_ == DBL_MIN) or (rmin_ < rmax_));
-  }
-
   void Set(double qr_min, double qr_max) { /* set a new range */
     if (qr_min > qr_max) return;           /* XXX: invalid, shouldn't happen */
     rmin_ = qr_min;
     rmax_ = qr_max;
   }
 
-  void Extend(double emin, double emax) { /* extend range if needed */
-    rmin_ = std::min(rmin_, emin);
-    rmax_ = std::max(rmax_, emax);
-  }
-
   /* is "f" inside our range? returns false for unset ranges */
   virtual bool Inside(double f) const { return (f >= rmin_ && f < rmax_); }
+
+  //
+  // Return the relative position of a point relative to the range
+  // -1: to left. 0: inside. +1: to right.
+  int GetRelPos(double f) {
+    if (!IsSet())
+      return -1;
+    else if (f < rmin_)
+      return -1;
+    else if (f >= rmax_)
+      return 1;
+    else
+      return 0;
+  }
 
  protected:
   double rmin_; /* start of range (inclusive) */
@@ -88,29 +94,7 @@ class Pivots {
 
   size_t Size() const { return pivots_.size(); }
 
-  std::string ToString() const {
-    if (!is_set_) {
-      return "[PivotWidth]: unset [Pivots]: unset";
-    }
-
-    std::ostringstream pvtstr;
-    pvtstr.precision(3);
-
-    pvtstr << "PivotWidth: " << width_;
-    pvtstr << ", [PivotCount] " << pivots_.size();
-    pvtstr << ", [Pivots]:";
-
-    for (size_t pvt_idx = 0; pvt_idx < pivots_.size(); pvt_idx++) {
-      if (pvt_idx % 16 == 0) {
-        pvtstr << "\n\t";
-      }
-
-      double pivot = pivots_[pvt_idx];
-      pvtstr << pivot << ", ";
-    }
-
-    return pvtstr.str();
-  }
+  std::string ToString() const;
 
   void LoadPivots(std::vector<double>& pvtvec, double pvtwidth) {
     Resize(pvtvec.size());
@@ -201,53 +185,24 @@ class OrderedBins {
   //
   // After a renegotiation is complete, our bins are updated from the pivots
   //
-  void UpdateFromPivots(Pivots& pivots) {
-    if (pivots.Size() != Size() + 1) {
-      logf(LOG_ERRO, "[OrderedBins] SetFromPivots: size mismatch (%zu vs %zu)",
-           pivots.Size(), Size());
-      ABORT("OrderedBins - size mismatch!!");
-      return;
-    }
+  void UpdateFromPivots(Pivots& pivots);
 
-    std::copy(pivots.pivots_.begin(), pivots.pivots_.end(), bins_.begin());
-    std::fill(counts_.begin(), counts_.end(), 0);
-    is_set_ = true;
-  }
-
-  void UpdateFromArrays(int nbins, const float* bins, const float* counts) {
-    bins_.resize(nbins + 1);
-    counts_.resize(nbins);
-
-    std::copy(bins, bins + nbins + 1, bins_.begin());
-    std::copy(counts, counts + nbins, counts_.begin());
-
-    is_set_ = true;
-  }
+  void UpdateFromArrays(int nbins, const float* bins, const float* counts);
 
   // Various accessors
 
+  bool IsSet() const { return is_set_; }
+
   Range GetBin(int bidx) const { return Range(bins_[bidx], bins_[bidx + 1]); }
 
-  Range GetRange() const { return Range(bins_[0], bins_[Size()]); }
-
-  uint64_t GetTotalMass() const {
-    return std::accumulate(counts_.begin(), counts_.end(), 0ull);
-  }
-
-  std::string GetTotalMassPretty() const {
-    uint64_t mass = GetTotalMass();
-    std::stringstream mstr;
-    mstr.precision(2);
-    if (mass > 1e9)
-      mstr << mass / 1e9 << "B";
-    else if (mass > 1e6)
-      mstr << mass / 1e6 << "M";
-    else if (mass > 1e3)
-      mstr << mass / 1e3 << "K";
+  Range GetRange() const {
+    if (is_set_)
+      return Range(bins_[0], bins_[Size()]);
     else
-      mstr << mass;
-    return mstr.str();
+      return Range();
   }
+
+  uint64_t GetTotalMass() const;
 
   void GetBinsArr(const float** bins, int* binsz) const {
     *bins = bins_.data();
@@ -273,12 +228,7 @@ class OrderedBins {
   //
   // Reset all structs. Called at the end of epochs.
   //
-  void Reset() {
-    std::fill(bins_.begin(), bins_.end(), 0);
-    std::fill(counts_.begin(), counts_.end(), 0);
-    std::fill(counts_aggr_.begin(), counts_aggr_.end(), 0);
-    is_set_ = false;
-  }
+  void Reset();
 
   //
   // semantics for SearchBins:
@@ -286,12 +236,7 @@ class OrderedBins {
   // 2. this assumes that the bins contain the val, semantics weird otherwise
   // 3. return -1 if first_bin > val. return last bin (n - 1) if val > last_bin.
   //
-  int SearchBins(float val) {
-    auto iter = std::lower_bound(bins_.begin(), bins_.end(), val);
-    unsigned int idx = iter - bins_.begin();
-    while (idx < bins_.size() && val == bins_[idx]) idx++;  // skip equal vals
-    return idx - 1;
-  }
+  int SearchBins(float val);
 
   void IncrementBin(int bidx) {
     assert(bidx < (int)Size() and bidx >= 0);
@@ -299,56 +244,33 @@ class OrderedBins {
     counts_aggr_[bidx]++;
   }
 
+  //
+  // Searches for the bin corresponding to a value
+  // Adds it there. Undefined behavior if val is out of bounds
+  //
+  void AddVal(float val) {
+    assert(IsSet());
+    assert(Range().Inside(val));
+
+    int bidx = SearchBins(val);
+    if (bidx >= Size() or bidx < 0) {
+      ABORT("Check bounds before adding a bin");
+    } else {
+      IncrementBin(bidx);
+    }
+  }
+
   std::string ToString() const {
     std::ostringstream binstr;
-    binstr << "[BinMass] " << GetTotalMassPretty();
-    binstr << "\n[Bins] " << VecToString<float>(bins_);
-    binstr << "\n[BinCounts] " << VecToString<uint64_t>(counts_);
+    binstr << "[BinMass] " << pretty_num(GetTotalMass());
+    binstr << "\n[Bins] " << vec_to_str<float>(bins_);
+    binstr << "\n[BinCounts] " << vec_to_str<uint64_t>(counts_);
     return binstr.str();
   }
 
-  double PrintNormStd() {
-    uint64_t total_sz = std::accumulate(counts_.begin(), counts_.end(), 0ull);
-    double avg_binsz = total_sz * 1.0 / counts_.size();
-
-    double normx_sum = 0;
-    double normx2_sum = 0;
-
-    for (uint64_t bincnt : counts_) {
-      double normbincnt = bincnt / avg_binsz;
-      double norm_x = normbincnt;
-      double norm_x2 = normbincnt * normbincnt;
-      normx_sum += norm_x;
-      normx2_sum += norm_x2;
-      logf(LOG_DBG2, "normbincnt: x: %lf, x2: %lf\n", normx_sum, normx2_sum);
-    }
-
-    normx_sum /= counts_.size();
-    normx2_sum /= counts_.size();
-
-    double normvar = normx2_sum - (normx_sum * normx_sum);
-    double normstd = pow(normvar, 0.5);
-
-    logf(LOG_INFO, "OrderedBins, Normalized Stddev: %.3lf\n", normstd);
-    return normstd;
-  }
+  double PrintNormStd();
 
  private:
-  template <typename T>
-  std::string VecToString(const std::vector<T>& vec) const {
-    std::ostringstream vecstr;
-    vecstr.precision(3);
-
-    for (size_t vecidx = 0; vecidx < vec.size(); vecidx++) {
-      if (vecidx % 10 == 0) {
-        vecstr << "\n\t";
-      }
-
-      vecstr << vec[vecidx] << ", ";
-    }
-
-    return vecstr.str();
-  }
   std::vector<float> bins_;
   std::vector<uint64_t> counts_;
   std::vector<uint64_t> counts_aggr_;
@@ -357,12 +279,62 @@ class OrderedBins {
   friend class PivotUtils;
 };
 
-struct PivotCalcCtx {
-  bool first_block;
-  Range range;
-  std::vector<float> oob_left;
-  std::vector<float> oob_right;
-  OrderedBins* bins;
+class PivotCalcCtx {
+ public:
+  PivotCalcCtx() : bins_(nullptr) {}
+
+  bool FirstBlock() const { return (bins_ == nullptr) || (!bins_->IsSet()); }
+
+  void SetBins(OrderedBins* bins) { bins_ = bins; }
+
+  Range GetRange() const {
+    if (bins_ == nullptr)
+      return Range();
+    else
+      return bins_->GetRange();
+  }
+
+  void AddData(const float* data, size_t data_sz) {
+    if (FirstBlock()) {
+      std::copy(data, data + data_sz, oob_left_.begin());
+      return;
+    }
+
+    Range r = bins_->GetRange();
+
+    for (size_t idx = 0; idx < data_sz; idx++) {
+      float val = data[idx];
+      int vpos = r.GetRelPos(val);
+      if (vpos < 0) {
+        oob_left_.push_back(val);
+      } else if (vpos > 0) {
+        oob_right_.push_back(val);
+      } else {
+        // This can't fail, since we've established bin bounds
+        bins_->AddVal(val);
+      }
+    }
+  }
+
+  void Prepare() {
+    if (oob_left_.size() > 1) {
+      std::sort(oob_left_.begin(), oob_left_.end());
+      deduplicate_sorted_vector(oob_left_);
+    }
+
+    if (oob_right_.size() > 1) {
+      std::sort(oob_right_.begin(), oob_right_.end());
+      deduplicate_sorted_vector(oob_right_);
+    }
+  }
+
+ private:
+  std::vector<float> oob_left_;
+  std::vector<float> oob_right_;
+  OrderedBins* bins_;
+
+  friend class PivotUtils;
+  friend class Carp; /// XXXAJ: tmp, ugly
 };
 }  // namespace carp
 }  // namespace pdlfs

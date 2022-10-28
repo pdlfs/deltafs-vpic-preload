@@ -82,14 +82,15 @@ class PivotUtils {
               pivots->pivots_.begin());
   }
 
+ private:
   static int CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                     size_t num_pivots);
 
   static int CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                     size_t num_pivots);
 
- private:
-  static int GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start, float& range_end);
+  static int GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
+                            float& range_end);
 
   static float WeightedAverage(float a, float b, float frac);
 

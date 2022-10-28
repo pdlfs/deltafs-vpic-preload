@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "carp/carp_containers.h"
 #include "carp/data_buffer.h"
 #include "carp/rtp.h"
 #include "carp/rtp_internal.h"

@@ -80,7 +80,7 @@ int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   int rv = 0;
   pivots->Resize(num_pivots);
 
-  if (pvt_ctx->first_block) {
+  if (pvt_ctx->FirstBlock()) {
     rv = CalculatePivotsFromOob(pvt_ctx, pivots, num_pivots);
   } else {
     rv = CalculatePivotsFromAll(pvt_ctx, pivots, num_pivots);
@@ -98,32 +98,32 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                        size_t num_pivots) {
   int rv = 0;
 
-  assert(pvt_ctx->oob_right.size() == 0);
-  const int oob_left_sz = pvt_ctx->oob_left.size();
+  assert(pvt_ctx->oob_right_.size() == 0);
+  const int oob_left__sz = pvt_ctx->oob_left_.size();
 
-  if (oob_left_sz < 2) return 0;
+  if (oob_left__sz < 2) return 0;
 
-  const float range_min = pvt_ctx->oob_left[0];
-  const float range_max = pvt_ctx->oob_left[oob_left_sz - 1];
+  const float range_min = pvt_ctx->oob_left_[0];
+  const float range_max = pvt_ctx->oob_left_[oob_left__sz - 1];
 
   pivots->pivots_[0] = range_min;
   pivots->pivots_[num_pivots - 1] = range_max;
 
-  pivots->width_ = oob_left_sz * 1.0 / num_pivots;
+  pivots->width_ = oob_left__sz * 1.0 / num_pivots;
 
   /* for computation purposes, we need to reserve one, so as to always have
    * two points of interpolation */
 
-  float part_per_pivot = (oob_left_sz - 1) * 1.0 / num_pivots;
+  float part_per_pivot = (oob_left__sz - 1) * 1.0 / num_pivots;
 
   for (int pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
     float oob_idx = part_per_pivot * pvt_idx;
     int oob_idx_trunc = (int)oob_idx;
 
-    assert(oob_idx_trunc + 1 < oob_left_sz);
+    assert(oob_idx_trunc + 1 < oob_left__sz);
 
-    float val_a = pvt_ctx->oob_left[oob_idx_trunc];
-    float val_b = pvt_ctx->oob_left[oob_idx_trunc + 1];
+    float val_a = pvt_ctx->oob_left_[oob_idx_trunc];
+    float val_b = pvt_ctx->oob_left_[oob_idx_trunc + 1];
 
     float frac_a = oob_idx - (float)oob_idx_trunc;
     float pvt = WeightedAverage(val_a, val_b, frac_a);
@@ -141,26 +141,26 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
  * */
 int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                        size_t num_pivots) {
-  OrderedBins* bins = pvt_ctx->bins;
+  OrderedBins* bins = pvt_ctx->bins_;
   assert(num_pivots <= pdlfs::kMaxPivots);
 
-  const float prev_range_begin = pvt_ctx->range.rmin();
-  const float prev_range_end = pvt_ctx->range.rmax();
+  const float prev_range_begin = pvt_ctx->GetRange().rmin();
+  const float prev_range_end = pvt_ctx->GetRange().rmax();
 
   float range_start, range_end;
 
   GetRangeBounds(pvt_ctx, range_start, range_end);
   assert(range_end >= range_start);
 
-  int oob_left_sz = pvt_ctx->oob_left.size(),
-      oob_right_sz = pvt_ctx->oob_right.size();
+  int oob_left__sz = pvt_ctx->oob_left_.size(),
+      oob_right__sz = pvt_ctx->oob_right_.size();
 
   float particle_count = bins->GetTotalMass();
 
   pivots->pivots_[0] = range_start;
   pivots->pivots_[num_pivots - 1] = range_end;
 
-  particle_count += (oob_left_sz + oob_right_sz);
+  particle_count += (oob_left__sz + oob_right__sz);
 
   int cur_pivot = 1;
   float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
@@ -180,7 +180,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   // "pivot range: (%.1f %.1f), particle_cnt: %.1f\n"
   // "rbc: %s (%zu)\n"
   // "bin: %s (%zu)\n",
-  // pctx.my_rank, pvt_ctx->oob_left_sz, pvt_ctx->oob_right_sz, range_start, range_end,
+  // pctx.my_rank, pvt_ctx->oob_left__sz, pvt_ctx->oob_right__sz, range_start, range_end,
   // particle_count, SerializeVector(ff).c_str(), ff.size(),
   // SerializeVector(gg).c_str(), gg.size());
   /**********************/
@@ -194,7 +194,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   float oob_idx = 0;
   while (1) {
-    float part_left = oob_left_sz - oob_idx;
+    float part_left = oob_left__sz - oob_idx;
     if (part_per_pivot < 1e-5 || part_left < part_per_pivot) {
       particles_carried_over += part_left;
       break;
@@ -205,12 +205,12 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     float part_idx = accumulated_ppp;
     int part_idx_trunc = (int)accumulated_ppp;
 
-    if (part_idx_trunc >= oob_left_sz) break;
+    if (part_idx_trunc >= oob_left__sz) break;
 
     float frac_a = part_idx - (float)part_idx_trunc;
-    float val_a = pvt_ctx->oob_left[part_idx_trunc];
-    float val_b = (part_idx_trunc + 1 < oob_left_sz)
-                      ? pvt_ctx->oob_left[part_idx_trunc + 1]
+    float val_a = pvt_ctx->oob_left_[part_idx_trunc];
+    float val_b = (part_idx_trunc + 1 < oob_left__sz)
+                      ? pvt_ctx->oob_left_[part_idx_trunc + 1]
                       : prev_range_begin;
     assert(val_b > val_a);
 
@@ -259,7 +259,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   oob_idx = 0;
 
   while (1) {
-    float part_left = oob_right_sz - oob_idx;
+    float part_left = oob_right__sz - oob_idx;
     if (part_per_pivot < 1e-5 ||
         part_left + particles_carried_over < part_per_pivot + 1e-5) {
       particles_carried_over += part_left;
@@ -270,7 +270,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     int next_idx_trunc = (int)next_idx;
     particles_carried_over = 0;
 
-    if (next_idx_trunc >= oob_right_sz) break;
+    if (next_idx_trunc >= oob_right__sz) break;
 
     /* Current pivot is computed from fractional index weighted average,
      * we interpolate between current index and next, if next index is out of
@@ -279,11 +279,11 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     float frac_b = next_idx - next_idx_trunc;
     assert(frac_b >= 0);
 
-    float val_b = pvt_ctx->oob_right[next_idx_trunc];
+    float val_b = pvt_ctx->oob_right_[next_idx_trunc];
     float val_a;
 
     if (next_idx_trunc > 0) {
-      val_a = pvt_ctx->oob_right[next_idx_trunc - 1];
+      val_a = pvt_ctx->oob_right_[next_idx_trunc - 1];
     } else if (next_idx_trunc == 0) {
       val_a = prev_range_end;
     } else {
@@ -357,27 +357,27 @@ int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                                float& range_end) {
   int rv = 0;
 
-  size_t oob_left_sz = pvt_ctx->oob_left.size();
-  size_t oob_right_sz = pvt_ctx->oob_right.size();
+  size_t oob_left__sz = pvt_ctx->oob_left_.size();
+  size_t oob_right__sz = pvt_ctx->oob_right_.size();
 
-  double oob_left_min = oob_left_sz ? pvt_ctx->oob_left[0] : 0;
-  double oob_right_min = oob_right_sz ? pvt_ctx->oob_right[0] : 0;
+  double oob_left__min = oob_left__sz ? pvt_ctx->oob_left_[0] : 0;
+  double oob_right__min = oob_right__sz ? pvt_ctx->oob_right_[0] : 0;
   /* If both OOBs are filled, their minimum, otherwise, the non-zero val */
-  double oob_min = (oob_left_sz && oob_right_sz)
-                       ? std::min(oob_left_min, oob_right_min)
-                       : oob_left_min + oob_right_min;
+  double oob_min = (oob_left__sz && oob_right__sz)
+                       ? std::min(oob_left__min, oob_right__min)
+                       : oob_left__min + oob_right__min;
 
-  double oob_left_max = oob_left_sz ? pvt_ctx->oob_left[oob_left_sz - 1] : 0;
-  double oob_right_max =
-      oob_right_sz ? pvt_ctx->oob_right[oob_right_sz - 1] : 0;
-  double oob_max = std::max(oob_left_max, oob_right_max);
+  double oob_left__max = oob_left__sz ? pvt_ctx->oob_left_[oob_left__sz - 1] : 0;
+  double oob_right__max =
+      oob_right__sz ? pvt_ctx->oob_right_[oob_right__sz - 1] : 0;
+  double oob_max = std::max(oob_left__max, oob_right__max);
 
-  assert(oob_left_min <= oob_left_max);
-  assert(oob_right_min <= oob_right_max);
+  assert(oob_left__min <= oob_left__max);
+  assert(oob_right__min <= oob_right__max);
 
-  if (oob_left_sz and oob_right_sz) {
-    assert(oob_left_min <= oob_right_min);
-    assert(oob_left_max <= oob_right_max);
+  if (oob_left__sz and oob_right__sz) {
+    assert(oob_left__min <= oob_right__min);
+    assert(oob_left__max <= oob_right__max);
   }
 
   /* Since our default value is zero, min needs to obtained
@@ -386,15 +386,15 @@ int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
    * oob_min (= 0) needs to be ignored
    */
   // if (prev_state_ == MainThreadState::MT_INIT) {
-  if (pvt_ctx->first_block) {
+  if (pvt_ctx->FirstBlock()) {
     range_start = oob_min;
-  } else if (oob_left_sz) {
-    range_start = std::min(oob_min, pvt_ctx->range.rmin());
+  } else if (oob_left__sz) {
+    range_start = std::min(oob_min, pvt_ctx->GetRange().rmin());
   } else {
-    range_start = pvt_ctx->range.rmin();
+    range_start = pvt_ctx->GetRange().rmin();
   }
 
-  range_end = std::max(oob_max, pvt_ctx->range.rmax());
+  range_end = std::max(oob_max, pvt_ctx->GetRange().rmax());
 
   return rv;
 }

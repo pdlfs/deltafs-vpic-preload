@@ -116,6 +116,15 @@ TEST(RangeUtilsTest, WeightedAvg) {
   ASSERT_LE(wavg_1, wavg_2);
 }
 
+TEST(RangeUtilsTest, DeduplicateVector) {
+  std::vector<float> v = { 5, 5, 5, 5, 5, 6, 6, 7, 8};
+  size_t oldsz = v.size();
+  pdlfs::carp::deduplicate_sorted_vector(v);
+  size_t newsz = v.size();
+  logf(LOG_INFO, "Dedup, old size: %zu, new size: %zu", oldsz, newsz);
+  assert(v.size() == 4);
+}
+
 TEST(RangeUtilsTest, PivotCalc) {
   srand(time(NULL));
 

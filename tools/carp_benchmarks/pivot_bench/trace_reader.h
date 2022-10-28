@@ -52,13 +52,7 @@ class TraceReader {
 
     const float* vals = reinterpret_cast<const float*>(data.c_str());
     carp::PivotCalcCtx pvt_ctx;
-    pvt_ctx.first_block = true;
-    for (int vi = 0; vi < oob_sz; vi++) {
-      pvt_ctx.oob_left.push_back(vals[vi]);
-    }
-
-    std::sort(pvt_ctx.oob_left.begin(), pvt_ctx.oob_left.end());
-
+    pvt_ctx.AddData(vals, oob_sz);
     carp::PivotUtils::CalculatePivots(&pvt_ctx, pivots, num_pivots);
     return s;
   }
@@ -71,26 +65,9 @@ class TraceReader {
     std::string data;
     ReadEpoch(ep_idx, rank, data);
 
-    int val_sz = data.size() / sizeof(float);
-
     const float* vals = reinterpret_cast<const float*>(data.c_str());
-    double bin_lb = pvt_ctx->range.rmin();
-    double bin_ub = pvt_ctx->range.rmax();
-    int nbins = pvt_ctx->bins->Size();
-
-    for (int vi = 0; vi < val_sz; vi++) {
-      float v = vals[vi];
-      if (v < bin_lb) {
-        oobl_tmp.push_back(v);
-      } else if (v > bin_ub) {
-        oobr_tmp.push_back(v);
-      } else {
-        int bidx = pvt_ctx->bins->SearchBins(v);
-        if (bidx < 0) bidx = 0;
-        if (bidx >= nbins) bidx = nbins - 1;
-        pvt_ctx->bins->IncrementBin(bidx);
-      }
-    }
+    int val_sz = data.size() / sizeof(float);
+    pvt_ctx->AddData(vals, val_sz);
 
     return s;
   }
@@ -106,11 +83,7 @@ class TraceReader {
     int nbins = bins.Size();
 
     for (size_t vi = 0; vi < valsz; vi++) {
-      float vkey = vals[vi];
-      int bidx = bins.SearchBins(vkey);
-      if (bidx < 0) bidx = 0;
-      if (bidx >= nbins) bidx = nbins - 1;
-      bins.IncrementBin(bidx);
+      bins.AddVal(vals[vi]);
     }
 
     return s;

@@ -42,55 +42,36 @@ int OobBuffer::Insert(particle_mem_t& item) {
  */
 int OobBuffer::GetPartitionedProps(std::vector<float>& left,
                                    std::vector<float>& right) {
-  std::vector<float> temp_left;
-  std::vector<float> temp_right;
-
   for (auto it = buf_.cbegin(); it != buf_.cend(); it++) {
     float prop = it->indexed_prop;
     if ((not range_.IsSet()) or (range_.IsSet() and prop < range_.rmin())) {
-      temp_left.push_back(prop);
+      left.push_back(prop);
     } else if (prop > range_.rmax()) {
-      temp_right.push_back(prop);
+      right.push_back(prop);
     }
   }
 
-  std::sort(temp_left.begin(), temp_left.end());
-  std::sort(temp_right.begin(), temp_right.end());
+  std::sort(left.begin(), left.end());
+  std::sort(right.begin(), right.end());
 
-  CopyWithoutDuplicates(temp_left, left);
-  CopyWithoutDuplicates(temp_right, right);
+  size_t oldlsz = left.size(), oldrsz = right.size();
+
+  deduplicate_sorted_vector(left);
+  deduplicate_sorted_vector(right);
+
+  size_t newlsz = left.size(), newrsz = right.size();
+
+  if (newlsz != oldlsz) {
+    logf(LOG_INFO, "[OOBBuffer, Left] Duplicates removed (%zu to %zu)", oldlsz,
+         newlsz);
+  }
+
+  if (newrsz != oldrsz) {
+    logf(LOG_INFO, "[OOBBuffer, Right] Duplicates removed (%zu to %zu)", oldrsz,
+         newrsz);
+  }
 
   return 0;
-}
-
-void OobBuffer::CopyWithoutDuplicates(std::vector<float>& in,
-                                      std::vector<float>& out) {
-  if (in.size() == 0) return;
-
-  out.push_back(in[0]);
-  float last_copied = in[0];
-
-  for (size_t idx = 1; idx < in.size(); idx++) {
-    float cur = in[idx];
-    float prev = in[idx - 1];
-
-    assert(cur >= prev);
-    assert(cur >= last_copied);
-
-    if (cur - last_copied > 1e-7) {
-      // arbitrary comparison threshold
-      out.push_back(cur);
-      last_copied = cur;
-    }
-  }
-
-  size_t in_sz = in.size(), out_sz = out.size();
-  if (in_sz != out_sz) {
-    logf(LOG_WARN,
-         "[OOB::RemoveDuplicates] Some elements dropped (orig: %zu, "
-         "dupl: %zu)",
-         in_sz, out_sz);
-  }
 }
 }  // namespace carp
 }  // namespace pdlfs
