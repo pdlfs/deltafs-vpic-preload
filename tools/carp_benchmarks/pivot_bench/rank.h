@@ -48,7 +48,7 @@ class Rank {
     PivotCalcCtx pvt_ctx;
     Pivots oob_pivots;
 
-    GetOobPivots(&pvt_ctx, epoch, &oob_pivots, npivots);
+    GetOobPivots(&pvt_ctx, epoch, &oob_pivots, npivots + 1);
 
     // Different from regular bins, which are = nranks
     OrderedBins bins_pp(npivots);

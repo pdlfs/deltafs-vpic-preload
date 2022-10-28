@@ -37,32 +37,96 @@ class PivotBench {
     Status s = Status::OK();
     TraceReader tr(opts_);
 
-    size_t num_ep;
-    tr.DiscoverEpochs(num_ep);
+    size_t num_eps;
+    tr.DiscoverEpochs(num_eps);
 
-    s = RunSuite1(0);
+    bool parallel = true;
+
+    s = RunSuiteEp0PP(num_eps, parallel);
+    if (!s.ok()) return s;
+    s = RunSuiteEpXSub1PP(num_eps, parallel);
+    if (!s.ok()) return s;
+    s = RunSuiteEpXPP(num_eps, parallel);
     if (!s.ok()) return s;
 
     return s;
   }
 
-  Status RunSuite1(int epoch) {
+  Status RunSuiteExp(int epoch) {
     Status s = Status::OK();
+    bool parallel = true;
 
     runtype = "tmp";
     carp::Pivots oob_pivots;
-    GetOobPivots(epoch, oob_pivots, pvtcnt_vec_[1], false);
+    GetPerfectPivots(epoch, oob_pivots, pvtcnt_vec_[1], parallel);
 
     carp::OrderedBins bins(opts_.nranks);
     bins.UpdateFromPivots(oob_pivots);
     bins.ZeroCounts();
-    ReadEpochIntoBins(epoch, bins, false);
+    ReadEpochIntoBins(epoch, bins, parallel);
 
     double load_std = bins.PrintNormStd();
     printf("--------------\n");
     logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, epoch, load_std);
 
     return s;
+  }
+
+  Status RunSuiteEp0PP(const int num_eps, bool parallel) {
+    Status s= Status::OK();
+    runtype = "ep0pp";
+
+    carp::Pivots pp_ep0;
+    GetPerfectPivots(0, pp_ep0, pvtcnt_vec_[1], parallel);
+
+    for (int ep = 0; ep < num_eps; ep++) {
+      carp::OrderedBins bins(opts_.nranks);
+      bins.UpdateFromPivots(pp_ep0);
+      bins.ZeroCounts();
+      ReadEpochIntoBins(ep, bins, parallel);
+
+      double load_std = bins.PrintNormStd();
+      printf("--------------\n");
+      logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, ep, load_std);
+    }
+  }
+
+  Status RunSuiteEpXSub1PP(const int num_eps, bool parallel) {
+    Status s= Status::OK();
+    runtype = "epxsub1pp";
+
+    for (int ep = 1; ep < num_eps; ep++) {
+      carp::Pivots pp_epXsub1;
+      GetPerfectPivots(ep - 1, pp_epXsub1, pvtcnt_vec_[1], parallel);
+
+      carp::OrderedBins bins(opts_.nranks);
+      bins.UpdateFromPivots(pp_epXsub1);
+      bins.ZeroCounts();
+      ReadEpochIntoBins(ep, bins, parallel);
+
+      double load_std = bins.PrintNormStd();
+      printf("--------------\n");
+      logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, ep, load_std);
+    }
+  }
+
+  Status RunSuiteEpXPP(const int num_eps, bool parallel) {
+    Status s= Status::OK();
+    runtype = "epxpp";
+
+    for (int ep = 0; ep < num_eps; ep++) {
+      carp::Pivots pp_epX;
+      GetPerfectPivots(ep, pp_epX, pvtcnt_vec_[1], parallel);
+
+      carp::OrderedBins bins(opts_.nranks);
+      bins.UpdateFromPivots(pp_epX);
+      bins.ZeroCounts();
+      ReadEpochIntoBins(ep, bins, parallel);
+
+      double load_std = bins.PrintNormStd();
+      printf("--------------\n");
+      logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, ep, load_std);
+    }
   }
 
  private:
@@ -95,7 +159,7 @@ class PivotBench {
                                                    num_pivots);
     } else {
       for (int r = 0; r < opts_.nranks; r++) {
-        ranks_[r]->GetOobPivots(epoch, &pivots[r], num_pivots);
+        ranks_[r]->GetPerfectPivots(epoch, &pivots[r], num_pivots);
         logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
     }
