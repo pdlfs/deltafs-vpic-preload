@@ -66,7 +66,7 @@ class PivotBench {
     pvt_ctx.SetBins(&bins);
 
     for (int r = 0; r < opts_.nranks; r++) {
-      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx);
+      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx, -1);
     }
 
     perfect_pivots.FillZeros();
@@ -83,7 +83,7 @@ class PivotBench {
 
     for (int r = 0; r < opts_.nranks; r++) {
       carp::PivotCalcCtx pvt_ctx;
-      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx);
+      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx, opts_.oobsz);
       carp::PivotUtils::CalculatePivots(&pvt_ctx, &pivots[r],
                                         /* num_pivots */ pvtcnt_vec_[1]);
       logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());

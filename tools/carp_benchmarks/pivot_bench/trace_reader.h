@@ -45,13 +45,17 @@ class TraceReader {
   }
 
   Status ReadRankIntoPivotCtx(size_t ep_idx, int rank,
-                           carp::PivotCalcCtx* pvt_ctx) {
+                              carp::PivotCalcCtx* pvt_ctx, int nitems) {
     Status s = Status::OK();
     std::string data;
     ReadEpoch(ep_idx, rank, data);
 
     const float* vals = reinterpret_cast<const float*>(data.c_str());
     int val_sz = data.size() / sizeof(float);
+    if (nitems > 0) {
+      val_sz = std::min(val_sz, nitems);
+    }
+
     pvt_ctx->AddData(vals, val_sz);
 
     return s;
