@@ -8,6 +8,9 @@ namespace pdlfs {
 void PivotBench::GetOobPivotsParallel(TraceReader& tr, int epoch,
                                       carp::Pivots& merged_pivots) {
   ThreadPool* tp = ThreadPool::NewFixed(4, true, nullptr);
+  port::Mutex mutex;
+  port::CondVar cv(&mutex);
+  int rem_count = opts_.nranks;
 
   std::vector<::OOBPivotTask> all_tasks(opts_.nranks);
   std::vector<carp::Pivots> pivots(opts_.nranks);
@@ -19,12 +22,18 @@ void PivotBench::GetOobPivotsParallel(TraceReader& tr, int epoch,
     all_tasks[r].oobsz = opts_.oobsz;
     all_tasks[r].pivots = &pivots[r];
     all_tasks[r].num_pivots = pvtcnt_vec_[1];
+    all_tasks[r].mutex = &mutex;
+    all_tasks[r].cv = &cv;
+    all_tasks[r].rem_count = &rem_count;
 
     tp->Schedule(::get_oob_pivots, &all_tasks[r]);
   }
 
-  delete tp;
-  tp = nullptr;
+  mutex.Lock();
+  while (rem_count != 0) {
+    cv.Wait();
+  }
+  mutex.Unlock();
 
   merged_pivots.FillZeros();
   carp::PivotAggregator aggr(pvtcnt_vec_);
@@ -32,5 +41,7 @@ void PivotBench::GetOobPivotsParallel(TraceReader& tr, int epoch,
   aggr.AggregatePivots(pivots, merged_pivots);
 
   logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
+
+  delete tp;
 }
 }  // namespace pdlfs

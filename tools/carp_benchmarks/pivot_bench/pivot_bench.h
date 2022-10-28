@@ -114,6 +114,9 @@ struct OOBPivotTask {
   int rank;
   int oobsz;
   int num_pivots;
+  pdlfs::port::Mutex* mutex;
+  pdlfs::port::CondVar* cv;
+  int* rem_count;
   pdlfs::carp::Pivots* pivots;
 };
 
@@ -124,5 +127,11 @@ static void get_oob_pivots(void* args) {
                                  task->oobsz);
   pdlfs::carp::PivotUtils::CalculatePivots(&pvt_ctx, task->pivots,
                                            task->num_pivots);
+  task->mutex->Lock();
+  task->rem_count--;
+  if (task->rem_count == 0) {
+    task->cv->SignalAll();
+  }
+  task->mutex->Unlock();
 }
 }  // namespace
