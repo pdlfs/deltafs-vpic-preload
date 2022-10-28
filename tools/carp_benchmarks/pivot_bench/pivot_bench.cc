@@ -69,7 +69,7 @@ void PivotBench::AnalyzePivotsAgainstEpochParallel(pdlfs::TraceReader& tr,
     all_tasks[r].cv = &cv;
     all_tasks[r].rem_count = &rem_count;
 
-    tp->Schedule(::get_oob_pivots, &all_tasks[r]);
+    tp->Schedule(::read_rank_into_bins, &all_tasks[r]);
   }
 
   mutex.Lock();
