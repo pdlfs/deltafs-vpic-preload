@@ -303,6 +303,7 @@ class PivotCalcCtx {
       }
       oob_left_.resize(data_sz);
       std::copy(data, data + data_sz, oob_left_.begin());
+      CleanupOob();
       return;
     }
 
@@ -321,6 +322,12 @@ class PivotCalcCtx {
       }
     }
 
+    CleanupOob();
+    return;
+  }
+
+ private:
+  void CleanupOob() {
     if (oob_left_.size() > 1) {
       std::sort(oob_left_.begin(), oob_left_.end());
       deduplicate_sorted_vector(oob_left_);
@@ -331,8 +338,6 @@ class PivotCalcCtx {
       deduplicate_sorted_vector(oob_right_);
     }
   }
-
- private:
   std::vector<float> oob_left_;
   std::vector<float> oob_right_;
   OrderedBins* bins_;
