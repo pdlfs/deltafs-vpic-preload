@@ -14,6 +14,7 @@
 #include "logger.h"
 #include "parallel_processor.h"
 #include "pivot_aggr.h"
+#include "rank.h"
 #include "trace_reader.h"
 
 namespace pdlfs {
@@ -23,7 +24,14 @@ class PivotBench {
       : opts_(opts),
         pvtcnt_vec_(STAGES_MAX + 1, opts_.pvtcnt),
         logger_(opts.log_file),
-        parallel_processor_(opts_) {}
+        parallel_processor_(opts_),
+        tr_(opts_),
+        num_ep_(0) {
+    tr_.DiscoverEpochs(num_ep_);
+    InitAllRanks();
+  }
+
+  ~PivotBench() { DestroyAllRanks(); }
 
   Status Run() {
     Status s = Status::OK();
@@ -32,101 +40,106 @@ class PivotBench {
     size_t num_ep;
     tr.DiscoverEpochs(num_ep);
 
-    s = RunWithInitialPivots(tr, num_ep);
-    if (!s.ok()) return s;
-    s = RunWithRespectivePivots(tr, num_ep);
+    s = RunSuite1(0);
     if (!s.ok()) return s;
 
     return s;
   }
 
-  Status RunWithInitialPivots(TraceReader& tr, size_t num_ep) {
-    runtype = "initpvt";
+  Status RunSuite1(int epoch) {
     Status s = Status::OK();
+
+    runtype = "tmp";
     carp::Pivots oob_pivots;
-    //    GetOobPivots(tr, 0, oob_pivots);
-    GetOobPivotsParallel(tr, 0, oob_pivots);
+    GetOobPivots(epoch, oob_pivots, pvtcnt_vec_[1], false);
 
-    for (size_t ep_idx = 0; ep_idx < num_ep; ep_idx++) {
-      //      AnalyzePivotsAgainstEpoch(tr, oob_pivots, ep_idx);
-      AnalyzePivotsAgainstEpochParallel(tr, oob_pivots, ep_idx);
-    }
+    carp::OrderedBins bins(opts_.nranks);
+    bins.UpdateFromPivots(oob_pivots);
+    bins.ZeroCounts();
+    ReadEpochIntoBins(epoch, bins, false);
 
-    return s;
-  }
+    double load_std = bins.PrintNormStd();
+    printf("--------------\n");
+    logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, epoch, load_std);
 
-  Status RunWithRespectivePivots(TraceReader& tr, size_t num_ep) {
-    runtype = "ownpvt";
-    Status s = Status::OK();
-    for (size_t ep_idx = 0; ep_idx < num_ep; ep_idx++) {
-      carp::Pivots oob_pivots;
-      GetOobPivotsParallel(tr, ep_idx, oob_pivots);
-      AnalyzePivotsAgainstEpochParallel(tr, oob_pivots, ep_idx);
-    }
     return s;
   }
 
  private:
-  void AnalyzePivotsAgainstEpoch(TraceReader& tr, carp::Pivots& oob_pivots,
-                                 int epoch) {
-    carp::OrderedBins bins(opts_.nranks);
-    bins.UpdateFromPivots(oob_pivots);
-    tr.ReadAllRanksIntoBins(epoch, bins);
-    logf(LOG_INFO, "%s", bins.ToString().c_str());
-    double load_std = bins.PrintNormStd();
-    printf("--------------\n");
-    logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, epoch, load_std);
-  }
-
-  void GetOobPivots(TraceReader& tr, int epoch, carp::Pivots& merged_pivots) {
+  void GetOobPivots(int epoch, carp::Pivots& merged_pivots, int num_pivots,
+                    bool parallel) {
     std::vector<carp::Pivots> pivots(opts_.nranks);
 
-    for (int r = 0; r < opts_.nranks; r++) {
-      carp::PivotCalcCtx pvt_ctx;
-      tr.ReadRankIntoPivotCtx(epoch, r, &pvt_ctx, opts_.oobsz);
-      carp::PivotUtils::CalculatePivots(&pvt_ctx, &pivots[r],
-                                        /* num_pivots */ pvtcnt_vec_[1]);
-      logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
+    if (parallel) {
+      logf(LOG_ERRO, "Not implemented");
+      ABORT("NOT IMPLEMENTED!!");
+    } else {
+      for (int r = 0; r < opts_.nranks; r++) {
+        ranks_[r]->GetOobPivots(epoch, &pivots[r], num_pivots);
+        logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
+      }
     }
 
     merged_pivots.FillZeros();
     carp::PivotAggregator aggr(pvtcnt_vec_);
-    //    aggr.AggregatePivotsRoot(pivots, merged_pivots, 1, opts_.nranks);
     aggr.AggregatePivots(pivots, merged_pivots);
 
     logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
-  void GetOobPivotsParallel(TraceReader& tr, int epoch,
-                            carp::Pivots& merged_pivots) {
+  void GetPerfectPivots(int epoch, carp::Pivots& merged_pivots, int num_pivots,
+                        bool parallel) {
     std::vector<carp::Pivots> pivots(opts_.nranks);
-    parallel_processor_.ComputeOobPivotsParallel(tr, epoch, pivots);
+    if (parallel) {
+      parallel_processor_.GetPerfectPivotsParallel(epoch, ranks_, pivots,
+                                                   num_pivots);
+    } else {
+      for (int r = 0; r < opts_.nranks; r++) {
+        ranks_[r]->GetOobPivots(epoch, &pivots[r], num_pivots);
+        logf(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
+      }
+    }
 
     merged_pivots.FillZeros();
     carp::PivotAggregator aggr(pvtcnt_vec_);
     aggr.AggregatePivots(pivots, merged_pivots);
+
     logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
-  void AnalyzePivotsAgainstEpochParallel(TraceReader& tr,
-                                         carp::Pivots& oob_pivots, int epoch) {
-    std::vector<carp::OrderedBins> bins(opts_.nranks, opts_.nranks);
-
-    for (int r = 0; r < opts_.nranks; r++) {
-      bins[r].UpdateFromPivots(oob_pivots);
+  void ReadEpochIntoBins(int epoch, carp::OrderedBins& merged_bins,
+                         bool parallel) {
+    std::vector<carp::OrderedBins> bins(merged_bins.Size(), merged_bins);
+    if (parallel) {
+      parallel_processor_.ReadEpochIntoBinsParallel(epoch, ranks_, bins);
+    } else {
+      for (int r = 0; r < opts_.nranks; r++) {
+        ranks_[r]->ReadEpochIntoBins(epoch, &bins[r]);
+        logf(LOG_INFO, "%s\n", bins[r].ToString().c_str());
+      }
     }
 
-    parallel_processor_.ComputeBinsParallel(tr, epoch, bins);
-    carp::OrderedBins merged_bins(opts_.nranks);
-    for (int r = 0; r < opts_.nranks; r++) {
-      merged_bins = merged_bins + bins[r];
+    merged_bins.Reset();
+    for (auto bin : bins) {
+      merged_bins = merged_bins + bin;
     }
 
-    logf(LOG_INFO, "%s", merged_bins.ToString().c_str());
-    double load_std = merged_bins.PrintNormStd();
-    printf("--------------\n");
-    logger_.LogData(runtype, opts_.nranks, opts_.pvtcnt, epoch, load_std);
-    printf("--------------\n");
+    logf(LOG_INFO, "%s\n", merged_bins.ToString().c_str());
+  }
+
+  void InitAllRanks() {
+    assert(ranks_.size() == 0);
+    for (int r = 0; r < opts_.nranks; r++) {
+      ranks_.push_back(new carp::Rank(r, opts_, tr_));
+    }
+  }
+
+  void DestroyAllRanks() {
+    assert(ranks_.size() == opts_.nranks);
+    for (int r = 0; r < opts_.nranks; r++) {
+      delete ranks_[r];
+      ranks_[r] = nullptr;
+    }
   }
 
   std::string runtype;
@@ -134,5 +147,8 @@ class PivotBench {
   const std::vector<int> pvtcnt_vec_;
   PivotLogger logger_;
   ParallelProcessor parallel_processor_;
+  TraceReader tr_;
+  std::vector<carp::Rank*> ranks_;
+  size_t num_ep_;
 };
 }  // namespace pdlfs

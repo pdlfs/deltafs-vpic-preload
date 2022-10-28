@@ -183,6 +183,8 @@ class OrderedBins {
         counts_aggr_(nbins, 0),
         is_set_(false) {}
 
+  OrderedBins(const OrderedBins& other) = default;
+
   OrderedBins operator+(const OrderedBins& rhs) {
     assert (Size() == rhs.Size());
     OrderedBins tmp(Size());
@@ -250,6 +252,10 @@ class OrderedBins {
   //
   void Reset();
 
+  void ZeroCounts() {
+    std::fill(counts_.begin(), counts_.end(), 0);
+  }
+
   //
   // semantics for SearchBins:
   // 1. each bin represents an exclusive range
@@ -310,9 +316,20 @@ class OrderedBins {
   friend class PivotUtils;
 };
 
+/*
+ * PivotCalcCtx: uses bins and other state, maintained by someone else
+ * to compute the data needed for pivot calculation.
+ * The resultant pivots etc. must be fed back into the respective containers
+ * by the owner of this context. It is not meant to write to any other container.
+ *
+ * Some util functions for pivotbench update the containers, and violate this
+ * property, TODO: fix this.
+ */
 class PivotCalcCtx {
  public:
   PivotCalcCtx() : bins_(nullptr) {}
+
+  PivotCalcCtx(OrderedBins* bins) : bins_(bins) {}
 
   bool FirstBlock() const { return (bins_ == nullptr) || (!bins_->IsSet()); }
 
@@ -325,7 +342,7 @@ class PivotCalcCtx {
       return bins_->GetRange();
   }
 
-  // Hook for pvtbench, not used by the real CARP code
+  // Util func for pvtbench, not used by the real CARP code
   void AddData(const float* data, size_t data_sz) {
     if (FirstBlock()) {
       if (oob_left_.size() < data_sz) {
@@ -356,6 +373,30 @@ class PivotCalcCtx {
     return;
   }
 
+  //
+  // Util func for pvtbench, not used by real CARP code
+  // Can't flush oob_left_/oob_right_ technically, as these are
+  // deduped, but should be accurate enough for simulated benchmarks
+  //
+  void FlushOob() {
+    assert(bins_);
+    for(float f: oob_left_) {
+      bins_->AddVal(f, /* force */ false); // forcing shouldn't be necessary
+    }
+
+    for(float f: oob_right_) {
+      bins_->AddVal(f, /* force */ false); // forcing shouldn't be necessary
+    }
+
+    oob_left_.resize(0);
+    oob_right_.resize(0);
+  }
+
+  void Clear() {
+    oob_left_.resize(0);
+    oob_right_.resize(0);
+  }
+
  private:
   void CleanupOob() {
     if (oob_left_.size() > 1) {
@@ -368,6 +409,8 @@ class PivotCalcCtx {
       deduplicate_sorted_vector(oob_right_);
     }
   }
+
+
   std::vector<float> oob_left_;
   std::vector<float> oob_right_;
   OrderedBins* bins_;

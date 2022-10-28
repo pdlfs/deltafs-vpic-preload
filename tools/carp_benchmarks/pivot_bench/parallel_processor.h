@@ -9,23 +9,21 @@
 
 #include "carp/carp_containers.h"
 #include "pivot_common.h"
+#include "rank.h"
 #include "trace_reader.h"
 
-void read_rank_into_oob_pivots(void* args);
-void read_rank_into_bins(void* args);
+void rank_task_dual(void* args);
 
 namespace {
-struct PivotTask {
+struct RankTask {
   pdlfs::port::Mutex* mutex;
   pdlfs::port::CondVar* cv;
   int* jobs_rem;
 
-  pdlfs::TraceReader* tr;
   int epoch;
-  int rank;
-  int oobsz;
-  int num_pivots;
+  pdlfs::carp::Rank* rank;
   pdlfs::carp::Pivots* pivots;
+  int num_pivots;
   pdlfs::carp::OrderedBins* bins;
 };
 }  // namespace
@@ -43,57 +41,55 @@ class ParallelProcessor {
     tp_ = nullptr;
   }
 
-  void ComputeOobPivotsParallel(TraceReader& tr, int epoch,
-                                std::vector<carp::Pivots>& pivots) {
+  void GetPerfectPivotsParallel(int epoch, std::vector<carp::Rank*>& ranks,
+                                std::vector<carp::Pivots>& pivots,
+                                int num_pivots) {
+    assert(ranks.size() == opts_.nranks);
     assert(pivots.size() == opts_.nranks);
-    std::vector<PivotTask> all_tasks(opts_.nranks);
+    std::vector<RankTask> rank_tasks(ranks.size());
+    jobs_rem_ = ranks.size();
 
-    jobs_rem_ = opts_.nranks;
+    for (size_t ridx = 0; ridx < ranks.size(); ridx++) {
+      InitTaskStruct(rank_tasks[ridx]);
+      rank_tasks[ridx].epoch = epoch;
+      rank_tasks[ridx].rank = ranks[ridx];
+      rank_tasks[ridx].pivots = &pivots[ridx];
+      rank_tasks[ridx].num_pivots = num_pivots;
+      rank_tasks[ridx].bins = nullptr;
 
-    for (int r = 0; r < opts_.nranks; r++) {
-      InitThreadTask(all_tasks[r]);
-      all_tasks[r].tr = &tr;
-      all_tasks[r].epoch = epoch;
-      all_tasks[r].rank = r;
-      all_tasks[r].pivots = &pivots[r];
-      all_tasks[r].bins = nullptr;
-
-      tp_->Schedule(read_rank_into_oob_pivots, &all_tasks[r]);
+      tp_->Schedule(rank_task_dual, &rank_tasks[ridx]);
     }
 
     WaitUntilDone();
   }
 
-  void ComputeBinsParallel(TraceReader& tr, int epoch,
-                           std::vector<carp::OrderedBins>& bins) {
+  void ReadEpochIntoBinsParallel(int epoch, std::vector<carp::Rank*>& ranks,
+                                  std::vector<carp::OrderedBins>& bins) {
+    assert(ranks.size() == opts_.nranks);
     assert(bins.size() == opts_.nranks);
-    std::vector<PivotTask> all_tasks(opts_.nranks);
+    std::vector<RankTask> rank_tasks(ranks.size());
+    jobs_rem_ = ranks.size();
 
-    jobs_rem_ = opts_.nranks;
+    for (size_t ridx = 0; ridx < ranks.size(); ridx++) {
+      InitTaskStruct(rank_tasks[ridx]);
+      rank_tasks[ridx].epoch = epoch;
+      rank_tasks[ridx].rank = ranks[ridx];
+      rank_tasks[ridx].pivots = nullptr;
+      rank_tasks[ridx].num_pivots = -1;
+      rank_tasks[ridx].bins = &bins[ridx];
 
-    for (int r = 0; r < opts_.nranks; r++) {
-      InitThreadTask(all_tasks[r]);
-      all_tasks[r].tr = &tr;
-      all_tasks[r].epoch = epoch;
-      all_tasks[r].rank = r;
-      all_tasks[r].pivots = nullptr;
-      all_tasks[r].bins = &bins[r];
-
-      tp_->Schedule(read_rank_into_bins, &all_tasks[r]);
+      tp_->Schedule(rank_task_dual, &rank_tasks[ridx]);
     }
 
     WaitUntilDone();
   }
 
  private:
-  void InitThreadTask(PivotTask& task) {
-    task.oobsz = opts_.oobsz;
-    task.num_pivots = opts_.pvtcnt;
+  void InitTaskStruct(RankTask& task) {
     task.mutex = &mutex_;
     task.cv = &cv_;
     task.jobs_rem = &jobs_rem_;
   }
-
   void WaitUntilDone() {
     mutex_.Lock();
     while (jobs_rem_ != 0) {
