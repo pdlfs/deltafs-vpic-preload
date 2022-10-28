@@ -31,11 +31,11 @@ class PivotBench {
     tr.DiscoverEpochs(num_ep);
 
     carp::Pivots oob_pivots;
-//    GetOobPivots(tr, 0, oob_pivots);
+    //    GetOobPivots(tr, 0, oob_pivots);
     GetOobPivotsParallel(tr, 0, oob_pivots);
 
     for (size_t ep_idx = 0; ep_idx < num_ep; ep_idx++) {
-      AnalyzePivotsAgainstEpoch(tr, oob_pivots, ep_idx);
+      AnalyzePivotsAgainstEpochParallel(tr, oob_pivots, ep_idx);
     }
     return s;
   }
@@ -101,6 +101,9 @@ class PivotBench {
   void GetOobPivotsParallel(TraceReader& tr, int epoch,
                             carp::Pivots& merged_pivots);
 
+  void AnalyzePivotsAgainstEpochParallel(TraceReader& tr,
+                                         carp::Pivots& oob_pivots, int epoch);
+
   const PivotBenchOpts opts_;
   const std::vector<int> pvtcnt_vec_;
   PivotLogger logger_;
@@ -118,6 +121,7 @@ struct OOBPivotTask {
   pdlfs::port::CondVar* cv;
   int* rem_count;
   pdlfs::carp::Pivots* pivots;
+  pdlfs::carp::OrderedBins* bins;
 };
 
 static void get_oob_pivots(void* args) {
@@ -129,6 +133,24 @@ static void get_oob_pivots(void* args) {
   pdlfs::carp::PivotCalcCtx pvt_ctx;
   task->tr->ReadRankIntoPivotCtx(task->epoch, task->rank, &pvt_ctx,
                                  task->oobsz);
+  pdlfs::carp::PivotUtils::CalculatePivots(&pvt_ctx, task->pivots,
+                                           task->num_pivots);
+  task->mutex->Lock();
+  (*rc)--;
+  if (*rc == 0) {
+    task->cv->SignalAll();
+  }
+  task->mutex->Unlock();
+}
+
+static void read_rank_into_bins(void* args) {
+  OOBPivotTask* task = (OOBPivotTask*)args;
+  int* rc = task->rem_count;
+
+  logf(LOG_INFO, "Getting pivots for rank %d\n", task->rank);
+
+  pdlfs::carp::PivotCalcCtx pvt_ctx;
+  task->tr->ReadRankIntoBins(task->epoch, task->rank, *task->bins);
   pdlfs::carp::PivotUtils::CalculatePivots(&pvt_ctx, task->pivots,
                                            task->num_pivots);
   task->mutex->Lock();

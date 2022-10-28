@@ -44,4 +44,50 @@ void PivotBench::GetOobPivotsParallel(TraceReader& tr, int epoch,
 
   delete tp;
 }
+
+void PivotBench::AnalyzePivotsAgainstEpochParallel(pdlfs::TraceReader& tr,
+                                                   carp::Pivots& oob_pivots,
+                                                   int epoch) {
+  ThreadPool* tp = ThreadPool::NewFixed(16, true, nullptr);
+  port::Mutex mutex;
+  port::CondVar cv(&mutex);
+  int rem_count = opts_.nranks;
+
+  std::vector<::OOBPivotTask> all_tasks(opts_.nranks);
+  std::vector<carp::OrderedBins> bins(opts_.nranks, opts_.nranks);
+
+  for (int r = 0; r < opts_.nranks; r++) {
+    bins[r].UpdateFromPivots(oob_pivots);
+
+    all_tasks[r].tr = &tr;
+    all_tasks[r].epoch = epoch;
+    all_tasks[r].rank = r;
+    all_tasks[r].oobsz = opts_.oobsz;
+    all_tasks[r].bins = &bins[r];
+    all_tasks[r].num_pivots = pvtcnt_vec_[1];
+    all_tasks[r].mutex = &mutex;
+    all_tasks[r].cv = &cv;
+    all_tasks[r].rem_count = &rem_count;
+
+    tp->Schedule(::get_oob_pivots, &all_tasks[r]);
+  }
+
+  mutex.Lock();
+  while (rem_count != 0) {
+    cv.Wait();
+  }
+  mutex.Unlock();
+
+  carp::OrderedBins merged_bins(opts_.nranks);
+  for (int r = 0; r < opts_.nranks; r++) {
+    merged_bins = merged_bins + bins[r];
+  }
+
+  logf(LOG_INFO, "%s", merged_bins.ToString().c_str());
+  double load_std = merged_bins.PrintNormStd();
+  printf("--------------\n");
+  logger_.LogData(opts_.nranks, opts_.pvtcnt, epoch, load_std);
+
+  delete tp;
+}
 }  // namespace pdlfs
