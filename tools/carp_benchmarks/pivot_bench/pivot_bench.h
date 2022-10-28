@@ -31,7 +31,8 @@ class PivotBench {
     tr.DiscoverEpochs(num_ep);
 
     carp::Pivots oob_pivots;
-    GetOobPivots(tr, 0, oob_pivots);
+//    GetOobPivots(tr, 0, oob_pivots);
+    GetOobPivotsParallel(tr, 0, oob_pivots);
 
     for (size_t ep_idx = 0; ep_idx < num_ep; ep_idx++) {
       AnalyzePivotsAgainstEpoch(tr, oob_pivots, ep_idx);
@@ -97,8 +98,31 @@ class PivotBench {
     logf(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
+  void GetOobPivotsParallel(TraceReader& tr, int epoch,
+                            carp::Pivots& merged_pivots);
+
   const PivotBenchOpts opts_;
   const std::vector<int> pvtcnt_vec_;
   PivotLogger logger_;
 };
 }  // namespace pdlfs
+
+namespace {
+struct OOBPivotTask {
+  pdlfs::TraceReader* tr;
+  int epoch;
+  int rank;
+  int oobsz;
+  int num_pivots;
+  pdlfs::carp::Pivots* pivots;
+};
+
+static void get_oob_pivots(void* args) {
+  OOBPivotTask* task = (OOBPivotTask*)args;
+  pdlfs::carp::PivotCalcCtx pvt_ctx;
+  task->tr->ReadRankIntoPivotCtx(task->epoch, task->rank, &pvt_ctx,
+                                 task->oobsz);
+  pdlfs::carp::PivotUtils::CalculatePivots(&pvt_ctx, task->pivots,
+                                           task->num_pivots);
+}
+}  // namespace

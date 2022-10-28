@@ -86,7 +86,6 @@ class TraceReader {
     return s;
   }
 
- private:
   Status ReadEpoch(size_t ep_idx, int rank, std::string& data) {
     Status s = Status::OK();
 
@@ -106,6 +105,7 @@ class TraceReader {
     return s;
   }
 
+ private:
   Env* const env_;
   const std::string trace_root_;
   const int nranks_;
