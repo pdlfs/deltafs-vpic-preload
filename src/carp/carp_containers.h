@@ -298,6 +298,7 @@ class PivotCalcCtx {
   // Hook for pvtbench, not used by the real CARP code
   void AddData(const float* data, size_t data_sz) {
     if (FirstBlock()) {
+      oob_left_.resize(data_sz);
       std::copy(data, data + data_sz, oob_left_.begin());
       return;
     }
