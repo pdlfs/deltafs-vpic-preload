@@ -54,6 +54,7 @@ class Rank {
     OrderedBins bins_pp(npivots);
     pvt_ctx.SetBins(&bins_pp);
     bins_pp.UpdateFromPivots(oob_pivots);
+    pvt_ctx.FlushOob();
 
     // Read rest of items from epoch
     bool eof = false;
