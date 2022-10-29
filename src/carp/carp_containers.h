@@ -380,12 +380,22 @@ class PivotCalcCtx {
   //
   void FlushOob() {
     assert(bins_);
+    /* We force=true while flushing because:
+     * If OOBs are flushed, contents must have been considered
+     * for a renegotiation, and a valid reneg will include all OOB
+     * contents in there. This is to accomodate marginal differences
+     * between pivots computed and the largest OOB item.
+     *
+     * XXX: On the other hand, the pivots computed will include the largest
+     * OOB item as an explicit right-side pivot, so maybe the more appropriate 
+     * fix here is to make OrderedBins->Search inclusive
+     */
     for(float f: oob_left_) {
-      bins_->AddVal(f, /* force */ false); // forcing shouldn't be necessary
+      bins_->AddVal(f, /* force */ true);
     }
 
     for(float f: oob_right_) {
-      bins_->AddVal(f, /* force */ false); // forcing shouldn't be necessary
+      bins_->AddVal(f, /* force */ true);
     }
 
     oob_left_.resize(0);

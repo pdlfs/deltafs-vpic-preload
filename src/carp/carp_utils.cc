@@ -91,6 +91,7 @@ int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   logf(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
        pivots->width_);
 
+  pivots->AssertMonotonicity();
   return rv;
 }
 
@@ -295,13 +296,13 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     oob_idx = next_idx;
   }
 
-#define ERRLIM 1e-3
+#define ERRLIM 1e-1
 
   float norm_unalloc_mass = (particles_carried_over / part_per_pivot);
 
   if (cur_pivot == num_pivots) {
     // all pivots allocated, unallocated mass should be ~0
-    assert(fabs(norm_unalloc_mass) <= ERRLIM);
+    assert(fabs(norm_unalloc_mass) < ERRLIM);
   } else if (cur_pivot == num_pivots - 1) {
     // one pivot unallocated, unallocated mass should be ~1
     assert(fabs(norm_unalloc_mass - 1.0f) < ERRLIM);
