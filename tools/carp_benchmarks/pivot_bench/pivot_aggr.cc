@@ -105,9 +105,13 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
 }
 
 void PivotAggregator::BufferPivots(DataBuffer& dbuf, int stage, Pivots& p) {
-  const double* pvt_data = p.GetPivotData();
-  double pvt_width = p.GetPivotWidth();
+  double pvt_width = p.PivotWidth();
   int pvt_count = p.Size();
+  double pvt_data[pvt_count];
+
+  for (size_t idx = 0; idx < pvt_count; idx++) {
+    pvt_data[idx] = p[idx];
+  }
 
   dbuf.StoreData(stage, pvt_data, pvt_count, pvt_width, /* isnext */ false);
 }

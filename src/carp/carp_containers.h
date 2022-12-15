@@ -93,9 +93,15 @@ class Pivots {
 
   Pivots(int npivots) : pivots_(npivots, 0), width_(0), is_set_(false) {}
 
+  void Resize(size_t npivots) { pivots_.resize(npivots); }
+
   size_t Size() const { return pivots_.size(); }
 
+  double PivotWidth() const { return width_; }
+
   std::string ToString() const;
+
+  const double& operator[](std::size_t idx) const { return pivots_[idx]; }
 
   void LoadPivots(std::vector<double>& pvtvec, double pvtwidth) {
     Resize(pvtvec.size());
@@ -119,17 +125,6 @@ class Pivots {
     is_set_ = true;
   }
 
-  void GetPivotsArr(const double** pivots, int* pvtcnt) const {
-    *pivots = pivots_.data();
-    *pvtcnt = pivots_.size();
-  }
-
-  float GetPivot(int idx) const { return pivots_[idx]; }
-
-  const double* GetPivotData() const { return pivots_.data(); }
-
-  double GetPivotWidth() const { return width_; }
-
   void MakeUpEpsilonPivots() {
     int num_pivots = pivots_.size();
 
@@ -151,7 +146,7 @@ class Pivots {
 
     int num_pivots = pivots_.size();
     for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
-      assert(pivots_[pidx] <= pivots_[pidx + 1]);
+      assert(pivots_[pidx] < pivots_[pidx + 1]);
     }
   }
 
@@ -159,7 +154,6 @@ class Pivots {
   //
   // To be called by friends only
   //
-  void Resize(size_t npivots) { pivots_.resize(npivots); }
 
   //
   // Pivots are doubles because we need them to be (for pivotcalc)
@@ -170,8 +164,6 @@ class Pivots {
   double width_;
   bool is_set_;
 
-  friend class Carp;
-  friend class OrderedBins;
   friend class PivotUtils;
 };
 
@@ -186,11 +178,12 @@ class OrderedBins {
   OrderedBins(const OrderedBins& other) = default;
 
   OrderedBins operator+(const OrderedBins& rhs) {
-    assert (Size() == rhs.Size());
+    assert(Size() == rhs.Size());
     OrderedBins tmp(Size());
     std::copy(bins_.begin(), bins_.end(), tmp.bins_.begin());
     std::copy(counts_.begin(), counts_.end(), tmp.counts_.begin());
-    std::copy(counts_aggr_.begin(), counts_aggr_.end(), tmp.counts_aggr_.begin());
+    std::copy(counts_aggr_.begin(), counts_aggr_.end(),
+              tmp.counts_aggr_.begin());
 
     for (size_t i = 0; i < Size(); i++) {
       tmp.counts_[i] += rhs.counts_[i];
@@ -207,6 +200,7 @@ class OrderedBins {
   void UpdateFromPivots(Pivots& pivots);
 
   //
+  // Only used by RangeUtilsTest
   // Both counts_ and aggr_counts_ are set to counts
   //
   void UpdateFromArrays(int nbins, const float* bins, const uint64_t* counts);
@@ -226,16 +220,17 @@ class OrderedBins {
 
   uint64_t GetTotalMass() const;
 
-  void GetBinsArr(const float** bins, int* binsz) const {
-    *bins = bins_.data();
-    *binsz = bins_.size();
-  }
-
+  //
+  // Only used by logging functions
+  //
   void GetCountsArr(const uint64_t** counts, int* countsz) const {
     *counts = counts_.data();
     *countsz = counts_.size();
   }
 
+  //
+  // Only used by logging functions
+  //
   void GetAggrCountsArr(const uint64_t** counts, int* countsz) const {
     *counts = counts_aggr_.data();
     *countsz = counts_aggr_.size();
@@ -252,9 +247,10 @@ class OrderedBins {
   //
   void Reset();
 
-  void ZeroCounts() {
-    std::fill(counts_.begin(), counts_.end(), 0);
-  }
+  //
+  // Reset counts only. Called after a renegotiation round
+  //
+  void ZeroCounts() { std::fill(counts_.begin(), counts_.end(), 0); }
 
   //
   // semantics for SearchBins:
@@ -320,10 +316,15 @@ class OrderedBins {
  * PivotCalcCtx: uses bins and other state, maintained by someone else
  * to compute the data needed for pivot calculation.
  * The resultant pivots etc. must be fed back into the respective containers
- * by the owner of this context. It is not meant to write to any other container.
+ * by the owner of this context. It is not meant to write to any other
+ * container.
  *
  * Some util functions for pivotbench update the containers, and violate this
- * property, TODO: fix this.
+ * property.
+ *
+ * XXXAJ: Remove the AddData and CleanupOob functions
+ * PivotBench should manipulate its OrderedBins directly, and not via this ctx
+ * This should only take OrderedBins and act as a container for pvtcalc
  */
 class PivotCalcCtx {
  public:
@@ -388,7 +389,10 @@ class PivotCalcCtx {
      *
      * XXX: On the other hand, the pivots computed will include the largest
      * OOB item as an explicit right-side pivot, so maybe the more appropriate 
-     * fix here is to make OrderedBins->Search inclusive
+     * fix here is to make OrderedBins->Search inclusive.
+     *
+     * Once OrderedBins->Search has been made inclusive, both the force flags
+     * should be reverted to false.
      */
     for(float f: oob_left_) {
       bins_->AddVal(f, /* force */ true);
@@ -419,7 +423,6 @@ class PivotCalcCtx {
       deduplicate_sorted_vector(oob_right_);
     }
   }
-
 
   std::vector<float> oob_left_;
   std::vector<float> oob_right_;

@@ -33,12 +33,15 @@ std::string Pivots::ToString() const {
 void OrderedBins::UpdateFromPivots(Pivots& pivots) {
   if (pivots.Size() != Size() + 1) {
     logf(LOG_ERRO, "[OrderedBins] SetFromPivots: size mismatch (%zu vs %zu)",
-         pivots.Size(), Size());
+         pivots.Size(), Size() + 1);
     ABORT("OrderedBins - size mismatch!!");
     return;
   }
 
-  std::copy(pivots.pivots_.begin(), pivots.pivots_.end(), bins_.begin());
+  for (size_t idx = 0; idx < pivots.Size(); idx++) {
+    bins_[idx] = pivots[idx];
+  }
+
   std::fill(counts_.begin(), counts_.end(), 0);
   is_set_ = true;
 }

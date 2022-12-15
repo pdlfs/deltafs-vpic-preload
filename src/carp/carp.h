@@ -192,7 +192,7 @@ class Carp {
     PopulatePivotCalcState(&pvt_ctx);
     PivotUtils::CalculatePivots(&pvt_ctx, &pivots_, num_pivots);
 
-    if (pivots_.width_ < 1e-3) {  // arbitrary limit for null pivots
+    if (pivots_.PivotWidth() < 1e-3) {  // arbitrary limit for null pivots
       pivots_.MakeUpEpsilonPivots();
     }
 
