@@ -92,7 +92,7 @@ class PivotUtils {
   static int GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                             float& range_end);
 
-  static float WeightedAverage(float a, float b, float frac);
+  static double WeightedAverage(double a, double b, double frac);
 
   friend class RangeUtilsTest;
 };

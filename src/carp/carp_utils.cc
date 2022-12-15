@@ -100,34 +100,34 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   int rv = 0;
 
   assert(pvt_ctx->oob_right_.size() == 0);
-  const int oob_left__sz = pvt_ctx->oob_left_.size();
+  const int oob_left_sz = pvt_ctx->oob_left_.size();
 
-  if (oob_left__sz < 2) return 0;
+  if (oob_left_sz < 2) return 0;
 
   const float range_min = pvt_ctx->oob_left_[0];
-  const float range_max = pvt_ctx->oob_left_[oob_left__sz - 1];
+  const float range_max = pvt_ctx->oob_left_[oob_left_sz - 1];
 
   pivots->pivots_[0] = range_min;
   pivots->pivots_[num_pivots - 1] = range_max;
 
-  pivots->width_ = oob_left__sz * 1.0 / num_pivots;
+  pivots->width_ = oob_left_sz * 1.0 / num_pivots;
 
   /* for computation purposes, we need to reserve one, so as to always have
    * two points of interpolation */
 
-  float part_per_pivot = (oob_left__sz - 1) * 1.0 / num_pivots;
+  double part_per_pivot = (oob_left_sz - 1) * 1.0 / num_pivots;
 
   for (int pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
-    float oob_idx = part_per_pivot * pvt_idx;
+    double oob_idx = part_per_pivot * pvt_idx;
     int oob_idx_trunc = (int)oob_idx;
 
-    assert(oob_idx_trunc + 1 < oob_left__sz);
+    assert(oob_idx_trunc + 1 < oob_left_sz);
 
-    float val_a = pvt_ctx->oob_left_[oob_idx_trunc];
-    float val_b = pvt_ctx->oob_left_[oob_idx_trunc + 1];
+    double val_a = pvt_ctx->oob_left_[oob_idx_trunc];
+    double val_b = pvt_ctx->oob_left_[oob_idx_trunc + 1];
 
-    float frac_a = oob_idx - (float)oob_idx_trunc;
-    float pvt = WeightedAverage(val_a, val_b, frac_a);
+    double frac_a = oob_idx - (double)oob_idx_trunc;
+    double pvt = WeightedAverage(val_a, val_b, frac_a);
     pivots->pivots_[pvt_idx] = pvt;
   }
 
@@ -403,7 +403,7 @@ int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
   return rv;
 }
 
-float PivotUtils::WeightedAverage(float a, float b, float frac) {
+double PivotUtils::WeightedAverage(double a, double b, double frac) {
   /* Weighted avg of a and b was updated because of test case 11 (pvtcalc)
    * When a and b are very close, the following weighted avg is not monotonic.
    * pvt = (1 - frac_a) * val_a + (frac_a) * val_b;
@@ -418,9 +418,9 @@ float PivotUtils::WeightedAverage(float a, float b, float frac) {
   assert(frac >= 0);
   assert(a <= b);
 
-  float pvt;
-  float delta = b - a;
-  float frac_delta = frac * delta;
+  double pvt;
+  double delta = b - a;
+  double frac_delta = frac * delta;
   pvt = a + frac_delta;
 
   assert(delta >= 0);
