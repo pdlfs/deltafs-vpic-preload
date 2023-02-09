@@ -114,7 +114,9 @@ class Carp {
   }
 
   ~Carp() {
-    LogPivots(options_.rtp_pvtcnt[1]);
+    mutex_.Lock();
+    LogPivots(options_.rtp_pvtcnt[1]);  /* expects mutex_ to be held */
+    mutex_.Unlock();
     this->PerflogDestroy();
   }
 
