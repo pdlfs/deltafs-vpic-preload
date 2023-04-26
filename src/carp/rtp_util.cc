@@ -1,5 +1,6 @@
 #include <algorithm>
 
+#include "common.h"
 #include "carp/rtp.h"
 
 namespace pdlfs {

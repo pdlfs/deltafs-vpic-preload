@@ -34,7 +34,6 @@ set(CARP_SOURCES
         carp/policy.cc
         carp/range_common.cc
         carp/range_utils.cc
-        carp/regular_trigger.cc
         carp/rtp.cc
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc
