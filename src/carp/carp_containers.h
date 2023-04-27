@@ -304,6 +304,22 @@ class OrderedBins {
   double PrintNormStd();
 
  private:
+ /*
+  * XXX: check/document protection
+  *
+  * note: rank "r"'s bin range starts at bins_[r] (inclusive)
+  * and ends at bins[r+1] (exclusive).  points less than
+  * bins_[0] or greater or equal to bins_[nranks] are out of
+  * bounds.  for bootstrapping, all values of bins_[] are set to 0
+  * putting everything out of bounds.
+  *
+  * each time we assign a particle to rank "r" we increment both
+  * counts_[r] and counts_aggr_[r].  counts_[] is reset
+  * to zero by UpdatePivots(), counts_aggr_[] is not.
+  *
+  * bins_[] and counts_[] are used by the reneg protocol
+  * to calculate a new set of pivots.
+  */
   std::vector<float> bins_;
   std::vector<uint64_t> counts_;
   std::vector<uint64_t> counts_aggr_;

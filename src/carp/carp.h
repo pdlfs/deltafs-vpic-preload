@@ -288,13 +288,15 @@ class Carp {
   RTP rtp_;
 
  public:
-  /* XXX: temporary, refactor RTP/perfstats as friend classes */
-  port::Mutex mutex_;
-  port::CondVar cv_;
+  /* XXX: temporary, refactor RTP as friend classes */
+  port::Mutex mutex_;             /* protects fields in Carp class */
+  port::CondVar cv_;              /* tied to mutex_ (above). RTP InitRound */
+                                  /* uses cv_ to wait for MT_READY state */
 
+  /* protected by mutex_ */
   OrderedBins bins_;
-  OobBuffer oob_buffer_;
-  Pivots pivots_;
+  OobBuffer oob_buffer_;          /* out of bounds data */
+  Pivots pivots_;                 /* my reneg calculated pivots */
 
  private:
   friend class InvocationPolicy;
