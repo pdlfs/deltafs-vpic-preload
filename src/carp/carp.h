@@ -29,6 +29,14 @@ namespace carp {
  * and loaded by preload_init_carpopts() -- see that function for default
  * values.  for preload config via environment variables, the variable
  * name is listed below.
+ *
+ * the reneg_policy controls when we start a reneg.  the options are:
+ *
+ * InvocationInterEpoch: trigger once every reneg_intvl epochs.
+ * we buffer data in OOB buffer until the first reneg of the epoch.
+ * only triggers on rank 0.  this is the default policy.
+ *
+ * InvocationIntraEpoch: trigger every reneg_intvl writes OR if OOB full.
  */
 struct CarpOptions {
   int index_attr_size;      /* sizeof indexed attr, default=sizeof(float) */
