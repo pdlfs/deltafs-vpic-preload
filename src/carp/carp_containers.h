@@ -318,7 +318,9 @@ class OrderedBins {
   * to zero by UpdatePivots(), counts_aggr_[] is not.
   *
   * bins_[] and counts_[] are used by the reneg protocol
-  * to calculate a new set of pivots.
+  * to calculate a new set of pivots.  counts_aggr_[] is
+  * only used for perflog reporting (not used in reneg
+  * protocol).
   */
   std::vector<float> bins_;
   std::vector<uint64_t> counts_;
