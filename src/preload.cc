@@ -1413,7 +1413,6 @@ int MPI_Finalize(void) {
   /* total num of pthreads */
   int sum_pthreads;
   /* total num of barriers */
-  int sum_barriers;
   unsigned long long num_writes_min; /* per rank */
   unsigned long long num_writes_max; /* per rank */
   unsigned long long min_writes;

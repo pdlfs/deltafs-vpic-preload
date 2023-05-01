@@ -22,11 +22,11 @@ class RangeUtilsTest {
   RangeUtilsTest() {
     ro.index_attr_size = sizeof(float);
     ro.index_attr_offset = 0;   /* XXX */
-    ro.reneg_policy = "InvocationPeriodic";
-    ro.rtp_pvtcnt[1] = DEFAULT_PVTCNT;
-    ro.rtp_pvtcnt[2] = DEFAULT_PVTCNT;
-    ro.rtp_pvtcnt[3] = DEFAULT_PVTCNT;
-    ro.oob_sz = DEFAULT_OOBSZ;
+    ro.reneg_policy = CARP_DEF_RENEGPOLICY;
+    ro.rtp_pvtcnt[1] = CARP_DEF_PVTCNT;
+    ro.rtp_pvtcnt[2] = CARP_DEF_PVTCNT;
+    ro.rtp_pvtcnt[3] = CARP_DEF_PVTCNT;
+    ro.oob_sz = CARP_DEF_OOBSZ;
     ro.env = NULL;
     ro.sctx = &sh_ctx;
     ro.sctx->type = SHUFFLE_XN;
@@ -138,7 +138,7 @@ TEST(RangeUtilsTest, OrderedBinAddition) {
 TEST(RangeUtilsTest, PivotCalc) {
   srand(time(NULL));
 
-  int oob_count = DEFAULT_OOBSZ;
+  int oob_count = CARP_DEF_OOBSZ;
 
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     float rand_val = rand() * 1.0f / RAND_MAX;
@@ -306,7 +306,6 @@ TEST(RangeUtilsTest, PivotCalc9) {
 TEST(RangeUtilsTest, PivotCalc10) {
 #include "pivot_calc_10_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
-  int npivots = 2048;
   carp->mutex_.Lock();
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();

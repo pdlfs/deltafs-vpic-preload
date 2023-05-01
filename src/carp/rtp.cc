@@ -56,17 +56,17 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
     return;
   }
 
-  if (opts.rtp_pvtcnt[1] > kMaxPivots) {
+  if (opts.rtp_pvtcnt[1] > CARP_MAXPIVOTS) {
     flog(LOG_ERRO, "pvtcnt_s1 exceeds MAX_PIVOTS");
     return;
   }
 
-  if (opts.rtp_pvtcnt[2] > kMaxPivots) {
+  if (opts.rtp_pvtcnt[2] > CARP_MAXPIVOTS) {
     flog(LOG_ERRO, "pvtcnt_s1 exceeds MAX_PIVOTS");
     return;
   }
 
-  if (opts.rtp_pvtcnt[3] > kMaxPivots) {
+  if (opts.rtp_pvtcnt[3] > CARP_MAXPIVOTS) {
     flog(LOG_ERRO, "pvtcnt_s1 exceeds MAX_PIVOTS");
     return;
   }
@@ -357,7 +357,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   int merged_pvtcnt =
       (stage_num >= 3) ? (num_ranks_ + 1) : pvtcnt_[stage_num + 1];
 
-  assert(num_pivots <= kMaxPivots);
+  assert(num_pivots <= CARP_MAXPIVOTS);
 
   flog(LOG_DBUG, "rtp_handle_reneg_pivot: S%d %d pivots from %d", stage_num,
        num_pivots, sender_id);
@@ -475,7 +475,8 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   /* send_to_all here excludes self */
   SendToChildren(buf, bufsz, /* exclude_self */ true, MSGFMT_RTP_PVT_BCAST);
 
-  int round_num, stage_num, sender_id, num_pivots;
+  int round_num, stage_num, sender_id;
+  int num_pivots = num_ranks_ + 1;
   Pivots pivots_aggr(num_pivots);
 
   PivotUtils::DecodePivots(buf, bufsz, &round_num, &stage_num, &sender_id, &pivots_aggr, true);

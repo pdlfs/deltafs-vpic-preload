@@ -32,7 +32,7 @@ namespace carp {
  */
 typedef struct particle_mem {
   float indexed_prop;             // float key for range q (cfg via CarpOptions)
-  char buf[pdlfs::kMaxPartSize];  // buf w/encoded particle (key+filename+data)
+  char buf[CARP_MAXPARTSZ];       // buf w/encoded particle (key+filename+data)
   int buf_sz;                     // total size of encoded data in buf[]
   int shuffle_dest;               // rank# or -1 (unk), via AssignShuffleTarget
 } particle_mem_t;
@@ -179,8 +179,8 @@ class OobFlushIterator {
   //
   OobFlushIterator(const OobFlushIterator& other)
       : buf_(other.buf_),
-        preserve_idx_(other.preserve_idx_),
         flush_idx_(other.flush_idx_),
+        preserve_idx_(other.preserve_idx_),
         buf_len_(other.buf_len_) {}
 
   //

@@ -29,8 +29,6 @@ static uint64_t get_timestamp(struct timespec* start_time) {
  * get_norm_std: generate std of uint64 array
  */
 static float get_norm_std(uint64_t* arr, size_t sz) {
-  double norm_arr[sz];
-
   uint64_t sum_x = 0;
   for (size_t i = 0; i < sz; i++) {
     sum_x += arr[i];
@@ -238,7 +236,6 @@ void Carp::PerflogPivots(int pvtcnt) {
  * Carp::PerflogVPrintf: vprintf to perflog
  */
 void Carp::PerflogVPrintf(const char* fmt, va_list ap) {
-  uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
 
   assert(perflog_.fp);

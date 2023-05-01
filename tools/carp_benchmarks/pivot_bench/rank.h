@@ -12,14 +12,14 @@ namespace carp {
 class Rank {
  public:
   Rank(int rank, const pdlfs::PivotBenchOpts& opts, TraceReader& tr)
-      : rank_(rank),
-        opts_(opts),
+      : opts_(opts),
+        rank_(rank),
         tr_(&tr),
         cur_epoch_read_(-1),
         cur_ep_offset_(0),
         cur_ep_size_(0),
-        bins_(opts_.nranks),
-        pivot_ctx_(&bins_) {}
+        pivot_ctx_(&bins_),
+        bins_(opts_.nranks) {}
 
   void GetOobPivots(PivotCalcCtx* pvt_ctx, int epoch, Pivots* oob_pivots,
                     int npivots) {

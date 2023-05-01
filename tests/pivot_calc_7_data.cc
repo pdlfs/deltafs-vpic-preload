@@ -2,7 +2,7 @@
 // Created by Ankush J on 10/14/20.
 //
 
-const int num_ranks = 512;
+// const int num_ranks = 512;
 
 const float oob_data[] = {
     0.109162197,  0.259431094, 0.576944351, 0.17669782,  0.219414115,

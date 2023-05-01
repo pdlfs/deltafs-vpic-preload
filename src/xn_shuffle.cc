@@ -183,7 +183,6 @@ void xn_shuffle_init(xn_ctx_t* ctx, shuffle_deliverfn_t psh_callback) {
   const char* logfile;
   const char* env;
   char uri[100];
-  int n;
 
   assert(ctx != NULL);
 

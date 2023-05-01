@@ -41,25 +41,24 @@ class MainThreadStateMgr {
   bool FirstBlock() const;
 };
 
-static bool float_eq(float a, float b) {
-  return fabs(a - b) < pdlfs::kFloatCompThreshold;
+inline bool float_eq(float a, float b) {
+  return fabs(a - b) < CARP_FLOATCOMP_THOLD;
 }
 
-static bool float_gt(float a, float b) {
-  return a > b + pdlfs::kFloatCompThreshold;
+inline bool float_gt(float a, float b) {
+  return a > b + CARP_FLOATCOMP_THOLD;
 }
 
-static bool float_gte(float a, float b) {
-  return a > b - pdlfs::kFloatCompThreshold;
+inline bool float_gte(float a, float b) {
+  return a > b - CARP_FLOATCOMP_THOLD;
 }
 
-static bool float_lt(float a, float b) {
-  return a < b - pdlfs::kFloatCompThreshold;
+inline bool float_lt(float a, float b) {
+  return a < b - CARP_FLOATCOMP_THOLD;
 }
 
-static bool float_lte(float a, float b) {
-  const float kFloatCompThreshold = 1e-5;
-  return a < b + pdlfs::kFloatCompThreshold;
+inline bool float_lte(float a, float b) {
+  return a < b + CARP_FLOATCOMP_THOLD;
 }
 
 namespace pdlfs {
@@ -80,7 +79,7 @@ std::string vec_to_str(const std::vector<T>& vec) {
   return vecstr.str();
 }
 
-static void deduplicate_sorted_vector(std::vector<float>& vec) {
+inline void deduplicate_sorted_vector(std::vector<float>& vec) {
   if (vec.size() == 0) return;
 
   std::sort(vec.begin(), vec.end());

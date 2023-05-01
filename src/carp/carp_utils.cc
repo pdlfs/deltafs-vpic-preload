@@ -93,7 +93,7 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
                                        size_t num_pivots) {
   OrderedBins* bins = pvt_ctx->bins_;
-  assert(num_pivots <= pdlfs::kMaxPivots);
+  assert(num_pivots <= CARP_MAXPIVOTS);
 
   const float prev_range_begin = pvt_ctx->GetRange().rmin();
   const float prev_range_end = pvt_ctx->GetRange().rmax();
@@ -155,8 +155,6 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     oob_idx = accumulated_ppp;
   }
 
-  int bin_idx = 0;
-
   for (int bidx = 0; bidx < bins->Size(); bidx++) {
     const double cur_bin_total = bins->counts_[bidx];
     double cur_bin_left = bins->counts_[bidx];
@@ -169,7 +167,6 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
       double take_from_bin = part_per_pivot - particles_carried_over;
 
       /* advance bin_start st take_from_bin is removed */
-      double bin_width_left = bin_end - bin_start;
       double width_to_remove = take_from_bin / cur_bin_total * bin_width_orig;
 
       bin_start += width_to_remove;

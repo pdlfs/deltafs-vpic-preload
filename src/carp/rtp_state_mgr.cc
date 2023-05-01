@@ -11,8 +11,8 @@ namespace pdlfs {
 RtpStateMgr::RtpStateMgr()
     : current_state_{INIT},
       prev_state_{INIT},
-      next_round_started_{false},
-      cur_round_num_{0} {}
+      cur_round_num_{0},
+      next_round_started_{false} {}
 
 RenegState RtpStateMgr::GetState() { return this->current_state_; }
 

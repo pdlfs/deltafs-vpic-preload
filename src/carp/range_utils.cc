@@ -34,9 +34,6 @@ void pivot_union(std::vector<rb_item_t> rb_items,
   /* Ranks that currently have an active bin */
   std::list<int> active_ranks;
 
-  int cur_bin_count = 0;
-  int rb_item_sz = rb_items.size();
-
   for (int i = 0; i < rb_items.size(); i++) {
     int bp_rank = rb_items[i].rank;
     float bp_bin_val = rb_items[i].bin_val;

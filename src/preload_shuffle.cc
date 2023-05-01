@@ -332,7 +332,6 @@ void shuffle_epoch_end(shuffle_ctx_t* ctx) {
 
 int shuffle_target(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz) {
   int world_sz, keylen;
-  unsigned long target;
   int rv;
 
   assert(ctx != NULL);
@@ -633,10 +632,7 @@ unsigned char TOUCHAR(int input) {
 }  // namespace
 
 void shuffle_init(shuffle_ctx_t* ctx) {
-  const char* proto;
   const char* env;
-  int world_sz;
-  int vf;
   int n;
 
   assert(ctx != NULL);
@@ -716,16 +712,17 @@ void shuffle_init(shuffle_ctx_t* ctx) {
     xn_ctx_t* rep = static_cast<xn_ctx_t*>(malloc(sizeof(xn_ctx_t)));
     memset(rep, 0, sizeof(xn_ctx_t));
     xn_shuffle_init(rep, ctx->priority_cb);
-    world_sz = xn_shuffle_world_size(rep);
     ctx->rep = rep;
   } else {
     if (ctx->priority_cb)
       ABORT("CFG error: NN shuffle does not support priority callback");
     nn_shuffler_init(ctx);
-    world_sz = nn_shuffler_world_size();
   }
 
 #ifdef PRELOAD_HAS_CH_PLACEMENT
+  int world_sz;
+  world_sz = (ctx->type == SHUFFLE_XN) ? xn_shuffle_world_size(rep) :
+                                       : nn_shuffler_world_size();
   if (!IS_BYPASS_PLACEMENT(pctx.mode)) {
     env = maybe_getenv("SHUFFLE_Virtual_factor");
     if (env == NULL) {

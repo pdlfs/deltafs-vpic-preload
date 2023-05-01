@@ -66,7 +66,7 @@ int shuffle_write_range(shuffle_ctx_t* ctx, const char* skey,
 
   assert(ctx == &pctx.sctx);
   assert(ctx->skey_len + ctx->svalue_len +
-                         ctx->extra_data_len < pdlfs::kMaxPartSize);
+                         ctx->extra_data_len < CARP_MAXPARTSZ);
   if (ctx->skey_len != skey_len) ABORT("bad shuffle key len");
   if (ctx->svalue_len != svalue_len) ABORT("bad shuffle value len");
 

@@ -1100,7 +1100,6 @@ void nn_shuffler_init(shuffle_ctx_t* ctx) {
   hg_size_t isz;
   hg_size_t osz;
   pthread_t pid;
-  char msg[200];
   const char* env;
   int nbufs;
   int rv;

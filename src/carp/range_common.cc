@@ -8,42 +8,6 @@
 #include "common.h"
 #include "preload_internal.h"
 
-/**** FOR DEBUGGING ****/
-#define PRINTBUF_LEN 16384
-
-static char rs_pb_buf[16384];
-static char rs_pb_buf2[16384];
-static char rs_pbin_buf[16384];
-
-static char* print_vec(char* buf, int buf_len, float* v, int vlen) {
-  int start_ptr = 0;
-
-  for (int item = 0; item < vlen; item++) {
-    start_ptr +=
-        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.1f ", v[item]);
-
-    if (PRINTBUF_LEN - start_ptr < 20) break;
-  }
-
-  return buf;
-}
-
-static char* print_vec(char* buf, int buf_len, std::vector<float>& v,
-                       int vlen) {
-  assert(v.size() >= vlen);
-
-  int start_ptr = 0;
-
-  for (int item = 0; item < vlen; item++) {
-    start_ptr +=
-        snprintf(&buf[start_ptr], buf_len - start_ptr, "%.2f, ", v[item]);
-
-    if (PRINTBUF_LEN - start_ptr < 20) break;
-  }
-
-  return buf;
-}
-
 /* local functions */
 
 MainThreadStateMgr::MainThreadStateMgr()

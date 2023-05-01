@@ -1,5 +1,5 @@
-const bool first_block = true;
-const int num_ranks = 512;
+// const bool first_block = true;
+// const int num_ranks = 512;
 const float oob_data[] = {
     0.169172823,   0.36537233,   0.608061433,  1.64786172,   0.262725651,
     0.342253834,   0.498013347,  0.655585408,  0.277027071,  2.04231024,
@@ -106,10 +106,11 @@ const float oob_data[] = {
     0.115433082,   0.715175271};
 const int oob_data_sz = 512;
 
-const float range_min = 0;
-const float range_max = 0;
+// const float range_min = 0;
+// const float range_max = 0;
 const int num_pivots = 4096;
 
+#if 0
 const uint64_t rank_bin_counts[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -155,3 +156,4 @@ const float rank_bins[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+#endif

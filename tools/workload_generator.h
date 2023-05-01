@@ -9,7 +9,7 @@ namespace rangeutils {
 
 static const int MAX_BINS = 1024;
 
-static int min(int a, int b) {
+inline int min(int a, int b) {
   return a < b ? a : b;
 }
 

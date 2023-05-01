@@ -319,7 +319,7 @@ static struct ps {
 static void run_vpic_app();
 static void do_dump();
 static void do_dump_mux(int, int);
-static void do_dump_shuffle_skew();
+// static void do_dump_shuffle_skew();
 static void do_dump_from_trace(int, int);
 
 /*
@@ -648,6 +648,7 @@ void gen_bins(float* range_bins, int bin_len, int skew_degree) {
   return;
 }
 
+#if 0
 static void do_dump_shuffle_skew() {
   FILE* file;
   DIR* dir;
@@ -676,7 +677,6 @@ static void do_dump_shuffle_skew() {
 #endif
 
   float p_energy;
-  float p_energy_base = 1;
 
   for (int i = 0; i < g.nps; i++) {
     base64_encoding(p.pname + prefix, (highbits | i));
@@ -694,6 +694,7 @@ static void do_dump_shuffle_skew() {
 
   closedir(dir);
 }
+#endif
 
 static void do_dump_from_trace(int epoch, int rep) {
   FILE* file;
@@ -727,7 +728,6 @@ static void do_dump_from_trace(int epoch, int rep) {
 #endif
 
   float p_energy;
-  float p_energy_base = 1;
 
   for (int i = 0; i < g.nps; i++) {
     size_t bytes_read =

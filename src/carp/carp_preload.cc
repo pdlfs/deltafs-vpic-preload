@@ -87,21 +87,21 @@ struct CarpOptions* preload_init_carpopts(shuffle_ctx_t* sx) {
     opts->oob_sz = atoi(tmp);
     assert(opts->oob_sz > 0);
   } else {
-    opts->oob_sz = DEFAULT_OOBSZ;
+    opts->oob_sz = CARP_DEF_OOBSZ;
   }
 
   tmp = maybe_getenv("RANGE_Reneg_policy");
   if (tmp != NULL) {
     opts->reneg_policy = tmp;
   } else {
-    opts->reneg_policy = pdlfs::kDefaultRenegPolicy;
+    opts->reneg_policy = CARP_DEF_RENEGPOLICY;
   }
 
   tmp = maybe_getenv("RANGE_Reneg_interval");
   if (tmp != NULL) {
     opts->reneg_intvl = atoi(tmp);
   } else {
-    opts->reneg_intvl = pdlfs::kRenegInterval;
+    opts->reneg_intvl = CARP_RENEG_INT;
   }
 
 #define INIT_PVTCNT(arr, idx)                \
@@ -110,7 +110,7 @@ struct CarpOptions* preload_init_carpopts(shuffle_ctx_t* sx) {
     (arr)[(idx)] = atoi(tmp);                \
     assert(arr[(idx)] > 0);                  \
   } else {                                   \
-    (arr)[(idx)] = DEFAULT_PVTCNT;           \
+    (arr)[(idx)] = CARP_DEF_PVTCNT;          \
   }
 
   opts->rtp_pvtcnt[0] = 0;          /* note: first element is not used */

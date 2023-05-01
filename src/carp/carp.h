@@ -68,8 +68,8 @@ class Carp {
   Carp(const CarpOptions& options)
       : options_(options),
         backend_wr_bytes_(0),
-        rtp_(this, options_),
         epoch_(0),
+        rtp_(this, options_),
         cv_(&mutex_),
         bins_(options.num_ranks),
         oob_buffer_(options.oob_sz),
@@ -81,15 +81,16 @@ class Carp {
     clock_gettime(CLOCK_MONOTONIC, &start_time_);
     perflog_.fp = NULL;
 
-#define POLICY_IS(s) \
-  ((s) != nullptr) and (strncmp(options_.reneg_policy, s, strlen(s)) == 0)
-
-    if (POLICY_IS(pdlfs::kRenegPolicyIntraEpoch)) {
+    const char *renegpolicy = (options_.reneg_policy) ? options_.reneg_policy
+                                                      : CARP_DEF_RENEGPOLICY;
+    if (strcmp(renegpolicy, "InvocationIntraEpoch") == 0) {
       policy_ = new InvocationIntraEpoch(*this, options);
-    } else {
+    } else if (strcmp(renegpolicy, "InvocationInterEpoch") == 0) {
       policy_ = new InvocationInterEpoch(*this, options);
+    } else {
+      ABORT("unknown reneg_policy specified");
     }
-
+    
     if (options_.enable_perflog) {
       this->PerflogStartup();
     }

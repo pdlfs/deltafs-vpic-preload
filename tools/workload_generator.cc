@@ -13,14 +13,15 @@ WorkloadGenerator::WorkloadGenerator(float bins[], int num_bins,
                                      float range_start, float range_end,
                                      int64_t num_queries, WorkloadPattern wp,
                                      int my_rank, int num_ranks)
-    : num_bins(num_bins),
+    : my_rank(my_rank),
+      num_ranks(num_ranks),
       range_start(range_start),
       range_end(range_end),
       queries_total(num_queries),
       queries_left(num_queries),
-      wp(wp),
-      my_rank(my_rank),
-      num_ranks(num_ranks) {
+      num_bins(num_bins),
+      wp(wp) {
+
   assert(num_bins < MAX_BINS);
 
   if (wp == WorkloadPattern::WP_SHUFFLE_SKEW) {
