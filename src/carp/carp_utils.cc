@@ -67,7 +67,7 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   double part_per_pivot = (oob_left_sz - 1) * 1.0 / num_pivots;
 
-  for (int pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
+  for (size_t pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
     double oob_idx = part_per_pivot * pvt_idx;
     int oob_idx_trunc = (int)oob_idx;
 
@@ -113,7 +113,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   particle_count += (oob_left__sz + oob_right__sz);
 
-  int cur_pivot = 1;
+  size_t cur_pivot = 1;
   float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
 
   if (part_per_pivot < 1e-5) {
@@ -155,7 +155,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     oob_idx = accumulated_ppp;
   }
 
-  for (int bidx = 0; bidx < bins->Size(); bidx++) {
+  for (size_t bidx = 0; bidx < bins->Size(); bidx++) {
     const double cur_bin_total = bins->counts_[bidx];
     double cur_bin_left = bins->counts_[bidx];
 
@@ -185,7 +185,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     particles_carried_over += cur_bin_left;
   }
 
-  fprintf(stderr, "cur_pivot: %d, pco: %0.3f\n", cur_pivot,
+  fprintf(stderr, "cur_pivot: %zu, pco: %0.3f\n", cur_pivot,
           particles_carried_over);
 
   oob_idx = 0;
