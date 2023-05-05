@@ -3,13 +3,14 @@
 #include "common.h"
 
 /* begin: fixed size => rank, round_num */
-int msgfmt_encode_rtp_begin(void* buf, int buf_sz, int rank, int round_num) {
+int msgfmt_encode_rtp_begin(void* buf, size_t buf_sz, int rank, int round_num) {
   memcpy(buf, &rank, sizeof(int));  /* XXXCDC: int not fixed sized */
   memcpy((char*)buf+sizeof(int), &round_num, sizeof(int));
   return(2 * sizeof(int));
 }
 
-void msgfmt_decode_rtp_begin(void* buf, int buf_sz, int* rank, int* round_num) {
+void msgfmt_decode_rtp_begin(void* buf, size_t buf_sz, int* rank,
+                             int* round_num) {
   memcpy(rank, buf, sizeof(*rank));  /* XXXCDC: int not fixed size */
   memcpy(round_num, (char*)buf+sizeof(*rank), sizeof(*round_num));
 }
@@ -25,11 +26,11 @@ size_t msgfmt_bufsize_rtp_pivots(int num_pivots) {
   return(rv);
 }
 
-int msgfmt_encode_rtp_pivots(void* buf, int buf_sz, int round_num,
+int msgfmt_encode_rtp_pivots(void* buf, size_t buf_sz, int round_num,
                              int stage_num, int sender_id, double* pivots,
                              double pivot_width, int num_pivots, bool bcast) {
   char *bp = (char *)buf;
-  int rv = msgfmt_bufsize_rtp_pivots(num_pivots);
+  size_t rv = msgfmt_bufsize_rtp_pivots(num_pivots);
   assert(buf_sz >= rv);
   memcpy(bp, &round_num, sizeof(round_num));      bp += sizeof(round_num);
   memcpy(bp, &stage_num, sizeof(stage_num));      bp += sizeof(stage_num);
@@ -41,7 +42,7 @@ int msgfmt_encode_rtp_pivots(void* buf, int buf_sz, int round_num,
   return(rv);
 }
 
-void msgfmt_decode_rtp_pivots(void* buf, int buf_sz, int* round_num,
+void msgfmt_decode_rtp_pivots(void* buf, size_t buf_sz, int* round_num,
                               int* stage_num, int* sender_id, double** pivots,
                               double* pivot_width, int* num_pivots,
                               bool bcast) {
