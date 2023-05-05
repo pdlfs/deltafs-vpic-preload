@@ -69,11 +69,22 @@ void OrderedBins::Reset() {
   is_set_ = false;
 }
 
-int OrderedBins::SearchBins(float val) {
+int OrderedBins::SearchBins(float val, int& rank, bool force) {
   auto iter = std::lower_bound(bins_.begin(), bins_.end(), val);
   unsigned int idx = iter - bins_.begin();
   while (idx < bins_.size() && val == bins_[idx]) idx++;  // skip equal vals
-  return idx - 1;
+  if (idx == 0) {
+    if (!force)
+      return(-1);     /* out of bounds on left side */
+    idx = 1;          /* force: push up to rank 0 */
+  }
+  if (idx == bins_.size()) {
+    if (!force)
+      return(1);      /* out of bounds on right side */
+    idx--;            /* force: pull back to last rank */
+  }
+  rank = idx - 1;
+  return(0);        /* in bounds */
 }
 
 double OrderedBins::PrintNormStd() {

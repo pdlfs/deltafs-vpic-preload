@@ -253,12 +253,13 @@ class OrderedBins {
   void ZeroCounts() { std::fill(counts_.begin(), counts_.end(), 0); }
 
   //
-  // semantics for SearchBins:
-  // 1. each bin represents an exclusive range
-  // 2. this assumes that the bins contain the val, semantics weird otherwise
-  // 3. return -1 if first_bin > val. return last bin (n - 1) if val > last_bin.
+  // Search bins.  if value is in bounds, return 0 and set rank.
+  // if value is out of bounds and 'force' is true, return rank
+  // on the end that is closest to value (either rank 0 or the last rank).
+  // if value is out of bounds and 'force' is false, return -1
+  // if value is out of bounds on the left, otherwise 1 (for oob right).
   //
-  int SearchBins(float val);
+  int SearchBins(float val, int& rank, bool force);
 
   void IncrementBin(int bidx) {
     assert(bidx < (int)Size() and bidx >= 0);
@@ -271,26 +272,17 @@ class OrderedBins {
   // Adds it there. Undefined behavior if val is out of bounds
   //
   void AddVal(float val, bool force) {
+    int rv, rank;
     assert(IsSet());
     if (!force) assert(GetRange().Inside(val));
 
-    int bidx = SearchBins(val);
-
-    if (bidx < 0) {
-      if (force)
-        bidx = 0;
-      else
+    rv = SearchBins(val, rank, force);
+    if (rv < 0)
         ABORT("OrderedBins: bidx < 0");
-    }
-
-    if (bidx >= Size()) {
-      if (force)
-        bidx = Size() - 1;
-      else
+    if (rv > 0)
         ABORT("OrderedBins: bidx >= Size()");
-    }
 
-    IncrementBin(bidx);
+    IncrementBin(rank);
   }
 
   std::string ToString() const {

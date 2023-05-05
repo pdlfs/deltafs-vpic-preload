@@ -21,14 +21,12 @@ class InvocationPolicy {
   virtual bool BufferInOob(particle_mem_t& p);
   virtual bool TriggerReneg() = 0;
   virtual void AdvanceEpoch() = 0;
-  virtual int ComputeShuffleTarget(particle_mem_t& p) = 0;
+  virtual int ComputeShuffleTarget(particle_mem_t& p, int& rank) = 0;
 
  protected:
   bool FirstRenegCompleted();
 
   void Reset();
-
-  int ComputeShuffleTarget(particle_mem_t& p, int& rank);
 
   bool IsOobFull();
 
@@ -55,11 +53,7 @@ class InvocationIntraEpoch : public InvocationPolicy {
     num_writes_ = 0;
   }
 
-  int ComputeShuffleTarget(particle_mem_t& p) override {
-    int rank;
-    InvocationPolicy::ComputeShuffleTarget(p, rank);
-    return rank;
-  }
+  int ComputeShuffleTarget(particle_mem_t& p, int& rank) override;
 };
 
 /* InvocationInterEpoch: triggers ONCE every reneg_intvl epochs
@@ -98,7 +92,7 @@ class InvocationInterEpoch : public InvocationPolicy {
     }
   }
 
-  int ComputeShuffleTarget(particle_mem_t& p) override;
+  int ComputeShuffleTarget(particle_mem_t& p, int& rank) override;
 
  private:
   bool reneg_triggered_;

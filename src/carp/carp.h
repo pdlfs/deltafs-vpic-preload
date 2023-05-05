@@ -231,12 +231,13 @@ class Carp {
   }
 
   void AssignShuffleTarget(particle_mem_t& p) {
-    int dest_rank = policy_->ComputeShuffleTarget(p);
-    if (dest_rank >= 0 and dest_rank < options_.num_ranks) {
+    int rv, dest_rank;
+    rv = policy_->ComputeShuffleTarget(p, dest_rank);
+    if (rv == 0) {                   /* in bounds */
       p.shuffle_dest = dest_rank;
       bins_.IncrementBin(dest_rank);
     } else {
-      p.shuffle_dest = -1;
+      p.shuffle_dest = -1;           /* out of bounds, no assigned dest yet */
     }
   }
 
