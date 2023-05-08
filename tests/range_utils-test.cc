@@ -147,7 +147,7 @@ TEST(RangeUtilsTest, PivotCalc) {
     carp->oob_buffer_.Insert(p);
   }
 
-  int num_pivots = 8;
+  unsigned int num_pivots = 8;
   carp->mutex_.Lock();
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
@@ -174,14 +174,14 @@ TEST(RangeUtilsTest, PivotCalc2) {
     carp->oob_buffer_.Insert(p);
   }
 
-  int num_pivots = 8;
+  unsigned int num_pivots = 8;
   carp->mutex_.Lock();
   carp->CalculatePivots(num_pivots);
   carp->mutex_.Unlock();
 
   assert(carp->pivots_.Size() == num_pivots);
 
-  for (int pvt_idx = 0; pvt_idx < num_pivots; pvt_idx++) {
+  for (unsigned int pvt_idx = 0; pvt_idx < num_pivots; pvt_idx++) {
     float pvt = carp->pivots_[pvt_idx];
     float ref = pivots_ref[pvt_idx];
 
@@ -207,7 +207,7 @@ TEST(RangeUtilsTest, PivotCalc3) {
   const float range_min = 0.011929879, range_max = 4.48976707;
   const int oob_data_sz = 25;
   const int num_ranks = 8;
-  const int num_pivots = 8;
+  const unsigned int num_pivots = 8;
 
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);

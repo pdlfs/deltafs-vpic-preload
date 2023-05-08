@@ -16,9 +16,9 @@ namespace carp {
 uint64_t sumsq(const uint64_t& total, const uint64_t& v);
 
 struct RTPBenchOpts {
-  int nrounds;  // number of RTP rounds to run
-  int nwarmup;  // number of untimed rounds to warm up with
-  int pvtcnt;   // CARP pvt count
+  size_t nrounds;  // number of RTP rounds to run
+  size_t nwarmup;  // number of untimed rounds to warm up with
+  int pvtcnt;      // CARP pvt count
 };
 
 class RTPBench {

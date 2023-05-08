@@ -288,7 +288,8 @@ static inline void onemore(const struct plfsdir_stats* s, int rank, off_t off) {
   sz = s->c->particle_size;
   char* buf = static_cast<char*>(malloc(sz));
   n = deltafs_plfsdir_io_pread(dir, buf, sz, off);
-  if (n != sz) complain("error reading extra data: %s", strerror(errno));
+  if (n < 0 || (size_t)n != sz)
+    complain("error reading extra data: %s", strerror(errno));
   if (s->consume) {
     s->consume(buf, sz);
   }
@@ -406,7 +407,7 @@ static inline void filterreadnames(const struct plfsdir_stats* s, int rank,
     int* possible_ranks =
         deltafs_plfsdir_filter_get(dir, fnames[i].data(), fnames[i].size(), &n);
     if (possible_ranks) {
-      for (int j = 0; j < n; j++) {
+      for (size_t j = 0; j < n; j++) {
         readnames(s, possible_ranks[j], &fnames[i], 1);
       }
     }

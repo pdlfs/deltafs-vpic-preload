@@ -129,7 +129,7 @@ class PivotBench {
       flog(LOG_ERRO, "Not implemented");
       ABORT("NOT IMPLEMENTED!!");
     } else {
-      for (int r = 0; r < opts_.nranks; r++) {
+      for (unsigned int r = 0; r < opts_.nranks; r++) {
         ranks_[r]->GetOobPivots(epoch, &pivots[r], num_pivots);
         flog(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
@@ -149,7 +149,7 @@ class PivotBench {
       parallel_processor_.GetPerfectPivotsParallel(epoch, ranks_, pivots,
                                                    num_pivots);
     } else {
-      for (int r = 0; r < opts_.nranks; r++) {
+      for (unsigned int r = 0; r < opts_.nranks; r++) {
         ranks_[r]->GetPerfectPivots(epoch, &pivots[r], num_pivots);
         flog(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
@@ -168,7 +168,7 @@ class PivotBench {
     if (parallel) {
       parallel_processor_.ReadEpochIntoBinsParallel(epoch, ranks_, bins);
     } else {
-      for (int r = 0; r < opts_.nranks; r++) {
+      for (unsigned int r = 0; r < opts_.nranks; r++) {
         ranks_[r]->ReadEpochIntoBins(epoch, &bins[r]);
         flog(LOG_INFO, "%s\n", bins[r].ToString().c_str());
       }
@@ -184,14 +184,14 @@ class PivotBench {
 
   void InitAllRanks() {
     assert(ranks_.size() == 0);
-    for (int r = 0; r < opts_.nranks; r++) {
+    for (unsigned int r = 0; r < opts_.nranks; r++) {
       ranks_.push_back(new carp::Rank(r, opts_, tr_));
     }
   }
 
   void DestroyAllRanks() {
     assert(ranks_.size() == opts_.nranks);
-    for (int r = 0; r < opts_.nranks; r++) {
+    for (unsigned int r = 0; r < opts_.nranks; r++) {
       delete ranks_[r];
       ranks_[r] = nullptr;
     }

@@ -7,7 +7,7 @@
 namespace pdlfs {
 struct PivotBenchOpts {
   Env* env;
-  int nranks;
+  unsigned int nranks;
   int pvtcnt;
   int oobsz;
   int nthreads;

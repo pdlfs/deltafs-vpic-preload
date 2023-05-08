@@ -34,7 +34,7 @@ void PivotAggregator::AggregatePivots(std::vector<Pivots>& pivots,
   ChunkPivotsStage(merged_pvts_s1, chunked_pvts_s2, nchunks_s2);
   AggregatePivotsStage(chunked_pvts_s2, merged_pvts_s2, 2, pvtcnt_vec_[3]);
 
-  assert(merged_pvts_s2.size() == fanout_arr[3]);
+  assert(merged_pvts_s2.size() == (size_t)fanout_arr[3]);
   AggregatePivotsRoot(merged_pvts_s2, merged_pivots, 3, nranks + 1);
 }
 
@@ -106,7 +106,7 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
 
 void PivotAggregator::BufferPivots(DataBuffer& dbuf, int stage, Pivots& p) {
   double pvt_width = p.PivotWidth();
-  int pvt_count = p.Size();
+  size_t pvt_count = p.Size();
   double pvt_data[pvt_count];
 
   for (size_t idx = 0; idx < pvt_count; idx++) {
