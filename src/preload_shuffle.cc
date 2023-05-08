@@ -654,7 +654,7 @@ void shuffle_init(shuffle_ctx_t* ctx) {
   }
 
   ctx->receiver_rate = 1;
-  ctx->receiver_mask = ~static_cast<unsigned int>(0);
+  ctx->receiver_mask = ~0;
   env = maybe_getenv("SHUFFLE_Recv_radix");
   if (env != NULL) {
     n = atoi(env);

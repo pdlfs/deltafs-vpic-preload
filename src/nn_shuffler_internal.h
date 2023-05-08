@@ -100,7 +100,7 @@ typedef struct nn_ctx {
   hstg_t hg_intvl;
 
   /* hg_timeouts (in ms) */
-  int hg_max_interval;
+  unsigned int hg_max_interval;
   int hg_timeout;
   int timeout; /* rpc timeout (in secs) */
 

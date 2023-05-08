@@ -85,7 +85,7 @@ typedef struct shuffle_ctx {
   int finalize_pause;
   unsigned int receiver_rate; /* only 1/receiver_rate ranks are receivers */
   /* (rank & receiver_mask) -> receiver_rank */
-  unsigned int receiver_mask;
+  int receiver_mask;
   int is_receiver;
   unsigned char skey_len;
   unsigned char extra_data_len;
