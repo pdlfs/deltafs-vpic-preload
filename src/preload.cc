@@ -1514,11 +1514,11 @@ int MPI_Finalize(void) {
           fprintf(f0, "force_leveldb_format=%d\n", dirc.force_leveldb_format);
           fprintf(f0, "unordered_storage=%d\n", dirc.unordered_storage);
           /* XXX: start old names */
-          fprintf(f0, "particle_id_size=%d\n", pctx.filename_size);
-          fprintf(f0, "particle_size=%d\n", pctx.filedata_size);
+          fprintf(f0, "particle_id_size=%zu\n", pctx.filename_size);
+          fprintf(f0, "particle_size=%zu\n", pctx.filedata_size);
           /* XXX: end old names */
-          fprintf(f0, "filename_size=%d\n", pctx.filename_size);
-          fprintf(f0, "filedata_size=%d\n", pctx.filedata_size);
+          fprintf(f0, "filename_size=%zu\n", pctx.filename_size);
+          fprintf(f0, "filedata_size=%zu\n", pctx.filedata_size);
           fprintf(f0, "io_engine=%d\n", dirc.io_engine);
           fprintf(f0, "comm_sz=%d\n", pctx.recv_sz);
           /* mode specific code here ... */
@@ -2708,7 +2708,7 @@ int fclose(FILE* stream) {
       /* write key/value locally first */
       n = deltafs_plfsdir_append(pctx.plfshdl, filename, num_eps - 1,
                                  ff->data(), ff->size());
-      if (n != ff->size()) {
+      if (n < 0 || (size_t)n != ff->size()) {
         ABORT("plfsdir write failed");
       }
     } else {
@@ -2728,7 +2728,7 @@ int fclose(FILE* stream) {
     } else if (IS_BYPASS_DELTAFS_NAMESPACE(pctx.mode)) {
       assert(pctx.plfshdl != NULL);
       n = deltafs_plfsdir_io_append(pctx.plfshdl, ff->data(), ff->size());
-      if (n != ff->size()) {
+      if (n < 0 || (size_t)n != ff->size()) {
         ABORT("plfsdir sideio write failed");
       }
 

@@ -99,25 +99,25 @@ typedef struct preload_ctx {
   unsigned long long total_dropcnt;   /* total writes dropped */
 
   /* this is what the preload's stdio API sees from the app */
-  int filename_size;        /* #bytes in particle filename (the id) */
-  int filedata_size;        /* #bytes fwrite puts in file (particle data) */
+  size_t filename_size;       /* #bytes in particle filename (the id) */
+  size_t filedata_size;       /* #bytes fwrite puts in file (particle data) */
 
   /* k/v produced from filename,filedata at preload input (transform#1) */
-  int preload_inkey_size;   /* #bytes in key (filename, index value, etc.) */
-  int preload_invalue_size; /* #bytes in value */
+  size_t preload_inkey_size;  /* #bytes in key (filename, index value, etc.) */
+  size_t preload_invalue_size;/* #bytes in value */
 
-  int serialized_size;      /* size of serialized k-v passed to shuffle */
-  int shuffle_extrabytes;   /* extra nulls shuffled w/serialized k-v pair */
-                            /* allows you to test increasing shuffle
-                               overhead without increasing storage costs */
+  int serialized_size;        /* size of serialized k-v passed to shuffle */
+  int shuffle_extrabytes;     /* extra nulls shuffled w/serialized k-v pair */
+                              /* allows you to test increasing shuffle
+                                 overhead without increasing storage costs */
 
   /* k/v passed from preload to deltafs (transform#2) */
-  int preload_outkey_size;  /* #bytes in key (filename, index value, etc.) */
-  int preload_outvalue_size;/* #bytes in value */
+  int preload_outkey_size;    /* #bytes in key (filename, index value, etc.) */
+  int preload_outvalue_size;  /* #bytes in value */
 
   /* k/v used for backend storage (transform#3) */
-  int key_size;            /* #bytes in key (could be hash of filename) */
-  int value_size;          /* size of value for backend k-v store */
+  int key_size;              /* #bytes in key (could be hash of filename) */
+  int value_size;            /* size of value for backend k-v store */
 
   int particle_count;
 

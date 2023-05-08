@@ -389,7 +389,8 @@ int shuffle_write(shuffle_ctx_t* ctx, const char* skey,
   int rv;
 
   assert(ctx == &pctx.sctx);
-  assert(ctx->skey_len + ctx->svalue_len + ctx->extra_data_len <= sizeof(buf));
+  assert((size_t)(ctx->skey_len + ctx->svalue_len + ctx->extra_data_len)
+          <= sizeof(buf));
   if (ctx->skey_len != skey_len) ABORT("bad shuffle key len");
   if (ctx->svalue_len != svalue_len) ABORT("bad shuffle value len");
 
@@ -444,7 +445,8 @@ int shuffle_handle(shuffle_ctx_t* ctx, char* buf, unsigned int buf_sz,
   } else {
     assert(ctx == &pctx.sctx);
   }
-  if (buf_sz != ctx->extra_data_len + ctx->svalue_len + ctx->skey_len)
+  if (buf_sz != (unsigned int)(ctx->extra_data_len + ctx->svalue_len
+                               + ctx->skey_len) )
     ABORT("unexpected incoming shuffle request size");
   rv = exotic_write(buf, ctx->skey_len, buf + ctx->skey_len,
                     ctx->svalue_len, epoch, src);
