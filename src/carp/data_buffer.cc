@@ -16,7 +16,7 @@ static bool rb_item_lt(const rb_item_t& a, const rb_item_t& b) {
 DataBuffer::DataBuffer(const int num_pivots[STAGES_MAX + 1]) {
   memset(data_len_, 0, sizeof(data_len_));
 
-  for (int sidx = 1; sidx <= STAGES_MAX; sidx++ ){
+  for (int sidx = 1; sidx <= STAGES_MAX; sidx++) {
     this->num_pivots_[sidx] = num_pivots[sidx];
   }
 
@@ -26,7 +26,7 @@ DataBuffer::DataBuffer(const int num_pivots[STAGES_MAX + 1]) {
 }
 
 int DataBuffer::StoreData(int stage, const double* pivot_data, int dlen,
-                           double pivot_width, bool isnext) {
+                          double pivot_width, bool isnext) {
   int sidx = this->cur_store_idx_;
   if (isnext) sidx = !sidx;
 
@@ -82,10 +82,15 @@ int DataBuffer::ClearAllData() {
 
 int DataBuffer::GetPivotWidths(int stage, std::vector<double>& widths) {
   int sidx = this->cur_store_idx_;
-  int item_count = data_len_[sidx][stage];
+  size_t item_count = data_len_[sidx][stage];
   widths.resize(item_count);
-  std::copy(data_widths_[sidx][stage], data_widths_[sidx][stage] + item_count,
-            widths.begin());
+  size_t idx_out = 0;
+
+  for (size_t idx_in = 0; idx_in < item_count; idx_in++) {
+    if (data_widths_[sidx][stage][idx_in] == CARP_BAD_PIVOTS) continue;
+    widths[idx_out++] = data_widths_[sidx][stage][idx_in];
+  }
+
   return 0;
 }
 
@@ -96,6 +101,9 @@ int DataBuffer::LoadIntoRbvec(int stage, std::vector<rb_item_t>& rbvec) {
   int bins_per_rank = num_pivots_[stage];
 
   for (int rank = 0; rank < num_ranks; rank++) {
+    double bin_width = data_widths_[sidx][stage][rank];
+    if (bin_width == CARP_BAD_PIVOTS) continue;
+
     for (int bidx = 0; bidx < bins_per_rank - 1; bidx++) {
       double bin_start = data_store_[sidx][stage][rank][bidx];
       double bin_end = data_store_[sidx][stage][rank][bidx + 1];

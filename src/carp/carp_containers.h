@@ -125,6 +125,9 @@ class Pivots {
     is_set_ = true;
   }
 
+  //
+  // Used as implicit invalid pivots. XXXAJ: can be deprecated
+  //
   void MakeUpEpsilonPivots() {
     int num_pivots = pivots_.size();
 
@@ -141,6 +144,11 @@ class Pivots {
   void AssertMonotonicity() {
     if (!is_set_) {
       flog(LOG_WARN, "No pivots set for monotonicity check!");
+      return;
+    }
+
+    if (width_ == CARP_BAD_PIVOTS) {
+      flog(LOG_DBUG, "Pivots set to invalid. Not checking...");
       return;
     }
 

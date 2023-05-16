@@ -36,12 +36,18 @@ int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     rv = CalculatePivotsFromAll(pvt_ctx, pivots, num_pivots);
   }
 
+  if (pivots->width_ < 1e-3) {  // arbitrary limit for null pivots
+    pivots->width_ = CARP_BAD_PIVOTS;
+    flog(LOG_DBG2, "[CalculatePivots][Rank %d] Unable to compute good pivots",
+         pctx.my_rank);
+  } else {
+    flog(LOG_DBG2, "[CalculatePivots][Rank %d] Pivots computed. Width: %.2f",
+         pctx.my_rank, pivots->width_);
+  }
+
   pivots->is_set_ = true;
-
-  flog(LOG_DBG2, "pvt_calc_local @ R%d, pvt width: %.2f", pctx.my_rank,
-       pivots->width_);
-
   pivots->AssertMonotonicity();
+
   return rv;
 }
 

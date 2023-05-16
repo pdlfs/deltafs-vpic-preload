@@ -1,7 +1,7 @@
 #pragma once
 
-#include "range_common.h"
 #include "carp/rtp_internal.h"
+#include "range_common.h"
 
 namespace pdlfs {
 class DataBuffer {
@@ -19,68 +19,47 @@ class DataBuffer {
   int cur_store_idx_;
 
  public:
-  /**
-   * @brief Constructor
-   *
-   * @param num_pivots Expected pivot_count for each stage
-   */
+  //
+  // DataBuffer constructor
+  // num_pivots contains the expected pivot count for each stage
+  //
   DataBuffer(const int num_pivots[STAGES_MAX + 1]);
 
-  /**
-   * @brief Store pivots for the current round
-   *
-   * @param stage
-   * @param data
-   * @param dlen
-   * @param pivot_width
-   * @param isnext true if data is for the next round, false o/w
-   *
-   * @return errno if < 0, else num_items in store for the stage
-   */
-  int StoreData(int stage, const double* pivot_data, int dlen, double pivot_width,
-                 bool isnext);
+  //
+  // StoreData: Store pivots for the current round
+  // isnext is true if data is for the next round, false o/w
+  //
+  int StoreData(int stage, const double* pivot_data, int dlen,
+                double pivot_width, bool isnext);
 
-  /**
-   * @brief
-   *
-   * @param stage
-   * @param isnext true if data is for the next round, false o/w
-   *
-   * @return
-   */
+  //
+  // Get number of pivot sets for each stage. This count will include invalid
+  // pivots, if any, and can be used to check if the expected number of pivots
+  // have been received.
+  //
+  // set isnext to true if request is for the next round, false o/w
+  //
   int GetNumItems(int stage, bool isnext);
 
-  /**
-   * @brief Clear all data for current round, set next round data as cur
-   *
-   * @return errno or 0
-   */
+  //
+  // Clear all data for current round, set next round data as cur. Returns err/0
+  //
   int AdvanceRound();
 
-  /**
-   * @brief A somewhat hacky way to get pivot width arrays withouy copying
-   *
-   * @param stage
-   *
-   * @return
-   */
+  //
+  // Get pivot widths for current stage. This will filter out invalid pivots
+  // therefore it may be a smaller number than the total pivot set for the stage
+  //
   int GetPivotWidths(int stage, std::vector<double>& widths);
 
-  /**
-   * @brief
-   *
-   * @param stage
-   * @param rbvec
-   *
-   * @return
-   */
+  //
+  // Get pivots for stage as rbvec items. This will filter out invalid pivots
+  //
   int LoadIntoRbvec(int stage, std::vector<rb_item_t>& rbvec);
 
-  /**
-   * @brief Clear ALL data (both current round and next). Use with caution.
-   *
-   * @return
-   */
+  //
+  // Clear ALL data (both current round and next). Use with caution.
+  //
   int ClearAllData();
 };
 }  // namespace pdlfs
