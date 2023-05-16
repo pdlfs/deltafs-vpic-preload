@@ -346,7 +346,7 @@ class PivotCalcCtx {
 
   void SetBins(OrderedBins* bins) { bins_ = bins; }
 
-  Range GetRange() const {
+  Range GetBinRange() const {
     if (bins_ == nullptr)
       return Range();
     else

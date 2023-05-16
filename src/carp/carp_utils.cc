@@ -54,8 +54,8 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   if (oob_left_sz < 2) return 0;
 
-  const float range_min = pvt_ctx->oob_left_[0];
-  const float range_max = pvt_ctx->oob_left_[oob_left_sz - 1];
+  float range_min, range_max;
+  GetRangeBounds(pvt_ctx, range_min, range_max);
 
   pivots->pivots_[0] = range_min;
   pivots->pivots_[num_pivots - 1] = range_max;
@@ -95,23 +95,23 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   OrderedBins* bins = pvt_ctx->bins_;
   assert(num_pivots <= CARP_MAXPIVOTS);
 
-  const float prev_range_begin = pvt_ctx->GetRange().rmin();
-  const float prev_range_end = pvt_ctx->GetRange().rmax();
+  const float prev_range_begin = pvt_ctx->GetBinRange().rmin();
+  const float prev_range_end = pvt_ctx->GetBinRange().rmax();
 
   float range_start, range_end;
 
   GetRangeBounds(pvt_ctx, range_start, range_end);
   assert(range_end >= range_start);
 
-  int oob_left__sz = pvt_ctx->oob_left_.size(),
-      oob_right__sz = pvt_ctx->oob_right_.size();
+  int oob_left_sz = pvt_ctx->oob_left_.size(),
+      oob_right_sz = pvt_ctx->oob_right_.size();
 
   float particle_count = bins->GetTotalMass();
 
   pivots->pivots_[0] = range_start;
   pivots->pivots_[num_pivots - 1] = range_end;
 
-  particle_count += (oob_left__sz + oob_right__sz);
+  particle_count += (oob_left_sz + oob_right_sz);
 
   size_t cur_pivot = 1;
   float part_per_pivot = particle_count * 1.0 / (num_pivots - 1);
@@ -129,7 +129,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
 
   float oob_idx = 0;
   while (1) {
-    float part_left = oob_left__sz - oob_idx;
+    float part_left = oob_left_sz - oob_idx;
     if (part_per_pivot < 1e-5 || part_left < part_per_pivot) {
       particles_carried_over += part_left;
       break;
@@ -140,11 +140,11 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     float part_idx = accumulated_ppp;
     int part_idx_trunc = (int)accumulated_ppp;
 
-    if (part_idx_trunc >= oob_left__sz) break;
+    if (part_idx_trunc >= oob_left_sz) break;
 
     float frac_a = part_idx - (float)part_idx_trunc;
     float val_a = pvt_ctx->oob_left_[part_idx_trunc];
-    float val_b = (part_idx_trunc + 1 < oob_left__sz)
+    float val_b = (part_idx_trunc + 1 < oob_left_sz)
                       ? pvt_ctx->oob_left_[part_idx_trunc + 1]
                       : prev_range_begin;
     assert(val_b > val_a);
@@ -191,7 +191,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   oob_idx = 0;
 
   while (1) {
-    float part_left = oob_right__sz - oob_idx;
+    float part_left = oob_right_sz - oob_idx;
     if (part_per_pivot < 1e-5 ||
         part_left + particles_carried_over < part_per_pivot + 1e-5) {
       particles_carried_over += part_left;
@@ -202,7 +202,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     int next_idx_trunc = (int)next_idx;
     particles_carried_over = 0;
 
-    if (next_idx_trunc >= oob_right__sz) break;
+    if (next_idx_trunc >= oob_right_sz) break;
 
     /* Current pivot is computed from fractional index weighted average,
      * we interpolate between current index and next, if next index is out of
@@ -280,47 +280,33 @@ int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
 
 int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                                float& range_end) {
-  int rv = 0;
+  size_t nleft = pvt_ctx->oob_left_.size();
+  size_t nmiddle = pvt_ctx->bins_->GetTotalMass();
+  size_t nright = pvt_ctx->oob_right_.size();
+  Range middle_range = pvt_ctx->bins_->GetRange();
 
-  size_t oob_left__sz = pvt_ctx->oob_left_.size();
-  size_t oob_right__sz = pvt_ctx->oob_right_.size();
+  assert(nleft + nmiddle + nright > 0); /* otherwise would we call this? */
 
-  double oob_left__min = oob_left__sz ? pvt_ctx->oob_left_[0] : 0;
-  double oob_right__min = oob_right__sz ? pvt_ctx->oob_right_[0] : 0;
-  /* If both OOBs are filled, their minimum, otherwise, the non-zero val */
-  double oob_min = (oob_left__sz && oob_right__sz)
-                       ? std::min(oob_left__min, oob_right__min)
-                       : oob_left__min + oob_right__min;
-
-  double oob_left__max = oob_left__sz ? pvt_ctx->oob_left_[oob_left__sz - 1] : 0;
-  double oob_right__max =
-      oob_right__sz ? pvt_ctx->oob_right_[oob_right__sz - 1] : 0;
-  double oob_max = std::max(oob_left__max, oob_right__max);
-
-  assert(oob_left__min <= oob_left__max);
-  assert(oob_right__min <= oob_right__max);
-
-  if (oob_left__sz and oob_right__sz) {
-    assert(oob_left__min <= oob_right__min);
-    assert(oob_left__max <= oob_right__max);
-  }
-
-  /* Since our default value is zero, min needs to obtained
-   * complex-ly, while max is just max
-   * i.e., if range_min is 0.63, and OOBs are empty, then
-   * oob_min (= 0) needs to be ignored
-   */
   if (pvt_ctx->FirstBlock()) {
-    range_start = oob_min;
-  } else if (oob_left__sz) {
-    range_start = std::min(oob_min, pvt_ctx->GetRange().rmin());
-  } else {
-    range_start = pvt_ctx->GetRange().rmin();
+    assert(nmiddle + nright == 0);
   }
 
-  range_end = std::max(oob_max, pvt_ctx->GetRange().rmax());
+  if (nleft)
+    range_start = pvt_ctx->oob_left_[0];
+  else if (nmiddle)
+    range_start = middle_range.rmin();
+  else
+    range_start = pvt_ctx->oob_right_[0];
 
-  return rv;
+  if (nright)
+    range_end = nextafterf(pvt_ctx->oob_right_[nright - 1], HUGE_VALF);
+  else if (nmiddle)
+    range_end = middle_range.rmax();
+  else
+    range_end = nextafterf(pvt_ctx->oob_left_[nleft - 1], HUGE_VALF);
+  assert(range_end != HUGE_VALF);  // overflow?
+
+  return 0;
 }
 
 double PivotUtils::WeightedAverage(double a, double b, double frac) {
