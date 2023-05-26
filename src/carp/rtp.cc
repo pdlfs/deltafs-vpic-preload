@@ -343,14 +343,14 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   Status s = Status::OK();
 
   int msg_round_num, stage_num, sender_id, num_pivots;
-  double pivot_width;
+  double pivot_weight;
   double* pivots;
 
   flog(LOG_DBG2, "rtp_handle_reneg_pivot: bufsz: %u, bufhash, %u", bufsz,
        ::hash_str((char*)buf, bufsz));
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &msg_round_num, &stage_num, &sender_id,
-                           &pivots, &pivot_width, &num_pivots, false);
+                           &pivots, &pivot_weight, &num_pivots, false);
   /* stage_num refers to the stage the pivots were generated at.
    * merged_pvtcnt must correspond to the next stage
    */
@@ -376,7 +376,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
 
   if (msg_round_num != round_num_) {
     stage_pivot_count = data_buffer_.StoreData(
-        stage_num, pivots, num_pivots, pivot_width, /* isnextround */ true);
+        stage_num, pivots, num_pivots, pivot_weight, /* isnextround */ true);
 
     /* If we're receiving a pivot for a future round, we can never have
      * received all pivots for a future round, as we also expect one pivot
@@ -389,7 +389,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
     assert(!EXPECTED_ITEMS_FOR_STAGE(stage_num, stage_pivot_count));
   } else {
     stage_pivot_count = data_buffer_.StoreData(
-        stage_num, pivots, num_pivots, pivot_width, /*isnextround */ false);
+        stage_num, pivots, num_pivots, pivot_weight, /*isnextround */ false);
   }
   mutex_.Unlock();
 
@@ -401,14 +401,14 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
     reneg_bench_.MarkStageComplete(stage_num);
 
     double merged_pivots[merged_pvtcnt];
-    double merged_width;
+    double merged_weight;
 
     ComputeAggregatePivots(stage_num, merged_pvtcnt, merged_pivots,
-                           merged_width);
+                           merged_weight);
 
     flog(LOG_DBUG, "compute_aggr_pvts: R%d - %s - %.1f (cnt: %d)", my_rank_,
          darr2str(merged_pivots, merged_pvtcnt).c_str(),
-         merged_width, merged_pvtcnt);
+         merged_weight, merged_pvtcnt);
 
     flog(LOG_INFO, "rtp_handle_reneg_pivot: S%d at Rank %d, collected",
          stage_num, my_rank_);
@@ -423,7 +423,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
-          merged_pivots, merged_width, merged_pvtcnt, /* bcast */ false);
+          merged_pivots, merged_weight, merged_pvtcnt, /* bcast */ false);
 
       int new_dest = stage_num == 1 ? root_[2] : root_[3];
 
@@ -442,10 +442,10 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
       /* XXX: num_pivots_ = comm_sz, 2048B IS NOT SUFFICIENT */
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
-          merged_pivots, merged_width, merged_pvtcnt, /* bcast */ true);
+          merged_pivots, merged_weight, merged_pvtcnt, /* bcast */ true);
 
       carp_->LogPrintf("RENEG_RTP_PVT_MASS %f",
-                       (merged_pvtcnt - 1) * merged_width);
+                       (merged_pvtcnt - 1) * merged_weight);
 
       SendToRank(next_buf, next_buf_len, root_[3], MSGFMT_RTP_PVT_BCAST);
     }  // if
@@ -486,7 +486,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   if (my_rank_ == 0) {
 //    flog(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
-//         darr2str(pivots, num_pivots).c_str(), pivot_width);
+//         darr2str(pivots, num_pivots).c_str(), pivot_weight);
 
     flog(LOG_INFO, "-- carp round %d completed at rank 0 --", round_num_);
   }
@@ -560,31 +560,31 @@ Status RTP::ReplayBegin() {
 }
 
 void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
-                                 double* merged_pivots, double& merged_width) {
+                                 double* merged_pivots, double& merged_weight) {
   std::vector<rb_item_t> rbvec;
 
   std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
 
-  std::vector<double> pivot_widths;
+  std::vector<double> pivot_weights;
 
-  double sample_width;
+  double sample_weight;
 
   data_buffer_.LoadIntoRbvec(stage_num, rbvec);
-  data_buffer_.GetPivotWidths(stage_num, pivot_widths);
+  data_buffer_.GetPivotWeights(stage_num, pivot_weights);
 
-  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_widths,
+  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_weights,
               fanout_[stage_num]);
 
   std::vector<double> merged_pivot_vec;
 
   resample_bins_irregular(unified_bins, unified_bin_counts, merged_pivot_vec,
-                          sample_width, num_merged);
+                          sample_weight, num_merged);
 
   flog(LOG_DBG2, "resampled pivot count: s%d cnt: %zu", stage_num,
        merged_pivot_vec.size());
 
-  merged_width = sample_width;
+  merged_weight = sample_weight;
   std::copy(merged_pivot_vec.begin(), merged_pivot_vec.end(), merged_pivots);
 }
 }  // namespace carp

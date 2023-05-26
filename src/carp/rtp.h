@@ -92,7 +92,7 @@ class RTP {
 
   Status ReplayBegin();
   void ComputeAggregatePivots(int stage_num, int num_merged,
-                              double* merged_pivots, double& merged_width);
+                              double* merged_pivots, double& merged_weight);
 
   Carp* carp_;
 

@@ -12,7 +12,7 @@ class DataBuffer {
    * stages. (Virtual Memory ftw)
    */
   double data_store_[2][STAGES_MAX + 1][FANOUT_MAX][CARP_MAXPIVOTS];
-  double data_widths_[2][STAGES_MAX + 1][FANOUT_MAX];
+  double data_weights_[2][STAGES_MAX + 1][FANOUT_MAX];
   int data_len_[2][STAGES_MAX + 1];
 
   int num_pivots_[STAGES_MAX + 1];
@@ -30,7 +30,7 @@ class DataBuffer {
   // isnext is true if data is for the next round, false o/w
   //
   int StoreData(int stage, const double* pivot_data, int dlen,
-                double pivot_width, bool isnext);
+                double pivot_weight, bool isnext);
 
   //
   // Get number of pivot sets for each stage. This count will include invalid
@@ -47,10 +47,10 @@ class DataBuffer {
   int AdvanceRound();
 
   //
-  // Get pivot widths for current stage. This will filter out invalid pivots
+  // Get pivot weight for current stage. This will filter out invalid pivots
   // therefore it may be a smaller number than the total pivot set for the stage
   //
-  int GetPivotWidths(int stage, std::vector<double>& widths);
+  int GetPivotWeights(int stage, std::vector<double>& weights);
 
   //
   // Get pivots for stage as rbvec items. This will filter out invalid pivots

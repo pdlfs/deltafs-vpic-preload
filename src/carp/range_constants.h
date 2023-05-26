@@ -15,4 +15,4 @@
 #define CARP_RENEG_INT       500000
 #define CARP_FLOATCOMP_THOLD 1e-3
 
-#define CARP_BAD_PIVOTS    -1.234  /* pivot width is set to this if invalid */
+#define CARP_BAD_PIVOTS    -1.234  /* pivot weight is set to this if invalid */

@@ -18,7 +18,7 @@ extern preload_ctx_t pctx;
 void pivot_union(std::vector<rb_item_t> rb_items,
                  std::vector<double>& unified_bins,
                  std::vector<float>& unified_bin_counts,
-                 std::vector<double>& rank_bin_widths, int num_ranks) {
+                 std::vector<double>& rank_bin_weights, int num_ranks) {
   assert(rb_items.size() >= 2u);
 
   float rank_bin_start[num_ranks];
@@ -69,7 +69,7 @@ void pivot_union(std::vector<rb_item_t> rb_items,
         assert(rank_left_range >= 0);
 
         float rank_contrib =
-            rank_bin_widths[rank] * rank_left_range / rank_total_range;
+            rank_bin_weights[rank] * rank_left_range / rank_total_range;
 
         assert(rank_contrib >= 0);
 
@@ -139,7 +139,7 @@ int get_particle_count(int total_ranks, int total_bins, int par_per_bin) {
 
 int resample_bins_irregular(const std::vector<double>& bins,
                             const std::vector<float>& bin_counts,
-                            std::vector<double>& samples, double& sample_width,
+                            std::vector<double>& samples, double& sample_weight,
                             int nsamples) {
   const int bins_size = bins.size();
   const int bin_counts_size = bin_counts.size();
@@ -156,7 +156,7 @@ int resample_bins_irregular(const std::vector<double>& bins,
   assert(nparticles >= 0);
 
   const double part_per_rbin = nparticles * 1.0 / (nsamples - 1);
-  sample_width = part_per_rbin;
+  sample_weight = part_per_rbin;
 
   int sidx = 1;
 

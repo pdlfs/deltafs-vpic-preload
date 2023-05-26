@@ -86,26 +86,26 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
   std::vector<rb_item_t> rbvec;
   std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
-  std::vector<double> pivot_widths;
+  std::vector<double> pivot_weights;
 
   dbuf.LoadIntoRbvec(stage, rbvec);
-  dbuf.GetPivotWidths(stage, pivot_widths);
-  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_widths,
+  dbuf.GetPivotWeights(stage, pivot_weights);
+  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_weights,
               pivots.size());
 
   std::vector<double> pvt_tmp(num_out, 0);
-  double pvtwidth_tmp;
+  double pvtweight_tmp;
 
   resample_bins_irregular(unified_bins, unified_bin_counts, pvt_tmp,
-                          pvtwidth_tmp, num_out);
+                          pvtweight_tmp, num_out);
 
-  merged_pivots.LoadPivots(pvt_tmp, pvtwidth_tmp);
+  merged_pivots.LoadPivots(pvt_tmp, pvtweight_tmp);
   flog(LOG_INFO, "[AggregatePivots] Stage: %d, %s\n", stage,
        merged_pivots.ToString().c_str());
 }
 
 void PivotAggregator::BufferPivots(DataBuffer& dbuf, int stage, Pivots& p) {
-  double pvt_width = p.PivotWidth();
+  double pvt_weight = p.PivotWeight();
   size_t pvt_count = p.Size();
   double pvt_data[pvt_count];
 
@@ -113,7 +113,7 @@ void PivotAggregator::BufferPivots(DataBuffer& dbuf, int stage, Pivots& p) {
     pvt_data[idx] = p[idx];
   }
 
-  dbuf.StoreData(stage, pvt_data, pvt_count, pvt_width, /* isnext */ false);
+  dbuf.StoreData(stage, pvt_data, pvt_count, pvt_weight, /* isnext */ false);
 }
 }  // namespace carp
 }  // namespace pdlfs

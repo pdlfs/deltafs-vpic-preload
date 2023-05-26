@@ -36,13 +36,13 @@ int PivotUtils::CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
     rv = CalculatePivotsFromAll(pvt_ctx, pivots, num_pivots);
   }
 
-  if (pivots->width_ < 1e-3) {  // arbitrary limit for null pivots
-    pivots->width_ = CARP_BAD_PIVOTS;
+  if (pivots->weight_ < 1e-3) {  // arbitrary limit for null pivots
+    pivots->weight_ = CARP_BAD_PIVOTS;
     flog(LOG_DBG2, "[CalculatePivots][Rank %d] Unable to compute good pivots",
          pctx.my_rank);
   } else {
-    flog(LOG_DBG2, "[CalculatePivots][Rank %d] Pivots computed. Width: %.2f",
-         pctx.my_rank, pivots->width_);
+    flog(LOG_DBG2, "[CalculatePivots][Rank %d] Pivots computed. Weight: %.2f",
+         pctx.my_rank, pivots->weight_);
   }
 
   pivots->is_set_ = true;
@@ -66,7 +66,7 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   pivots->pivots_[0] = range_min;
   pivots->pivots_[num_pivots - 1] = range_max;
 
-  pivots->width_ = oob_left_sz * 1.0 / num_pivots;
+  pivots->weight_ = oob_left_sz * 1.0 / num_pivots;
 
   /* for computation purposes, we need to reserve one, so as to always have
    * two points of interpolation */
@@ -249,7 +249,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   }
 
   pivots->pivots_[num_pivots - 1] = range_end;
-  pivots->width_ = part_per_pivot;
+  pivots->weight_ = part_per_pivot;
 
   return 0;
 }

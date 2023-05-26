@@ -8,13 +8,13 @@ namespace pdlfs {
 namespace carp {
 std::string Pivots::ToString() const {
   if (!is_set_) {
-    return "[PivotWidth]: unset [Pivots]: unset";
+    return "[PivotWeight]: unset [Pivots]: unset";
   }
 
   std::ostringstream pvtstr;
   pvtstr.precision(3);
 
-  pvtstr << "PivotWidth: " << width_;
+  pvtstr << "PivotWeight: " << weight_;
   pvtstr << ", [PivotCount] " << pivots_.size();
   pvtstr << ", [Pivots]:";
 
