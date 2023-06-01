@@ -84,11 +84,9 @@ int DataBuffer::GetPivotWeights(int stage, std::vector<double>& weights) {
   int sidx = this->cur_store_idx_;
   size_t item_count = data_len_[sidx][stage];
   weights.resize(item_count);
-  size_t idx_out = 0;
 
-  for (size_t idx_in = 0; idx_in < item_count; idx_in++) {
-    if (data_weights_[sidx][stage][idx_in] == CARP_BAD_PIVOTS) continue;
-    weights[idx_out++] = data_weights_[sidx][stage][idx_in];
+  for (size_t idx = 0; idx < item_count; idx++) {
+    weights[idx] = data_weights_[sidx][stage][idx];
   }
 
   return 0;
