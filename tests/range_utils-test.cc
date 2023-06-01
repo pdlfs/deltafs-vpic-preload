@@ -62,8 +62,9 @@ class RangeUtilsTest {
   void LoadData(const int num_ranks, const float range_min,
                 const float range_max, const uint64_t* rank_bin_counts,
                 const float* rank_bins) {
-    carp->UpdateRange({range_min, range_max});
-    carp->oob_buffer_.SetRange(range_min, range_max);
+    carp->UpdateInBoundsRange({range_min, range_max});
+    // XXX: this does the same thing as the above
+    carp->oob_buffer_.SetInBoundsRange(range_min, range_max);
     carp->bins_.UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
   }
 

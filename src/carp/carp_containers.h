@@ -74,15 +74,6 @@ class Range {
   double rmax_; /* end of range (exclusive) */
 };
 
-class InclusiveRange : public Range {
- public:
-  InclusiveRange() : Range() {}
-  InclusiveRange(double rmin, double rmax) : Range(rmin, rmax) {}
-  InclusiveRange(const InclusiveRange& other) = default;
-  /* is "f" inside our range? returns false for unset ranges */
-  bool Inside(double f) const override { return (f >= rmin_ && f <= rmax_); }
-};
-
 // fwd declaration for friendship
 class OrderedBins;
 class PivotUtils;
@@ -348,6 +339,14 @@ class OrderedBins {
         ABORT("OrderedBins: bidx >= Size()");
 
     IncrementBin(rank);
+  }
+
+  //
+  // return number (weight) of particles in bin "idx" ... ret 0 if
+  // out of range.
+  //
+  uint64_t Weight(size_t idx) {
+    return (idx < counts_.size()) ? counts_[idx] : 0;
   }
 
   std::string ToString() const {

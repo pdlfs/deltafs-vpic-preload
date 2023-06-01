@@ -42,13 +42,13 @@ typedef struct particle_mem {
  * that is outside of the key range that the local proc handles.  the
  * out of bounds particles can either be before the minimum value of
  * our range (i.e. to the "left" of our range on a floating point
- * number line) or past the maximum value of out range (to the right).
+ * number line) or past the maximum value of our range (to the right).
  *
- * Semantics: OobBuffer is initialized with a maximum size, but will accept
- * inserted beyond its configured size, but will report IsFull=true if in
- * overflowed state. It is up to the user of this class to ensure that the OOB
- * Buffer does not go into the overflow state if a constant memory footprint is
- * desired.
+ * Semantics: OobBuffer is initialized with a maximum size, but will
+ * accept inserts beyond its configured size.  It will report
+ * IsFull=true if in overflowed state.  It is up to the user of this
+ * class to ensure that the OOB Buffer does not go into the overflow
+ * state if a constant memory footprint is desired.
  *
  * we expect higher-level code to provide any needed locking for OobBuffer.
  */
@@ -70,7 +70,7 @@ class OobBuffer {
   //
   bool OutOfBounds(float prop) const {
     // note: if range not set, Inside() returns false (and !Inside() == true)
-    return !range_.Inside(prop);
+    return !ibrange_.Inside(prop);
   }
 
   //
@@ -97,17 +97,17 @@ class OobBuffer {
   // to rmax (exclusive).  we only want to store particles outside
   // of this range.
   //
-  void SetRange(float range_min, float range_max) {
+  void SetInBoundsRange(float range_min, float range_max) {
     // TODO: double/float mismatch
-    range_.Set(range_min, range_max);
+    ibrange_.Set(range_min, range_max);
   }
 
   //
-  // Set the range that's considered inside for OOB purposes
+  // Set the in-bounds range of the OobBuffer.
   // XXXAJ: maybe this range should belong to OrderedBins in Carp
   //
-  void SetRange(InclusiveRange range) {
-    range_ = range;
+  void SetInBoundsRange(Range range) {
+    ibrange_ = range;
   }
 
   //
@@ -124,13 +124,13 @@ class OobBuffer {
   // unset the in-bounds range).
   //
   void Reset() {
-    range_.Reset();
+    ibrange_.Reset();
     buf_.clear();
   }
 
  private:
   //
-  // Resizes OobBuffer, relinquishing extra memory.
+  // Resizes OobBuffer to "new_size" particles, relinquishing extra memory.
   // Only used by the destructor of OobFlushIterator, where it can
   // never grow in size.
   //
@@ -147,10 +147,11 @@ class OobBuffer {
     }
   }
 
-  const size_t oob_max_sz_;          // max# oob particles we hold (set by ctor)
   // XXX: Inclusive vs. regular
-  InclusiveRange range_;             // range represented by the OOB buffer
-  std::vector<particle_mem_t> buf_;  // OOB buf particle array (prealloc'd)
+  const size_t oob_max_sz_;         // max# oob particles we hold (set by ctor)
+  Range ibrange_;                   // in-bounds range
+  std::vector<particle_mem_t> buf_; // OOB buf particle array (prealloc'd)
+
 
   friend class OobFlushIterator;
   friend class Carp;  // XXX: for carp.h MarkFlushableBufferedItems()

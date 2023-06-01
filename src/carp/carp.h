@@ -133,10 +133,10 @@ class Carp {
   //
   // Return currently negotiated range, held by oob_buffer
   //
-  InclusiveRange GetRange() const { return oob_buffer_.range_; }
+  Range GetInBoundsRange() const { return oob_buffer_.ibrange_; }
 
-  void UpdateRange(Range range) {
-    oob_buffer_.SetRange(InclusiveRange(range.rmin(), range.rmax()));
+  void UpdateInBoundsRange(Range range) {
+    oob_buffer_.SetInBoundsRange(Range(range.rmin(), range.rmax()));
   }
 
   void UpdateState(MainThreadState new_state) {

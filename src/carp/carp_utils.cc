@@ -263,11 +263,10 @@ int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
   // since Pivots are protected, the class needs to be unwrapped here
   carp->LogMyPivots(pivots_arr, num_pivots, "RENEG_AGGR_PIVOTS");
 
-  // casting inclusive to exclusive, but ok for the purpose used
-  Range carp_range = carp->GetRange();
+  Range carp_range = carp->GetInBoundsRange();
   Range pivot_bounds = pivots->GetPivotBounds();
   assert_monotonicity(carp_range, pivot_bounds);
-  carp->UpdateRange(pivot_bounds);
+  carp->UpdateInBoundsRange(pivot_bounds);
   carp->bins_.UpdateFromPivots(*pivots);
 
 #ifdef DELTAFS_PLFSDIR_RANGEDB
