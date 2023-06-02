@@ -8,7 +8,7 @@
 #define RANGE_PARANOID_CHECKS 1
 #define RANGE_EPSILON 1e-5
 
-void pivot_union(std::vector<rb_item_t> rb_items,
+void pivot_union(std::vector<bounds_t> bounds,
                  std::vector<double>& unified_bins,
                  std::vector<float>& unified_bin_counts,
                  std::vector<double>& rank_bin_weights, int num_ranks);

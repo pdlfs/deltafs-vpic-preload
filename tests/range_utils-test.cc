@@ -1,3 +1,4 @@
+#include "carp/pivot_buffer.h"
 #include "carp/range_utils.h"
 
 #include <stdio.h>

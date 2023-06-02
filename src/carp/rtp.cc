@@ -42,7 +42,7 @@ namespace carp {
 RTP::RTP(Carp* carp, const CarpOptions& opts)
     : carp_(carp),
       sh_(nullptr),
-      data_buffer_(opts.rtp_pvtcnt),
+      pivot_buffer_(opts.rtp_pvtcnt),
       round_num_(0),
       my_rank_(opts.my_rank),
       num_ranks_(opts.num_ranks) {
@@ -375,7 +375,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   (fanout_[(stage_idx)] == (item_count))
 
   if (msg_round_num != round_num_) {
-    stage_pivot_count = data_buffer_.StoreData(
+    stage_pivot_count = pivot_buffer_.StoreData(
         stage_num, pivots, num_pivots, pivot_weight, /* isnextround */ true);
 
     /* If we're receiving a pivot for a future round, we can never have
@@ -388,7 +388,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
      */
     assert(!EXPECTED_ITEMS_FOR_STAGE(stage_num, stage_pivot_count));
   } else {
-    stage_pivot_count = data_buffer_.StoreData(
+    stage_pivot_count = pivot_buffer_.StoreData(
         stage_num, pivots, num_pivots, pivot_weight, /*isnextround */ false);
   }
   mutex_.Unlock();
@@ -508,7 +508,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   PivotUtils::UpdatePivots(carp_, &pivots_aggr);
 
-  data_buffer_.AdvanceRound();
+  pivot_buffer_.AdvanceRound();
   round_num_++;
 
   if (state_.GetNextRoundStart()) {
@@ -561,7 +561,7 @@ Status RTP::ReplayBegin() {
 
 void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
                                  double* merged_pivots, double& merged_weight) {
-  std::vector<rb_item_t> rbvec;
+  std::vector<bounds_t> boundsv;
 
   std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
@@ -570,10 +570,10 @@ void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
 
   double sample_weight;
 
-  data_buffer_.LoadIntoRbvec(stage_num, rbvec);
-  data_buffer_.GetPivotWeights(stage_num, pivot_weights);
+  pivot_buffer_.LoadBounds(stage_num, boundsv);
+  pivot_buffer_.GetPivotWeights(stage_num, pivot_weights);
 
-  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_weights,
+  pivot_union(boundsv, unified_bins, unified_bin_counts, pivot_weights,
               fanout_[stage_num]);
 
   std::vector<double> merged_pivot_vec;

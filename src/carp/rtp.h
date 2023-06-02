@@ -3,7 +3,7 @@
 #include <time.h>
 
 #include "carp/rtp_internal.h"
-#include "data_buffer.h"
+#include "pivot_buffer.h"
 #include "pdlfs-common/port.h"
 #include "pdlfs-common/status.h"
 #include "preload_shuffle.h"
@@ -105,7 +105,7 @@ class RTP {
    * Most ranks will not need a Stage 2 or a Stage 3, but this allocation is
    * simpler.
    */
-  DataBuffer data_buffer_;
+  PivotBuffer pivot_buffer_;
 
   int round_num_;
   int my_rank_;

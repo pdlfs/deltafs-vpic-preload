@@ -5,7 +5,7 @@
 #pragma once
 
 #include "carp/carp_containers.h"
-#include "carp/data_buffer.h"
+#include "carp/pivot_buffer.h"
 #include "carp/rtp.h"
 #include "carp/rtp_internal.h"
 #include "pivot_common.h"
@@ -32,7 +32,7 @@ class PivotAggregator {
                             std::vector<Pivots>& all_merged_pivots, int stage,
                             int num_out);
 
-  static void BufferPivots(DataBuffer& dbuf, int stage, Pivots& p);
+  static void BufferPivots(PivotBuffer& dbuf, int stage, Pivots& p);
 
   const std::vector<int> pvtcnt_vec_;
 };

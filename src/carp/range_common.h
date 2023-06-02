@@ -13,13 +13,6 @@
 
 #include "range_constants.h"
 
-typedef struct rb_item {
-  int rank;
-  double bin_val;
-  double bin_other;
-  bool is_start;
-} rb_item_t;  // rank-bin item
-
 enum MainThreadState {
   MT_INIT,
   MT_READY,

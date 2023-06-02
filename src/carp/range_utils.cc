@@ -1,5 +1,3 @@
-#include "range_utils.h"
-
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -11,34 +9,37 @@
 
 #include "preload_internal.h"
 
+#include "pivot_buffer.h"
+#include "range_utils.h"
+
 #define RANGE_DEBUG_T 1
 
 extern preload_ctx_t pctx;
 
-void pivot_union(std::vector<rb_item_t> rb_items,
+void pivot_union(std::vector<bounds_t> boundsv,
                  std::vector<double>& unified_bins,
                  std::vector<float>& unified_bin_counts,
                  std::vector<double>& rank_bin_weights, int num_ranks) {
-  assert(rb_items.size() >= 2u);
+  assert(boundsv.size() >= 2u);
 
   float rank_bin_start[num_ranks];
   float rank_bin_end[num_ranks];
 
-  const float BIN_EMPTY = rb_items[0].bin_val - 10;
+  const float BIN_EMPTY = boundsv[0].b_value - 10;
 
   std::fill(rank_bin_start, rank_bin_start + num_ranks, BIN_EMPTY);
 
-  float prev_bin_val = rb_items[0].bin_val;
-  float prev_bp_bin_val = rb_items[0].bin_val;
+  float prev_bin_val = boundsv[0].b_value;
+  float prev_bp_bin_val = boundsv[0].b_value;
 
   /* Ranks that currently have an active bin */
   std::list<int> active_ranks;
 
-  for (size_t i = 0; i < rb_items.size(); i++) {
-    int bp_rank = rb_items[i].rank;
-    float bp_bin_val = rb_items[i].bin_val;
-    float bp_bin_other = rb_items[i].bin_other;
-    bool bp_is_start = rb_items[i].is_start;
+  for (size_t i = 0; i < boundsv.size(); i++) {
+    int bp_rank = boundsv[i].pbidx;
+    float bp_bin_val = boundsv[i].b_value;
+    float bp_bin_other = boundsv[i].b_far_end;
+    bool bp_is_start = boundsv[i].is_start;
 
 #ifdef RANGE_DEBUG
     fprintf(stderr, "BP_ERR Rank %d/%d - bin_prop: %d %.1f %.1f %s\n",

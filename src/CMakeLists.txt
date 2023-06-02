@@ -43,9 +43,9 @@ set(CARP_SOURCES
         carp/carp_perflog.cc
         carp/carp_preload.cc
         carp/carp_utils.cc
-        carp/data_buffer.cc
         carp/msgfmt.cc
         carp/oob_buffer.cc
+        carp/pivot_buffer.cc
         carp/policy.cc
         carp/range_common.cc
         carp/range_utils.cc

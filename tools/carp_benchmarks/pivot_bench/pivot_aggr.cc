@@ -78,19 +78,19 @@ void PivotAggregator::AggregatePivotsStage(
 void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
                                           Pivots& merged_pivots, int stage,
                                           int num_out) {
-  DataBuffer dbuf(pvtcnt_vec_.data());
+  PivotBuffer dbuf(pvtcnt_vec_.data());
   for (size_t pidx = 0; pidx < pivots.size(); pidx++) {
     BufferPivots(dbuf, stage, pivots[pidx]);
   }
 
-  std::vector<rb_item_t> rbvec;
+  std::vector<bounds_t> boundsv;
   std::vector<double> unified_bins;
   std::vector<float> unified_bin_counts;
   std::vector<double> pivot_weights;
 
-  dbuf.LoadIntoRbvec(stage, rbvec);
+  dbuf.LoadBounds(stage, boundsv);
   dbuf.GetPivotWeights(stage, pivot_weights);
-  pivot_union(rbvec, unified_bins, unified_bin_counts, pivot_weights,
+  pivot_union(boundsv, unified_bins, unified_bin_counts, pivot_weights,
               pivots.size());
 
   std::vector<double> pvt_tmp(num_out, 0);
@@ -104,7 +104,7 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
        merged_pivots.ToString().c_str());
 }
 
-void PivotAggregator::BufferPivots(DataBuffer& dbuf, int stage, Pivots& p) {
+void PivotAggregator::BufferPivots(PivotBuffer& dbuf, int stage, Pivots& p) {
   double pvt_weight = p.PivotWeight();
   size_t pvt_count = p.Size();
   double pvt_data[pvt_count];
