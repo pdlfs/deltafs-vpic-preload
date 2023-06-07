@@ -71,7 +71,7 @@ int PivotUtils::CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   /* for computation purposes, we need to reserve one, so as to always have
    * two points of interpolation */
 
-  double part_per_pivot = (oob_left_sz - 1) * 1.0 / num_pivots;
+  double part_per_pivot = (oob_left_sz - 1) * 1.0 / (num_pivots - 1);
 
   for (size_t pvt_idx = 1; pvt_idx < num_pivots - 1; pvt_idx++) {
     double oob_idx = part_per_pivot * pvt_idx;
