@@ -149,13 +149,6 @@ void Carp::PerflogReneg(int round_num) {
     fprintf(perflog_.fp, "%" PRIu64 " ", rankcnt[i]);
   }
   fprintf(perflog_.fp, ": OOB (%zu)\n", this->OobSize());
-
-  fprintf(perflog_.fp, "%lu,RENEG_PIVOTS,", timestamp);
-  int pvtcnt = pivots_.Size();
-  for (int i = 0; i < pvtcnt; i++) {
-    fprintf(perflog_.fp, "%.4lf ", pivots_[i]);
-  }
-  fprintf(perflog_.fp, "\n");
 }
 
 /*
@@ -210,15 +203,15 @@ void Carp::PerflogMyPivots(double* pivots, int num_pivots, const char* lab) {
 /*
  * Carp::PerflogPivots: logs pivots and rank_count_aggr_
  */
-void Carp::PerflogPivots(int pvtcnt) {
+void Carp::PerflogPivots(Pivots &pivots) {
   uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
   assert(perflog_.fp);
   mutex_.AssertHeld();    /* accessing carp fields */
 
   fprintf(perflog_.fp, "%lu,RENEG_PIVOTS_E%d,", timestamp, epoch_);
-  for (int i = 0 ; i < pvtcnt ; i++) {
-    fprintf(perflog_.fp, "%.4lf ", pivots_[i]);
+  for (size_t i = 0 ; i < pivots.Size() ; i++) {
+    fprintf(perflog_.fp, "%.4lf ", pivots[i]);
   }
   fprintf(perflog_.fp, "\n");
 

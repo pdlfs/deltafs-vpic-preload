@@ -73,7 +73,6 @@ class Carp {
         cv_(&mutex_),
         bins_(options.num_ranks),
         oob_buffer_(options.oob_sz),
-        pivots_(options.num_ranks),
         policy_(nullptr) {
     MutexLock ml(&mutex_);
     // necessary to set mts_state_ to READY
@@ -97,9 +96,6 @@ class Carp {
   }
 
   ~Carp() {
-    mutex_.Lock();
-    LogPivots(options_.rtp_pvtcnt[1]);  /* expects mutex_ to be held */
-    mutex_.Unlock();
     this->PerflogDestroy();
   }
 
@@ -189,11 +185,10 @@ class Carp {
     if (PerflogOn()) PerflogMyPivots(pivots, num_pivots, lab);
   }
 
-  /* LogPivots logs both my_pivots_ and rank_counts_aggr_ */
+  /* LogPivots logs both pivots and rank_counts_aggr_ */
   /* called from HandleBegin w/caller holding mutex_ */
-  /* also called from carp dtor during shutdown */
-  void LogPivots(int pvtcnt) {
-    if (PerflogOn()) PerflogPivots(pvtcnt);
+  void LogPivots(Pivots& pivots) {
+    if (PerflogOn()) PerflogPivots(pivots);
   }
 
   /* called from HandleBegin and HandlePivots */
@@ -206,22 +201,22 @@ class Carp {
     }
   }
 
-  void CalculatePivots(const size_t num_pivots) {
+  /* pivots should already be sized to the desired pivot count */
+  void CalculatePivots(Pivots& pivots) {
     mutex_.AssertHeld();
     assert(mts_mgr_.GetState() == MainThreadState::MT_BLOCK);
 
-    pivots_.Resize(num_pivots);
-    pivots_.FillZeros();
+    pivots.FillZeros();           /* XXXCDC: prob already done by ctor? */
 
     PivotCalcCtx pvt_ctx;
     PopulatePivotCalcState(&pvt_ctx);
-    PivotUtils::CalculatePivots(&pvt_ctx, &pivots_, num_pivots);
+    PivotUtils::CalculatePivots(&pvt_ctx, &pivots, pivots.Size());
 
-    if (pivots_.PivotWeight() < 1e-3) {  // arbitrary limit for null pivots
-      pivots_.MakeUpEpsilonPivots();
+    if (pivots.PivotWeight() < 1e-3) {  // arbitrary limit for null pivots
+      pivots.MakeUpEpsilonPivots();
     }
 
-    pivots_.AssertMonotonicity();
+    pivots.AssertMonotonicity();
   }
 
  private:
@@ -265,7 +260,7 @@ class Carp {
   void PerflogReneg(int round_num);
   void PerflogAggrBinCount();
   void PerflogMyPivots(double* pivots, int num_pivots, const char* lab);
-  void PerflogPivots(int pvtcnt);
+  void PerflogPivots(Pivots &pivots);
   void PerflogVPrintf(const char* fmt, va_list ap);
 
  private:
@@ -300,7 +295,6 @@ class Carp {
   /* protected by mutex_ */
   OrderedBins bins_;
   OobBuffer oob_buffer_;          /* out of bounds data */
-  Pivots pivots_;                 /* my reneg calculated pivots */
 
  private:
   friend class InvocationPolicy;
