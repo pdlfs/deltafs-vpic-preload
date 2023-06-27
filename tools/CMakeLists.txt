@@ -14,6 +14,9 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 add_subdirectory(carp_benchmarks)
 
+add_executable(calc_pivots calc_pivots.cc)
+target_link_libraries(calc_pivots deltafs-preload)
+
 add_executable(preload-plfsdir-reader preload_plfsdir_reader.cc)
 target_link_libraries(preload-plfsdir-reader deltafs)
 

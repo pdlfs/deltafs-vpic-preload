@@ -402,6 +402,12 @@ class PivotCalcCtx {
 
   void SetBins(OrderedBins* bins) { bins_ = bins; }
 
+  // only used for testing
+  void SetOobInfo(std::vector<float>& left, std::vector<float>& right) {
+    oob_left_ = left;
+    oob_right_ = right;
+  }
+
   Range GetBinRange() const {
     if (bins_ == nullptr)
       return Range();
