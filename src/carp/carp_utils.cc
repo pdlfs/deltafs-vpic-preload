@@ -112,7 +112,7 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   int oob_left_sz = pvt_ctx->oob_left_.size(),
       oob_right_sz = pvt_ctx->oob_right_.size();
 
-  float particle_count = bins->GetTotalMass();
+  float particle_count = bins->GetTotalWeight();
 
   pivots->pivots_[0] = range_start;
   pivots->pivots_[num_pivots - 1] = range_end;
@@ -162,11 +162,12 @@ int PivotUtils::CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
   }
 
   for (size_t bidx = 0; bidx < bins->Size(); bidx++) {
-    const double cur_bin_total = bins->counts_[bidx];
-    double cur_bin_left = bins->counts_[bidx];
+    const double cur_bin_total = bins->Weight(bidx);
+    double cur_bin_left = bins->Weight(bidx);
 
-    double bin_start = bins->bins_[bidx];
-    double bin_end = bins->bins_[bidx + 1];
+    Range brange = bins->GetBin(bidx);
+    double bin_start = brange.rmin();
+    double bin_end = brange.rmax();
     const double bin_width_orig = bin_end - bin_start;
 
     while (particles_carried_over + cur_bin_left >= part_per_pivot - 1e-05) {
@@ -286,7 +287,7 @@ int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
 int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                                float& range_end) {
   size_t nleft = pvt_ctx->oob_left_.size();
-  size_t nmiddle = (pvt_ctx->bins_) ? pvt_ctx->bins_->GetTotalMass() : 0;
+  size_t nmiddle = (pvt_ctx->bins_) ? pvt_ctx->bins_->GetTotalWeight() : 0;
   size_t nright = pvt_ctx->oob_right_.size();
   Range middle_range;
   if (nmiddle)

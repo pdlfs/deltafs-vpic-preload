@@ -144,7 +144,7 @@ void Carp::PerflogReneg(int round_num) {
 
   const uint64_t* rankcnt;
   int rankcntsz;
-  bins_.GetCountsArr(&rankcnt, &rankcntsz);
+  bins_.GetWeightArr(&rankcnt, &rankcntsz);
   for (int i = 0; i < rankcntsz; i++) {
     fprintf(perflog_.fp, "%" PRIu64 " ", rankcnt[i]);
   }

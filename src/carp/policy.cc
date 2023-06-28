@@ -42,7 +42,11 @@ bool InvocationIntraEpoch::TriggerReneg() {
 }
 
 int InvocationIntraEpoch::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
-    return carp_.bins_.SearchBins(p.indexed_prop, rank, false);
+    size_t bidx;
+    int rv;
+    rv = carp_.bins_.SearchBins(p.indexed_prop, bidx, false);
+    rank = bidx;
+    return(rv);
 }
 
 bool InvocationInterEpoch::TriggerReneg() {
@@ -59,7 +63,11 @@ bool InvocationInterEpoch::TriggerReneg() {
 
 int InvocationInterEpoch::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
   bool force = reneg_triggered_;
-  return carp_.bins_.SearchBins(p.indexed_prop, rank, force);
+  size_t bidx;
+  int rv;
+  rv = carp_.bins_.SearchBins(p.indexed_prop, bidx, force);
+  rank = bidx;
+  return(rv);
 }
 
 }  // namespace carp

@@ -58,7 +58,7 @@ class PivotBench {
 
     carp::OrderedBins bins(opts_.nranks);
     bins.UpdateFromPivots(oob_pivots);
-    bins.ZeroCounts();
+    bins.ZeroWeights();
     ReadEpochIntoBins(epoch, bins, parallel);
 
     double load_std = bins.PrintNormStd();
@@ -75,7 +75,7 @@ class PivotBench {
     for (int ep = 0; ep < num_eps; ep++) {
       carp::OrderedBins bins(opts_.nranks);
       bins.UpdateFromPivots(pp_ep0);
-      bins.ZeroCounts();
+      bins.ZeroWeights();
       ReadEpochIntoBins(ep, bins, parallel);
 
       double load_std = bins.PrintNormStd();
@@ -93,7 +93,7 @@ class PivotBench {
 
       carp::OrderedBins bins(opts_.nranks);
       bins.UpdateFromPivots(pp_epXsub1);
-      bins.ZeroCounts();
+      bins.ZeroWeights();
       ReadEpochIntoBins(ep, bins, parallel);
 
       double load_std = bins.PrintNormStd();
@@ -111,7 +111,7 @@ class PivotBench {
 
       carp::OrderedBins bins(opts_.nranks);
       bins.UpdateFromPivots(pp_epX);
-      bins.ZeroCounts();
+      bins.ZeroWeights();
       ReadEpochIntoBins(ep, bins, parallel);
 
       double load_std = bins.PrintNormStd();

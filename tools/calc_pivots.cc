@@ -118,19 +118,19 @@ int main(int argc, char **argv) {
       }
       printf("insert oob: %f\n", prop);
     } else {
-      int bidx;
+      size_t bidx;
       int rv = bins.SearchBins(prop, bidx, false);
       if (rv != 0) {
         printf("search bin failed!\n");
         exit(1);
       }
       bins.IncrementBin(bidx);
-      printf("insert bins: %f (bidx=%d)\n", prop, bidx);
+      printf("insert bins: %f (bidx=%zd)\n", prop, bidx);
     }
   }
 
   printf("load complete\n");
-  printf("  total bin weight = %" PRIu64 "\n", bins.GetTotalMass());
+  printf("  total bin weight = %" PRIu64 "\n", bins.GetTotalWeight());
   printf("  total oob weight = %zd\n\n", oob.Size());
 
   pdlfs::carp::PivotCalcCtx pvt_ctx(&bins);

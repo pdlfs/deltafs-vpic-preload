@@ -132,9 +132,9 @@ TEST(RangeUtilsTest, OrderedBinAddition) {
 
   OrderedBins bins_total = bins1 + bins2;
 
-  ASSERT_EQ(bins1.GetTotalMass(), 10);
-  ASSERT_EQ(bins2.GetTotalMass(), 10);
-  ASSERT_EQ(bins_total.GetTotalMass(), 20);
+  ASSERT_EQ(bins1.GetTotalWeight(), 10);
+  ASSERT_EQ(bins2.GetTotalWeight(), 10);
+  ASSERT_EQ(bins_total.GetTotalWeight(), 20);
 }
 
 TEST(RangeUtilsTest, PivotCalc) {
