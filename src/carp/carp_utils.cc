@@ -286,9 +286,11 @@ int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
 int PivotUtils::GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
                                float& range_end) {
   size_t nleft = pvt_ctx->oob_left_.size();
-  size_t nmiddle = pvt_ctx->bins_->GetTotalMass();
+  size_t nmiddle = (pvt_ctx->bins_) ? pvt_ctx->bins_->GetTotalMass() : 0;
   size_t nright = pvt_ctx->oob_right_.size();
-  Range middle_range = pvt_ctx->bins_->GetRange();
+  Range middle_range;
+  if (nmiddle)
+    middle_range = pvt_ctx->bins_->GetRange();
 
   assert(nleft + nmiddle + nright > 0); /* otherwise would we call this? */
 
