@@ -233,7 +233,8 @@ class OrderedBins {
   OrderedBins operator+(const OrderedBins& rhs) {
     assert(Size() == rhs.Size());
     OrderedBins tmp(Size());
-    std::copy(bins_.begin(), bins_.end(), tmp.bins_.begin());
+    // this->bins_ may not be set, so copy from rhs
+    std::copy(rhs.bins_.begin(), rhs.bins_.end(), tmp.bins_.begin());
     std::copy(counts_.begin(), counts_.end(), tmp.counts_.begin());
     std::copy(counts_aggr_.begin(), counts_aggr_.end(),
               tmp.counts_aggr_.begin());
@@ -487,12 +488,24 @@ class PivotCalcCtx {
   void CleanupOob() {
     if (oob_left_.size() > 1) {
       std::sort(oob_left_.begin(), oob_left_.end());
+      size_t oldlsz = oob_left_.size();
       deduplicate_sorted_vector(oob_left_);
+      size_t newlsz  = oob_left_.size();
+      if (newlsz != oldlsz) {
+        flog(LOG_INFO, "[OOBBuffer, Left] Duplicates removed (%zu to %zu)",
+             oldlsz, newlsz);
+      }
     }
 
     if (oob_right_.size() > 1) {
       std::sort(oob_right_.begin(), oob_right_.end());
+      size_t oldrsz = oob_left_.size();
       deduplicate_sorted_vector(oob_right_);
+      size_t newrsz = oob_left_.size();
+      if (newrsz != oldrsz) {
+        flog(LOG_INFO, "[OOBBuffer, Right] Duplicates removed (%zu to %zu)",
+             oldrsz, newrsz);
+      }
     }
   }
 
