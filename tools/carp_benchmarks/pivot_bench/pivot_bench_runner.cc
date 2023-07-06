@@ -63,6 +63,7 @@ void print_opts() {
 }
 
 int main(int argc, char* argv[]) {
+  setlinebuf(stdout);
   argv0 = argv[0];
 
   set_default_opts();
