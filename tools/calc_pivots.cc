@@ -15,7 +15,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <carp/carp_containers.h>
 #include <carp/oob_buffer.h>
 #include <carp/carp_utils.h>
 
@@ -133,15 +132,10 @@ int main(int argc, char **argv) {
   printf("  total bin weight = %" PRIu64 "\n", bins.GetTotalWeight());
   printf("  total oob weight = %zd\n\n", oob.Size());
 
-  pdlfs::carp::PivotCalcCtx pvt_ctx(&bins);
+  pdlfs::carp::ComboConsumer<float,uint64_t> cco(&bins, &oob);
+  pdlfs::carp::Pivots piv(pivot_count);
 
-  std::vector<float> left, right;
-  oob.GetPartitionedProps(left, right);
-  pvt_ctx.SetOobInfo(left, right);
-
-  pdlfs::carp::Pivots piv;
-
-  pdlfs::carp::PivotUtils::CalculatePivots(&pvt_ctx, &piv, pivot_count);
+  piv.Calculate(cco);
 
   printf("result pivots: size=%zd, weight=%lf\n", piv.Size(),
          piv.PivotWeight());

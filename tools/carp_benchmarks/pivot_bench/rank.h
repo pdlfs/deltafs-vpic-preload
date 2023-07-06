@@ -17,52 +17,43 @@ class Rank {
         tr_(&tr),
         cur_epoch_read_(-1),
         cur_ep_offset_(0),
-        cur_ep_size_(0),
-        pivot_ctx_(&bins_),
-        bins_(opts_.nranks) {}
+        cur_ep_size_(0) {}
 
-  void GetOobPivots(PivotCalcCtx* pvt_ctx, int epoch, Pivots* oob_pivots,
-                    int npivots) {
-    // Compute OOB pivots from pivot_ctx
-
+  void GetOobPivots(int epoch, Pivots* oob_pivots, int pivot_count) {
+    // Compute OOB pivots
     ReadEpoch(epoch);
     cur_ep_offset_ = 0;
-
     bool eof = false;
+
     // Read oobsz items from epoch
-    ReadItems(pvt_ctx, epoch, opts_.oobsz, eof);
+    OobBuffer oob(opts_.oobsz);   /* tmp holding area */
+    ReadItems(epoch, opts_.oobsz, NULL, &oob, eof);
     assert(eof == false);  // A rank trace should have a lot more than OOB items
+
     // Compute own pivots
-    PivotUtils::CalculatePivots(pvt_ctx, oob_pivots, npivots);
+    ComboConsumer<float,uint64_t> cco(NULL, &oob);
+    oob_pivots->Resize(pivot_count);    // XXX caller should do this?
+    oob_pivots->Calculate(cco);
   }
 
-  void GetOobPivots(int epoch, Pivots* oob_pivots, int npivots) {
-    PivotCalcCtx pivot_ctx;
-    GetOobPivots(&pivot_ctx, epoch, oob_pivots, npivots);
-  }
-
-  void GetPerfectPivots(int epoch, Pivots* pivots, int npivots) {
-    // Compute final pivots from pivot_ctx
-
-    // 1. Start with empty pivot_ctx
-    PivotCalcCtx pvt_ctx;
-    Pivots oob_pivots;
-
-    GetOobPivots(&pvt_ctx, epoch, &oob_pivots, npivots + 1);
+  void GetPerfectPivots(int epoch, Pivots* pivots, int npchunk) {
+    Pivots oob_pivots(npchunk + 1);   /* convert to pivot count */
+    GetOobPivots(epoch, &oob_pivots, npchunk + 1);
 
     // Different from regular bins, which are = nranks
-    OrderedBins bins_pp(npivots);
-    pvt_ctx.SetBins(&bins_pp);
-    bins_pp.UpdateFromPivots(oob_pivots);
-    pvt_ctx.FlushOob();
+    OrderedBins bins_pp(npchunk);
+    oob_pivots.InstallInOrderedBins(&bins_pp);
 
     // Read rest of items from epoch
     bool eof = false;
-    ReadItems(&pvt_ctx, epoch, SIZE_MAX, eof);
+    OobBuffer oob(cur_ep_size_);
+    oob.SetInBoundsRange(bins_pp.GetRange());
+    ReadItems(epoch, SIZE_MAX, &bins_pp, &oob, eof);
     assert(eof == true);
 
-    // Calculate pivots. These should be a perfect fit for the epoch
-    PivotUtils::CalculatePivots(&pvt_ctx, pivots, npivots);
+    ComboConsumer<float,uint64_t> cco(&bins_pp, &oob);
+    pivots->Resize(npchunk);    // XXX caller should do this?
+    pivots->Calculate(cco);
   }
 
   void ReadEpochIntoBins(int epoch, OrderedBins* bins) {
@@ -76,8 +67,9 @@ class Rank {
   }
 
  private:
-  void ReadItems(PivotCalcCtx* pvt_ctx, int epoch, size_t itemcnt, bool& eof) {
-    ReadEpoch(epoch);
+  void ReadItems(int epoch, size_t itemcnt, OrderedBins* bins,
+                 OobBuffer* oob, bool& eof) {
+    ReadEpoch(epoch);   /* noop if already loaded */
     size_t items_rem = cur_ep_size_ - cur_ep_offset_;
     if (items_rem <= itemcnt) {
       itemcnt = items_rem;
@@ -85,8 +77,21 @@ class Rank {
     }
 
     const float* items = reinterpret_cast<const float*>(data_.c_str());
-    // Deprecated: check the OOB/bins condition here. Maintain your own OOB
-    pvt_ctx->AddData(items + cur_ep_offset_, itemcnt);
+    for (size_t i = cur_ep_offset_ ; i < cur_ep_offset_ + itemcnt ; i++) {
+      size_t bidx;
+      if (bins && bins->SearchBins(items[i], bidx, false) == 0) {
+        bins->IncrementBin(bidx);
+      } else if (oob) {
+        particle_mem_t ptmp;
+        ptmp.indexed_prop = items[i];
+        ptmp.buf_sz = 0;
+        ptmp.shuffle_dest = -1;
+        if (oob->Insert(ptmp) != 0) {
+          fprintf(stderr, "oob insert failed?!\n");
+          exit(1);
+        }
+      }
+    }
     cur_ep_offset_ += itemcnt;
   }
 
@@ -95,22 +100,20 @@ class Rank {
       return;
     }
 
-    tr_->ReadEpoch(epoch, rank_, data_);
+    tr_->ReadEpoch(epoch, rank_, data_);  /* stores data in data_ */
     cur_epoch_read_ = epoch;
     cur_ep_offset_ = 0;
     cur_ep_size_ = data_.size() / sizeof(float);
   }
 
-  const pdlfs::PivotBenchOpts opts_;
-  const int rank_;
-  TraceReader* const tr_;
-  std::string data_;
-  int cur_epoch_read_;
-  size_t cur_ep_offset_;
-  size_t cur_ep_size_;
-
-  carp::PivotCalcCtx pivot_ctx_;
-  carp::OrderedBins bins_;
+  const pdlfs::PivotBenchOpts opts_;     /* options (from ctor) */
+  const int rank_;                       /* my rank (from ctor) */
+  TraceReader* const tr_;                /* data source (from ctor) */
+  std::string data_;                     /* current epoch data */
+  int cur_epoch_read_;                   /* current epoch # */
+  size_t cur_ep_offset_;                 /* float offset in data */
+  size_t cur_ep_size_;                   /* #floats in data */
 };
+
 }  // namespace carp
 }  // namespace pdlfs

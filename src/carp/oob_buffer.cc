@@ -3,6 +3,7 @@
 //
 
 #include "oob_buffer.h"
+#include "range_common.h" /* for deduplicate_sorted_vector */
 
 #include <algorithm>
 

@@ -18,9 +18,6 @@ class TraceReader {
   // Copied from range_runner
   Status DiscoverEpochs(size_t& num_ep);
 
-  Status ReadRankIntoPivotCtx(size_t ep_idx, int rank,
-                              carp::PivotCalcCtx* pvt_ctx, int nitems);
-
   Status ReadRankIntoBins(size_t ep_idx, int rank, carp::OrderedBins& bins);
 
   Status ReadAllRanksIntoBins(size_t ep_idx, carp::OrderedBins& bins);

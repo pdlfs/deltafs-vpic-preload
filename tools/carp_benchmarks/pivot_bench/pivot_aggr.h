@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "carp/carp_containers.h"
+#include "common.h"
+#include "carp/pivots.h"
 #include "carp/pivot_buffer.h"
 #include "carp/rtp.h"
 #include "carp/rtp_internal.h"

@@ -7,14 +7,13 @@
 #include <assert.h>
 #include <unistd.h>
 
+#include <sstream>
 #include <string>
 #include <vector>
 
-#include "../common.h"         /* for flog */
-
+#include "comboconsumer.h"
+#include "ordered_bins.h"
 #include "range.h"
-
-#include "range_constants.h"   /* for CARP_BAD_PIVOTS */
 
 namespace pdlfs {
 namespace carp {
@@ -60,19 +59,18 @@ class Pivots {
     assert(pcount > 1);
   }
 
+  /* accessor functions */
+  size_t Size() const { return pivots_.size(); }    /* current pivot_count */
+  double PivotWeight() const { return weight_; }    /* chunk weight */
+  const double& operator[](std::size_t idx) const { /* access bin array */
+    return pivots_[idx];
+  }
+
   /* set the pivot_count to a new value (defines pcount-1 chunks/bins) */
   void Resize(size_t pcount) {
     assert(pcount > 1);
     pivots_.resize(pcount);
   }
-
-  size_t Size() const { return pivots_.size(); }   /* current pivot_count */
-
-  double PivotWeight() const { return weight_; }
-
-  std::string ToString() const;
-
-  const double& operator[](std::size_t idx) const { return pivots_[idx]; }
 
   /* load pivots and weight from a vector and weight value */
   void LoadPivots(std::vector<double>& pvtvec, double pvtweight) {
@@ -99,38 +97,44 @@ class Pivots {
     is_set_ = true;
   }
 
-  //
+  /* install our pivots into an ordered_bins */
+  void InstallInOrderedBins(OrderedBins *ob) {
+    ob->UpdateFromPivVec(pivots_);
+  }
+
+  void Calculate(ComboConsumer<float,uint64_t>& cco) {
+    this->FillZeros();
+    if (this->Size() == 0)  /* no data, return leaving zeros in pivots */
+      return;
+    assert(this->Size() > 1);
+
+    int npchunk = this->Size() - 1;
+    for (size_t lcv = 0 ; lcv < this->Size() ; lcv++) {
+      if (lcv)
+        cco.ConsumeWeightTo(cco.TotalWeight() *
+                            ((npchunk - lcv) / (double) npchunk) );
+      pivots_[lcv] = cco.CurrentValue();
+    }
+
+    this->weight_ = cco.TotalWeight() / (double) npchunk;
+
+    if (this->PivotWeight() < 1e-3) { // arbitrary limit for null pivots
+      this->MakeUpEpsilonPivots();
+    }
+
+    this->AssertMonotonicity();
+  }
+
+  /* methods in pivots.cc */
+
   // Used as implicit invalid pivots. XXXAJ: can be deprecated
-  //
-  void MakeUpEpsilonPivots() {
-    int num_pivots = pivots_.size();
+  void MakeUpEpsilonPivots();
 
-    float mass_per_pivot = 1.0f / (num_pivots - 1);
-    weight_ = mass_per_pivot;
+  // assert monotonicity in pivots_ array
+  void AssertMonotonicity();
 
-    for (int pidx = 0; pidx < num_pivots; pidx++) {
-      pivots_[pidx] = mass_per_pivot * pidx;
-    }
-
-    is_set_ = true;
-  }
-
-  void AssertMonotonicity() {
-    if (!is_set_) {
-      flog(LOG_WARN, "No pivots set for monotonicity check!");
-      return;
-    }
-
-    if (weight_ == CARP_BAD_PIVOTS) {
-      flog(LOG_DBUG, "Pivots set to invalid. Not checking...");
-      return;
-    }
-
-    int num_pivots = pivots_.size();
-    for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
-      assert(pivots_[pidx] < pivots_[pidx + 1]);
-    }
-  }
+  // provide a string (for debug/diag info)
+  std::string ToString() const;
 
  private:
   //

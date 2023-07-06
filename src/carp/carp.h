@@ -11,7 +11,6 @@
 
 #include "../preload_shuffle.h"
 
-#include "carp_containers.h"
 #include "carp_utils.h"
 #include "oob_buffer.h"
 #include "policy.h"
@@ -89,7 +88,7 @@ class Carp {
     } else {
       ABORT("unknown reneg_policy specified");
     }
-    
+
     if (options_.enable_perflog) {
       this->PerflogStartup();
     }
@@ -205,26 +204,11 @@ class Carp {
   void CalculatePivots(Pivots& pivots) {
     mutex_.AssertHeld();
     assert(mts_mgr_.GetState() == MainThreadState::MT_BLOCK);
-
-    pivots.FillZeros();           /* XXXCDC: prob already done by ctor? */
-
-    PivotCalcCtx pvt_ctx;
-    PopulatePivotCalcState(&pvt_ctx);
-    PivotUtils::CalculatePivots(&pvt_ctx, &pivots, pivots.Size());
-
-    if (pivots.PivotWeight() < 1e-3) {  // arbitrary limit for null pivots
-      pivots.MakeUpEpsilonPivots();
-    }
-
-    pivots.AssertMonotonicity();
+    ComboConsumer<float,uint64_t> cco(&bins_, &oob_buffer_);
+    pivots.Calculate(cco);
   }
 
  private:
-  void PopulatePivotCalcState(PivotCalcCtx* pvt_ctx) {
-    pvt_ctx->SetBins(&bins_);
-    oob_buffer_.GetPartitionedProps(pvt_ctx->oob_left_, pvt_ctx->oob_right_);
-  }
-
   void AssignShuffleTarget(particle_mem_t& p) {
     int rv, dest_rank;
     rv = policy_->ComputeShuffleTarget(p, dest_rank);

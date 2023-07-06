@@ -7,7 +7,6 @@
 #include <pdlfs-common/env.h>
 #include <pdlfs-common/port_posix.h>
 
-#include "carp/carp_containers.h"
 #include "pivot_common.h"
 #include "rank.h"
 #include "trace_reader.h"

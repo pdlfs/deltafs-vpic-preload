@@ -8,8 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "carp/oob_buffer.h"
 #include "msgfmt.h"
+#include "oob_buffer.h"
+#include "pivots.h"
 #include "range_constants.h"
 
 namespace pdlfs {
@@ -20,25 +21,6 @@ class Carp;
 
 class PivotUtils {
  public:
-  /**
-   * @brief Calculate pivots from the current pivot_ctx state.
-   * This also modifies OOB buffers (sorts them), but their order shouldn't
-   * be relied upon anyway.
-   *
-   * SAFE version computes "token pivots" in case no mass is there to
-   * actually compute pivots. This ensures that merging calculations
-   * do not fail.
-   *
-   * XXX: a more semantically appropriate fix would be to define addition
-   * and resampling for zero-pivots
-   *
-   * @param carp pivot context
-   *
-   * @return
-   */
-  static int CalculatePivots(PivotCalcCtx* pvt_ctx, Pivots* pivots,
-                             size_t num_pivots);
-
   /**
    * @brief Update pivots after renegotiation. This *does not* manipulate the
    * state manager. State manager needs to be directly controlled by the
@@ -76,15 +58,6 @@ class PivotUtils {
   }
 
  private:
-  static int CalculatePivotsFromOob(PivotCalcCtx* pvt_ctx, Pivots* pivots,
-                                    size_t num_pivots);
-
-  static int CalculatePivotsFromAll(PivotCalcCtx* pvt_ctx, Pivots* pivots,
-                                    size_t num_pivots);
-
-  static int GetRangeBounds(PivotCalcCtx* pvt_ctx, float& range_start,
-                            float& range_end);
-
   static double WeightedAverage(double a, double b, double frac);
 
   friend class RangeUtilsTest;

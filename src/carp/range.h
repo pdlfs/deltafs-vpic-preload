@@ -58,7 +58,7 @@ class Range {
     return 0;
   }
 
- protected:
+ private:
   double rmin_;        /* start of range (inclusive) */
   double rmax_;        /* end of range (exclusive) */
 };

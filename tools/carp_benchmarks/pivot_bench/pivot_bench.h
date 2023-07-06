@@ -57,7 +57,7 @@ class PivotBench {
     GetPerfectPivots(epoch, oob_pivots, pvtcnt_vec_[1], parallel);
 
     carp::OrderedBins bins(opts_.nranks);
-    bins.UpdateFromPivots(oob_pivots);
+    oob_pivots.InstallInOrderedBins(&bins);
     bins.ZeroWeights();
     ReadEpochIntoBins(epoch, bins, parallel);
 
@@ -74,7 +74,7 @@ class PivotBench {
 
     for (int ep = 0; ep < num_eps; ep++) {
       carp::OrderedBins bins(opts_.nranks);
-      bins.UpdateFromPivots(pp_ep0);
+      pp_ep0.InstallInOrderedBins(&bins);
       bins.ZeroWeights();
       ReadEpochIntoBins(ep, bins, parallel);
 
@@ -92,7 +92,7 @@ class PivotBench {
       GetPerfectPivots(ep - 1, pp_epXsub1, pvtcnt_vec_[1], parallel);
 
       carp::OrderedBins bins(opts_.nranks);
-      bins.UpdateFromPivots(pp_epXsub1);
+      pp_epXsub1.InstallInOrderedBins(&bins);
       bins.ZeroWeights();
       ReadEpochIntoBins(ep, bins, parallel);
 
@@ -110,7 +110,7 @@ class PivotBench {
       GetPerfectPivots(ep, pp_epX, pvtcnt_vec_[1], parallel);
 
       carp::OrderedBins bins(opts_.nranks);
-      bins.UpdateFromPivots(pp_epX);
+      pp_epX.InstallInOrderedBins(&bins);
       bins.ZeroWeights();
       ReadEpochIntoBins(ep, bins, parallel);
 

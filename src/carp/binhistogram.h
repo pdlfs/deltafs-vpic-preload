@@ -10,7 +10,6 @@
 #include <sstream>
 #include <vector>
 
-#include "pivots.h"
 #include "range.h"
 #include "range_common.h"   /* for vec_to_str */
 
@@ -118,13 +117,17 @@ template <typename BT, typename WT> class BinHistogram {
     return(0);        /* in bounds */
   }
 
-  /* load new set of bins from pivots and zero weights */
-  void UpdateFromPivots(Pivots& pivots) {
-    assert(pivots.Size() >= 2);
-    bins_.resize(pivots.Size());
-    weights_.resize(pivots.Size() - 1);
-    for (size_t idx = 0 ; idx < pivots.Size() ; idx++) {
-      bins_[idx] = pivots[idx];
+
+  /*
+   * load bins from pivot vector and zero weights (done via vector
+   * to avoid depending on pivots.h).
+   */
+  void UpdateFromPivVec(std::vector<double>& pv) {
+    assert(pv.size() >= 2);
+    bins_.resize(pv.size());
+    weights_.resize(pv.size() - 1);
+    for (size_t idx = 0 ; idx < pv.size() ; idx++) {
+      bins_[idx] = pv[idx];
     }
     this->ZeroWeights();
   }
