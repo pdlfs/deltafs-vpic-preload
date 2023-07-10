@@ -23,7 +23,7 @@ class PivotAggregator {
   void AggregatePivots(std::vector<Pivots>& pivots, Pivots& merged_pivots);
 
   void AggregatePivotsRoot(std::vector<Pivots>& pivots, Pivots& merged_pivots,
-                           int stage, int num_out);
+                           int stage, size_t num_out);
 
  private:
   void ChunkPivotsStage(std::vector<Pivots>& pivots,

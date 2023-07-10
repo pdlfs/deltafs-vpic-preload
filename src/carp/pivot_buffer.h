@@ -60,6 +60,7 @@ typedef struct bounds {
 namespace pdlfs {
 class PivotBuffer {
  private:
+  PivotBuffer() {};   /* disallow ctor w/o num_pivots[] arg */
   /* This simple storage format has 2*512KB of theoretical
    * footprint. (2* 4 * 128 * 256 * 4B). But no overhead will
    * be incurred for ranks that aren't actually using those
@@ -79,6 +80,9 @@ class PivotBuffer {
   // (configured at init time).
   //
   PivotBuffer(const int num_pivots[STAGES_MAX + 1]);
+
+  /* accessor functions */
+  int PivotCount(int stage) { return num_pivots_[stage]; }
 
   //
   // StoreData: Store pivots for the given round and stage.

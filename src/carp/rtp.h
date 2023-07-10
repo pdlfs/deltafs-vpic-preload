@@ -91,7 +91,7 @@ class RTP {
   Status HandlePivotBroadcast(void* buf, unsigned int bufsz, int src);
 
   Status ReplayBegin();
-  void ComputeAggregatePivots(int stage_num, int num_merged,
+  void ComputeAggregatePivots(int stage_num, size_t num_merged,
                               double* merged_pivots, double& merged_weight);
 
   Carp* carp_;

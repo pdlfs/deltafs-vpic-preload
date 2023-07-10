@@ -77,7 +77,7 @@ void PivotAggregator::AggregatePivotsStage(
 
 void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
                                           Pivots& merged_pivots, int stage,
-                                          int num_out) {
+                                          size_t num_out) {
   PivotBuffer dbuf(pvtcnt_vec_.data());
   for (size_t pidx = 0; pidx < pivots.size(); pidx++) {
     BufferPivots(dbuf, stage, pivots[pidx]);
@@ -90,6 +90,7 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
 
   dbuf.LoadBounds(stage, boundsv);
   dbuf.GetPivotWeights(stage, pivot_weights);
+#if 0
   pivot_union(boundsv, unified_bins, unified_bin_counts, pivot_weights,
               pivots.size());
 
@@ -98,6 +99,29 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
 
   resample_bins_irregular(unified_bins, unified_bin_counts, pvt_tmp,
                           pvtweight_tmp, num_out);
+#else
+  std::vector<double> pvt_tmp(num_out, 0);
+  double pvtweight_tmp;
+
+  int npivotmsgs = pivots.size();
+  int npchunk = dbuf.PivotCount(stage) - 1;
+  size_t maxbins = (npchunk * npivotmsgs) + (npivotmsgs - 1);
+  BinHistogram<double,float> mergedhist(maxbins);
+
+  pivot_union(boundsv, pivot_weights, npivotmsgs, mergedhist);
+  assert(mergedhist.Size() <= maxbins);  /* verify maxbins was big enough */
+
+  int output_npchunk = num_out - 1;
+  BinHistConsumer<double,float> cons(&mergedhist);
+  for (size_t lcv = 0 ; lcv < num_out ; lcv++) {
+    if (lcv)
+      cons.ConsumeWeightTo(cons.TotalWeight() *
+                           ((output_npchunk - lcv) / (double)output_npchunk) );
+    pvt_tmp[lcv] = cons.CurrentValue();
+  }
+
+  pvtweight_tmp =  mergedhist.GetTotalWeight() / (double) output_npchunk;
+#endif
 
   merged_pivots.LoadPivots(pvt_tmp, pvtweight_tmp);
   flog(LOG_INFO, "[AggregatePivots] Stage: %d, %s\n", stage,

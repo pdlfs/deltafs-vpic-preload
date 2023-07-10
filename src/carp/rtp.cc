@@ -560,33 +560,58 @@ Status RTP::ReplayBegin() {
   return s;
 }
 
-void RTP::ComputeAggregatePivots(int stage_num, int num_merged,
+/*
+ * ComputeAggregatePivots: we've received and buffered (in pivot_buffer_)
+ * the required number of pivot msgs for the given stage of the current
+ * active round.  we need to aggragate the pivots into a single set of
+ * output_pivot_count pivots using the pivot union operation.   we return
+ * the pivot points and the average weight of each pivot chunk (in
+ * merged_pivots and merged_weight, respectively).
+ */
+void RTP::ComputeAggregatePivots(int stage_num, size_t output_pivot_count,
                                  double* merged_pivots, double& merged_weight) {
   std::vector<bounds_t> boundsv;
-
-  std::vector<double> unified_bins;
-  std::vector<float> unified_bin_counts;
-
   std::vector<double> pivot_weights;
 
-  double sample_weight;
-
+  /* get sorted set of all pivot boundaries and weights from the buffer */
   pivot_buffer_.LoadBounds(stage_num, boundsv);
   pivot_buffer_.GetPivotWeights(stage_num, pivot_weights);
 
-  pivot_union(boundsv, unified_bins, unified_bin_counts, pivot_weights,
-              fanout_[stage_num]);
+  /*
+   * next we load the bounds and weights we got from the pivot buffer
+   * into a binhistogram.  we can determine the max# of bins we'll need
+   * for this using the number of pivot messages we should have received
+   * for this stage and the expected pivot_count of each message.
+   * (each msg contributes npchunk, plus #msg-1 for cases where
+   * things don't overlap).  the actual number of bins may be smaller
+   * than maxbins if we have duplicate values in the pivots.
+   */
+  int npivotmsgs = fanout_[stage_num];
+  int npchunk = pivot_buffer_.PivotCount(stage_num) - 1;
+  size_t maxbins = (npchunk * npivotmsgs) + (npivotmsgs - 1);
+  BinHistogram<double,float> mergedhist(maxbins);
 
-  std::vector<double> merged_pivot_vec;
+  pivot_union(boundsv, pivot_weights, npivotmsgs, mergedhist);
+  assert(mergedhist.Size() <= maxbins);  /* verify maxbins was big enough */
 
-  resample_bins_irregular(unified_bins, unified_bin_counts, merged_pivot_vec,
-                          sample_weight, num_merged);
+  /*
+   * now we want to calculate a set of equal weight pivots over the
+   * bins in mergedhist that we can return to the caller.
+   */
+  int output_npchunk = output_pivot_count - 1;
+  BinHistConsumer<double,float> cons(&mergedhist);
+  for (size_t lcv = 0 ; lcv < output_pivot_count ; lcv++) {
+    if (lcv)
+      cons.ConsumeWeightTo(cons.TotalWeight() *
+                           ((output_npchunk - lcv) / (double)output_npchunk) );
+    merged_pivots[lcv] = cons.CurrentValue();
+  }
+
+  merged_weight = mergedhist.GetTotalWeight() / (double) output_npchunk;
 
   flog(LOG_DBG2, "resampled pivot count: s%d cnt: %zu", stage_num,
-       merged_pivot_vec.size());
-
-  merged_weight = sample_weight;
-  std::copy(merged_pivot_vec.begin(), merged_pivot_vec.end(), merged_pivots);
+       output_pivot_count);
 }
+
 }  // namespace carp
 }  // namespace pdlfs
