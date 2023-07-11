@@ -138,7 +138,8 @@ template <typename BT, typename WT> class BinHistogram {
     weights_.resize(nbins);
     std::copy(bins, bins + nbins + 1, bins_.begin());
     std::copy(weights, weights + nbins, weights_.begin());
-    total_weight_ = std::accumulate(weights_.begin(), weights_.end(), 0ull);
+    total_weight_ = std::accumulate(weights_.begin(), weights_.end(),
+                                    static_cast<WT>(0) ); /* cast for retval */
   }
 
   /* setup for extending bins one entry at a time */
