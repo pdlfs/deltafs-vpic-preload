@@ -55,6 +55,7 @@ class PivotUtils {
     assert(pvtvecsz == num_pivots_from_buf);
     std::copy(pvts_from_buf, pvts_from_buf + num_pivots_from_buf,
               pivots->pivots_.begin());
+    pivots->is_set_ = true;   // XXX
   }
 
  private:
