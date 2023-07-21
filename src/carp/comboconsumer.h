@@ -44,24 +44,22 @@ template <typename BT, typename WT> class ComboConsumer {
     wtotal_ = leftresid_ + middleresid_ + rightresid_;
 
     if (wtotal_) {   /* compute our range if we have something */
-      Range middle_range = (bins) ? bins->GetRange() : Range();
-      float rstart, rend;
+      double rstart, rend;
 
       if (oob_left_.size())            /* get rstart */
-        rstart = oob_left_.front();
+        rstart = leftcons_.GetRange().rmin();
       else if (bins && bins->Size())
-        rstart = middle_range.rmin();
+        rstart = bincons_.GetRange().rmin();
       else
-        rstart = oob_right_.front();
+        rstart = rightcons_.GetRange().rmin();
 
       if (oob_right_.size())           /* get rend */
-        rend = nextafterf(oob_right_.back(), HUGE_VALF);
+        rend = rightcons_.GetRange().rmax();
       else if (bins && bins->Size())
-        rend = middle_range.rmax();    /* already exclusive, no nextafterf */
+        rend = bincons_.GetRange().rmax();
       else
-        rend = nextafter(oob_left_.back(), HUGE_VALF);
+        rend = leftcons_.GetRange().rmax();
 
-      assert(rend != HUGE_VALF);       // overflow?
       range_.Set(rstart, rend);
     }
 
