@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <math.h>
 
 #include <vector>
@@ -14,7 +15,7 @@ namespace carp {
  * we start at the first entry in the vector and as we consume weight we
  * move towards the end of the vector (which we reach when we've consumed
  * "w" units of weight).  so our value ranges from the first entry of the
- * vector (with no weight consumed) to the nextafter() of the last entry
+ * vector (with no weight consumed) to the nextafterf() of the last entry
  * (with all weight consumed).  this should match the behavior of the old
  * CalculatePivotsFromOob().  if we are between two entries in the array
  * we interpolate to compute our value.
@@ -32,12 +33,14 @@ class FloatVecConsumer {
     vec_ = vec;
     size_ = (vec) ? vec->size() : 0;
     if (size_) {
-      range_.Set(vec->front(), nextafter(vec->back(), HUGE_VALF));
+      float rend = nextafterf(vec->back(), HUGE_VALF);
+      assert(rend != HUGE_VALF);  // overflow?
+      range_.Set(vec->front(), rend);
       scale_ = (size_ - 1.0) / (double)(size_);
       curval_ = vec->front();
     } else {
       range_.Reset();
-     scale_ = 0;
+      scale_ = 0;
       curval_ = 0;
     }
     curloc_ = 0;
@@ -59,8 +62,8 @@ class FloatVecConsumer {
 
   double ConsumeWeight(double consume) {
     curloc_ += consume;         /* consume it now! */
-    if (curloc_ >= size_) {     /* special case: use nextafter() at the end */
-      curval_ = (size_) ? nextafter(vec_->back(), HUGE_VALF) : 0;
+    if (curloc_ >= size_) {     /* special case: use range max at the end */
+      curval_ = (size_) ? range_.rmax() : 0;
       curloc_ = size_;
       return(0.0);
     }
@@ -78,7 +81,7 @@ class FloatVecConsumer {
 
     if (frac == 0.0) {
       if (trunc_idx >= size_)
-        curval_ = nextafter(vec_->back(), HUGE_VALF);  /* unlikely, be safe */
+        curval_ = range_.rmax();     /* unlikely, be safe */
       else
         curval_ = (*vec_)[trunc_idx];
     } else {
