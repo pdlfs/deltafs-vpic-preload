@@ -69,10 +69,6 @@ class RangeUtilsTest {
     carp->bins_.UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
   }
 
-  float WeightedAverage(float a, float b, float frac) {
-    return carp::PivotUtils::WeightedAverage(a, b, frac);
-  }
-
   void AssertStrictMonotonicity(Pivots& pivots) {
     size_t sz = pivots.Size();
 
@@ -83,34 +79,6 @@ class RangeUtilsTest {
 
   ~RangeUtilsTest() { delete carp; }
 };
-
-TEST(RangeUtilsTest, ParticleCount) {
-  ASSERT_EQ(get_particle_count(3, 5, 2), 4);
-  ASSERT_EQ(get_particle_count(2, 5, 2), 6);
-  ASSERT_EQ(get_particle_count(3, 3, 2), 0);
-}
-
-TEST(RangeUtilsTest, WeightedAvg) {
-  float a, b, frac_1, frac_2;
-
-  a = 0;
-  b = 1;
-  frac_1 = 0.3;
-  frac_2 = 0.6;
-
-  float wavg_1 = WeightedAverage(a, b, frac_1);
-  float wavg_2 = WeightedAverage(a, b, frac_2);
-  ASSERT_LE(wavg_1, wavg_2);
-
-  a = 0.473880023;
-  b = 0.473880142;
-  frac_1 = 0.412109375;
-  frac_2 = 0.536865234;
-
-  wavg_1 = WeightedAverage(a, b, frac_1);
-  wavg_2 = WeightedAverage(a, b, frac_2);
-  ASSERT_LE(wavg_1, wavg_2);
-}
 
 TEST(RangeUtilsTest, DeduplicateVector) {
   std::vector<float> v = { 5, 5, 5, 5, 5, 6, 6, 7, 8};

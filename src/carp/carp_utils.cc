@@ -53,31 +53,5 @@ int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
   return 0;
 }
 
-double PivotUtils::WeightedAverage(double a, double b, double frac) {
-  /* Weighted avg of a and b was updated because of test case 11 (pvtcalc)
-   * When a and b are very close, the following weighted avg is not monotonic.
-   * pvt = (1 - frac_a) * val_a + (frac_a) * val_b;
-   *
-   * weighted avg of (0.473880023 and 0.473880142) should be <= for
-   * frac_a =  0.412109375, vs frac_a = 0.536865234.
-   *
-   * The approach below seems more robust.
-   * XXX: If it still persists, use double instead of float for pivot
-   * computation
-   */
-  assert(frac >= 0);
-  assert(a <= b);
-
-  double pvt;
-  double delta = b - a;
-  double frac_delta = frac * delta;
-  pvt = a + frac_delta;
-
-  assert(delta >= 0);
-  assert(frac_delta <= delta);
-  assert(pvt <= b);
-
-  return pvt;
-}
 }  // namespace carp
 }  // namespace pdlfs

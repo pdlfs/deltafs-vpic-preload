@@ -81,11 +81,3 @@ void pivot_union(std::vector<bounds_t> bounds,
     prev_val = current_val;
   }
 }
-
-int get_particle_count(int total_ranks, int total_bins, int par_per_bin) {
-  /* There is one extra bin entry for every rank. If a rank has two
-   * bins, its bin range contains 3 entries 1, 2, 3 for 1 - 2 and 2- 3
-   * Hence we subtract total_bins from total_ranks to adjust for that
-   */
-  return (total_bins - total_ranks) * par_per_bin;
-}

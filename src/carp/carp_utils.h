@@ -59,7 +59,6 @@ class PivotUtils {
   }
 
  private:
-  static double WeightedAverage(double a, double b, double frac);
 
   friend class RangeUtilsTest;
 };
