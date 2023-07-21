@@ -10,22 +10,6 @@
 namespace pdlfs {
 namespace carp {
 
-//
-// Used as implicit invalid pivots. XXXAJ: can be deprecated
-//
-void Pivots::MakeUpEpsilonPivots() {
-  int num_pivots = pivots_.size();
-
-  float mass_per_pivot = 1.0f / (num_pivots - 1);
-  weight_ = mass_per_pivot;
-
-  for (int pidx = 0; pidx < num_pivots; pidx++) {
-    pivots_[pidx] = mass_per_pivot * pidx;
-  }
-
-  is_set_ = true;
-}
-
 void Pivots::AssertMonotonicity() {
   if (!is_set_) {
     flog(LOG_WARN, "No pivots set for monotonicity check!");
@@ -39,7 +23,7 @@ void Pivots::AssertMonotonicity() {
 
   int num_pivots = pivots_.size();
   for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
-    assert(pivots_[pidx] < pivots_[pidx + 1]);
+    assert(pivots_[pidx] <= pivots_[pidx + 1]);
   }
 }
 

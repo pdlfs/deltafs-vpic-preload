@@ -118,17 +118,10 @@ class Pivots {
 
     this->weight_ = cco.TotalWeight() / (double) npchunk;
 
-    if (this->PivotWeight() < 1e-3) { // arbitrary limit for null pivots
-      this->MakeUpEpsilonPivots();
-    }
-
     this->AssertMonotonicity();
   }
 
   /* methods in pivots.cc */
-
-  // Used as implicit invalid pivots. XXXAJ: can be deprecated
-  void MakeUpEpsilonPivots();
 
   // assert monotonicity in pivots_ array
   void AssertMonotonicity();

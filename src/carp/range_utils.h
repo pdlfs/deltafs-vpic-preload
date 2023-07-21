@@ -6,9 +6,6 @@
 #include "range_common.h"
 #include "binhistogram.h"
 
-#define RANGE_PARANOID_CHECKS 1
-#define RANGE_EPSILON 1e-5
-
 void pivot_union(std::vector<bounds_t> bounds,
                  std::vector<double>& weights,
                  size_t ninputs,
