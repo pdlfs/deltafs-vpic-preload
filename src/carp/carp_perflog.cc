@@ -142,11 +142,9 @@ void Carp::PerflogReneg(int round_num) {
   fprintf(perflog_.fp, "%lu,RENEG_COUNTS,RANK%d_R%d: ", timestamp,
           options_.my_rank, round_num);
 
-  const uint64_t* rankcnt;
-  int rankcntsz;
-  bins_.GetWeightArr(&rankcnt, &rankcntsz);
+  int rankcntsz = bins_.Size();
   for (int i = 0; i < rankcntsz; i++) {
-    fprintf(perflog_.fp, "%" PRIu64 " ", rankcnt[i]);
+    fprintf(perflog_.fp, "%" PRIu64 " ", bins_.Weight(i));
   }
   fprintf(perflog_.fp, ": OOB (%zu)\n", this->OobSize());
 }
@@ -155,13 +153,13 @@ void Carp::PerflogReneg(int round_num) {
  * Carp::PerflogAggrBinCount: log bin count (a MPI collective call)
  */
 void Carp::PerflogAggrBinCount() {
-  const uint64_t* rankcntaggr;
-  int rankcntaggrsz;
-  bins_.GetAggrCountsArr(&rankcntaggr, &rankcntaggrsz);
+  size_t rankcntaggrsz = bins_.Size();
   uint64_t send_buf[rankcntaggrsz], recv_buf[rankcntaggrsz];
 
   assert(perflog_.fp);
-  std::copy(rankcntaggr, rankcntaggr + rankcntaggrsz, send_buf);
+  for (size_t i = 0 ; i < rankcntaggrsz ; i++) {
+    send_buf[i] = bins_.AggrCount(i);
+  }
   MPI_Reduce(send_buf, recv_buf, rankcntaggrsz, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
              0, MPI_COMM_WORLD); /* XXX: snd directly from rank_counts_aggr_? */
   if (options_.my_rank != 0) return;
@@ -172,7 +170,7 @@ void Carp::PerflogAggrBinCount() {
   perflog_.mtx.Lock();
 
   fprintf(perflog_.fp, "%lu,RENEG_AGGR_BINCNT,", timestamp);
-  for (int i = 0; i < rankcntaggrsz; i++) {
+  for (size_t i = 0; i < rankcntaggrsz; i++) {
     fprintf(perflog_.fp, "%lu ", recv_buf[i]);
   }
   fprintf(perflog_.fp, "\n");
@@ -215,12 +213,10 @@ void Carp::PerflogPivots(Pivots &pivots) {
   }
   fprintf(perflog_.fp, "\n");
 
-  const uint64_t* rankcntaggr;
-  int rankcntaggrsz;
-  bins_.GetAggrCountsArr(&rankcntaggr, &rankcntaggrsz);
+  int rankcntaggrsz = bins_.Size();
   fprintf(perflog_.fp, "%lu,RENEG_BINCNT_E%d,", timestamp, epoch_);
   for (int i = 0 ; i < rankcntaggrsz ; i++) {
-    fprintf(perflog_.fp, "%lu ", rankcntaggr[i]);
+    fprintf(perflog_.fp, "%lu ", bins_.AggrCount(i));
   }
   fprintf(perflog_.fp, "\n");
 }

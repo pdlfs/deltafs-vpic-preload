@@ -63,12 +63,6 @@ template <typename BT, typename WT> class BinHistogram {
     return Range(bins_[bidx], bins_[bidx + 1]);
   }
 
-  /* access weight array (XXX: only used by logging, layering issues) */
-  void GetWeightArr(const WT** weights, int* weightsz) const {
-    *weights = weights_.data();
-    *weightsz = weights_.size();
-  }
-
   /* non-accessors */
 
   /* Reset/resize to init state */

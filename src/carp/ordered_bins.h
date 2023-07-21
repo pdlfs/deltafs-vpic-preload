@@ -37,6 +37,11 @@ class OrderedBins : public BinHistogram<float,uint64_t> {
     counts_aggr_.reserve(nbins_cap);
   }
 
+  /* aggr count of a given bin index */
+  uint64_t AggrCount(size_t bidx) const {
+    return (bidx < counts_aggr_.size()) ? counts_aggr_[bidx] : 0;
+  }
+
   /* Reset/resize to init state, includes aggregate counts */
   void Reset() {
     this->BinHistogram<float,uint64_t>::Reset();
@@ -91,8 +96,6 @@ class OrderedBins : public BinHistogram<float,uint64_t> {
 
   // search for bin and add (XXX: may not be needed anymore?)
   void AddVal(float val, bool force);
-
-  void GetAggrCountsArr(const uint64_t** counts, int* countsz) const;
 
   // Only used by test/tools programs
   double PrintNormStd();

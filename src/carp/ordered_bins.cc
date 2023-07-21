@@ -57,15 +57,6 @@ void OrderedBins::AddVal(float val, bool force) {
   this->IncrementBin(bidx);
 }
 
-
-//
-// Only used by logging functions (XXX: layering)
-//
-void OrderedBins::GetAggrCountsArr(const uint64_t** counts, int* countsz) const {
-  *counts = counts_aggr_.data();
-  *countsz = counts_aggr_.size();
-}
-
 double OrderedBins::PrintNormStd() {
   uint64_t total_sz = this->GetTotalWeight();
   assert(this->Size());
