@@ -180,8 +180,8 @@ class Carp {
   }
 
   /* called from UpdatePivots w/caller holding mutex_ */
-  void LogMyPivots(double* pivots, int num_pivots, const char* lab) {
-    if (PerflogOn()) PerflogMyPivots(pivots, num_pivots, lab);
+  void LogMyPivots(Pivots* pivots, const char* lab) {
+    if (PerflogOn()) PerflogMyPivots(pivots, lab);
   }
 
   /* LogPivots logs both pivots and rank_counts_aggr_ */
@@ -243,7 +243,7 @@ class Carp {
   /* internal interface for top-level Log* calls, see above */
   void PerflogReneg(int round_num);
   void PerflogAggrBinCount();
-  void PerflogMyPivots(double* pivots, int num_pivots, const char* lab);
+  void PerflogMyPivots(Pivots* pivots, const char* lab);
   void PerflogPivots(Pivots &pivots);
   void PerflogVPrintf(const char* fmt, va_list ap);
 

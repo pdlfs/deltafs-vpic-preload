@@ -186,14 +186,14 @@ void Carp::PerflogAggrBinCount() {
 /*
  * Carp::PerflogMyPivots: log my pivots
  */
-void Carp::PerflogMyPivots(double* pivots, int num_pivots, const char* lab) {
+void Carp::PerflogMyPivots(Pivots* pivots, const char* lab) {
   uint64_t timestamp = get_timestamp(&start_time_);
   MutexLock ml(&perflog_.mtx);
 
   assert(perflog_.fp);
   fprintf(perflog_.fp, "%lu,%s,", timestamp, lab);
-  for (int i = 0; i < num_pivots; i++) {
-    fprintf(perflog_.fp, "%.4lf ", pivots[i]);
+  for (size_t i = 0; i < pivots->Size(); i++) {
+    fprintf(perflog_.fp, "%.4lf ", (*pivots)[i]);
   }
   fprintf(perflog_.fp, "\n");
 }

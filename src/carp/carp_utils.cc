@@ -26,12 +26,9 @@ namespace carp {
 
 int PivotUtils::UpdatePivots(Carp* carp, Pivots* pivots) {
   carp->mutex_.AssertHeld();
-  int num_pivots = pivots->Size();
-  assert(num_pivots == pctx.comm_sz + 1);
-  double* pivots_arr = pivots->pivots_.data();
 
   // since Pivots are protected, the class needs to be unwrapped here
-  carp->LogMyPivots(pivots_arr, num_pivots, "RENEG_AGGR_PIVOTS");
+  carp->LogMyPivots(pivots, "RENEG_AGGR_PIVOTS");
 
   Range carp_range = carp->GetInBoundsRange();
   Range pivot_bounds = pivots->GetPivotBounds();
