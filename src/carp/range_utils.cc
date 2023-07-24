@@ -1,20 +1,12 @@
 #include <assert.h>
-#include <limits.h>
-#include <math.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#include <algorithm>
 #include <list>
+#include <vector>
 
-#include "preload_internal.h"
-
-#include "pivot_buffer.h"
 #include "range_utils.h"
-
-#define RANGE_DEBUG_T 1
-
-extern preload_ctx_t pctx;
 
 /*
  * union bounds and weights into a binhistogram

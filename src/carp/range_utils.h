@@ -1,10 +1,9 @@
 #pragma once
 
-#include <numeric>
 #include <vector>
 
-#include "range_common.h"
 #include "binhistogram.h"
+#include "pivot_buffer.h"   /* for bounds_t */
 
 void pivot_union(std::vector<bounds_t> bounds,
                  std::vector<double>& weights,
