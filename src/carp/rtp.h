@@ -6,8 +6,8 @@
 #include "pivot_buffer.h"
 #include "pdlfs-common/port.h"
 #include "pdlfs-common/status.h"
+#include "pivot_union.h"
 #include "preload_shuffle.h"
-#include "range_utils.h"
 #include "rtp_state_mgr.h"
 #include "xn_shuffle.h"
 

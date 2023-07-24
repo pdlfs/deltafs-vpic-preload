@@ -31,10 +31,10 @@ set(CARP_SOURCES
         carp/oob_buffer.cc
         carp/ordered_bins.cc
         carp/pivot_buffer.cc
+        carp/pivot_union.cc
         carp/pivots.cc
         carp/policy.cc
         carp/range_common.cc
-        carp/range_utils.cc
         carp/rtp.cc
         carp/rtp_state_mgr.cc
         carp/rtp_util.cc

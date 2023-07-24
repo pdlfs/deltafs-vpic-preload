@@ -6,10 +6,13 @@
 #include <list>
 #include <vector>
 
-#include "range_utils.h"
+#include "pivot_union.h"
+
+namespace pdlfs {
+namespace carp {
 
 /*
- * union bounds and weights into a binhistogram
+ * merge/union set of pivots bounds into a new binhistogram
  */
 void pivot_union(std::vector<bounds_t> bounds,
                  std::vector<double>& weights,
@@ -73,3 +76,5 @@ void pivot_union(std::vector<bounds_t> bounds,
     prev_val = current_val;
   }
 }
+}  // namespace carp
+}  // namespace pdlfs
