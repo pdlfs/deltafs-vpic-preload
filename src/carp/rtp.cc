@@ -507,7 +507,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
        num_ranks_ + 1);
   assert(num_pivots == num_ranks_ + 1);
 
-  PivotUtils::UpdatePivots(carp_, &pivots_aggr);
+  carp_->UpdateBinsFromPivots(&pivots_aggr);
 
   pivot_buffer_.AdvanceRound();
   round_num_++;

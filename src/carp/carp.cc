@@ -82,5 +82,35 @@ Status Carp::ForceRenegotiation() {
   rtp_.PrintStats();
   return s;
 }
+
+/* called at the end of RTP round to update our pivots */
+void Carp::UpdateBinsFromPivots(Pivots* pivots) {
+  mutex_.AssertHeld();
+  this->LogMyPivots(pivots, "RENEG_AGGR_PIVOTS");
+
+  Range carp_range = this->GetInBoundsRange();
+  Range pivot_bounds =pivots->GetPivotBounds();
+  if (!carp_range.IsSet()) {
+    assert(pivot_bounds.IsSet());
+  } else {
+    assert(float_lte(pivot_bounds.rmin(), carp_range.rmin()));
+    assert(float_gte(pivot_bounds.rmax(), carp_range.rmax()));
+  }
+
+  this->UpdateInBoundsRange(pivot_bounds);
+  pivots->InstallInOrderedBins(&bins_);
+
+#ifdef DELTAFS_PLFSDIR_RANGEDB
+  // make safe to invoke CARP-RTP without a properly initiialized
+  // storage backend, such as for benchmarks
+  if (pctx.plfshdl != NULL) {
+    Range our_bin = bins_.GetBin(pctx.my_rank);
+    deltafs_plfsdir_range_update(pctx.plfshdl, our_bin.rmin(), our_bin.rmax());
+  }
+#else
+  ABORT("linked deltafs does not support rangedb");
+#endif
+}
+
 }  // namespace carp
 }  // namespace pdlfs

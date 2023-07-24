@@ -21,17 +21,6 @@ class Carp;
 
 class PivotUtils {
  public:
-  /**
-   * @brief Update pivots after renegotiation. This *does not* manipulate the
-   * state manager. State manager needs to be directly controlled by the
-   * renegotiation provider because of synchronization implications
-   *
-   * @param carp
-   * @param pivots
-   * @return
-   */
-  static int UpdatePivots(Carp* carp, Pivots* pivots);
-
   static int EncodePivots(void* buf, int buf_sz, int round_num, int stage_num,
                           int sender_id, Pivots* pivots, bool bcast) {
     double* pivots_arr = pivots->pivots_.data();

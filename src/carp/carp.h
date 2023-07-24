@@ -208,6 +208,9 @@ class Carp {
     pivots.Calculate(cco);
   }
 
+  /* called at the end of RTP round to update our pivots */
+  void UpdateBinsFromPivots(Pivots* pivots);
+
  private:
   void AssignShuffleTarget(particle_mem_t& p) {
     int rv, dest_rank;

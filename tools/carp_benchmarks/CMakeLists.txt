@@ -26,7 +26,6 @@ set(CARP_SOURCES
         carp/carp.cc
         carp/carp_perflog.cc
         carp/carp_preload.cc
-        carp/carp_utils.cc
         carp/msgfmt.cc
         carp/oob_buffer.cc
         carp/ordered_bins.cc
