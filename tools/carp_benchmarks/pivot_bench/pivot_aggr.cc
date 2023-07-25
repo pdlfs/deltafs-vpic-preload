@@ -90,16 +90,6 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
 
   dbuf.LoadBounds(stage, boundsv);
   dbuf.GetPivotWeights(stage, pivot_weights);
-#if 0
-  pivot_union(boundsv, unified_bins, unified_bin_counts, pivot_weights,
-              pivots.size());
-
-  std::vector<double> pvt_tmp(num_out, 0);
-  double pvtweight_tmp;
-
-  resample_bins_irregular(unified_bins, unified_bin_counts, pvt_tmp,
-                          pvtweight_tmp, num_out);
-#else
   std::vector<double> pvt_tmp(num_out, 0);
   double pvtweight_tmp;
 
@@ -121,9 +111,8 @@ void PivotAggregator::AggregatePivotsRoot(std::vector<Pivots>& pivots,
   }
 
   pvtweight_tmp =  mergedhist.GetTotalWeight() / (double) output_npchunk;
-#endif
 
-  merged_pivots.LoadPivots(pvt_tmp, pvtweight_tmp);
+  merged_pivots.LoadPivots(pvt_tmp.data(), pvt_tmp.size(), pvtweight_tmp);
   flog(LOG_INFO, "[AggregatePivots] Stage: %d, %s\n", stage,
        merged_pivots.ToString().c_str());
 }

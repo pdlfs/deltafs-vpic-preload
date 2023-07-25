@@ -72,10 +72,13 @@ class Pivots {
     pivots_.resize(pcount);
   }
 
-  /* load pivots and weight from a vector and weight value */
-  void LoadPivots(std::vector<double>& pvtvec, double pvtweight) {
-    Resize(pvtvec.size());
-    std::copy(pvtvec.begin(), pvtvec.end(), pivots_.begin());
+  /* load pivots and weight from an array and weight value */
+  void LoadPivots(double *pvtarr, size_t pcount, double pvtweight) {
+    assert(pcount > 1);
+    pivots_.resize(0);
+    for (size_t i = 0 ; i < pcount ; i++) {
+      pivots_.push_back(pvtarr[i]);
+    }
     weight_ = pvtweight;
     is_set_ = true;
   }
