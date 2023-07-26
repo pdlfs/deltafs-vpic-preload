@@ -22,7 +22,6 @@ struct RankTask {
   int epoch;
   pdlfs::carp::Rank* rank;
   pdlfs::carp::Pivots* pivots;
-  int num_pivots;
   pdlfs::carp::OrderedBins* bins;
 };
 }  // namespace
@@ -41,8 +40,7 @@ class ParallelProcessor {
   }
 
   void GetPerfectPivotsParallel(int epoch, std::vector<carp::Rank*>& ranks,
-                                std::vector<carp::Pivots>& pivots,
-                                int num_pivots) {
+                                std::vector<carp::Pivots>& pivots) {
     assert(ranks.size() == opts_.nranks);
     assert(pivots.size() == opts_.nranks);
     std::vector<RankTask> rank_tasks(ranks.size());
@@ -53,7 +51,6 @@ class ParallelProcessor {
       rank_tasks[ridx].epoch = epoch;
       rank_tasks[ridx].rank = ranks[ridx];
       rank_tasks[ridx].pivots = &pivots[ridx];
-      rank_tasks[ridx].num_pivots = num_pivots;
       rank_tasks[ridx].bins = nullptr;
 
       tp_->Schedule(rank_task_dual, &rank_tasks[ridx]);
@@ -74,7 +71,6 @@ class ParallelProcessor {
       rank_tasks[ridx].epoch = epoch;
       rank_tasks[ridx].rank = ranks[ridx];
       rank_tasks[ridx].pivots = nullptr;
-      rank_tasks[ridx].num_pivots = -1;
       rank_tasks[ridx].bins = &bins[ridx];
 
       tp_->Schedule(rank_task_dual, &rank_tasks[ridx]);

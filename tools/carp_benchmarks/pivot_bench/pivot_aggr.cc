@@ -60,7 +60,7 @@ void PivotAggregator::AggregatePivotsStage(
     std::vector<PvtVec>& all_pivots, std::vector<Pivots>& all_merged_pivots,
     int stage, int num_out) {
   size_t allpvtsz = all_pivots.size();
-  all_merged_pivots.resize(allpvtsz);
+  all_merged_pivots.resize(allpvtsz, Pivots(num_out));
 
   flog(LOG_INFO, "[AggregatePivots] Stage: %d, Merging %zu pivot sets\n", stage,
        allpvtsz);

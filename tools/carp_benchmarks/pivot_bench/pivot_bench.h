@@ -53,8 +53,8 @@ class PivotBench {
     bool parallel = false;
 
     runtype = "tmp";
-    carp::Pivots oob_pivots;
-    GetPerfectPivots(epoch, oob_pivots, pvtcnt_vec_[1], parallel);
+    carp::Pivots oob_pivots(pvtcnt_vec_[1]);
+    GetPerfectPivots(epoch, oob_pivots, parallel);
 
     carp::OrderedBins bins(opts_.nranks);
     oob_pivots.InstallInOrderedBins(&bins);
@@ -69,8 +69,8 @@ class PivotBench {
   void RunSuiteEp0PP(const int num_eps, bool parallel) {
     runtype = "ep0pp";
 
-    carp::Pivots pp_ep0;
-    GetPerfectPivots(0, pp_ep0, pvtcnt_vec_[1], parallel);
+    carp::Pivots pp_ep0(pvtcnt_vec_[1]);
+    GetPerfectPivots(0, pp_ep0, parallel);
 
     for (int ep = 0; ep < num_eps; ep++) {
       carp::OrderedBins bins(opts_.nranks);
@@ -88,8 +88,8 @@ class PivotBench {
     runtype = "epxsub1pp";
 
     for (int ep = 1; ep < num_eps; ep++) {
-      carp::Pivots pp_epXsub1;
-      GetPerfectPivots(ep - 1, pp_epXsub1, pvtcnt_vec_[1], parallel);
+      carp::Pivots pp_epXsub1(pvtcnt_vec_[1]);
+      GetPerfectPivots(ep - 1, pp_epXsub1, parallel);
 
       carp::OrderedBins bins(opts_.nranks);
       pp_epXsub1.InstallInOrderedBins(&bins);
@@ -106,8 +106,8 @@ class PivotBench {
     runtype = "epxpp";
 
     for (int ep = 0; ep < num_eps; ep++) {
-      carp::Pivots pp_epX;
-      GetPerfectPivots(ep, pp_epX, pvtcnt_vec_[1], parallel);
+      carp::Pivots pp_epX(pvtcnt_vec_[1]);
+      GetPerfectPivots(ep, pp_epX, parallel);
 
       carp::OrderedBins bins(opts_.nranks);
       pp_epX.InstallInOrderedBins(&bins);
@@ -123,14 +123,14 @@ class PivotBench {
  private:
   void GetOobPivots(int epoch, carp::Pivots& merged_pivots, int num_pivots,
                     bool parallel) {
-    std::vector<carp::Pivots> pivots(opts_.nranks);
+    std::vector<carp::Pivots> pivots(opts_.nranks, carp::Pivots(num_pivots));
 
     if (parallel) {
       flog(LOG_ERRO, "Not implemented");
       ABORT("NOT IMPLEMENTED!!");
     } else {
       for (unsigned int r = 0; r < opts_.nranks; r++) {
-        ranks_[r]->GetOobPivots(epoch, &pivots[r], num_pivots);
+        ranks_[r]->GetOobPivots(epoch, &pivots[r]);
         flog(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
     }
@@ -142,15 +142,14 @@ class PivotBench {
     flog(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
-  void GetPerfectPivots(int epoch, carp::Pivots& merged_pivots, int num_pivots,
-                        bool parallel) {
-    std::vector<carp::Pivots> pivots(opts_.nranks);
+  void GetPerfectPivots(int epoch, carp::Pivots& merged_pivots, bool parallel) {
+    std::vector<carp::Pivots> pivots(opts_.nranks,
+                                     carp::Pivots(merged_pivots.Size()));
     if (parallel) {
-      parallel_processor_.GetPerfectPivotsParallel(epoch, ranks_, pivots,
-                                                   num_pivots);
+      parallel_processor_.GetPerfectPivotsParallel(epoch, ranks_, pivots);
     } else {
       for (unsigned int r = 0; r < opts_.nranks; r++) {
-        ranks_[r]->GetPerfectPivots(epoch, &pivots[r], num_pivots);
+        ranks_[r]->GetPerfectPivots(epoch, &pivots[r]);
         flog(LOG_INFO, "%s\n", pivots[r].ToString().c_str());
       }
     }

@@ -52,9 +52,6 @@ class PivotUtils;     // fwd declaration for friendship (XXX)
  */
 class Pivots {
  public:
-  // XXX: make private?  used by tools/carp_benchmarks/pivot_bench/rank.h
-  Pivots() : pivots_(0), weight_(0), is_set_(false) {}
-
   Pivots(int pcount) : pivots_(pcount, 0), weight_(0), is_set_(false) {
     assert(pcount > 1);
   }
@@ -133,6 +130,8 @@ class Pivots {
   std::string ToString() const;
 
  private:
+  Pivots() {};                    /* private to disallow */
+
   //
   // Pivots are doubles because we need them to be (for pivotcalc)
   // Everything is a double except rank_bins

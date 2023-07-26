@@ -19,7 +19,7 @@ class Rank {
         cur_ep_offset_(0),
         cur_ep_size_(0) {}
 
-  void GetOobPivots(int epoch, Pivots* oob_pivots, int pivot_count) {
+  void GetOobPivots(int epoch, Pivots* oob_pivots) {
     // Compute OOB pivots
     ReadEpoch(epoch);
     cur_ep_offset_ = 0;
@@ -32,13 +32,13 @@ class Rank {
 
     // Compute own pivots
     ComboConsumer<float,uint64_t> cco(NULL, &oob);
-    oob_pivots->Resize(pivot_count);    // XXX caller should do this?
     oob_pivots->Calculate(cco);
   }
 
-  void GetPerfectPivots(int epoch, Pivots* pivots, int npchunk) {
+  void GetPerfectPivots(int epoch, Pivots* pivots) {
+    int npchunk = pivots->Size();
     Pivots oob_pivots(npchunk + 1);   /* convert to pivot count */
-    GetOobPivots(epoch, &oob_pivots, npchunk + 1);
+    GetOobPivots(epoch, &oob_pivots);
 
     // Different from regular bins, which are = nranks
     OrderedBins bins_pp(npchunk);
@@ -52,7 +52,6 @@ class Rank {
     assert(eof == true);
 
     ComboConsumer<float,uint64_t> cco(&bins_pp, &oob);
-    pivots->Resize(npchunk);    // XXX caller should do this?
     pivots->Calculate(cco);
   }
 

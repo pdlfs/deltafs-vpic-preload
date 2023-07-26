@@ -9,7 +9,7 @@ void rank_task_dual(void* args) {
   int* rc = task->jobs_rem;
 
   if (task->pivots) {
-    task->rank->GetPerfectPivots(task->epoch, task->pivots, task->num_pivots);
+    task->rank->GetPerfectPivots(task->epoch, task->pivots);
   } else if (task->bins) {
     task->rank->ReadEpochIntoBins(task->epoch, task->bins);
   }
