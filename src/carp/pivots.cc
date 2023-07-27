@@ -11,7 +11,7 @@ namespace pdlfs {
 namespace carp {
 
 void Pivots::AssertMonotonicity() {
-  if (!is_set_) {
+  if (pivots_.size() == 0) {
     flog(LOG_WARN, "No pivots set for monotonicity check!");
     return;
   }
@@ -28,7 +28,7 @@ void Pivots::AssertMonotonicity() {
 }
 
 std::string Pivots::ToString() const {
-  if (!is_set_) {
+  if (pivots_.size() == 0) {
     return "[PivotWeight]: unset [Pivots]: unset";
   }
 

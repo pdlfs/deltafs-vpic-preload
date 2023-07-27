@@ -40,11 +40,14 @@ class PivotUtils {
     msgfmt_decode_rtp_pivots(buf, buf_sz, round_num, stage_num, sender_id,
                              &pvts_from_buf, &pivots->weight_,
                              &num_pivots_from_buf, bcast);
-    int pvtvecsz = pivots->Size();
+    int pvtvecsz = pivots->pivots_.size();
+    if (pvtvecsz == 0) {
+      pivots->pivots_.resize(pivots->pivot_count_); // XXX redundant fill
+      pvtvecsz = pivots->pivot_count_;              // XXX
+    }
     assert(pvtvecsz == num_pivots_from_buf);
     std::copy(pvts_from_buf, pvts_from_buf + num_pivots_from_buf,
               pivots->pivots_.begin());
-    pivots->is_set_ = true;   // XXX
   }
 
  private:

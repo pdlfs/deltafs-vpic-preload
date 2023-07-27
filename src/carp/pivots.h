@@ -52,37 +52,30 @@ class PivotUtils;     // fwd declaration for friendship (XXX)
  */
 class Pivots {
  public:
-  Pivots(int pcount) : pivots_(pcount, 0), weight_(0), is_set_(false) {
-    assert(pcount > 1);
+  Pivots(size_t pivot_count) : weight_(0), pivot_count_(pivot_count) {
+    assert(pivot_count > 1);
+    pivots_.reserve(pivot_count);
   }
 
   /* accessor functions */
-  size_t Size() const { return pivots_.size(); }    /* current pivot_count */
+  size_t Size() const { return pivot_count_; }      /* pivot_count if set */
   double PivotWeight() const { return weight_; }    /* chunk weight */
   const double& operator[](std::size_t idx) const { /* access bin array */
+    assert(idx < pivots_.size());
     return pivots_[idx];
-  }
-
-  /* set the pivot_count to a new value (defines pcount-1 chunks/bins) */
-  void Resize(size_t pcount) {
-    assert(pcount > 1);
-    pivots_.resize(pcount);
   }
 
   /* load pivots and weight from an array and weight value */
   void LoadPivots(double *pvtarr, size_t pcount, double pvtweight) {
-    assert(pcount > 1);
+    assert(pcount == pivot_count_);
     pivots_.resize(0);
-    for (size_t i = 0 ; i < pcount ; i++) {
-      pivots_.push_back(pvtarr[i]);
-    }
+    pivots_.insert(pivots_.begin(), pvtarr, pvtarr + pcount);
     weight_ = pvtweight;
-    is_set_ = true;
   }
 
   /* returns overall range of our pivots */
   Range GetPivotBounds() {
-    if (!is_set_) {
+    if (pivots_.size() == 0) {
       ABORT("Range is not set!");
       return Range();
     }
@@ -92,9 +85,12 @@ class Pivots {
 
   /* set all pivot values to 0 (zero-width) and 0 weight */
   void FillZeros() {
-    std::fill(pivots_.begin(), pivots_.end(), 0);
+    if (pivots_.size() == 0) {
+      pivots_.resize(pivot_count_, 0);
+    } else {
+      std::fill(pivots_.begin(), pivots_.end(), 0);
+    }
     weight_ = 0;
-    is_set_ = true;
   }
 
   /* install our pivots into an ordered_bins */
@@ -103,17 +99,20 @@ class Pivots {
   }
 
   void Calculate(ComboConsumer<float,uint64_t>& cco) {
-    this->FillZeros();
-    if (this->Size() == 0)  /* no data, return leaving zeros in pivots */
-      return;
-    assert(this->Size() > 1);
 
-    int npchunk = this->Size() - 1;
-    for (size_t lcv = 0 ; lcv < this->Size() ; lcv++) {
+    /* no data?  fill pivots with zeros and zero weight */
+    if (cco.TotalWeight() == 0) {
+      this->FillZeros();
+      return;
+    }
+
+    pivots_.resize(0);
+    int npchunk = pivot_count_ - 1;
+    for (size_t lcv = 0 ; lcv < pivot_count_ ; lcv++) {
       if (lcv)
         cco.ConsumeWeightTo(cco.TotalWeight() *
                             ((npchunk - lcv) / (double) npchunk) );
-      pivots_[lcv] = cco.CurrentValue();
+      pivots_.push_back(cco.CurrentValue());
     }
 
     this->weight_ = cco.TotalWeight() / (double) npchunk;
@@ -132,14 +131,10 @@ class Pivots {
  private:
   Pivots() {};                    /* private to disallow */
 
-  //
-  // Pivots are doubles because we need them to be (for pivotcalc)
-  // Everything is a double except rank_bins
-  // As we don't need them to be, and they scale linearly with ranks
-  //
+  // note that Pivots are doubles, while OrderedBins are floats
   std::vector<double> pivots_;      /* define Pivots bin */
   double weight_;                   /* bin weight (~same for all chunks) */
-  bool is_set_;                     /* true if Pivots are setup */
+  size_t pivot_count_;              /* pivot_'s pivot_count (once filled) */
 
   friend class PivotUtils;  /* XXX */
 };

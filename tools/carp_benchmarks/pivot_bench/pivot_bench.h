@@ -53,8 +53,8 @@ class PivotBench {
     bool parallel = false;
 
     runtype = "tmp";
-    carp::Pivots oob_pivots(pvtcnt_vec_[1]);
-    GetPerfectPivots(epoch, oob_pivots, parallel);
+    carp::Pivots oob_pivots(opts_.nranks+1);
+    GetPerfectPivots(epoch, oob_pivots, pvtcnt_vec_[1], parallel);
 
     carp::OrderedBins bins(opts_.nranks);
     oob_pivots.InstallInOrderedBins(&bins);
@@ -69,8 +69,8 @@ class PivotBench {
   void RunSuiteEp0PP(const int num_eps, bool parallel) {
     runtype = "ep0pp";
 
-    carp::Pivots pp_ep0(pvtcnt_vec_[1]);
-    GetPerfectPivots(0, pp_ep0, parallel);
+    carp::Pivots pp_ep0(opts_.nranks+1);
+    GetPerfectPivots(0, pp_ep0,  pvtcnt_vec_[1], parallel);
 
     for (int ep = 0; ep < num_eps; ep++) {
       carp::OrderedBins bins(opts_.nranks);
@@ -88,8 +88,8 @@ class PivotBench {
     runtype = "epxsub1pp";
 
     for (int ep = 1; ep < num_eps; ep++) {
-      carp::Pivots pp_epXsub1(pvtcnt_vec_[1]);
-      GetPerfectPivots(ep - 1, pp_epXsub1, parallel);
+      carp::Pivots pp_epXsub1(opts_.nranks+1);
+      GetPerfectPivots(ep - 1, pp_epXsub1,  pvtcnt_vec_[1], parallel);
 
       carp::OrderedBins bins(opts_.nranks);
       pp_epXsub1.InstallInOrderedBins(&bins);
@@ -106,8 +106,8 @@ class PivotBench {
     runtype = "epxpp";
 
     for (int ep = 0; ep < num_eps; ep++) {
-      carp::Pivots pp_epX(pvtcnt_vec_[1]);
-      GetPerfectPivots(ep, pp_epX, parallel);
+      carp::Pivots pp_epX(opts_.nranks+1);
+      GetPerfectPivots(ep, pp_epX,  pvtcnt_vec_[1], parallel);
 
       carp::OrderedBins bins(opts_.nranks);
       pp_epX.InstallInOrderedBins(&bins);
@@ -135,16 +135,16 @@ class PivotBench {
       }
     }
 
-    merged_pivots.FillZeros();
     carp::PivotAggregator aggr(pvtcnt_vec_);
     aggr.AggregatePivots(pivots, merged_pivots);
 
     flog(LOG_INFO, "%s\n", merged_pivots.ToString().c_str());
   }
 
-  void GetPerfectPivots(int epoch, carp::Pivots& merged_pivots, bool parallel) {
+  void GetPerfectPivots(int epoch, carp::Pivots& merged_pivots,
+                        size_t in_pivot_count, bool parallel) {
     std::vector<carp::Pivots> pivots(opts_.nranks,
-                                     carp::Pivots(merged_pivots.Size()));
+                                     carp::Pivots(in_pivot_count));
     if (parallel) {
       parallel_processor_.GetPerfectPivotsParallel(epoch, ranks_, pivots);
     } else {
@@ -154,7 +154,6 @@ class PivotBench {
       }
     }
 
-    merged_pivots.FillZeros();
     carp::PivotAggregator aggr(pvtcnt_vec_);
     aggr.AggregatePivots(pivots, merged_pivots);
 
