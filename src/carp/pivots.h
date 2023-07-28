@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "../common.h"   /* for ABORT */
+
 #include "comboconsumer.h"
 #include "ordered_bins.h"
 #include "range.h"
