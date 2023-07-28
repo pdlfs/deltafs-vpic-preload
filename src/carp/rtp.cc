@@ -476,11 +476,15 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   /* send_to_all here excludes self */
   SendToChildren(buf, bufsz, /* exclude_self */ true, MSGFMT_RTP_PVT_BCAST);
 
-  int round_num, stage_num, sender_id;
+  int round_num, stage_num, sender_id, nbuf_pivots;
+  double *buf_pivots, weight;
   int num_pivots = num_ranks_ + 1;
   Pivots pivots_aggr(num_pivots);
 
-  PivotUtils::DecodePivots(buf, bufsz, &round_num, &stage_num, &sender_id, &pivots_aggr, true);
+  msgfmt_decode_rtp_pivots(buf, bufsz, &round_num, &stage_num, &sender_id,
+                           &buf_pivots, &weight, &nbuf_pivots, true);
+  assert(nbuf_pivots == num_pivots);
+  pivots_aggr.LoadPivots(buf_pivots, nbuf_pivots, weight);
 
   flog(LOG_DBUG, "rtp_handle_pivot_bcast: received pivots at %d from %d",
        my_rank_, src);
