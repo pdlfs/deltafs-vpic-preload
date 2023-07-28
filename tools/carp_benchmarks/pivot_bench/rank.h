@@ -4,8 +4,11 @@
 
 #pragma once
 
+#include <carp/pivots.h>
+
 #include "pivot_common.h"
 #include "trace_reader.h"
+
 
 namespace pdlfs {
 namespace carp {

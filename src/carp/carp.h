@@ -11,8 +11,8 @@
 
 #include "../preload_shuffle.h"
 
-#include "carp_utils.h"
 #include "oob_buffer.h"
+#include "pivots.h"
 #include "policy.h"
 #include "range_common.h"
 #include "shuffle_write_range.h"
@@ -286,8 +286,6 @@ class Carp {
  private:
   friend class InvocationPolicy;
   InvocationPolicy* policy_;
-
-  friend class PivotUtils;
 };
 }  // namespace carp
 }  // namespace pdlfs

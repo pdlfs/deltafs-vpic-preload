@@ -20,8 +20,6 @@
 namespace pdlfs {
 namespace carp {
 
-class PivotUtils;     // fwd declaration for friendship (XXX)
-
 /*
  * Pivots define a sorted set of bins on the value being indexed.
  * Bin boundaries are encoded in an array with the following property:
@@ -66,6 +64,9 @@ class Pivots {
     assert(idx < pivots_.size());
     return pivots_[idx];
   }
+
+  /* return pivot data array (note/XXX: points to internal vector data) */
+  double *Data() { return pivots_.data(); }
 
   /* load pivots and weight from an array and weight value */
   void LoadPivots(double *pvtarr, size_t pcount, double pvtweight) {
@@ -137,8 +138,6 @@ class Pivots {
   std::vector<double> pivots_;      /* define Pivots bin */
   double weight_;                   /* bin weight (~same for all chunks) */
   size_t pivot_count_;              /* pivot_'s pivot_count (once filled) */
-
-  friend class PivotUtils;  /* XXX */
 };
 }  // namespace carp
 }  // namespace pdlfs

@@ -6,7 +6,7 @@
 
 #include <algorithm>
 
-#include "carp/carp_utils.h"
+#include "carp/ordered_bins.h"
 #include "pdlfs-common/env.h"
 #include "pivot_common.h"
 

@@ -273,7 +273,7 @@ TEST(RangeUtilsTest, PivotCalc9) {
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
   carp->mutex_.Lock();
-  carp::PivotUtils::CalculatePivots(pivots);
+  carp->CalculatePivots(pivots);
   carp->mutex_.Unlock();
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);

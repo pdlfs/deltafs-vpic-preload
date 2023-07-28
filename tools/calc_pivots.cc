@@ -16,7 +16,7 @@
 #include <unistd.h>
 
 #include <carp/oob_buffer.h>
-#include <carp/carp_utils.h>
+#include <carp/pivots.h>
 
 int main(int argc, char **argv) {
   int lcv, nbins, pcloc, pivot_count;

@@ -321,9 +321,11 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
     carp_->CalculatePivots(initial_pivots);
     carp_->LogPivots(initial_pivots);
 
-    pvt_buf_len =
-        PivotUtils::EncodePivots(pvt_buf, pvt_buf_sz, round_num_, stage_idx,
-                                 my_rank_, &initial_pivots);
+    pvt_buf_len = msgfmt_encode_rtp_pivots(pvt_buf, pvt_buf_sz, round_num_,
+                                           stage_idx, my_rank_,
+                                           initial_pivots.Data(),
+                                           initial_pivots.PivotWeight(),
+                                           initial_pivots.Size());
 
     carp_->mutex_.Unlock();
 

@@ -2,6 +2,7 @@
 // Created by Ankush J on 10/28/22.
 //
 
+#include <common.h>
 #include "trace_reader.h"
 
 namespace pdlfs {
