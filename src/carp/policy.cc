@@ -23,7 +23,7 @@ bool InvocationPolicy::BufferInOob(particle_mem_t& p) {
 }
 
 bool InvocationPolicy::FirstRenegCompleted() {
-  return !carp_.mts_mgr_.FirstBlock();
+  return !carp_.IsFirstBlock();
 }
 
 void InvocationPolicy::Reset() { carp_.Reset(); }

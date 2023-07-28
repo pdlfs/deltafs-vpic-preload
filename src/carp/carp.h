@@ -98,6 +98,14 @@ class Carp {
     this->PerflogDestroy();
   }
 
+  /* Not called directly - up to the invocation policy */
+  void Reset() {
+    mutex_.AssertHeld();
+    mts_mgr_.Reset();
+    bins_.Reset();
+    oob_buffer_.Reset();
+  }
+
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
                    unsigned char data_len, unsigned char extra_data_len,
                    particle_mem_t& p);
@@ -142,6 +150,11 @@ class Carp {
   MainThreadState GetCurState() {
     mutex_.AssertHeld();
     return mts_mgr_.GetState();
+  }
+
+  bool IsFirstBlock() {
+    mutex_.AssertHeld();
+    return mts_mgr_.FirstBlock();
   }
 
   Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type) {
@@ -230,14 +243,6 @@ class Carp {
     }
   }
 
-  /* Not called directly - up to the invocation policy */
-  void Reset() {
-    mutex_.AssertHeld();
-    mts_mgr_.Reset();
-    bins_.Reset();
-    oob_buffer_.Reset();
-  }
-
   /* internal (private) perflog rountes (only call if perlog enabled) */
   void PerflogStartup();                           // open perflog
   static void *PerflogMain(void *arg);             // periodic thread main
@@ -284,7 +289,6 @@ class Carp {
   OobBuffer oob_buffer_;          /* out of bounds data */
 
  private:
-  friend class InvocationPolicy;
   InvocationPolicy* policy_;
 };
 }  // namespace carp
