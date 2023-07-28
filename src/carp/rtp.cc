@@ -323,7 +323,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
 
     pvt_buf_len =
         PivotUtils::EncodePivots(pvt_buf, pvt_buf_sz, round_num_, stage_idx,
-                                 my_rank_, &initial_pivots, false);
+                                 my_rank_, &initial_pivots);
 
     carp_->mutex_.Unlock();
 
@@ -351,7 +351,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
        ::hash_str((char*)buf, bufsz));
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &msg_round_num, &stage_num, &sender_id,
-                           &pivots, &pivot_weight, &num_pivots, false);
+                           &pivots, &pivot_weight, &num_pivots);
   /* stage_num refers to the stage the pivots were generated at.
    * merged_pvtcnt must correspond to the next stage
    */
@@ -424,7 +424,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
 
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
-          merged_pivots, merged_weight, merged_pvtcnt, /* bcast */ false);
+          merged_pivots, merged_weight, merged_pvtcnt);
 
       int new_dest = stage_num == 1 ? root_[2] : root_[3];
 
@@ -443,7 +443,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
       /* XXX: num_pivots_ = comm_sz, 2048B IS NOT SUFFICIENT */
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
-          merged_pivots, merged_weight, merged_pvtcnt, /* bcast */ true);
+          merged_pivots, merged_weight, merged_pvtcnt);
 
       carp_->LogPrintf("RENEG_RTP_PVT_MASS %f",
                        (merged_pvtcnt - 1) * merged_weight);
@@ -482,7 +482,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   Pivots pivots_aggr(num_pivots);
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &round_num, &stage_num, &sender_id,
-                           &buf_pivots, &weight, &nbuf_pivots, true);
+                           &buf_pivots, &weight, &nbuf_pivots);
   assert(nbuf_pivots == num_pivots);
   pivots_aggr.LoadPivots(buf_pivots, nbuf_pivots, weight);
 

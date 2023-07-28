@@ -52,12 +52,10 @@ size_t msgfmt_bufsize_rtp_pivots(int num_pivots);
  */
 int msgfmt_encode_rtp_pivots(void* buf, size_t buf_sz, int round_num,
                              int stage_num, int sender_id, double* pivots,
-                             double pivot_weight, int num_pivots,
-                             bool bcast);
+                             double pivot_weight, int num_pivots);
 
 void msgfmt_decode_rtp_pivots(void* buf, size_t buf_sz, int* round_num,
                               int* stage_num, int* sender_id, double** pivots,
-                              double* pivot_weight, int* num_pivots,
-                              bool bcast);
+                              double* pivot_weight, int* num_pivots);
 }  // namespace carp
 }  // namespace pdlfs

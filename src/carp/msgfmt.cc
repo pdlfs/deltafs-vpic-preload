@@ -32,7 +32,7 @@ size_t msgfmt_bufsize_rtp_pivots(int pivot_count) {
 
 int msgfmt_encode_rtp_pivots(void* buf, size_t buf_sz, int round_num,
                              int stage_num, int sender_id, double* pivots,
-                             double pivot_weight, int pivot_count, bool bcast) {
+                             double pivot_weight, int pivot_count) {
   char *bp = (char *)buf;
   size_t rv = msgfmt_bufsize_rtp_pivots(pivot_count);
   assert(buf_sz >= rv);
@@ -48,8 +48,7 @@ int msgfmt_encode_rtp_pivots(void* buf, size_t buf_sz, int round_num,
 
 void msgfmt_decode_rtp_pivots(void* buf, size_t buf_sz, int* round_num,
                               int* stage_num, int* sender_id, double** pivots,
-                              double* pivot_weight, int* pivot_count,
-                              bool bcast) {
+                              double* pivot_weight, int* pivot_count) {
   char *bp = (char *)buf;
   assert(buf_sz >= msgfmt_bufsize_rtp_pivots(0));
   memcpy(round_num, bp, sizeof(*round_num));       bp += sizeof(*round_num);
