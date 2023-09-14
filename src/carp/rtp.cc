@@ -437,6 +437,10 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
        * contained in rtp_handle_pivot_bcast
        */
       flog(LOG_DBUG, "rtp_handle_reneg_pivot: choice 2 @ %d", root_[3]);
+      if (merged_weight == 0.0) {
+        flog(LOG_WARN, "rtp_handle_reneg_pivot: root (%d) merged pivots "
+                       "has zero weight?!?!", root_[3]);
+      }
 
       assert(my_rank_ == root_[3]);
 
@@ -582,6 +586,18 @@ void RTP::ComputeAggregatePivots(int stage_num, size_t output_pivot_count,
   /* get sorted set of all pivot boundaries and weights from the buffer */
   pivot_buffer_.LoadBounds(stage_num, boundsv);
   pivot_buffer_.GetPivotWeights(stage_num, pivot_weights);
+
+  /*
+   * special case: if there are no bounds points, then we have nothing
+   * to union and should return a zero filled/weighted set of merged pivots.
+   */
+  if (boundsv.size() == 0) {
+    for (size_t lcv = 0 ; lcv < output_pivot_count ; lcv++) {
+      merged_pivots[lcv] = 0.0;
+    }
+    merged_weight = 0.0;
+    return;
+  }
 
   /*
    * next we load the bounds and weights we got from the pivot buffer

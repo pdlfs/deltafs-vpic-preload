@@ -14,7 +14,7 @@ namespace carp {
 /*
  * merge/union set of pivots bounds into a new binhistogram
  */
-void pivot_union(std::vector<bounds_t> bounds,
+void pivot_union(std::vector<bounds_t>& bounds,
                  std::vector<double>& weights,
                  size_t ninputs,
                  pdlfs::carp::BinHistogram<double,float>& mergedhist) {
