@@ -129,14 +129,18 @@ class Carp {
     epoch_++;
   }
 
-  OobFlushIterator OobIterator() { return OobFlushIterator(oob_buffer_); }
-
   size_t OobSize() const { return oob_buffer_.Size(); }
+
+  // flush OOB buffer.  if purge is false then we continue to buffer
+  // items that are still OOB.  if purge is true then we send items
+  // that are still OOB to one of the ranks on the end (i.e. OOB left
+  // to rank 0, OOB right to rank N-1).
+  void FlushOOB(bool purge, int epoch);
 
   //
   // Return currently negotiated range, held by oob_buffer
   //
-  Range GetInBoundsRange() const { return oob_buffer_.ibrange_; }
+  Range GetInBoundsRange() { return oob_buffer_.GetInBoundsRange(); }
 
   void UpdateInBoundsRange(Range range) {
     oob_buffer_.SetInBoundsRange(Range(range.rmin(), range.rmax()));
@@ -225,22 +229,27 @@ class Carp {
   void UpdateBinsFromPivots(Pivots* pivots);
 
  private:
-  void AssignShuffleTarget(particle_mem_t& p) {
+
+  /*
+   * attempt to assign p to a shuffle target.   if p is out of
+   * bounds and purge is true (e.g. during an epoch flush), we
+   * force an assignment to the rank on the end (OOB left=>rank 0,
+   * OOB right=>rank N-1).
+   * returns 0 if assigned, -1 if OOB left, +1 if OOB right.
+   */
+  int AssignShuffleTarget(particle_mem_t& p, bool purge) {
     int rv, dest_rank;
+    assert(p.shuffle_dest == -1);
     rv = policy_->ComputeShuffleTarget(p, dest_rank);
-    if (rv == 0) {                   /* in bounds */
+    if (rv && purge) {
+      dest_rank = (rv < 0) ? 0 : bins_.Size() - 1;
+      rv = 0;     /* assigned dest via purge */
+    }
+    if (rv == 0) {
       p.shuffle_dest = dest_rank;
       bins_.IncrementBin(dest_rank);
-    } else {
-      p.shuffle_dest = -1;           /* out of bounds, no assigned dest yet */
     }
-  }
-
-  void MarkFlushableBufferedItems() {
-    std::vector<particle_mem_t>& oob_vec = oob_buffer_.buf_;
-    for (size_t i = 0; i < oob_vec.size(); i++) {
-      AssignShuffleTarget(oob_vec[i]);
-    }
+    return rv;
   }
 
   /* internal (private) perflog rountes (only call if perlog enabled) */

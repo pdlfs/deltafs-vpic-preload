@@ -110,6 +110,10 @@ class OobBuffer {
     ibrange_ = range;
   }
 
+  Range GetInBoundsRange() {
+    return ibrange_;
+  }
+
   //
   // walk the set of out of bounds partciles we are currently storing.
   // for each particle we determine if its key is to the left or right
@@ -118,6 +122,14 @@ class OobBuffer {
   // range is set, then we return all keys in left.
   //
   int GetPartitionedProps(std::vector<float>& left, std::vector<float>& right);
+
+  // swap OOB list into the given swpbuf for the caller to process.
+  // init the new OOB list an empty state.
+  void SwapList(std::vector<particle_mem_t>& swpbuf) {
+    buf_.swap(swpbuf);
+    buf_.clear();
+    buf_.reserve(oob_max_sz_);
+  }
 
   //
   // reset OobBuffer to initial state (clear all stored particles and
@@ -129,110 +141,10 @@ class OobBuffer {
   }
 
  private:
-  //
-  // Resizes OobBuffer to "new_size" particles, relinquishing extra memory.
-  // Only used by the destructor of OobFlushIterator, where it can
-  // never grow in size.
-  //
-  void Resize(size_t new_size) {
-    assert(new_size <= buf_.size());
-    buf_.resize(new_size);
-    // arbitrary heuristic for relinquishing memory
-    // create a new vector with buf_ data and swap it in
-    // can also use shrink_to_fit (c++11)
-    if ((buf_.capacity() > 2*oob_max_sz_) and (new_size < oob_max_sz_)) {
-      std::vector<particle_mem_t> tmp(buf_);
-      tmp.reserve(oob_max_sz_);
-      buf_.swap(tmp);
-    }
-  }
-
   // XXX: Inclusive vs. regular
   const size_t oob_max_sz_;         // max# oob particles we hold (set by ctor)
   Range ibrange_;                   // in-bounds range
   std::vector<particle_mem_t> buf_; // OOB buf particle array (prealloc'd)
-
-
-  friend class OobFlushIterator;
-  friend class Carp;  // XXX: for carp.h MarkFlushableBufferedItems()
-};
-
-/*
- * OobFlushIterator: iterator used when flushing buffered oob particles.
- * we can "preserve" the current oob particle so that it remains in the
- * OobBuffer after the flush (we will copy it earlier in buf_ to prevent
- * empty holes in the buf_ vector/array).  we typically preserve oob
- * particles when we do not yet know where to shuffle them to.
- */
-class OobFlushIterator {
- public:
-  //
-  // ctor.   create a flush iterator for the given OobBuffer
-  //
-  explicit OobFlushIterator(OobBuffer& buf)
-      : buf_(buf), flush_idx_(0), preserve_idx_(0) {
-    buf_len_ = buf_.buf_.size();
-  }
-
-  //
-  // copy ctor.  allows iterator to be copied to another iterator
-  // XXX: just for OobIterator() ?
-  //
-  OobFlushIterator(const OobFlushIterator& other)
-      : buf_(other.buf_),
-        flush_idx_(other.flush_idx_),
-        preserve_idx_(other.preserve_idx_),
-        buf_len_(other.buf_len_) {}
-
-  //
-  // dtor.  empty out the buf_, except for any preserved entries.
-  //
-  ~OobFlushIterator() { buf_.Resize(preserve_idx_); }
-
-  //
-  // return current oob particle
-  //
-  particle_mem_t& operator*() {
-    if (flush_idx_ < buf_len_) return buf_.buf_[flush_idx_];
-    return buf_.buf_[0];  // XXX: iterator out of bounds, try something safe
-  }
-
-  //
-  // advance to next oob particle
-  //
-  void operator++(int) {
-    if (flush_idx_ < buf_len_) flush_idx_++;
-  }
-
-  //
-  // is our iterator index# equal to a given value (XXX: NOTUSED)
-  //
-  bool operator==(size_t other) const { return flush_idx_ == other; }
-
-  //
-  // is our iterator index# !equal to a given value
-  // (used in shuffle_flush_oob() )
-  //
-  bool operator!=(size_t other) const { return flush_idx_ != other; }
-
-  //
-  // preserve current oob particle in the OobBuffer rather than
-  // flush it out (e.g. because it doesn't yet have a shuffle dest
-  // that shuffle_flush_oob() can send it to).  ret 0 if ok, -1 on error.
-  //
-  int PreserveCurrent() {
-    if (preserve_idx_ > flush_idx_) return -1;  // shouldn't normally happen
-    if (preserve_idx_ != flush_idx_)  // do we need to compact buf_[] ?
-      buf_.buf_[preserve_idx_] = buf_.buf_[flush_idx_];
-    preserve_idx_++;
-    return 0;
-  }
-
- private:
-  OobBuffer& buf_;       // OobBuffer we are flushing
-  size_t flush_idx_;     // current index we are flushing
-  size_t preserve_idx_;  // # oob particles we are preserving
-  size_t buf_len_;       // # oob particles in buf_
 };
 
 }  // namespace carp

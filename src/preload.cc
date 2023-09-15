@@ -2247,14 +2247,6 @@ int opendir_impl(const char* dir) {
 
   if (pctx.carp_on) {
     pctx.carp->AdvanceEpoch();
-    if (pctx.paranoid_post_barrier) {
-      /*
-       * for carp: ensure writes for next epoch go to new write buffer.
-       * XXX: we are close to having two barriers in a row (see below,
-       * after the mon/papi code).  can we just have one?
-       */
-      PRELOAD_Barrier(MPI_COMM_WORLD);
-    }
   }
 
   if (!pctx.nomon) {
@@ -2364,6 +2356,10 @@ int closedir_impl(DIR* dirp) {
     if (pctx.my_rank == 0) {
       flush_start = now_micros();
       flog(LOG_INFO, "flushing shuffle senders ... (rank 0)");
+    }
+    if (pctx.carp_on) {
+      /* must purge all OOB particles before starting shuffle flush */
+      pctx.carp->FlushOOB(true, num_eps - 1);
     }
     shuffle_epoch_end(&pctx.sctx); /* shuffle sender flush */
     if (pctx.my_rank == 0) {
