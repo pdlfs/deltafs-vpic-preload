@@ -10,33 +10,6 @@
 namespace pdlfs {
 namespace carp {
 
-/*
- * operator+ is only used by test/tools code.  we assume the bin boundaries
- * all match (true for pivot_bench.h ReadEpochIntoBins()) so that adding
- * makes sense.  if 'this' is unset we treat it as zero and just add rhs.
- */
-OrderedBins OrderedBins::operator+(const OrderedBins& rhs) {
-  size_t rsz = rhs.Size();
-  assert(this->Size() == 0 || this->Size() == rsz);  /* this can be unset */
-
-  OrderedBins tmp(rsz);
-  if (rsz) {
-    tmp.InitForExtend(rhs.GetRange().rmin());
-    for (size_t bidx = 0 ; bidx < rsz ; bidx++) {
-      Range brange = rhs.GetBin(bidx);
-      if (this->Size() == 0) {
-        tmp.Extend(brange.rmax(), rhs.Weight(bidx));
-        counts_aggr_.push_back(rhs.counts_aggr_[bidx]);
-      } else {
-        tmp.Extend(brange.rmax(), this->Weight(bidx) + rhs.Weight(bidx));
-        counts_aggr_.push_back(this->counts_aggr_[bidx] +
-                               rhs.counts_aggr_[bidx]);
-      }
-    }
-  }
-  return tmp;
-}
-
 //
 // Searches for the bin corresponding to a value
 // Adds it there. Undefined behavior if val is out of bounds

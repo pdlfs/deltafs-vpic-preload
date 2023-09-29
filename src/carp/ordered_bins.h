@@ -50,12 +50,18 @@ class OrderedBins : public BinHistogram<float,uint64_t> {
     counts_aggr_.resize(0);
   }
 
-  /* add 1 to bin weight and update aggregate counts as well */
-  void IncrementBin(size_t bidx) {
-    this->AddToBinWeight(bidx, 1);
+  /* add weight to a bin and aggregate count (used by pivot benchmark) */
+  void AddToBinWeight(size_t bidx, uint64_t val) {
+    assert(bidx >= 0 && bidx < this->Size());
+    this->BinHistogram<float,uint64_t>::AddToBinWeight(bidx, val);
 
     /* additional work for aggregates */
-    counts_aggr_[bidx]++;
+    counts_aggr_[bidx] += val;
+  }
+
+  /* shorthand for calling AddToBinWeight (above) with value == 1 */
+  void IncrementBin(size_t bidx) {
+    this->AddToBinWeight(bidx, 1);
    }
 
   /* load bins from pivot vector and zero weights */
@@ -90,9 +96,6 @@ class OrderedBins : public BinHistogram<float,uint64_t> {
   }
 
   /* methods in ordered_bins.cc */
-
-  /* operator+ is only used by test/tools code */
-  OrderedBins operator+(const OrderedBins& rhs);
 
   // search for bin and add (XXX: may not be needed anymore?)
   void AddVal(float val, bool force);

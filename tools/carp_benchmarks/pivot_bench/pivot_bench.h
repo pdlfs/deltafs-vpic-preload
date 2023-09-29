@@ -162,19 +162,26 @@ class PivotBench {
 
   void ReadEpochIntoBins(int epoch, carp::OrderedBins& merged_bins,
                          bool parallel) {
-    std::vector<carp::OrderedBins> bins(merged_bins.Size(), merged_bins);
+    /* init subbins with identical bin boundaries copied from merged_bins */
+    std::vector<carp::OrderedBins> subbins(merged_bins.Size(), merged_bins);
     if (parallel) {
-      parallel_processor_.ReadEpochIntoBinsParallel(epoch, ranks_, bins);
+      parallel_processor_.ReadEpochIntoBinsParallel(epoch, ranks_, subbins);
     } else {
       for (unsigned int r = 0; r < opts_.nranks; r++) {
-        ranks_[r]->ReadEpochIntoBins(epoch, &bins[r]);
-        flog(LOG_INFO, "%s\n", bins[r].ToString().c_str());
+        ranks_[r]->ReadEpochIntoBins(epoch, &subbins[r]);
+        flog(LOG_INFO, "%s\n", subbins[r].ToString().c_str());
       }
     }
 
     merged_bins.Reset();
-    for (auto bin : bins) {
-      merged_bins = merged_bins + bin;
+    for (size_t lcv = 0 ; lcv < subbins.size() ; lcv++) {
+      if (lcv == 0) {
+        merged_bins = subbins[lcv];  /* merged_bins was just Reset */
+      } else {
+        for (size_t bidx = 0 ; bidx < subbins[lcv].Size() ; bidx++) {
+          merged_bins.AddToBinWeight(bidx, subbins[lcv].Weight(bidx));
+        }
+      }
     }
 
     flog(LOG_INFO, "%s\n", merged_bins.ToString().c_str());

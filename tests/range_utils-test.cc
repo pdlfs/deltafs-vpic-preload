@@ -89,22 +89,6 @@ TEST(RangeUtilsTest, DeduplicateVector) {
   assert(v.size() == 4);
 }
 
-TEST(RangeUtilsTest, OrderedBinAddition) {
-  float bins[] = {1, 2, 3, 4, 5};
-  uint64_t counts1[] = {2, 3, 2, 3};
-  uint64_t counts2[] = {1, 2, 3, 4};
-
-  OrderedBins bins1(4), bins2(4);
-  bins1.UpdateFromArrays(4, bins, counts1);
-  bins2.UpdateFromArrays(4, bins, counts2);
-
-  OrderedBins bins_total = bins1 + bins2;
-
-  ASSERT_EQ(bins1.GetTotalWeight(), 10);
-  ASSERT_EQ(bins2.GetTotalWeight(), 10);
-  ASSERT_EQ(bins_total.GetTotalWeight(), 20);
-}
-
 TEST(RangeUtilsTest, PivotCalc) {
   srand(time(NULL));
 
