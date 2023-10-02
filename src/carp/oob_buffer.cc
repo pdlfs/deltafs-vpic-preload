@@ -13,42 +13,30 @@ namespace pdlfs {
 namespace carp {
 
 /*
- * copy/append item to our out of bounds buffer
- * inserts will be accepted beyond configured size, but IsFull
- * will return true in the "overflow state"
+ * copy/append item to our out of bounds buffer.  inserts beyond
+ * oob_max_sz_ are allowed (puts us in IsFull() overflow state).
  */
-int OobBuffer::Insert(particle_mem_t& item) {
-  int rv = 0;
-
-  float prop = item.indexed_prop;
-
-  if (ibrange_.Inside(prop)) {
-    rv = -1;
-    flog(LOG_WARN, "[OOB] Buffering of in-bounds item attempted");
-    return rv;
-  }
-
+void OobBuffer::Insert(particle_mem_t& item) {
   if (buf_.size() >= oob_max_sz_) {
     flog(LOG_DBUG, "[OOB] Overflow alert");
   }
 
   buf_.push_back(item);
-
-  return rv;
 }
 
 /*
  * return keys of our out of bounds buffers in two sorted vectors.
  * left is filled with keys prior to inbounds area.
  */
-int OobBuffer::GetPartitionedProps(std::vector<float>& left,
+int OobBuffer::GetPartitionedProps(Range ibrange,
+                                   std::vector<float>& left,
                                    std::vector<float>& right) {
   for (auto it = buf_.cbegin(); it != buf_.cend(); it++) {
     float prop = it->indexed_prop;
-    if ((not ibrange_.IsSet()) or
-        (ibrange_.IsSet() and prop < ibrange_.rmin())) {
+    if ((not ibrange.IsSet()) or
+        (ibrange.IsSet() and prop < ibrange.rmin())) {
       left.push_back(prop);
-    } else if (prop >= ibrange_.rmax()) {
+    } else if (prop >= ibrange.rmax()) {
       right.push_back(prop);
     }
   }

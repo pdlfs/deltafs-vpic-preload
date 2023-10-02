@@ -32,7 +32,8 @@ template <typename BT, typename WT> class ComboConsumer {
   ComboConsumer(BinHistogram<BT,WT>* bins, OobBuffer* oob) : bincons_(bins),
                 leftcons_(NULL), rightcons_(NULL), cursrc_(NONE) {
     if (oob) {
-      oob->GetPartitionedProps(oob_left_, oob_right_);
+      Range ibr = (bins) ? bins->GetRange() : Range();
+      oob->GetPartitionedProps(ibr, oob_left_, oob_right_);
       leftcons_.SetVec(&oob_left_);
       rightcons_.SetVec(&oob_right_);
       leftresid_ = leftcons_.RemainingWeight();

@@ -137,14 +137,15 @@ class Carp {
   // to rank 0, OOB right to rank N-1).
   void FlushOOB(bool purge, int epoch);
 
+  // is value out of bins_ bounds?
+  bool OutOfBounds(float prop) {
+    return !bins_.InRange(prop);
+  }
+
   //
   // Return currently negotiated range, held by oob_buffer
   //
-  Range GetInBoundsRange() { return oob_buffer_.GetInBoundsRange(); }
-
-  void UpdateInBoundsRange(Range range) {
-    oob_buffer_.SetInBoundsRange(Range(range.rmin(), range.rmax()));
-  }
+  Range GetInBoundsRange() { return bins_.GetRange(); }
 
   void UpdateState(MainThreadState new_state) {
     mutex_.AssertHeld();

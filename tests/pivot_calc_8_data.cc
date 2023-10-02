@@ -4,8 +4,6 @@
 
 const int num_ranks = 512;
 
-const float range_min = -0.000179999639;
-const float range_max = 462.990967;
 const int oob_data_sz = 0;
 const float oob_data[] = {};
 

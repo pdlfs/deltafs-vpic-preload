@@ -56,7 +56,8 @@ class OobBuffer {
  public:
   //
   // ctor.   allocates an OobBuffer with the max number of oob particles
-  // it can store (in buf_) set to oob_max_sz and the range unset.
+  // we want to store (in buf_) set to oob_max_sz and the range unset.
+  // oob_max_sz is advisory (it just controls if IsFull() is true or not).
   //
   explicit OobBuffer(const size_t oob_max_sz)
       : oob_max_sz_(oob_max_sz) {
@@ -64,21 +65,10 @@ class OobBuffer {
   }
 
   //
-  // check if the key ("prop") lies outside the key range managed by
-  // the local carp proc.  if so, we return true.  we also return true
-  // if the range is not set.
+  // copy/append the particle "item" to the oob buffer.
+  // caller should ensure "item" is out of bounds before inserting.
   //
-  bool OutOfBounds(float prop) const {
-    // note: if range not set, Inside() returns false (and !Inside() == true)
-    return !ibrange_.Inside(prop);
-  }
-
-  //
-  // copy/append the particle "item" to the oob buffer.  the particle
-  // should be OutOfBounds().  return 0 on success, -1 if the
-  // particle is !OutOfBounds().
-  //
-  int Insert(particle_mem_t& item);
+  void Insert(particle_mem_t& item);
 
   //
   // return current number of particles OobBuffer is holding.
@@ -93,38 +83,19 @@ class OobBuffer {
   }
 
   //
-  // set the in-bounds range of the OobBuffer from rmin (inclusive)
-  // to rmax (exclusive).  we only want to store particles outside
-  // of this range.
-  //
-  void SetInBoundsRange(float range_min, float range_max) {
-    // TODO: double/float mismatch
-    ibrange_.Set(range_min, range_max);
-  }
-
-  //
-  // Set the in-bounds range of the OobBuffer.
-  // XXXAJ: maybe this range should belong to OrderedBins in Carp
-  //
-  void SetInBoundsRange(Range range) {
-    ibrange_ = range;
-  }
-
-  Range GetInBoundsRange() {
-    return ibrange_;
-  }
-
-  //
   // walk the set of out of bounds partciles we are currently storing.
   // for each particle we determine if its key is to the left or right
   // of the in-bounds range and append the key to the appropriate vector.
   // we then sort the left and right vectors before returning.   if no
   // range is set, then we return all keys in left.
   //
-  int GetPartitionedProps(std::vector<float>& left, std::vector<float>& right);
+  int GetPartitionedProps(Range ibrange,
+                          std::vector<float>& left, std::vector<float>& right);
 
+  //
   // swap OOB list into the given swpbuf for the caller to process.
   // init the new OOB list an empty state.
+  //
   void SwapList(std::vector<particle_mem_t>& swpbuf) {
     buf_.swap(swpbuf);
     buf_.clear();
@@ -132,18 +103,14 @@ class OobBuffer {
   }
 
   //
-  // reset OobBuffer to initial state (clear all stored particles and
-  // unset the in-bounds range).
+  // reset OobBuffer to initial state (clear all stored particles).
   //
   void Reset() {
-    ibrange_.Reset();
     buf_.clear();
   }
 
  private:
-  // XXX: Inclusive vs. regular
   const size_t oob_max_sz_;         // max# oob particles we hold (set by ctor)
-  Range ibrange_;                   // in-bounds range
   std::vector<particle_mem_t> buf_; // OOB buf particle array (prealloc'd)
 };
 

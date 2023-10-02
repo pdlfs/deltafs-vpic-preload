@@ -60,12 +60,8 @@ class RangeUtilsTest {
     }
   }
 
-  void LoadData(const int num_ranks, const float range_min,
-                const float range_max, const uint64_t* rank_bin_counts,
+  void LoadData(const int num_ranks, const uint64_t* rank_bin_counts,
                 const float* rank_bins) {
-    carp->UpdateInBoundsRange({range_min, range_max});
-    // XXX: this does the same thing as the above
-    carp->oob_buffer_.SetInBoundsRange(range_min, range_max);
     carp->bins_.UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
   }
 
@@ -161,14 +157,13 @@ TEST(RangeUtilsTest, PivotCalc3) {
                              1.4439038,   2.18780971,  4.48976707};
 
   const uint64_t rank_bin_counts[] = {11, 10, 10, 6, 1, 3, 2, 1};
-  const float range_min = 0.011929879, range_max = 4.48976707;
   const int oob_data_sz = 25;
   const int num_ranks = 8;
   const unsigned int num_pivots = 8;
   Pivots pivots(num_pivots);
 
   LoadData(oob_data, oob_data_sz);
-  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  LoadData(num_ranks, rank_bin_counts, rank_bins);
   carp->mutex_.Lock();
   carp->CalculatePivots(pivots);
   carp->mutex_.Unlock();
@@ -181,7 +176,7 @@ TEST(RangeUtilsTest, PivotCalc4) {
 #include "pivot_calc_4_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
-  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
   carp->mutex_.Lock();
   carp->CalculatePivots(pivots);
@@ -195,7 +190,7 @@ TEST(RangeUtilsTest, PivotCalc5) {
 #include "pivot_calc_5_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
-  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
   carp->mutex_.Lock();
   carp->CalculatePivots(pivots);
@@ -209,7 +204,7 @@ TEST(RangeUtilsTest, PivotCalc6) {
 #include "pivot_calc_6_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
-  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
   carp->mutex_.Lock();
   carp->CalculatePivots(pivots);
@@ -235,7 +230,7 @@ TEST(RangeUtilsTest, PivotCalc8) {
 #include "pivot_calc_8_data.cc"  // NOLINT(bugprone-suspicious-include)
   AdvancePastInit();
   LoadData(oob_data, oob_data_sz);
-  LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
+  LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
   carp->mutex_.Lock();
   carp->CalculatePivots(pivots);

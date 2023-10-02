@@ -50,7 +50,6 @@ class Rank {
     // Read rest of items from epoch
     bool eof = false;
     OobBuffer oob(cur_ep_size_);
-    oob.SetInBoundsRange(bins_pp.GetRange());
     ReadItems(epoch, SIZE_MAX, &bins_pp, &oob, eof);
     assert(eof == true);
 
@@ -88,10 +87,7 @@ class Rank {
         ptmp.indexed_prop = items[i];
         ptmp.buf_sz = 0;
         ptmp.shuffle_dest = -1;
-        if (oob->Insert(ptmp) != 0) {
-          fprintf(stderr, "oob insert failed?!\n");
-          exit(1);
-        }
+        oob->Insert(ptmp);
       }
     }
     cur_ep_offset_ += itemcnt;

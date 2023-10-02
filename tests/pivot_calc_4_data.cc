@@ -7,9 +7,6 @@ const int num_ranks = 512;
 const float oob_data[] = {};
 const int oob_data_sz = 0;
 
-const float range_min = -0.000120000033;
-const float range_max = 11.7258329;
-
 const int num_pivots = 64;
 
 const uint64_t rank_bin_counts[] = {

@@ -45,11 +45,8 @@ Status Carp::AttemptBuffer(particle_mem_t& p, bool& is_oob,
 
   /* if its oob, "p" gets copied off to OOB buffer with shuffle_dest==-1 */
   if (is_oob) {
-    int rv = oob_buffer_.Insert(p);
-    if (rv < 0) {
-      flog(LOG_ERRO, "OOB Insert failed: %d", options_.my_rank);
-      ABORT("Oob insert failed!");
-    }
+
+    oob_buffer_.Insert(p);
 
     /* we are done with "p" -- processing will complete when oob is flushed */
   }
@@ -101,8 +98,7 @@ void Carp::UpdateBinsFromPivots(Pivots* pivots) {
     assert(float_gte(pivot_bounds.rmax(), carp_range.rmax()));
   }
 
-  this->UpdateInBoundsRange(pivot_bounds);
-  pivots->InstallInOrderedBins(&bins_);
+  pivots->InstallInOrderedBins(&bins_);  /* this updates bounds too */
 
 #ifdef DELTAFS_PLFSDIR_RANGEDB
   // make safe to invoke CARP-RTP without a properly initiialized

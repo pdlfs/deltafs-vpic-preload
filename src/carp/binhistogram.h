@@ -57,6 +57,13 @@ template <typename BT, typename WT> class BinHistogram {
     return (weights_.size()) ? Range(bins_.front(), bins_.back()) : Range();
   }
 
+  /* is BT in range of our bins? */
+  bool InRange(BT val) {
+    if (weights_.size() == 0)
+      return false;              /* cannot be in range if no bins defined */
+    return val >= bins_.front() && val < bins_.back();
+  }
+
   /* range of a given bin index */
   Range GetBin(size_t bidx) const {
     assert(bidx >= 0 && bidx < weights_.size());

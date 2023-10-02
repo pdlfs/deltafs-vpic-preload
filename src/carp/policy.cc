@@ -16,10 +16,7 @@ InvocationPolicy::InvocationPolicy(Carp& carp, const CarpOptions& options)
       num_writes_(0) {}
 
 bool InvocationPolicy::BufferInOob(particle_mem_t& p) {
-  // XXX: should ideally be the same as consulting
-  // carp.range_min_ and carp.range_max_
-  // TODO: remove redundancy
-  return carp_.oob_buffer_.OutOfBounds(p.indexed_prop);
+  return carp_.OutOfBounds(p.indexed_prop);
 }
 
 bool InvocationPolicy::FirstRenegCompleted() {

@@ -90,10 +90,6 @@ int main(int argc, char **argv) {
   /* set oob max size large enough to handle remaining args */
   pdlfs::carp::OobBuffer oob(argc - pcloc + 1);
 
-  if (bins.IsSet()) {
-    oob.SetInBoundsRange(bins.GetRange());
-  }
-
   if (pcloc + 1 >= argc) {
     printf("err: no data on command line to load\n");
     exit(1);
@@ -102,29 +98,21 @@ int main(int argc, char **argv) {
   /* load data in */
   for (lcv = pcloc + 1 ; lcv < argc ; lcv++) {
     float prop = strtof(argv[lcv], &endptr);
+    size_t bidx;
     if (*endptr) {
       printf("parse error: %s\n", argv[lcv]);
       exit(1);
     }
-    if (oob.OutOfBounds(prop)) {
+    if (bins.SearchBins(prop, bidx, false) == 0) {
+      bins.IncrementBin(bidx);
+      printf("insert bins: %f (bidx=%zd)\n", prop, bidx);
+    } else {
       pdlfs::carp::particle_mem_t p;
       p.indexed_prop = prop;
       p.buf_sz = 0;
       p.shuffle_dest = -1;
-      if (oob.Insert(p) != 0) {
-        printf("insert oob failed!\n");
-        exit(1);
-      }
+      oob.Insert(p);
       printf("insert oob: %f\n", prop);
-    } else {
-      size_t bidx;
-      int rv = bins.SearchBins(prop, bidx, false);
-      if (rv != 0) {
-        printf("search bin failed!\n");
-        exit(1);
-      }
-      bins.IncrementBin(bidx);
-      printf("insert bins: %f (bidx=%zd)\n", prop, bidx);
     }
   }
 

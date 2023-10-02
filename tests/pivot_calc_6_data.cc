@@ -17,9 +17,6 @@ const float oob_data[] = {
 
 const int oob_data_sz = 9;
 
-const float range_min = -3.00000011e-06;
-const float range_max = 2.21989846;
-
 const int num_pivots = 256;
 
 const uint64_t rank_bin_counts[] = {
