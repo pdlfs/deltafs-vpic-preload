@@ -66,10 +66,10 @@ class Carp {
  public:
   Carp(const CarpOptions& options)
       : options_(options),
+        cv_(&mutex_),
         backend_wr_bytes_(0),
         epoch_(0),
         rtp_(this, options_),
-        cv_(&mutex_),
         bins_(options.num_ranks),
         oob_buffer_(options.oob_sz),
         policy_(nullptr) {
@@ -130,6 +130,11 @@ class Carp {
   }
 
   size_t OobSize() const { return oob_buffer_.Size(); }
+  bool IsOobFull() { return oob_buffer_.IsFull(); }
+
+  // OobReset and OobInsert are exposed for testing carp
+  void OobReset() { oob_buffer_.Reset(); }
+  void OobInsert(particle_mem_t& item) { oob_buffer_.Insert(item); }
 
   // flush OOB buffer.  if purge is false then we continue to buffer
   // items that are still OOB.  if purge is true then we send items
@@ -229,8 +234,24 @@ class Carp {
   /* called at the end of RTP round to update our pivots */
   void UpdateBinsFromPivots(Pivots* pivots);
 
- private:
+  /* only used by range_utils test */
+  void UpdateFromArrays(size_t nbins, const float* bins,
+                        const uint64_t* weights) {
+    bins_.UpdateFromArrays(nbins, bins, weights);
+  }
 
+  int SearchBins(float val, size_t& ret_bidx, bool force) {
+    return bins_.SearchBins(val, ret_bidx, force);
+  }
+
+  /* allow RTP (and tests) to access our lock through these APIs */
+  void Lock() { mutex_.Lock(); }
+  void Unlock() { mutex_.Unlock(); }
+  void AssertLockHeld() { mutex_.AssertHeld(); }
+  void CVWait() { cv_.Wait(); }
+  void CVSignal() { cv_.Signal(); }
+
+ private:
   /*
    * attempt to assign p to a shuffle target.   if p is out of
    * bounds and purge is true (e.g. during an epoch flush), we
@@ -265,15 +286,11 @@ class Carp {
   void PerflogPivots(Pivots &pivots);
   void PerflogVPrintf(const char* fmt, va_list ap);
 
- private:
+  /* private Carp data members */
+
   /* these values do not change after ctor */
   const CarpOptions& options_;   /* ref to config options from ctor */
   struct timespec start_time_;   /* time carp object was created */
-
-  /* protected by mutex_ */
-  MainThreadStateMgr mts_mgr_;   /* to block shuffle write during reneg */
-  uint64_t backend_wr_bytes_;    /* total #bytes written to backend */
-  int epoch_;                    /* current epoch#, update w/AdvanceEpoch() */
 
   struct perflog_state {
     /*
@@ -286,20 +303,16 @@ class Carp {
     pthread_t thread;             /* profiling thread making periodic output */
   } perflog_;
 
-  RTP rtp_;
-
- public:
-  /* XXX: temporary, refactor RTP as friend classes */
-  port::Mutex mutex_;             /* protects fields in Carp class */
+  port::Mutex mutex_;             /* Carp lock: protects remaining members */
   port::CondVar cv_;              /* tied to mutex_ (above). RTP InitRound */
                                   /* uses cv_ to wait for MT_READY state */
-
-  /* protected by mutex_ */
-  OrderedBins bins_;
+  MainThreadStateMgr mts_mgr_;    /* to block shuffle write during reneg */
+  uint64_t backend_wr_bytes_;     /* total #bytes written to backend */
+  int epoch_;                     /* current epoch#, update w/AdvanceEpoch() */
+  RTP rtp_;                       /* RTP protocol state */
+  OrderedBins bins_;              /* our current bins (defines bounds) */
   OobBuffer oob_buffer_;          /* out of bounds data */
-
- private:
-  InvocationPolicy* policy_;
+  InvocationPolicy* policy_;      /* our policy */
 };
 }  // namespace carp
 }  // namespace pdlfs

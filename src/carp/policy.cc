@@ -25,7 +25,7 @@ bool InvocationPolicy::FirstRenegCompleted() {
 
 void InvocationPolicy::Reset() { carp_.Reset(); }
 
-bool InvocationPolicy::IsOobFull() { return carp_.oob_buffer_.IsFull(); }
+bool InvocationPolicy::IsOobFull() { return carp_.IsOobFull(); }
 
 InvocationIntraEpoch::InvocationIntraEpoch(Carp& carp,
                                            const CarpOptions& options)
@@ -41,7 +41,7 @@ bool InvocationIntraEpoch::TriggerReneg() {
 int InvocationIntraEpoch::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
     size_t bidx;
     int rv;
-    rv = carp_.bins_.SearchBins(p.indexed_prop, bidx, false);
+    rv = carp_.SearchBins(p.indexed_prop, bidx, false);
     rank = bidx;
     return(rv);
 }
@@ -62,7 +62,7 @@ int InvocationInterEpoch::ComputeShuffleTarget(particle_mem_t& p, int& rank) {
   bool force = reneg_triggered_;
   size_t bidx;
   int rv;
-  rv = carp_.bins_.SearchBins(p.indexed_prop, bidx, force);
+  rv = carp_.SearchBins(p.indexed_prop, bidx, force);
   rank = bidx;
   return(rv);
 }

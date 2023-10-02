@@ -95,7 +95,7 @@ RTP::RTP(Carp* carp, const CarpOptions& opts)
 Status RTP::InitRound() {
   Status s = Status::OK();
 
-  carp_->mutex_.AssertHeld();
+  carp_->AssertLockHeld();
   mutex_.Lock();
 
   if (state_.GetState() == RenegState::READY) {
@@ -107,7 +107,7 @@ Status RTP::InitRound() {
   mutex_.Unlock();
 
   while (carp_->GetCurState() != MainThreadState::MT_READY) {
-    carp_->cv_.Wait();
+    carp_->CVWait();
   }
 
   reneg_bench_.MarkFinished();
@@ -270,7 +270,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
 
   bool activated_now = false;
 
-  carp_->mutex_.Lock();
+  carp_->Lock();
   mutex_.Lock();
 
   if (msg_round_num < round_num_) {
@@ -296,7 +296,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
   }
 
   mutex_.Unlock();
-  carp_->mutex_.Unlock();
+  carp_->Unlock();
 
   if (activated_now) {
     /* Can reuse the same RTP_BEGIN buf. src_rank is anyway sent separately
@@ -309,7 +309,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
     /* send pivots to s1root now */
     const int stage_idx = 1;
 
-    carp_->mutex_.Lock();
+    carp_->Lock();
 
     int pvtcnt = pvtcnt_[stage_idx];
 
@@ -327,7 +327,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
                                            initial_pivots.PivotWeight(),
                                            initial_pivots.Size());
 
-    carp_->mutex_.Unlock();
+    carp_->Unlock();
 
     flog(LOG_DBG2, "pvt_calc_local @ R%d: bufsz: %d, bufhash: %u", pctx.my_rank,
          pvt_buf_len, ::hash_str(pvt_buf, pvt_buf_len));
@@ -508,7 +508,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
   /* If next round has already started, replay its messages from buffers.
    * If not, mark self as READY, and wake up Main Thread
    */
-  carp_->mutex_.Lock();
+  carp_->Lock();
   mutex_.Lock();
 
   carp_->LogReneg(round_num_);
@@ -540,10 +540,10 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   if (!replay_rtp_begin_flag) {
     /* Since no round to replay, wake up Main Thread */
-    carp_->cv_.Signal();
+    carp_->CVSignal();
   }
 
-  carp_->mutex_.Unlock();
+  carp_->Unlock();
 
   if (replay_rtp_begin_flag) {
     /* Not supposed to access without lock, but logging statement so ok */

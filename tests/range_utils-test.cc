@@ -38,31 +38,31 @@ class RangeUtilsTest {
 
     carp = new carp::Carp(ro);
 
-    carp->mutex_.Lock();
+    carp->Lock();
     carp->UpdateState(MainThreadState::MT_BLOCK);
-    carp->mutex_.Unlock();
+    carp->Unlock();
   }
 
   void AdvancePastInit() {
-    carp->mutex_.Lock();
+    carp->Lock();
     carp->UpdateState(MainThreadState::MT_READY);
     carp->UpdateState(MainThreadState::MT_BLOCK);
-    carp->mutex_.Unlock();
+    carp->Unlock();
   }
 
   void LoadData(const float* oob_data, const int oob_data_sz) {
-    carp->oob_buffer_.Reset();
+    carp->OobReset();
 
     for (int i = 0; i < oob_data_sz; i++) {
       carp::particle_mem_t p;
       p.indexed_prop = oob_data[i];
-      carp->oob_buffer_.Insert(p);
+      carp->OobInsert(p);
     }
   }
 
   void LoadData(const int num_ranks, const uint64_t* rank_bin_counts,
                 const float* rank_bins) {
-    carp->bins_.UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
+    carp->UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
   }
 
   void AssertStrictMonotonicity(Pivots& pivots) {
@@ -94,14 +94,14 @@ TEST(RangeUtilsTest, PivotCalc) {
     float rand_val = rand() * 1.0f / RAND_MAX;
     carp::particle_mem_t p;
     p.indexed_prop = rand_val;
-    carp->oob_buffer_.Insert(p);
+    carp->OobInsert(p);
   }
 
   unsigned int num_pivots = 8;
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -123,14 +123,14 @@ TEST(RangeUtilsTest, PivotCalc2) {
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     carp::particle_mem_t p;
     p.indexed_prop = data[oob_idx];
-    carp->oob_buffer_.Insert(p);
+    carp->OobInsert(p);
   }
 
   unsigned int num_pivots = 8;
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
 
@@ -164,9 +164,9 @@ TEST(RangeUtilsTest, PivotCalc3) {
 
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, rank_bin_counts, rank_bins);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -178,9 +178,9 @@ TEST(RangeUtilsTest, PivotCalc4) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -192,9 +192,9 @@ TEST(RangeUtilsTest, PivotCalc5) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -206,9 +206,9 @@ TEST(RangeUtilsTest, PivotCalc6) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -218,9 +218,9 @@ TEST(RangeUtilsTest, PivotCalc7) {
 #include "pivot_calc_7_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -232,9 +232,9 @@ TEST(RangeUtilsTest, PivotCalc8) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -251,9 +251,9 @@ TEST(RangeUtilsTest, PivotCalc9) {
   LoadData(oob_data, oob_data_sz);
   LoadData(num_ranks, range_min, range_max, rank_bin_counts, rank_bins);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
 }
@@ -267,9 +267,9 @@ TEST(RangeUtilsTest, PivotCalc10) {
 #include "pivot_calc_10_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
@@ -279,9 +279,9 @@ TEST(RangeUtilsTest, PivotCalc11) {
 #include "pivot_calc_11_data.cc"  // NOLINT(bugprone-suspicious-include)
   LoadData(oob_data, oob_data_sz);
   Pivots pivots(num_pivots);
-  carp->mutex_.Lock();
+  carp->Lock();
   carp->CalculatePivots(pivots);
-  carp->mutex_.Unlock();
+  carp->Unlock();
 
   assert(pivots.Size() == num_pivots);
   AssertStrictMonotonicity(pivots);
