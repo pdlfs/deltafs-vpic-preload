@@ -13,6 +13,9 @@
 
 #include "range_constants.h"
 
+namespace pdlfs {
+namespace carp {
+
 enum MainThreadState {
   MT_INIT,
   MT_READY,
@@ -54,8 +57,6 @@ inline bool float_lte(float a, float b) {
   return a < b + CARP_FLOATCOMP_THOLD;
 }
 
-namespace pdlfs {
-namespace carp {
 template <typename T>
 std::string vec_to_str(const std::vector<T>& vec) {
   std::ostringstream vecstr;

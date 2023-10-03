@@ -4,6 +4,7 @@
 #include "rtp.h"
 
 namespace pdlfs {
+namespace carp {
 
 /*
  * return true if a is smaller - we prioritize smaller b_value
@@ -108,4 +109,5 @@ int PivotBuffer::LoadBounds(int stage, std::vector<bounds_t>& boundsv) {
 
   return 0;
 }
+}  // namespace carp
 }  // namespace pdlfs

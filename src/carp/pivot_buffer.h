@@ -7,6 +7,8 @@
 #include "carp/rtp_internal.h"
 #include "range_common.h"
 
+namespace pdlfs {
+namespace carp {
 
 /*
  * in RTP, parents in the reduction tree receive pivots from their
@@ -47,8 +49,6 @@
  * for each end.  a bin array of size "x" represents "x-1" ranges
  * and thus will produce "2*(x-1)" bounds.  Note that LoadBounds
  * can discard zero-width ranges (so those bounds won't be returned).
- *
- * XXX: move struct into carp namespace?
  */
 typedef struct bounds {
   int pbidx;         /* pivot buffer index associated with this bound */
@@ -57,7 +57,6 @@ typedef struct bounds {
   bool is_start;     /* true if b_value is a 'start' value, o.w. end */
 } bounds_t;
 
-namespace pdlfs {
 class PivotBuffer {
  private:
   PivotBuffer() {};   /* disallow ctor w/o num_pivots[] arg */
@@ -114,4 +113,5 @@ class PivotBuffer {
   //
   int ClearAllData();
 };
+}  // namespace carp
 }  // namespace pdlfs

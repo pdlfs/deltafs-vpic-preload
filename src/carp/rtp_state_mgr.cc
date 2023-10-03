@@ -7,6 +7,7 @@
 #include "carp/rtp.h"
 
 namespace pdlfs {
+namespace carp {
 
 RtpStateMgr::RtpStateMgr()
     : current_state_{INIT},
@@ -57,4 +58,6 @@ void RtpStateMgr::MarkNextRoundStart(int round_num) {
 }
 
 bool RtpStateMgr::GetNextRoundStart() { return this->next_round_started_; }
+
+}  // namespace carp
 }  // namespace pdlfs

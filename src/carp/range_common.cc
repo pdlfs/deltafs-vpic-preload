@@ -8,6 +8,9 @@
 #include "common.h"
 #include "preload_internal.h"
 
+namespace pdlfs {
+namespace carp {
+
 /* local functions */
 
 MainThreadStateMgr::MainThreadStateMgr()
@@ -60,3 +63,5 @@ bool MainThreadStateMgr::FirstBlock() const {
   return first_block_;
 }
 
+}  // namespace carp
+}  // namespace pdlfs

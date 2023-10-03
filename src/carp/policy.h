@@ -13,6 +13,7 @@
 
 namespace pdlfs {
 namespace carp {
+
 class Carp;
 class CarpOptions;
 class InvocationPolicy {

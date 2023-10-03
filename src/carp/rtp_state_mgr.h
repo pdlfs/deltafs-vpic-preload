@@ -1,6 +1,8 @@
 #pragma once
 
 namespace pdlfs {
+namespace carp {
+
 enum RenegState {
   /* Bootstrapping state, no RTP messages can be gracefully handled in this
    * state, will move to READY once bootstrapping is complete
@@ -28,4 +30,5 @@ class RtpStateMgr {
   void MarkNextRoundStart(int round_num);
   bool GetNextRoundStart();
 };
+} // namespace carp
 } // namespace pdlfs
