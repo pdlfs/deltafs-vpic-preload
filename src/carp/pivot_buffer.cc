@@ -16,11 +16,11 @@ static bool bounds_lt(const bounds_t& a, const bounds_t& b) {
          ((a.b_value == b.b_value) && (!a.is_start && b.is_start));
 }
 
-PivotBuffer::PivotBuffer(const int num_pivots[STAGES_MAX + 1]) {
+PivotBuffer::PivotBuffer(const int pivot_counts[STAGES_MAX + 1]) {
   memset(pbuf_count_, 0, sizeof(pbuf_count_));
 
   for (int stage = 1; stage <= STAGES_MAX; stage++) {
-    this->num_pivots_[stage] = num_pivots[stage];
+    this->pivot_counts_[stage] = pivot_counts[stage];
   }
 
   this->cur_round_ = 0;
@@ -41,8 +41,8 @@ int PivotBuffer::StoreData(int stage, const double* pivot_data, int dlen,
     return -2;
   }
 
-  if (dlen != num_pivots_[stage]) {
-    flog(LOG_ERRO, "[PivotBuffer] Expected %d, got %d", num_pivots_[stage],
+  if (dlen != pivot_counts_[stage]) {
+    flog(LOG_ERRO, "[PivotBuffer] Expected %d, got %d", pivot_counts_[stage],
          dlen);
     return -3;
   }
@@ -88,7 +88,7 @@ int PivotBuffer::LoadBounds(int stage, std::vector<bounds_t>& boundsv) {
   int round = this->cur_round_;
 
   int num_pbufs = pbuf_count_[round][stage];    /* #pivot bufs received */
-  int pivot_count = num_pivots_[stage];         /* length of bins array */
+  int pivot_count = pivot_counts_[stage];       /* length of bins array */
 
   for (int pbidx = 0; pbidx < num_pbufs; pbidx++) {
     double bin_weight = pivot_weights_[round][stage][pbidx];

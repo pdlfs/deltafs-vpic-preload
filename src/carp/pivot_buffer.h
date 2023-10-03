@@ -59,7 +59,7 @@ typedef struct bounds {
 
 class PivotBuffer {
  private:
-  PivotBuffer() {};   /* disallow ctor w/o num_pivots[] arg */
+  PivotBuffer() {};   /* disallow ctor w/o pivot_counts[] arg */
   /* This simple storage format has 2*512KB of theoretical
    * footprint. (2* 4 * 128 * 256 * 4B). But no overhead will
    * be incurred for ranks that aren't actually using those
@@ -69,19 +69,19 @@ class PivotBuffer {
   double pivot_weights_[2][STAGES_MAX + 1][FANOUT_MAX];
   int pbuf_count_[2][STAGES_MAX + 1];  /* how many currently buffered */
 
-  int num_pivots_[STAGES_MAX + 1];     /* expected pivot count for a stage */
+  int pivot_counts_[STAGES_MAX + 1];   /* expected pivot count for a stage */
   int cur_round_;                      /* ptr to current round (vs next) */
 
  public:
   //
   // PivotBuffer constructor
-  // num_pivots contains the expected pivot count for each stage
+  // pivot_counts contains the expected pivot count for each stage
   // (configured at init time).
   //
-  PivotBuffer(const int num_pivots[STAGES_MAX + 1]);
+  PivotBuffer(const int pivot_counts[STAGES_MAX + 1]);
 
   /* accessor functions */
-  int PivotCount(int stage) { return num_pivots_[stage]; }
+  int PivotCount(int stage) { return pivot_counts_[stage]; }
 
   //
   // StoreData: Store pivots for the given round and stage.

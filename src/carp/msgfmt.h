@@ -28,13 +28,13 @@ void msgfmt_decode_rtp_begin(void* buf, size_t buf_sz, int* rank,
                              int* round_num);
 
 /**
- * @brief buffer space needed for num_pivots_
+ * @brief buffer space needed for given pivot count
  *
- * @param num_pivots
+ * @param pivot_count
  *
  * @return
  */
-size_t msgfmt_bufsize_rtp_pivots(int num_pivots);
+size_t msgfmt_bufsize_rtp_pivots(int pivot_count);
 
 /**
  * @brief
@@ -46,16 +46,16 @@ size_t msgfmt_bufsize_rtp_pivots(int num_pivots);
  * @param sender_id
  * @param pivots
  * @param pivot_weight
- * @param num_pivots
+ * @param pivot_count
  *
  * @return
  */
 int msgfmt_encode_rtp_pivots(void* buf, size_t buf_sz, int round_num,
                              int stage_num, int sender_id, double* pivots,
-                             double pivot_weight, int num_pivots);
+                             double pivot_weight, int pivot_count);
 
 void msgfmt_decode_rtp_pivots(void* buf, size_t buf_sz, int* round_num,
                               int* stage_num, int* sender_id, double** pivots,
-                              double* pivot_weight, int* num_pivots);
+                              double* pivot_weight, int* pivot_count);
 }  // namespace carp
 }  // namespace pdlfs

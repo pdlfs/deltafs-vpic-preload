@@ -345,7 +345,7 @@ Status RTP::HandleBegin(void* buf, unsigned int bufsz, int src) {
 Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
   Status s = Status::OK();
 
-  int msg_round_num, stage_num, sender_id, num_pivots;
+  int msg_round_num, stage_num, sender_id, pivot_count;
   double pivot_weight;
   double* pivots;
 
@@ -353,19 +353,19 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
        ::hash_str((char*)buf, bufsz));
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &msg_round_num, &stage_num, &sender_id,
-                           &pivots, &pivot_weight, &num_pivots);
+                           &pivots, &pivot_weight, &pivot_count);
   /* stage_num refers to the stage the pivots were generated at.
    * merged_pvtcnt must correspond to the next stage
    */
   int merged_pvtcnt =
       (stage_num >= 3) ? (num_ranks_ + 1) : pvtcnt_[stage_num + 1];
 
-  assert(num_pivots <= CARP_MAXPIVOTS);
+  assert(pivot_count <= CARP_MAXPIVOTS);
 
   flog(LOG_DBUG, "rtp_handle_reneg_pivot: S%d %d pivots from %d", stage_num,
-       num_pivots, sender_id);
+       pivot_count, sender_id);
 
-  if (num_pivots >= 4) {
+  if (pivot_count >= 4) {
     flog(LOG_DBG2, "rtp_handle_reneg_pivot: %.2f %.2f %.2f %.2f ...", pivots[0],
          pivots[1], pivots[2], pivots[3]);
   }
@@ -379,7 +379,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
 
   if (msg_round_num != round_num_) {
     stage_pivot_count = pivot_buffer_.StoreData(
-        stage_num, pivots, num_pivots, pivot_weight, /* isnextround */ true);
+        stage_num, pivots, pivot_count, pivot_weight, /* isnextround */ true);
 
     /* If we're receiving a pivot for a future round, we can never have
      * received all pivots for a future round, as we also expect one pivot
@@ -392,7 +392,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
     assert(!EXPECTED_ITEMS_FOR_STAGE(stage_num, stage_pivot_count));
   } else {
     stage_pivot_count = pivot_buffer_.StoreData(
-        stage_num, pivots, num_pivots, pivot_weight, /*isnextround */ false);
+        stage_num, pivots, pivot_count, pivot_weight, /*isnextround */ false);
   }
   mutex_.Unlock();
 
@@ -446,7 +446,7 @@ Status RTP::HandlePivots(void* buf, unsigned int bufsz, int src) {
 
       reneg_bench_.MarkPvtBcast();
 
-      /* XXX: num_pivots_ = comm_sz, 2048B IS NOT SUFFICIENT */
+      /* XXX: pivot_count = comm_sz, 2048B IS NOT SUFFICIENT */
       int next_buf_len = msgfmt_encode_rtp_pivots(
           next_buf, next_buf_sz, msg_round_num, stage_num + 1, my_rank_,
           merged_pivots, merged_weight, merged_pvtcnt);
@@ -484,12 +484,12 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   int round_num, stage_num, sender_id, nbuf_pivots;
   double *buf_pivots, weight;
-  int num_pivots = num_ranks_ + 1;
-  Pivots pivots_aggr(num_pivots);
+  int pivot_count = num_ranks_ + 1;
+  Pivots pivots_aggr(pivot_count);
 
   msgfmt_decode_rtp_pivots(buf, bufsz, &round_num, &stage_num, &sender_id,
                            &buf_pivots, &weight, &nbuf_pivots);
-  assert(nbuf_pivots == num_pivots);
+  assert(nbuf_pivots == pivot_count);
   pivots_aggr.LoadPivots(buf_pivots, nbuf_pivots, weight);
 
   flog(LOG_DBUG, "rtp_handle_pivot_bcast: received pivots at %d from %d",
@@ -497,7 +497,7 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   if (my_rank_ == 0) {
 //    flog(LOG_DBUG, "rtp_handle_pivot_bcast: pivots @ %d: %s (%.1f)", my_rank_,
-//         darr2str(pivots, num_pivots).c_str(), pivot_weight);
+//         darr2str(pivots, pivot_count).c_str(), pivot_weight);
 
     flog(LOG_INFO, "-- carp round %d completed at rank 0 --", round_num_);
   }
@@ -513,9 +513,9 @@ Status RTP::HandlePivotBroadcast(void* buf, unsigned int bufsz, int src) {
 
   carp_->LogReneg(round_num_);
 
-  flog(LOG_DBG2, "Broadcast pivot count: %d, expected %d", num_pivots,
+  flog(LOG_DBG2, "Broadcast pivot count: %d, expected %d", pivot_count,
        num_ranks_ + 1);
-  assert(num_pivots == num_ranks_ + 1);
+  assert(pivot_count == num_ranks_ + 1);
 
   carp_->UpdateBinsFromPivots(&pivots_aggr);
 

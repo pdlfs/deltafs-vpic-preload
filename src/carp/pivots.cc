@@ -21,8 +21,8 @@ void Pivots::AssertMonotonicity() {
     return;
   }
 
-  int num_pivots = pivots_.size();
-  for (int pidx = 0; pidx < num_pivots - 1; pidx++) {
+  int pivot_count = pivots_.size();
+  for (int pidx = 0; pidx < pivot_count - 1; pidx++) {
     assert(pivots_[pidx] <= pivots_[pidx + 1]);
   }
 }
