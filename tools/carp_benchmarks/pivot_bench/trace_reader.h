@@ -18,10 +18,6 @@ class TraceReader {
   // Copied from range_runner
   Status DiscoverEpochs(size_t& num_ep);
 
-  Status ReadRankIntoBins(size_t ep_idx, int rank, carp::OrderedBins& bins);
-
-  Status ReadAllRanksIntoBins(size_t ep_idx, carp::OrderedBins& bins);
-
   Status ReadEpoch(size_t ep_idx, int rank, std::string& data);
 
  private:

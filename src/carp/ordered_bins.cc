@@ -10,26 +10,6 @@
 namespace pdlfs {
 namespace carp {
 
-//
-// Searches for the bin corresponding to a value
-// Adds it there. Undefined behavior if val is out of bounds
-// XXX: forced still needed?
-// XXX: if not, maybe call SearchBins and IncrementBin directly?
-void OrderedBins::AddVal(float val, bool force) {
-  int rv;
-  size_t bidx;
-  assert(this->IsSet());
-  if (!force) assert(this->GetRange().Inside(val));
-
-  rv = this->SearchBins(val, bidx, force);
-  if (rv < 0)
-      ABORT("OrderedBins: bidx < 0");
-  if (rv > 0)
-      ABORT("OrderedBins: bidx >= Size()");
-
-  this->IncrementBin(bidx);
-}
-
 double OrderedBins::PrintNormStd() {
   uint64_t total_sz = this->GetTotalWeight();
   assert(this->Size());

@@ -97,9 +97,6 @@ class OrderedBins : public BinHistogram<float,uint64_t> {
 
   /* methods in ordered_bins.cc */
 
-  // search for bin and add (XXX: may not be needed anymore?)
-  void AddVal(float val, bool force);
-
   // Only used by test/tools programs
   double PrintNormStd();
 

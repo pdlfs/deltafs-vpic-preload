@@ -58,12 +58,19 @@ class Rank {
   }
 
   void ReadEpochIntoBins(int epoch, OrderedBins* bins) {
+    assert(bins && bins->IsSet());
     ReadEpoch(epoch);
     cur_ep_offset_ = 0;
 
     const float* items = reinterpret_cast<const float*>(data_.c_str());
     for (size_t item_idx = 0; item_idx < cur_ep_size_; item_idx++) {
-      bins->AddVal(items[item_idx], /* force */ true);
+      size_t bidx;
+      int rv = bins->SearchBins(items[item_idx], bidx, false);
+      if (rv < 0)
+        bidx = 0;                  /* put oob left in first bin */
+      else if (rv > 0)
+        bidx = bins->Size() - 1;   /* put oob right in last bin */
+      bins->IncrementBin(bidx);
     }
   }
 

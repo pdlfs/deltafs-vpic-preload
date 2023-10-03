@@ -35,33 +35,6 @@ Status TraceReader::DiscoverEpochs(size_t& num_ep) {
   return Status::OK();
 }
 
-Status TraceReader::ReadRankIntoBins(size_t ep_idx, int rank,
-                                     carp::OrderedBins& bins) {
-  Status s = Status::OK();
-  std::string data;
-  ReadEpoch(ep_idx, rank, data);
-
-  size_t valsz = data.size() / sizeof(float);
-  const float* vals = reinterpret_cast<const float*>(data.c_str());
-
-  for (size_t vi = 0; vi < valsz; vi++) {
-    bins.AddVal(vals[vi], /* force */ true);
-  }
-
-  return s;
-}
-
-Status TraceReader::ReadAllRanksIntoBins(size_t ep_idx,
-                                         carp::OrderedBins& bins) {
-  Status s = Status::OK();
-  for (int rank = 0; rank < nranks_; rank++) {
-    s = ReadRankIntoBins(ep_idx, rank, bins);
-    if (!s.ok()) return s;
-  }
-
-  return s;
-}
-
 Status TraceReader::ReadEpoch(size_t ep_idx, int rank, std::string& data) {
   Status s = Status::OK();
 
