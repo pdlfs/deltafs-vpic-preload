@@ -89,6 +89,7 @@ int PivotBuffer::LoadBounds(int stage, std::vector<bounds_t>& boundsv) {
 
   int num_pbufs = pbuf_count_[round][stage];    /* #pivot bufs received */
   int pivot_count = pivot_counts_[stage];       /* length of bins array */
+  boundsv.reserve(num_pbufs * (pivot_count - 1) * 2);  /* max possible size */
 
   for (int pbidx = 0; pbidx < num_pbufs; pbidx++) {
     double bin_weight = pivot_weights_[round][stage][pbidx];
