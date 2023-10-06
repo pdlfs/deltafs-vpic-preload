@@ -121,10 +121,15 @@ void* Carp::PerflogMain(void* arg) {
  * should be complete before you distruct the carp object).
  */
 void Carp::PerflogDestroy() {
+  perflog_.mtx.Lock();
   FILE* fp = perflog_.fp;
 
   if (fp) {
     perflog_.fp = NULL;                  /* tell worker to shutdown now */
+  }
+  perflog_.mtx.Unlock();
+
+  if (fp) {   /* if we signaled for shutdown */
     pthread_join(perflog_.thread, NULL); /* wait for shutdown to complete */
     fclose(fp);
   }
@@ -146,13 +151,15 @@ void Carp::PerflogReneg(int round_num) {
   for (int i = 0; i < rankcntsz; i++) {
     fprintf(perflog_.fp, "%" PRIu64 " ", bins_.Weight(i));
   }
-  fprintf(perflog_.fp, ": OOB (%zu)\n", this->OobSize());
+  fprintf(perflog_.fp, ": OOB (%zu)\n", oob_buffer_.Size());
 }
 
 /*
  * Carp::PerflogAggrBinCount: log bin count (a MPI collective call)
  */
 void Carp::PerflogAggrBinCount() {
+
+  mutex_.Lock();   /* while accessing bins_ */
   size_t rankcntaggrsz = bins_.Size();
   uint64_t send_buf[rankcntaggrsz], recv_buf[rankcntaggrsz];
 
@@ -160,6 +167,8 @@ void Carp::PerflogAggrBinCount() {
   for (size_t i = 0 ; i < rankcntaggrsz ; i++) {
     send_buf[i] = bins_.AggrCount(i);
   }
+  mutex_.Unlock();
+
   MPI_Reduce(send_buf, recv_buf, rankcntaggrsz, MPI_UNSIGNED_LONG_LONG, MPI_SUM,
              0, MPI_COMM_WORLD); /* XXX: snd directly from rank_counts_aggr_? */
   if (options_.my_rank != 0) return;

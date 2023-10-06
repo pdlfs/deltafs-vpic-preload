@@ -51,6 +51,7 @@ class RangeUtilsTest {
   }
 
   void LoadData(const float* oob_data, const int oob_data_sz) {
+    carp->Lock();
     carp->OobReset();
 
     for (int i = 0; i < oob_data_sz; i++) {
@@ -58,11 +59,14 @@ class RangeUtilsTest {
       p.indexed_prop = oob_data[i];
       carp->OobInsert(p);
     }
+    carp->Unlock();
   }
 
   void LoadData(const int num_ranks, const uint64_t* rank_bin_counts,
                 const float* rank_bins) {
+    carp->Lock();
     carp->UpdateFromArrays(num_ranks, rank_bins, rank_bin_counts);
+    carp->Unlock();
   }
 
   void AssertStrictMonotonicity(Pivots& pivots) {
@@ -90,6 +94,7 @@ TEST(RangeUtilsTest, PivotCalc) {
 
   int oob_count = CARP_DEF_OOBSZ;
 
+  carp->Lock();
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     float rand_val = rand() * 1.0f / RAND_MAX;
     carp::particle_mem_t p;
@@ -99,7 +104,6 @@ TEST(RangeUtilsTest, PivotCalc) {
 
   unsigned int num_pivots = 8;
   Pivots pivots(num_pivots);
-  carp->Lock();
   carp->CalculatePivots(pivots);
   carp->Unlock();
 
@@ -120,6 +124,7 @@ TEST(RangeUtilsTest, PivotCalc2) {
       0.397674, 1.044201, 2.427586
   };
 
+  carp->Lock();
   for (int oob_idx = 0; oob_idx < oob_count; oob_idx++) {
     carp::particle_mem_t p;
     p.indexed_prop = data[oob_idx];
@@ -128,7 +133,6 @@ TEST(RangeUtilsTest, PivotCalc2) {
 
   unsigned int num_pivots = 8;
   Pivots pivots(num_pivots);
-  carp->Lock();
   carp->CalculatePivots(pivots);
   carp->Unlock();
 

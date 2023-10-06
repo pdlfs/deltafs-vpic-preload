@@ -98,7 +98,7 @@ class Carp {
     this->PerflogDestroy();
   }
 
-  /* Not called directly - up to the invocation policy */
+  /* invocation policies can use this if desired (must be holding lock) */
   void Reset() {
     mutex_.AssertHeld();
     mts_mgr_.Reset();
@@ -106,20 +106,22 @@ class Carp {
     oob_buffer_.Reset();
   }
 
+  /* no locking constraints (does not access protected data) */
   Status Serialize(const char* fname, unsigned char fname_len, char* data,
                    unsigned char data_len, unsigned char extra_data_len,
                    particle_mem_t& p);
 
+  /* called from shuffle_write_range(), takes lock */
   Status AttemptBuffer(particle_mem_t& p, bool& shuffle, bool& flush);
 
   //
-  // Only for benchmarks, not for actual data runs
+  // Only for benchmarks, not for actual data runs.  takes lock.
   //
   Status ForceRenegotiation();
 
   //
-  // AdvanceEpoch is also called before the first epoch,
-  // so it can't be assumed that the first epoch is e0
+  // AdvanceEpoch is also called before the first epoch, so it can't
+  // be assumed that the first epoch is e0.  takes lock.
   //
   void AdvanceEpoch() {
     MutexLock ml(&mutex_);
@@ -129,26 +131,26 @@ class Carp {
     epoch_++;
   }
 
-  size_t OobSize() const { return oob_buffer_.Size(); }
+  /* called from AttemptBuffer/TriggerReneg functions (with lock held) */
   bool IsOobFull() { return oob_buffer_.IsFull(); }
 
-  // OobReset and OobInsert are exposed for testing carp
+  // OobReset and OobInsert are exposed for testing carp (called w/lock held)
   void OobReset() { oob_buffer_.Reset(); }
   void OobInsert(particle_mem_t& item) { oob_buffer_.Insert(item); }
 
   // flush OOB buffer.  if purge is false then we continue to buffer
   // items that are still OOB.  if purge is true then we send items
   // that are still OOB to one of the ranks on the end (i.e. OOB left
-  // to rank 0, OOB right to rank N-1).
+  // to rank 0, OOB right to rank N-1).   takes lock.
   void FlushOOB(bool purge, int epoch);
 
-  // is value out of bins_ bounds?
+  // is value out of bins_ bounds?  called from policy w/lock held
   bool OutOfBounds(float prop) {
     return !bins_.InRange(prop);
   }
 
   //
-  // Return currently negotiated range, held by oob_buffer
+  // ret current range.  called from UpdateBinsFromPivots w/lock held
   //
   Range GetInBoundsRange() { return bins_.GetRange(); }
 
@@ -167,11 +169,16 @@ class Carp {
     return mts_mgr_.FirstBlock();
   }
 
+  // called from 3hop priority handler.  takes lock.
   Status HandleMessage(void* buf, unsigned int bufsz, int src, uint32_t type) {
     return rtp_.HandleMessage(buf, bufsz, src, type);
   }
 
-  int NumRounds() const { return rtp_.NumRounds(); }
+  // only used by a diag flog during preload.cc MPI finalize...
+  int NumRounds() {
+    MutexLock ml(&mutex_);
+    return rtp_.NumRounds();
+  }
 
   /*
    * BackendWriteCounter is called from preload_write() to track
@@ -197,7 +204,7 @@ class Carp {
     if (PerflogOn()) PerflogReneg(round_num);
   }
 
-  /* collective call at shutdown from preload MPI_Finalize() wrapper */
+  /* MPI collective call @ preload MPI_Finalize() wrapper.  takes lock. */
   void LogAggrBinCount() {
     if (PerflogOn()) PerflogAggrBinCount();
   }
@@ -213,7 +220,7 @@ class Carp {
     if (PerflogOn()) PerflogPivots(pivots);
   }
 
-  /* called from HandleBegin and HandlePivots */
+  /* called from HandleBegin and HandlePivots, doesn't need carp lock */
   void LogPrintf(const char* fmt, ...) {
     if (PerflogOn()) {
       va_list ap;
@@ -223,7 +230,7 @@ class Carp {
     }
   }
 
-  /* pivots should already be sized to the desired pivot count */
+  /* pivots should already be sized to desired pivot count (call w/lock) */
   void CalculatePivots(Pivots& pivots) {
     mutex_.AssertHeld();
     assert(mts_mgr_.GetState() == MainThreadState::MT_BLOCK);
@@ -231,15 +238,17 @@ class Carp {
     pivots.Calculate(cco);
   }
 
-  /* called at the end of RTP round to update our pivots */
+  /* called at the end of RTP round to update our pivots (call w/lock) */
   void UpdateBinsFromPivots(Pivots* pivots);
 
-  /* only used by range_utils test */
+  /* only used by range_utils test (call w/lock) */
   void UpdateFromArrays(size_t nbins, const float* bins,
                         const uint64_t* weights) {
+    mutex_.AssertHeld();
     bins_.UpdateFromArrays(nbins, bins, weights);
   }
 
+  /* called from ComputeShuffleTarget/AssignShuffleTarget (call w/lock) */
   int SearchBins(float val, size_t& ret_bidx, bool force) {
     return bins_.SearchBins(val, ret_bidx, force);
   }
@@ -256,7 +265,7 @@ class Carp {
    * attempt to assign p to a shuffle target.   if p is out of
    * bounds and purge is true (e.g. during an epoch flush), we
    * force an assignment to the rank on the end (OOB left=>rank 0,
-   * OOB right=>rank N-1).
+   * OOB right=>rank N-1).  called w/lock by AttemptBuffer, FlushOOB.
    * returns 0 if assigned, -1 if OOB left, +1 if OOB right.
    */
   int AssignShuffleTarget(particle_mem_t& p, bool purge) {
