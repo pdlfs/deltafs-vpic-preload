@@ -107,8 +107,8 @@ class Carp {
   }
 
   /* no locking constraints (does not access protected data) */
-  Status Serialize(const char* fname, unsigned char fname_len, char* data,
-                   unsigned char data_len, unsigned char extra_data_len,
+  Status Serialize(const char* skey, unsigned char skey_len, char* svalue,
+                   unsigned char svalue_len, unsigned char extra_data_len,
                    particle_mem_t& p);
 
   /* called from shuffle_write_range(), takes lock */
