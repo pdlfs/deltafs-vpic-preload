@@ -28,7 +28,6 @@ class RangeUtilsTest {
     ro.rtp_pvtcnt[2] = CARP_DEF_PVTCNT;
     ro.rtp_pvtcnt[3] = CARP_DEF_PVTCNT;
     ro.oob_sz = CARP_DEF_OOBSZ;
-    ro.env = NULL;
     ro.sctx = &sh_ctx;
     ro.sctx->type = SHUFFLE_XN;
     ro.my_rank = 0;

@@ -120,8 +120,6 @@ struct CarpOptions* preload_init_carpopts(shuffle_ctx_t* sx) {
 
 #undef INIT_PVTCNT
 
-  opts->env = Env::Default();
-
   /* save shuffle context and configure priority callback */
   opts->sctx = sx;
   sx->priority_cb = carp_priority_callback;
@@ -143,9 +141,6 @@ void preload_mpiinit_carpopts(preload_ctx_t* pc, struct CarpOptions* copts,
                               const char* strippedpath) {
   copts->my_rank = pc->my_rank;
   copts->num_ranks = pc->comm_sz;
-  copts->mount_path = pc->local_root;
-  copts->mount_path += "/";
-  copts->mount_path += strippedpath;
   /* use pctx.nomon to control perflog for now */
   if (!pctx.nomon && pctx.log_home) {
     copts->enable_perflog = 1;

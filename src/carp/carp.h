@@ -52,14 +52,11 @@ struct CarpOptions {
                             /*   (RANGE_Reneg_interval) */
   int rtp_pvtcnt[4];        /* # of RTP pivots gen'd by each stage */
                             /* RANGE_Pvtcnt_s{1,2,3}; pvtcnt[0] not used */
-  Env* env;                 /* stat: for GetFileSize() in StatFiles() */
-                            /* normally set to Env::Default() */
   shuffle_ctx_t* sctx;      /* shuffle context */
   uint32_t my_rank;         /* my MPI rank */
   uint32_t num_ranks;       /* MPI world size */
   int enable_perflog;       /* non-zero to enable perflog */
   const char* log_home;     /* where to put perflog (if enabled) */
-  std::string mount_path;   /* mount_path (set from preload MPI_Init) */
 };
 
 class Carp {
