@@ -66,22 +66,6 @@ struct CarpOptions* preload_init_carpopts(shuffle_ctx_t* sx) {
   struct CarpOptions* opts = new pdlfs::carp::CarpOptions();
   const char* tmp;
 
-  tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_size");
-  if (tmp != NULL) {
-    opts->index_attr_size = atoi(tmp);
-    assert(opts->index_attr_size == sizeof(float)); /* XXX: allow double */
-  } else {
-    opts->index_attr_size = sizeof(float);
-  }
-
-  tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_offset");
-  if (tmp != NULL) {
-    opts->index_attr_offset = atoi(tmp);
-    assert(opts->index_attr_offset >= 0);
-  } else {
-    opts->index_attr_offset = 0;
-  }
-
   tmp = maybe_getenv("RANGE_Oob_size");
   if (tmp != NULL) {
     opts->oob_sz = atoi(tmp);

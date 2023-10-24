@@ -463,6 +463,24 @@ static void preload_init() {
   if (is_envset("PRELOAD_Enable_CARP")) {
     pctx.carp_on = 1;
     pctx.opts = pdlfs::carp::preload_init_carpopts(&pctx.sctx);
+
+    /* preload currently handles index extraction */
+    tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_size");
+    if (tmp != NULL) {
+      pctx.carpidx_sz = atoi(tmp);
+      /* currently we only support float index */
+      assert(pctx.carpidx_sz == sizeof(float));
+    } else {
+      pctx.carpidx_sz = sizeof(float);
+    }
+
+    tmp = maybe_getenv("PRELOAD_Particle_indexed_attr_offset");
+    if (tmp != NULL) {
+      pctx.carpidx_offset = atoi(tmp);
+      assert(pctx.carpidx_offset >= 0);
+    } else {
+      pctx.carpidx_offset = 0;    /* default to zero offset */
+    }
   }
 
   /*
@@ -516,7 +534,7 @@ static void preload_init() {
      *
      * so we need to resize the key/value sizes to match
      */
-    pctx.preload_inkey_size = pctx.opts->index_attr_size;
+    pctx.preload_inkey_size = pctx.carpidx_sz;
     pctx.preload_outkey_size = pctx.preload_inkey_size;
     pctx.preload_invalue_size += pctx.filename_size;
     pctx.preload_outvalue_size += pctx.filename_size;
@@ -742,7 +760,7 @@ static std::string gen_plfsdir_conf(int rank, int* io_engine, int* unordered,
   if (pctx.carp_on) {
     static char carp_key_size_str[32];  /* storing fixed value in static buf */
     snprintf(carp_key_size_str, sizeof(carp_key_size_str),
-             "%d", pctx.opts->index_attr_size);
+             "%d", pctx.carpidx_sz);
     dirc.key_size = carp_key_size_str;
   } else {
     dirc.key_size = maybe_getenv("PLFSDIR_Key_size");
@@ -2748,8 +2766,8 @@ int fclose(FILE* stream) {
      * for carp we extract the key from the filedata and create
      * the invalue by prepending the filename to the filedata.
      */
-    preload_inkey = ff->data() + pctx.opts->index_attr_offset;
-    inkey_size = pctx.opts->index_attr_size;
+    preload_inkey = ff->data() + pctx.carpidx_offset;
+    inkey_size = pctx.carpidx_sz;
     memcpy(vbuf, filename, filename_size);               /* filename */
     memcpy(vbuf+filename_size, ff->data(), ff->size());  /* append filedata */
     preload_invalue = vbuf;    /* use transformed info in vbuf as invalue */

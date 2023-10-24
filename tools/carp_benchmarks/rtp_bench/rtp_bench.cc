@@ -96,13 +96,15 @@ void RTPBench::InitParams() {
 
   pctx.carp_on = 1;
   pctx.opts = pdlfs::carp::preload_init_carpopts(&pctx.sctx);
+  pctx.carpidx_sz = sizeof(float);
+  pctx.carpidx_offset = 0;
 
   pctx.filename_size = 8;
   pctx.filedata_size = 48;
 
   pctx.preload_invalue_size = pctx.preload_outvalue_size = pctx.filedata_size;
 
-  pctx.preload_inkey_size = pctx.opts->index_attr_size;
+  pctx.preload_inkey_size = pctx.carpidx_sz;
   pctx.preload_outkey_size = pctx.preload_inkey_size;
   pctx.preload_invalue_size += pctx.filename_size;
   pctx.preload_outvalue_size += pctx.filename_size;

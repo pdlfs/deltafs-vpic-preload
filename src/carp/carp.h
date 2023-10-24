@@ -38,12 +38,6 @@ namespace carp {
  * InvocationIntraEpoch: trigger every reneg_intvl writes OR if OOB full.
  */
 struct CarpOptions {
-  int index_attr_size;      /* sizeof indexed attr, default=sizeof(float) */
-                            /* note: currenly only float is supported */
-                            /* (PRELOAD_Particle_indexed_attr_size) */
-  int index_attr_offset;    /* offset in particle buf of indexed attr */
-                            /* default: 0 */
-                            /* (PRELOAD_Particle_indexed_attr_offset) */
   uint32_t oob_sz;          /* max #particles in oob buf (RANGE_Oob_size) */
   const char* reneg_policy; /* InvocationIntraEpoch, */
                             /* InvocationInterEpoch (def) */

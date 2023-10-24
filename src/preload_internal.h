@@ -187,6 +187,9 @@ typedef struct preload_ctx {
   int carp_on; /* true if CARP enabled */
   pdlfs::carp::Carp* carp;
   pdlfs::carp::CarpOptions* opts;
+  /* preload code current handles extracting the range index for carp */
+  int carpidx_sz;              /* size of index to pass to carp (bytes) */
+  int carpidx_offset;          /* offset in data of index for carp */
 } preload_ctx_t;
 
 extern preload_ctx_t pctx;

@@ -21,8 +21,6 @@ class RangeUtilsTest {
   shuffle_ctx_t sh_ctx;
 
   RangeUtilsTest() {
-    ro.index_attr_size = sizeof(float);
-    ro.index_attr_offset = 0;   /* XXX */
     ro.reneg_policy = CARP_DEF_RENEGPOLICY;
     ro.rtp_pvtcnt[1] = CARP_DEF_PVTCNT;
     ro.rtp_pvtcnt[2] = CARP_DEF_PVTCNT;
