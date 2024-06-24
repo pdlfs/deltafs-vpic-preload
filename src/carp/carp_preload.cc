@@ -127,9 +127,8 @@ void preload_mpiinit_carpopts(preload_ctx_t* pc, struct CarpOptions* copts,
   copts->num_ranks = pc->comm_sz;
   /* use pctx.nomon to control perflog for now */
   if (!pctx.nomon && pctx.log_home) {
-    // XXXAJ 20240621: disable perflog regardless, because of deadlock
-    // copts->enable_perflog = 1;
-    // copts->log_home = pctx.log_home;
+    copts->enable_perflog = 1;
+    copts->log_home = pctx.log_home;
   }
 
   if (copts->my_rank == 0) {
