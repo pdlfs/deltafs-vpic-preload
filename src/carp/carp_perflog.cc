@@ -49,9 +49,11 @@ static float get_norm_std(uint64_t* arr, size_t sz) {
 }
 
 /*
- * Carp::PerflogStartup: init perflog (called from carp ctor)
+ * Carp::PerflogStartup: init perflog (called from carp ctor).
+ * take perflog_.mtx to be safe (not really needed when called by a ctor).
  */
 void Carp::PerflogStartup() {
+  MutexLock ml(&perflog_.mtx);
   std::string logfile;
   char rankstr[16];
   FILE* fp;
@@ -75,6 +77,7 @@ void Carp::PerflogStartup() {
   if (rv) {
     perflog_.fp = NULL;
     fprintf(fp, "PerflogStartup: failed to create pthread!\n");
+    fclose(fp);
     flog(LOG_ERRO, "PerflogStartup: failed to create pthread!");
     return;
   }
@@ -85,30 +88,32 @@ void Carp::PerflogStartup() {
  */
 void* Carp::PerflogMain(void* arg) {
   Carp* carp = static_cast<Carp*>(arg);
-  FILE* sfp = carp->perflog_.fp; /* safe local copy of fp, use for I/O */
-  uint64_t timestamp;
+  int done = 0, need_header = 1;
+  uint64_t timestamp, bewrbytes;
 
-  carp->perflog_.mtx.Lock();
-  if (carp->perflog_.fp) /* to be safe */
-    fprintf(sfp, "Timestamp (ms),Stat Type, Stat Value\n");
-
-  while (1) {
-    uint64_t bewrbytes;
-    if (carp->perflog_.fp == NULL) /* signals us to shutdown */
-      break;
-
+  while (!done) {
     timestamp = get_timestamp(&carp->start_time_);
     carp->mutex_.Lock();
     bewrbytes = carp->backend_wr_bytes_;
     carp->mutex_.Unlock();
-    fprintf(sfp, "%lu,LOGICAL_BYTES_WRITTEN,%lu\n", timestamp, bewrbytes);
 
-    carp->perflog_.mtx.Unlock(); /* drop lock during sleep */
-    usleep(1e6 / PERFLOG_CAPTURE_FREQ);
     carp->perflog_.mtx.Lock();
+    if (carp->perflog_.fp == NULL) {
+      done = 1;
+    } else {
+      if (need_header) {
+        fprintf(carp->perflog_.fp, "Timestamp (ms),Stat Type, Stat Value\n");
+        need_header = 0;
+      }
+      fprintf(carp->perflog_.fp, "%lu,LOGICAL_BYTES_WRITTEN,%lu\n",
+              timestamp, bewrbytes);
+    }
+    carp->perflog_.mtx.Unlock();
+
+    if (!done)
+      usleep(1e6 / PERFLOG_CAPTURE_FREQ);
   }
 
-  carp->perflog_.mtx.Unlock();
   if (carp->options_.my_rank == 0)
     flog(LOG_INFO, "perfstats_worker: done, shutting down");
 
@@ -136,7 +141,7 @@ void Carp::PerflogDestroy() {
 }
 
 /*
- * Carp::PerflogReneg: log a reneg operation
+ * Carp::PerflogReneg: log a reneg operation.  call with carp mutex_ held.
  */
 void Carp::PerflogReneg(int round_num) {
   uint64_t timestamp = get_timestamp(&start_time_);
@@ -155,11 +160,12 @@ void Carp::PerflogReneg(int round_num) {
 }
 
 /*
- * Carp::PerflogAggrBinCount: log bin count (a MPI collective call)
+ * Carp::PerflogAggrBinCount: log bin count (a MPI collective call).
+ * takes Carp mutex_.
  */
 void Carp::PerflogAggrBinCount() {
 
-  mutex_.Lock();   /* while accessing bins_ */
+  mutex_.Lock();   /* while copying data from bins_ to send_buf */
   size_t rankcntaggrsz = bins_.Size();
   uint64_t send_buf[rankcntaggrsz], recv_buf[rankcntaggrsz];
 
@@ -208,7 +214,7 @@ void Carp::PerflogMyPivots(Pivots* pivots, const char* lab) {
 }
 
 /*
- * Carp::PerflogPivots: logs pivots and rank_count_aggr_
+ * Carp::PerflogPivots: logs pivots and rank_count_aggr_ (call w/mutex_ held)
  */
 void Carp::PerflogPivots(Pivots &pivots) {
   uint64_t timestamp = get_timestamp(&start_time_);

@@ -187,7 +187,9 @@ class Carp {
   /*
    * Top-level Log*() perflog functions.  Centralizes checking
    * if perflog is on and if so, pass control to the corresponding
-   * Perflog*() function.
+   * Perflog*() function.  Note that only the carp dtor can turn
+   * off the perflog, so once it is on it will stay on for the
+   * lifetime of the Carp object.
    */
 
   /* called from HandlePivotBroadcast() w/caller holding mutex_ */
@@ -299,7 +301,7 @@ class Carp {
      * output.  the profiling thread exits when fp is set to null by dtor.
      */
     FILE *fp;                     /* open log: only updated by ctor/dtor */
-    port::Mutex mtx;              /* serialize threads writing to fp */
+    port::Mutex mtx;              /* protect/serialize access to perflog fp */
     pthread_t thread;             /* profiling thread making periodic output */
   } perflog_;
 
