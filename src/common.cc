@@ -592,12 +592,21 @@ int loge(const char* op, const char* path) {
   return 0;
 }
 
+/*
+ * msg_abort is called from preload_init(), so it should not use
+ * any functions that we preload (e.g. fwrite()).  note that gcc
+ * will convert simple printf/fputs into fwrite calls, so we avoid
+ * that by using one big fprintf() before calling abort().
+ */
 void msg_abort(int err, const char* msg, const char* func, const char* file,
                int line) {
-  fputs("*** ABORT *** ", stderr);
-  fprintf(stderr, "@@ %s:%d @@ %s] ", file, line, func);
-  fputs(msg, stderr);
-  if (err != 0) fprintf(stderr, ": %s (errno=%d)", strerror(err), err);
-  fputc('\n', stderr);
+  char ebuf[64];
+  if (err == 0) {
+    ebuf[0] = '\0';
+  } else {
+    snprintf(ebuf, sizeof(ebuf), ": %s (errno=%d)", strerror(err), err);
+  }
+  fprintf(stderr, "*** ABORT *** @@ %s:%d @@ %s] %s%s\n", file, line, func,
+          msg, ebuf);
   abort();
 }

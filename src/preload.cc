@@ -152,6 +152,10 @@ static void sigusr1(int foo) {
 /*
  * preload_init: called via init_once.   if this fails we are sunk, so
  * we'll abort the process....
+ *
+ * NOTE: we need to be careful not to call functions that we
+ * are preloading from preload_init() or we will deadlock trying
+ * to lock init_once when we are already holding the lock for it.
  */
 static void preload_init() {
   std::vector<std::pair<const char*, size_t> > paths;
